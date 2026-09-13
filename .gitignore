@@ -14,3 +14,4 @@ screenshots/
 .project_id
 dist/
 .DS_Store
+.neon

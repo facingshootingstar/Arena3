@@ -1,47 +1,18 @@
 import { Link, Navigate, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArenaMark } from "@/components/mark";
 import { Cover, HeroVideo, MediaCaption, media, sportPhoto } from "@/components/media";
 import { Button, Card, Seg } from "@/components/ui";
-import { getStoredUser, getToken, homeFor, apiGet } from "@/lib/arena3/client";
+import { getStoredUser, getToken, homeFor } from "@/lib/arena3/client";
+import { getPublicCatalog } from "@/lib/arena3/catalog";
 import { COACHES } from "@/lib/arena3/coaches";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 import { money } from "@/components/shell";
 
-export const Route = createFileRoute("/")({ component: Home });
-
-type Plan = {
-  id: string;
-  name: string;
-  sport_scope: string;
-  duration_days: number | null;
-  session_quota: number | null;
-  court_hours: number;
-  court_discount_pct: number;
-  price_vnd: number;
-};
-
-type Cl = {
-  id: string;
-  sport: string;
-  level: string;
-  capacity: number;
-  enrolled_count: number;
-  court_code: string;
-  coach_name: string;
-  rrule: string;
-  duration_min: number;
-};
-
-type Price = {
-  sport: string;
-  day_kind: string;
-  start_local: string;
-  end_local: string;
-  price_vnd: number;
-  is_peak: boolean;
-  court_id?: string | null;
-};
+export const Route = createFileRoute("/")({
+  loader: () => getPublicCatalog(),
+  component: Home,
+});
 
 function Home() {
   const t = getToken();
@@ -51,16 +22,8 @@ function Home() {
 }
 
 function Landing() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [classes, setClasses] = useState<Cl[]>([]);
-  const [prices, setPrices] = useState<Price[]>([]);
+  const { plans, classes, prices } = Route.useLoaderData();
   const [coachSport, setCoachSport] = useState("");
-
-  useEffect(() => {
-    void apiGet<{ items: Plan[] }>("/plans").then((r) => setPlans(r.items)).catch(() => {});
-    void apiGet<{ items: Cl[] }>("/classes").then((r) => setClasses(r.items)).catch(() => {});
-    void apiGet<{ items: Price[] }>("/price-rules").then((r) => setPrices(r.items)).catch(() => {});
-  }, []);
 
   const sports = [
     { id: "badminton", photo: media.badminton, courts: "8 sân CL-01…08", peak: "140.000đ" },

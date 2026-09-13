@@ -1,5 +1,5 @@
 import { withTx } from "./tx";
-import { ictDateString } from "./time";
+import { elapsedAtLeast, ictDateString } from "./time";
 import { flagOn } from "./flags";
 
 export async function expireHolds() {
@@ -187,6 +187,13 @@ export async function generateSessions() {
   return n;
 }
 
+export const GENERATE_SESSIONS_EVERY_MS = 10 * 60 * 1000;
+
+const g = globalThis as typeof globalThis & {
+  __arena3Jobs__?: boolean;
+  __arena3GenAt__?: number;
+};
+
 export async function runDueJobs() {
   try {
     await expireHolds();
@@ -195,16 +202,18 @@ export async function runDueJobs() {
     await notifyFlush();
     await waitlistExpire();
     await lockAttendance();
-    const hour = new Date().getUTCHours();
-    if (hour === 17) await subscriptionStatus();
-    if (hour === 1) await expiryReminders();
-    await generateSessions();
+    await subscriptionStatus();
+    await expiryReminders();
+    const now = Date.now();
+    if (elapsedAtLeast(g.__arena3GenAt__, now, GENERATE_SESSIONS_EVERY_MS)) {
+      g.__arena3GenAt__ = now;
+      await generateSessions();
+    }
   } catch (e) {
     console.error("[jobs]", e);
   }
 }
 
-const g = globalThis as typeof globalThis & { __arena3Jobs__?: boolean };
 export function startJobLoop() {
   if (g.__arena3Jobs__) return;
   g.__arena3Jobs__ = true;

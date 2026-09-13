@@ -179,6 +179,24 @@ export async function subscriptionDebt(sql: Sql, subId: string): Promise<number>
   return Number(row?.debt_vnd ?? 0);
 }
 
+/** Active sub covering `sport`. Unlimited (session_left null) wins over quota. */
+export async function classSubscription(
+  sql: Sql,
+  userId: string,
+  sport: string,
+): Promise<{ id: string; session_left: number | null } | undefined> {
+  return one<{ id: string; session_left: number | null }>(
+    sql,
+    `select id, session_left from subscriptions
+      where user_id = $1 and status = 'active'
+        and end_on >= (now() at time zone 'Asia/Ho_Chi_Minh')::date
+        and (sport_scope = $2 or sport_scope = 'all')
+      order by (session_left is null) desc, (sport_scope = $2) desc
+      limit 1`,
+    [userId, sport],
+  );
+}
+
 export async function userDebt(sql: Sql, userId: string): Promise<number> {
   const row = await one<{ debt: string | number }>(
     sql,

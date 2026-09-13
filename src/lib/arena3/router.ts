@@ -1,7 +1,7 @@
 import { getSql } from "@/lib/db";
 import { ApiError, err, handleError, json } from "./errors";
 import { withIdempotency } from "./helpers";
-import { startJobLoop, runDueJobs } from "./jobs";
+import { startJobLoop } from "./jobs";
 import { authFromRequest, optionalAuth, requireRole, staffRoles, type PublicUser } from "./session";
 import { withTx } from "./tx";
 import * as authH from "./handlers/auth";
@@ -23,7 +23,6 @@ function pathOf(request: Request): { method: string; parts: string[]; url: URL }
 
 async function dispatch(request: Request): Promise<Response | Result> {
   startJobLoop();
-  void runDueJobs();
   const { method, parts } = pathOf(request);
   const p0 = parts[0] ?? "";
   const p1 = parts[1] ?? "";

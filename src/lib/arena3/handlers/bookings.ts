@@ -13,7 +13,7 @@ import {
 import { isValidVnPhone, normalizePhone } from "../phone";
 import { applyDiscount, lookupPrice, memberDiscount } from "../pricing";
 import { requireRole, type PublicUser } from "../session";
-import { ictDateString, ictDateTime, pad2, roundVnd } from "../time";
+import { ictDateString, ictDateTime, ictHour, pad2, roundVnd } from "../time";
 import { one } from "../tx";
 
 async function courtById(sql: Sql, id: string) {
@@ -456,7 +456,7 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
   );
   await sql.query(
     `insert into invoice_lines (invoice_id, description, qty, unit_vnd, amount_vnd) values ($1,$2,1,$3,$3)`,
-    [inv!.id, `Khach vang lai ${court.court_code} ${pad2(start.getHours())}:00`, price],
+    [inv!.id, `Khach vang lai ${court.court_code} ${pad2(ictHour(start))}:00`, price],
   );
   await audit(sql, user.id, "walk_in", "booking", bookingId);
   const booking = await one(sql, `select * from court_bookings where id = $1`, [bookingId]);

@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { audit, enqueue, getSettings, num, readJson, str } from "../helpers";
+import { audit, classSubscription, enqueue, getSettings, num, readJson, str } from "../helpers";
 import { expandWeekly } from "../rrule";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString } from "../time";
@@ -216,15 +216,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   }>(sql, `select * from classes where id = $1`, [id]);
   if (!cl) throw err.notFound();
   if (cl.status !== "open") throw err.br("BR-67", "Lớp chưa mở.");
-  const sub = await one<{ sport_scope: string; session_left: number | null; status: string; end_on: string }>(
-    sql,
-    `select sport_scope, session_left, status, end_on::text from subscriptions
-      where user_id = $1 and status = 'active'
-        and end_on >= (now() at time zone 'Asia/Ho_Chi_Minh')::date
-        and (sport_scope = $2 or sport_scope = 'all')
-      limit 1`,
-    [userId, cl.sport],
-  );
+  const sub = await classSubscription(sql, userId, cl.sport);
   if (!sub) throw err.br("BR-12", "Cần gói active đúng môn.");
   if (sub.session_left != null && sub.session_left <= 0) throw err.br("BR-18", "Hết buổi.");
   const overlap = await one(
@@ -254,8 +246,8 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
     if (sub.session_left != null) {
       await sql.query(
         `update subscriptions set session_left = session_left - 1
-          where user_id = $1 and status = 'active' and session_left > 0`,
-        [userId],
+          where id = $1 and session_left > 0`,
+        [sub.id],
       );
     }
     const enr = await one(sql, `select * from enrollments where id = $1`, [row!.enrollment_confirm]);
@@ -314,24 +306,30 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     `update classes set enrolled_count = greatest(enrolled_count - 1, 0) where id = $1`,
     [enr.class_id],
   );
+  const cl = await one<{ sport: string }>(sql, `select sport from classes where id = $1`, [enr.class_id]);
+  if (cl) {
+    const sub = await classSubscription(sql, enr.user_id, cl.sport);
+    if (sub?.session_left != null) {
+      await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [sub.id]);
+    }
+  }
   await inviteWaitlist(sql, enr.class_id);
   return { status: 200, body: { ok: true } };
 }
 
 export async function coachSchedule(sql: Sql, user: PublicUser) {
   requireRole(user, ["coach", "manager"]);
-  const coachId = user.role === "coach" ? user.id : user.id;
   const items = await sql.query(
     `select s.id, s.start_at, s.end_at, s.status, cl.level, cl.sport, cl.id as class_id,
             cl.capacity, cl.enrolled_count, c.court_code
        from sessions s
        join classes cl on cl.id = s.class_id
        join courts c on c.id = s.court_id
-      where (cl.coach_id = $1 or cl.assistant_id = $1)
+      where ($2::boolean or cl.coach_id = $1 or cl.assistant_id = $1)
         and s.start_at > now() - interval '1 day'
       order by s.start_at
       limit 80`,
-    [coachId],
+    [user.id, user.role === "manager"],
   );
   return { status: 200, body: { items } };
 }

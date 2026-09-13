@@ -1,5 +1,5 @@
 import type { Sql } from "@/lib/db";
-import { ictHour, isWeekendIct, roundVnd } from "./time";
+import { ictMinutes, isWeekendIct, roundVnd } from "./time";
 import { one } from "./tx";
 
 export type PriceRule = {
@@ -20,7 +20,7 @@ export async function lookupPrice(
   opts: { sport: string; courtId: string; start: Date },
 ): Promise<{ price_vnd: number; is_peak: boolean }> {
   const dayKind = isWeekendIct(opts.start) ? "weekend" : "weekday";
-  const minutes = ictHour(opts.start) * 60;
+  const minutes = ictMinutes(opts.start);
   const rules = await sql.query<PriceRule>(
     `select id, sport, court_id, day_kind, start_local::text, end_local::text,
             price_vnd, is_peak, start_min, end_min

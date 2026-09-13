@@ -20,12 +20,20 @@ export function ictDateString(d: Date = new Date()): string {
 }
 
 export function ictHour(d: Date): number {
+  return Math.floor(ictMinutes(d) / 60);
+}
+
+/** Minutes since midnight in ICT (0–1439). */
+export function ictMinutes(d: Date): number {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: ICT,
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
   }).formatToParts(d);
-  return Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return hour * 60 + minute;
 }
 
 export function ictWeekday(d: Date): number {
@@ -61,4 +69,8 @@ export function slotHours(): number[] {
 
 export function pad2(n: number): string {
   return n.toString().padStart(2, "0");
+}
+
+export function elapsedAtLeast(lastAt: number | undefined, now: number, everyMs: number) {
+  return lastAt == null || now - lastAt >= everyMs;
 }
