@@ -1,0 +1,290 @@
+import { getSql } from "@/lib/db";
+import { ApiError, err, handleError, json } from "./errors";
+import { withIdempotency } from "./helpers";
+import { startJobLoop, runDueJobs } from "./jobs";
+import { authFromRequest, optionalAuth, requireRole, staffRoles, type PublicUser } from "./session";
+import { withTx } from "./tx";
+import * as authH from "./handlers/auth";
+import * as memberH from "./handlers/members";
+import * as planH from "./handlers/plans";
+import * as bookH from "./handlers/bookings";
+import * as classH from "./handlers/classes";
+import * as deskH from "./handlers/desk";
+import * as opsH from "./handlers/ops";
+
+type Result = { status: number; body: unknown };
+
+function pathOf(request: Request): { method: string; parts: string[]; url: URL } {
+  const url = new URL(request.url);
+  const raw = url.pathname.replace(/^\/v1\/?/, "").replace(/\/+$/, "");
+  const parts = raw ? raw.split("/") : [];
+  return { method: request.method.toUpperCase(), parts, url };
+}
+
+async function dispatch(request: Request): Promise<Response | Result> {
+  startJobLoop();
+  void runDueJobs();
+  const { method, parts } = pathOf(request);
+  const p0 = parts[0] ?? "";
+  const p1 = parts[1] ?? "";
+  const p2 = parts[2] ?? "";
+
+  const idem = (userId: string | null, fn: () => Promise<Result>) =>
+    withTx(async (sql) => {
+      const r = await withIdempotency(sql, request, userId, true, fn);
+      return r;
+    });
+
+  // Public auth
+  if (method === "POST" && p0 === "auth" && p1 === "register") {
+    return withTx((sql) => authH.register(sql, request));
+  }
+  if (method === "POST" && p0 === "auth" && p1 === "otp" && p2 === "verify") {
+    return withTx((sql) => authH.verifyOtp(sql, request));
+  }
+  if (method === "POST" && p0 === "auth" && p1 === "login") {
+    return withTx((sql) => authH.login(sql, request));
+  }
+  if (method === "POST" && p0 === "auth" && p1 === "password" && p2 === "forgot") {
+    return withTx((sql) => authH.forgot(sql, request));
+  }
+
+  if (method === "GET" && p0 === "plans" && !p1) {
+    const sql = await getSql();
+    const user = await optionalAuth(sql, request);
+    return planH.plansList(sql, user);
+  }
+  if (method === "GET" && p0 === "courts" && !p1) {
+    const sql = await getSql();
+    return bookH.courtsList(sql);
+  }
+  if (method === "GET" && p0 === "classes" && !p1) {
+    const sql = await getSql();
+    const user = await optionalAuth(sql, request);
+    return classH.classesList(sql, request, user);
+  }
+  if (method === "GET" && p0 === "price-rules" && !p1) {
+    const sql = await getSql();
+    return deskH.priceRulesGet(sql);
+  }
+
+  // Authenticated
+  const authed = async (fn: (sql: Awaited<ReturnType<typeof getSql>>, user: PublicUser) => Promise<Result | Response>) => {
+    return withTx(async (sql) => {
+      const user = await authFromRequest(sql, request);
+      return fn(sql, user);
+    });
+  };
+
+  if (method === "POST" && p0 === "auth" && p1 === "logout") {
+    return authed((sql, user) => authH.logout(sql, request, user));
+  }
+  if (method === "GET" && p0 === "me" && !p1) {
+    return authed((sql, user) => authH.meGet(sql, user));
+  }
+  if (method === "PATCH" && p0 === "me" && !p1) {
+    return authed((sql, user) => authH.mePatch(sql, request, user));
+  }
+  if (method === "GET" && p0 === "occupancy" && !p1) {
+    return authed((sql) => bookH.occupancyGet(sql, request));
+  }
+
+  if (method === "GET" && p0 === "members" && !p1) {
+    return authed((sql, user) => memberH.membersSearch(sql, request, user));
+  }
+  if (method === "POST" && p0 === "members" && !p1) {
+    return authed((sql, user) => memberH.membersCreate(sql, request, user));
+  }
+  if (method === "GET" && p0 === "members" && p1 && !p2) {
+    return authed((sql, user) => memberH.memberGet(sql, p1, user));
+  }
+
+  if (method === "POST" && p0 === "plans" && !p1) {
+    return authed((sql, user) => planH.plansCreate(sql, request, user));
+  }
+  if (method === "PATCH" && p0 === "plans" && p1 && !p2) {
+    return authed((sql, user) => planH.plansPatch(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "subscriptions" && !p1) {
+    return authed((sql, user) => planH.subscriptionsCreate(sql, request, user));
+  }
+
+  if (method === "POST" && p0 === "bookings" && !p1) {
+    return authed((sql, user) =>
+      withIdempotency(sql, request, user.id, true, () => bookH.bookingsHold(sql, request, user)),
+    );
+  }
+  if (method === "POST" && p0 === "bookings" && p1 && p2 === "confirm") {
+    return authed((sql, user) =>
+      withIdempotency(sql, request, user.id, true, () => bookH.bookingsConfirm(sql, p1, request, user)),
+    );
+  }
+  if (method === "POST" && p0 === "bookings" && p1 && p2 === "cancel") {
+    return authed((sql, user) => bookH.bookingsCancel(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "bookings" && p1 && p2 === "check-in") {
+    return authed((sql, user) => bookH.bookingsCheckIn(sql, p1, user));
+  }
+  if (method === "GET" && p0 === "bookings" && p1 && !p2) {
+    return authed((sql, user) => bookH.bookingGet(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "walk-in") {
+    return authed((sql, user) =>
+      withIdempotency(sql, request, user.id, true, () => bookH.walkIn(sql, request, user)),
+    );
+  }
+
+  if (method === "POST" && p0 === "shifts" && p1 === "open") {
+    return authed((sql, user) => deskH.shiftOpen(sql, user));
+  }
+  if (method === "GET" && p0 === "shifts" && p1 === "current") {
+    return authed((sql, user) => deskH.shiftCurrent(sql, user));
+  }
+  if (method === "POST" && p0 === "shifts" && p1 && p2 === "close") {
+    return authed((sql, user) => deskH.shiftClose(sql, p1, request, user));
+  }
+
+  if (method === "POST" && p0 === "classes" && !p1) {
+    return authed((sql, user) => classH.classesCreate(sql, request, user));
+  }
+  if (method === "POST" && p0 === "classes" && p1 && p2 === "publish") {
+    return authed((sql, user) => classH.classesPublish(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "classes" && p1 && p2 === "enroll") {
+    return authed((sql, user) => classH.classesEnroll(sql, p1, request, user));
+  }
+  if (method === "GET" && p0 === "classes" && p1 && p2 === "roster") {
+    return authed((sql, user) => classH.classRoster(sql, p1, user));
+  }
+  if (method === "GET" && p0 === "coach" && p1 === "schedule") {
+    return authed((sql, user) => classH.coachSchedule(sql, user));
+  }
+  if (method === "DELETE" && p0 === "enrollments" && p1) {
+    return authed((sql, user) => classH.enrollmentDelete(sql, p1, user));
+  }
+
+  if (method === "POST" && p0 === "payments" && !p1) {
+    return authed((sql, user) =>
+      withIdempotency(sql, request, user.id, true, () => deskH.paymentsCreate(sql, request, user)),
+    );
+  }
+  if (method === "POST" && p0 === "payments" && p1 && p2 === "refund") {
+    return authed((sql, user) => deskH.paymentsRefund(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "payments" && p1 && p2 === "approve-refund") {
+    return authed((sql, user) => deskH.paymentsApproveRefund(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "payments" && p1 && p2 === "reject-refund") {
+    return authed((sql, user) => deskH.paymentsRejectRefund(sql, p1, user));
+  }
+  if (method === "GET" && p0 === "invoices" && p1?.endsWith(".pdf")) {
+    const id = p1.replace(/\.pdf$/, "");
+    return authed((sql, user) => deskH.invoicePdf(sql, id, request, user));
+  }
+
+  if (method === "GET" && p0 === "reports" && p1 === "revenue") {
+    return authed((sql, user) => {
+      requireRole(user, ["manager"]);
+      return deskH.reportsRevenue(sql, request, user);
+    });
+  }
+  if (method === "GET" && p0 === "reports" && p1 === "occupancy") {
+    return authed((sql, user) => deskH.reportsOccupancy(sql, request, user));
+  }
+  if (method === "GET" && p0 === "settings" && !p1) {
+    return authed((sql, user) => deskH.settingsGet(sql, user));
+  }
+  if (method === "PATCH" && p0 === "settings" && !p1) {
+    return authed((sql, user) => deskH.settingsPatch(sql, request, user));
+  }
+  if (method === "PUT" && p0 === "price-rules") {
+    return authed((sql, user) => deskH.priceRulesPut(sql, request, user));
+  }
+  if (method === "GET" && p0 === "audit") {
+    return authed((sql, user) => deskH.auditList(sql, request, user));
+  }
+
+  if (method === "POST" && p0 === "subscriptions" && p1 && p2 === "freeze") {
+    return authed((sql, user) => opsH.subscriptionFreeze(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "subscriptions" && p1 && p2 === "unfreeze") {
+    return authed((sql, user) => opsH.subscriptionUnfreeze(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "waitlist" && p1 && p2 === "accept") {
+    return authed((sql, user) => opsH.waitlistAccept(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "convert" && p1 && p2 === "release") {
+    return authed((sql, user) => opsH.convertRelease(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "convert") {
+    return authed((sql, user) =>
+      withIdempotency(sql, request, user.id, true, () => opsH.convertSlot(sql, request, user)),
+    );
+  }
+  if (method === "GET" && p0 === "equipment" && !p1) {
+    return authed((sql) => opsH.equipmentList(sql));
+  }
+  if (method === "GET" && p0 === "equipment" && p1 === "loans") {
+    return authed((sql, user) => opsH.loansOpen(sql, user));
+  }
+  if (method === "POST" && p0 === "equipment" && p1 === "loans" && !p2) {
+    return authed((sql, user) => opsH.equipmentLoan(sql, request, user));
+  }
+  if (method === "POST" && p0 === "equipment" && p1 === "loans" && parts[3] === "return") {
+    return authed((sql, user) => opsH.equipmentReturn(sql, p2, user));
+  }
+  if (method === "GET" && p0 === "sessions" && p1 && p2 === "attendance") {
+    return authed((sql, user) => opsH.sessionAttendanceGet(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "sessions" && p1 && p2 === "attendance") {
+    return authed((sql, user) => opsH.sessionAttendancePost(sql, p1, request, user));
+  }
+  if (method === "GET" && p0 === "training-plans" && !p1) {
+    return authed((sql, user) => opsH.trainingList(sql, request, user));
+  }
+  if (method === "POST" && p0 === "training-plans" && !p1) {
+    return authed((sql, user) => opsH.trainingCreate(sql, request, user));
+  }
+  if (method === "POST" && p0 === "training-plans" && p1 === "suggest") {
+    return authed((sql, user) => opsH.trainingSuggest(sql, request, user));
+  }
+  if (method === "POST" && p0 === "assistant") {
+    return authed((sql, user) => opsH.assistantChat(sql, request, user));
+  }
+  if (method === "GET" && p0 === "tickets" && !p1) {
+    return authed((sql, user) => opsH.ticketsList(sql, user));
+  }
+  if (method === "POST" && p0 === "tickets" && !p1) {
+    return authed((sql, user) => opsH.ticketsCreate(sql, request, user));
+  }
+  if (method === "POST" && p0 === "tickets" && p1 && p2 === "close") {
+    return authed((sql, user) => opsH.ticketClose(sql, p1, user));
+  }
+  if (method === "GET" && p0 === "flags") {
+    const sql = await getSql();
+    return opsH.flagsGet(sql);
+  }
+  if (method === "PATCH" && p0 === "flags") {
+    return authed((sql, user) => opsH.flagsPatch(sql, request, user));
+  }
+
+  if (method === "DELETE" && p0 === "payments") {
+    throw err.forbidden("Phiếu thu không xóa — chỉ hoàn đối ứng.");
+  }
+
+  void staffRoles;
+  void idem;
+  throw err.notFound(`Không có ${method} /v1/${parts.join("/")}`);
+}
+
+export async function handleApi(request: Request): Promise<Response> {
+  try {
+    const result = await dispatch(request);
+    if (result instanceof Response) return result;
+    if (result.status === 204) return new Response(null, { status: 204 });
+    return json(result.status, result.body);
+  } catch (e) {
+    if (e instanceof ApiError) return json(e.status, e.body());
+    return handleError(e);
+  }
+}

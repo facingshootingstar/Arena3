@@ -1,0 +1,16 @@
+.secrets/
+.env
+.env.*
+!.env.example
+node_modules/
+.tanstack/
+.vercel/
+*.log
+artifacts/
+screenshots/
+.grok/
+.pglite/
+.pglite-data/
+.project_id
+dist/
+.DS_Store

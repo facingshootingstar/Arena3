@@ -1,0 +1,298 @@
+import type { Sql } from "@/lib/db";
+import { hashOtp, hashPassword, randomOtp, verifyPassword } from "../crypto";
+import { err } from "../errors";
+import { ageYears, audit, getSettings, readJson, str } from "../helpers";
+import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
+import {
+  findUserByLogin,
+  issueSession,
+  toPublic,
+  type PublicUser,
+} from "../session";
+import { one } from "../tx";
+
+async function loadUser(sql: Sql, id: string) {
+  const u = await one<Record<string, unknown>>(
+    sql,
+    `select id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password
+       from users where id = $1`,
+    [id],
+  );
+  if (!u) throw err.notFound();
+  return toPublic(u);
+}
+
+export async function register(sql: Sql, request: Request) {
+  const body = await readJson(request);
+  const full_name = str(body.full_name);
+  const phone = normalizePhone(str(body.phone) ?? "");
+  const password = str(body.password);
+  const dob = str(body.dob) ?? str(body.date_of_birth);
+  const email = str(body.email);
+  const pii = body.pii_consent === true;
+  if (!full_name) throw err.validation("Thiếu họ tên.");
+  if (!isValidVnPhone(phone)) throw err.validation("Số điện thoại không hợp lệ.");
+  if (!password || !passwordOk(password)) {
+    throw err.br("BR-02", "Mật khẩu tối thiểu 8 ký tự, gồm chữ và số.");
+  }
+  if (!pii) throw err.br("BR-08", "Cần đồng ý điều khoản và NĐ 13/2023.");
+  const settings = await getSettings(sql);
+  if (dob) {
+    const age = ageYears(dob);
+    if (age < settings.minor_age) {
+      const gn = str(body.guardian_name);
+      const gp = str(body.guardian_phone);
+      if (!gn || !gp) throw err.br("BR-07", "Người chưa thành niên cần thông tin giám hộ.");
+    }
+  }
+  const exists = await one(sql, `select id from users where phone = $1 or email = $2`, [
+    phone,
+    email ?? null,
+  ]);
+  if (exists) throw err.br("BR-01", "Số điện thoại hoặc email đã có tài khoản.");
+  const otp = randomOtp();
+  const row = await one<{ id: string }>(
+    sql,
+    `insert into otp_challenges (phone, purpose, otp_hash, payload, expires_at)
+     values ($1, 'register', $2, $3::jsonb, now() + interval '5 minutes')
+     returning id`,
+    [
+      phone,
+      hashOtp(otp),
+      JSON.stringify({
+        full_name,
+        phone,
+        email,
+        password_hash: hashPassword(password),
+        dob,
+        guardian_name: str(body.guardian_name),
+        guardian_phone: str(body.guardian_phone) ? normalizePhone(String(body.guardian_phone)) : null,
+        pii_consent: true,
+      }),
+    ],
+  );
+  console.info("[otp-stub] register", phone, otp);
+  return {
+    status: 202,
+    body: { challenge_id: row!.id, otp, staging: true, message: "OTP (môi trường thử) — nhập để xác thực." },
+  };
+}
+
+export async function verifyOtp(sql: Sql, request: Request) {
+  const body = await readJson(request);
+  const phone = normalizePhone(str(body.phone) ?? "");
+  const otp = str(body.otp);
+  const purpose = str(body.purpose) ?? "register";
+  if (!phone || !otp) throw err.validation("Thiếu phone hoặc otp.");
+  const ch = await one<{
+    id: string;
+    otp_hash: string;
+    payload: Record<string, unknown>;
+    expires_at: string;
+    attempts: number;
+    purpose: string;
+  }>(
+    sql,
+    `select id, otp_hash, payload, expires_at::text, attempts, purpose
+       from otp_challenges
+      where phone = $1 and purpose = $2
+      order by expires_at desc limit 1
+      for update`,
+    [phone, purpose],
+  );
+  if (!ch) throw err.validation("Không có yêu cầu OTP.");
+  if (ch.attempts >= 5) throw err.rateLimited("OTP bị khóa 15 phút.");
+  if (new Date(ch.expires_at) < new Date()) throw err.validation("OTP hết hạn.");
+  if (ch.otp_hash !== hashOtp(otp)) {
+    await sql.query(`update otp_challenges set attempts = attempts + 1 where id = $1`, [ch.id]);
+    throw err.validation("OTP không đúng.");
+  }
+  if (purpose === "reset") {
+    const newPw = str(body.password);
+    if (!newPw || !passwordOk(newPw)) throw err.br("BR-02", "Mật khẩu mới không hợp lệ.");
+    await sql.query(`update users set password_hash = $1, failed_logins = 0, locked_until = null where phone = $2`, [
+      hashPassword(newPw),
+      phone,
+    ]);
+    await sql.query(`delete from otp_challenges where id = $1`, [ch.id]);
+    return { status: 200, body: { ok: true } };
+  }
+  const p = ch.payload ?? {};
+  const existing = await one(sql, `select id from users where phone = $1`, [phone]);
+  if (existing) throw err.br("BR-01", "Số điện thoại đã có tài khoản.");
+  const codeRow = await one<{ next_member_code: string }>(sql, `select next_member_code() as next_member_code`);
+  const inserted = await one<{ id: string }>(
+    sql,
+    `insert into users
+       (full_name, name_normalized, phone, email, role, status, password_hash,
+        date_of_birth, guardian_name, guardian_phone, pii_consent_at, member_code)
+     values ($1,$2,$3,$4,'member','active',$5,$6,$7,$8, now(), $9)
+     returning id`,
+    [
+      p.full_name,
+      unaccentVi(String(p.full_name)),
+      phone,
+      p.email ?? null,
+      p.password_hash,
+      p.dob ?? null,
+      p.guardian_name ?? null,
+      p.guardian_phone ?? null,
+      codeRow?.next_member_code,
+    ],
+  );
+  await sql.query(`delete from otp_challenges where id = $1`, [ch.id]);
+  const user = await loadUser(sql, inserted!.id);
+  await audit(sql, user.id, "register", "user", user.id, null, { phone });
+  const session = await issueSession(sql, user);
+  return { status: 200, body: session };
+}
+
+export async function login(sql: Sql, request: Request) {
+  const body = await readJson(request);
+  const loginId = str(body.login) ?? str(body.phone) ?? str(body.email);
+  const password = str(body.password);
+  if (!loginId || !password) throw err.validation("Thiếu thông tin đăng nhập.");
+  const ident = loginId.includes("@") ? loginId : normalizePhone(loginId);
+  const user = await findUserByLogin(sql, ident);
+  if (!user) throw err.unauth("Sai tài khoản hoặc mật khẩu.");
+  if (user.status !== "active") throw err.unauth("Tài khoản không hoạt động.");
+  const locked = await one<{ locked_until: string | null; failed_logins: number }>(
+    sql,
+    `select locked_until::text, failed_logins from users where id = $1`,
+    [user.id],
+  );
+  if (locked?.locked_until && new Date(locked.locked_until) > new Date()) {
+    throw err.rateLimited("Tài khoản đang bị khóa 15 phút.");
+  }
+  if (!verifyPassword(password, user.password_hash)) {
+    const fails = (locked?.failed_logins ?? 0) + 1;
+    if (fails >= 5) {
+      await sql.query(
+        `update users set failed_logins = $1, locked_until = now() + interval '15 minutes' where id = $2`,
+        [fails, user.id],
+      );
+      throw err.rateLimited("Sai mật khẩu 5 lần — khóa 15 phút.");
+    }
+    await sql.query(`update users set failed_logins = $1 where id = $2`, [fails, user.id]);
+    throw err.unauth("Sai tài khoản hoặc mật khẩu.");
+  }
+  await sql.query(`update users set failed_logins = 0, locked_until = null where id = $1`, [user.id]);
+  const session = await issueSession(sql, toPublic(user));
+  return { status: 200, body: session };
+}
+
+export async function logout(sql: Sql, request: Request, user: PublicUser) {
+  const hdr = request.headers.get("authorization") ?? "";
+  const m = /^Bearer\s+(.+)$/i.exec(hdr);
+  if (m) {
+    const { sha256 } = await import("../crypto");
+    await sql.query(`delete from sessions_auth where token_hash = $1 and user_id = $2`, [
+      sha256(m[1]!),
+      user.id,
+    ]);
+  }
+  return { status: 204, body: null };
+}
+
+export async function forgot(sql: Sql, request: Request) {
+  const body = await readJson(request);
+  const phone = normalizePhone(str(body.phone) ?? "");
+  if (!isValidVnPhone(phone)) throw err.validation("Số điện thoại không hợp lệ.");
+  const user = await one(sql, `select id from users where phone = $1`, [phone]);
+  const otp = randomOtp();
+  const row = await one<{ id: string }>(
+    sql,
+    `insert into otp_challenges (phone, purpose, otp_hash, payload, expires_at)
+     values ($1, 'reset', $2, '{}'::jsonb, now() + interval '5 minutes')
+     returning id`,
+    [phone, hashOtp(otp)],
+  );
+  console.info("[otp-stub] reset", phone, user ? otp : "(no user)");
+  return {
+    status: 202,
+    body: { challenge_id: row!.id, otp: user ? otp : undefined, staging: true },
+  };
+}
+
+export async function meGet(sql: Sql, user: PublicUser) {
+  const subs = await sql.query(
+    `select s.id, s.plan_id, s.sport_scope, s.start_on::text, s.end_on::text, s.status,
+            s.court_hours_left, s.session_left, p.name as plan_name, p.court_discount_pct
+       from subscriptions s
+       join membership_plans p on p.id = s.plan_id
+      where s.user_id = $1
+      order by s.status = 'active' desc, s.end_on desc`,
+    [user.id],
+  );
+  const inbox = await sql.query(
+    `select id, template, payload, sent_at from inbox
+      where user_id = $1 order by sent_at desc limit 30`,
+    [user.id],
+  );
+  const today = await sql.query(
+    `select b.id, b.code, b.start_at, b.end_at, b.status, b.court_id, c.court_code
+       from court_bookings b join courts c on c.id = b.court_id
+      where b.user_id = $1
+        and (b.start_at at time zone 'Asia/Ho_Chi_Minh')::date
+            = (now() at time zone 'Asia/Ho_Chi_Minh')::date
+        and b.status in ('hold','confirmed','in_use')
+      order by b.start_at`,
+    [user.id],
+  );
+  const classesToday = await sql.query(
+    `select s.id, s.start_at, s.end_at, cl.level, cl.sport, c.court_code, u.full_name as coach_name
+       from sessions s
+       join classes cl on cl.id = s.class_id
+       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
+       join courts c on c.id = s.court_id
+       join users u on u.id = cl.coach_id
+      where s.status = 'scheduled'
+        and (s.start_at at time zone 'Asia/Ho_Chi_Minh')::date
+            = (now() at time zone 'Asia/Ho_Chi_Minh')::date
+      order by s.start_at`,
+    [user.id],
+  );
+  const enrollments = await sql.query(
+    `select e.id, e.status, e.waitlist_pos, e.class_id, cl.sport, cl.level, cl.rrule, c.court_code
+       from enrollments e
+       join classes cl on cl.id = e.class_id
+       join courts c on c.id = cl.court_id
+      where e.user_id = $1 and e.status in ('confirmed','waitlisted')`,
+    [user.id],
+  );
+  const offers = await sql.query(
+    `select o.id, o.expires_at, o.status, e.class_id, cl.sport, cl.level
+       from waitlist_offers o
+       join enrollments e on e.id = o.enrollment_id
+       join classes cl on cl.id = e.class_id
+      where e.user_id = $1 and o.status = 'pending' and o.expires_at > now()`,
+    [user.id],
+  );
+  const flags = await sql.query<{ key: string; enabled: boolean }>(`select key, enabled from feature_flags`);
+  return {
+    status: 200,
+    body: {
+      user,
+      subscriptions: subs,
+      inbox,
+      enrollments,
+      offers,
+      flags: Object.fromEntries(flags.map((f) => [f.key, f.enabled])),
+      today: { bookings: today, classes: classesToday },
+    },
+  };
+}
+
+export async function mePatch(sql: Sql, request: Request, user: PublicUser) {
+  const body = await readJson(request);
+  if (body.phone || body.email) {
+    throw err.validation("Đổi SĐT/email cần OTP (slice 2).");
+  }
+  const full_name = str(body.full_name) ?? user.full_name;
+  const health_notes = body.health_notes === undefined ? user.health_notes : str(body.health_notes);
+  await sql.query(
+    `update users set full_name = $1, name_normalized = $2, health_notes = $3 where id = $4`,
+    [full_name, unaccentVi(full_name), health_notes ?? null, user.id],
+  );
+  return { status: 200, body: { user: await loadUser(sql, user.id) } };
+}
