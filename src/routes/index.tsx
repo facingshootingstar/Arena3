@@ -202,18 +202,20 @@ function Landing() {
             initial={reduced ? false : { opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
-            className="max-w-2xl rounded-[var(--radius-xl)] bg-surface/95 p-6 text-fg shadow-[var(--shadow-soft)] backdrop-blur-sm sm:p-9"
+            // No panel: the headline sits straight on the footage, with the
+            // hero scrim and `.on-media` text shadow doing the legibility work.
+            className="max-w-2xl text-on-media on-media"
           >
             <div className="flex items-center gap-2.5">
-              <span className="relative inline-flex size-2 text-accent">
+              <span className="relative inline-flex size-2 text-on-media">
                 {isOpen ? <span className="ping-ring" /> : null}
                 <span
                   className={`relative inline-flex size-2 rounded-full ${
-                    isOpen === false ? "bg-line-strong" : "bg-accent"
+                    isOpen === false ? "bg-on-media-muted/55" : "bg-on-media"
                   }`}
                 />
               </span>
-              <p className="kicker text-2xs text-muted">
+              <p className="kicker text-2xs text-on-media-muted">
                 {isOpen == null
                   ? "Indoor sports centre"
                   : isOpen
@@ -225,14 +227,14 @@ function Landing() {
             <h1 className="mt-4 font-display text-5xl font-medium italic leading-[0.94] sm:text-7xl">
               <WordReveal text="Courts, classes, plans —" delay={0.35} />
               <br />
-              <WordReveal text="one calendar." delay={0.75} className="text-gradient" />
+              <WordReveal text="one calendar." delay={0.75} className="text-gradient-media" />
             </h1>
 
             <motion.p
               initial={reduced ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1.2, duration: 0.7 }}
-              className="mt-5 max-w-lg text-muted"
+              className="mt-5 max-w-lg text-on-media-muted"
             >
               Badminton, basketball, volleyball. Open 06:00–22:00, every day. Book a court in five
               minutes; the desk closes you out in three taps.
@@ -244,14 +246,23 @@ function Landing() {
               transition={{ delay: 1.35, duration: 0.6 }}
               className="mt-8 flex flex-wrap gap-3"
             >
+              {/* Reversed out: a dark-green pill would disappear into the
+                  footage, so the CTAs invert to cream and glass here. */}
               <Link to="/register">
-                <Button size="lg" className="group">
+                <Button
+                  size="lg"
+                  className="group bg-on-media text-fg shadow-[var(--shadow-soft)] hover:bg-surface hover:shadow-[var(--shadow-soft)]"
+                >
                   Become a member
                   <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </Button>
               </Link>
               <a href="#courts">
-                <Button variant="outline" size="lg">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="border-on-media/40 bg-on-media/10 text-on-media shadow-none backdrop-blur-sm hover:border-on-media/70 hover:bg-on-media/20"
+                >
                   See courts &amp; pricing
                 </Button>
               </a>
@@ -870,7 +881,9 @@ function Testimonials() {
                   initial={reduced ? false : { opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={reduced ? undefined : { opacity: 0, y: -14 }}
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  // `mode="wait"` plays exit then enter back to back, so keep each
+                  // leg short — otherwise the card sits blank for a full second.
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 >
                   <p className="max-w-3xl font-display text-2xl leading-snug sm:text-3xl">
                     “{t.quote}”

@@ -290,6 +290,21 @@
   color: transparent;
 }
 
+/* Light counterpart for headlines reversed out over footage — the dark version
+   above vanishes against video. Stays inside the cream/sand family so it still
+   reads as Arena3 and not as a stock neon gradient. */
+.text-gradient-media {
+  background: linear-gradient(105deg, var(--color-on-media) 8%, #dcead4 46%, #f0d49a 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* A clipped background paints *under* the text shadow, so the shadow inherited
+     from `.on-media` lands on top of the letters and greys them out. Kill it and
+     shadow the glyph shape with a filter instead, which composites after the clip. */
+  text-shadow: none;
+  filter: drop-shadow(0 2px 7px rgba(8, 12, 6, 0.6));
+}
+
 /* ── Surfaces ────────────────────────────────────────────────────── */
 
 .glass {
