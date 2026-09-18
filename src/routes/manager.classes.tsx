@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
 import { Button, Card, DateField, Field, Input, Select, StatusBadge } from "@/components/ui";
+import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 
@@ -11,13 +12,13 @@ export const Route = createFileRoute("/manager/classes")({
 });
 
 const DAYS = [
-  { k: "MO", l: "T2" },
-  { k: "TU", l: "T3" },
-  { k: "WE", l: "T4" },
-  { k: "TH", l: "T5" },
-  { k: "FR", l: "T6" },
-  { k: "SA", l: "T7" },
-  { k: "SU", l: "CN" },
+  { k: "MO", l: "Mon" },
+  { k: "TU", l: "Tue" },
+  { k: "WE", l: "Wed" },
+  { k: "TH", l: "Thu" },
+  { k: "FR", l: "Fri" },
+  { k: "SA", l: "Sat" },
+  { k: "SU", l: "Sun" },
 ];
 
 function Page() {
@@ -48,37 +49,38 @@ function Page() {
     end_on: addDaysISO(todayISO(), 60),
   });
 
-  async function load() {
+  const load = useCallback(async () => {
     setItems((await apiGet<{ items: typeof items }>("/classes")).items);
     setCourts((await apiGet<{ items: typeof courts }>("/courts")).items);
-  }
+  }, []);
   useEffect(() => {
     void load().catch((e) => toast.error(e.message));
-  }, []);
+  }, [load]);
 
   function toggleDay(k: string) {
     setDays((prev) => (prev.includes(k) ? prev.filter((d) => d !== k) : [...prev, k]));
   }
 
   return (
-    <Shell role="manager" title="Lớp học" subtitle="Chọn thứ và giờ — hệ thống tự chặn trùng sân / HLV.">
+    <Shell role="manager" title="Classes" subtitle="Pick the days and the hour — clashes on court or coach are blocked for you.">
+      <Reveal from="down">
       <Card className="mb-6 grid gap-3 md:grid-cols-3">
-        <Field label="Môn">
+        <Field label="Sport">
           <Select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })}>
-            <option value="badminton">Cầu lông</option>
-            <option value="basketball">Bóng rổ</option>
-            <option value="volleyball">Bóng chuyền</option>
+            <option value="badminton">Badminton</option>
+            <option value="basketball">Basketball</option>
+            <option value="volleyball">Volleyball</option>
           </Select>
         </Field>
-        <Field label="Trình độ">
+        <Field label="Level">
           <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
-            <option value="beginner">Mới</option>
-            <option value="intermediate">Trung bình</option>
-            <option value="advanced">Nâng cao</option>
-            <option value="team">Đội</option>
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="team">Squad</option>
           </Select>
         </Field>
-        <Field label="Sân">
+        <Field label="Court">
           <Select value={form.court_id} onChange={(e) => setForm({ ...form, court_id: e.target.value })}>
             {courts.map((c) => (
               <option key={c.id} value={c.id}>
@@ -88,23 +90,30 @@ function Page() {
           </Select>
         </Field>
         <div className="md:col-span-2">
-          <p className="text-2xs font-medium uppercase tracking-wider text-muted">Lặp mỗi tuần</p>
+          <p className="text-2xs font-medium uppercase tracking-wider text-muted">Repeats weekly on</p>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {DAYS.map((d) => (
               <button
                 key={d.k}
                 type="button"
                 onClick={() => toggleDay(d.k)}
-                className={`min-h-9 min-w-11 rounded-[var(--radius-sm)] px-2 text-sm font-medium ${
-                  days.includes(d.k) ? "bg-fg text-bg" : "bg-wood text-muted"
+                className={`relative min-h-9 min-w-11 rounded-[var(--radius-sm)] px-2 text-sm font-medium transition-colors duration-200 active:scale-95 ${
+                  days.includes(d.k) ? "text-bg" : "bg-wood text-muted hover:bg-wood/70"
                 }`}
               >
-                {d.l}
+                {days.includes(d.k) ? (
+                  <motion.span
+                    layoutId={`byday-${d.k}`}
+                    className="absolute inset-0 rounded-[var(--radius-sm)] bg-fg"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                ) : null}
+                <span className="relative">{d.l}</span>
               </button>
             ))}
           </div>
         </div>
-        <Field label="Giờ bắt đầu">
+        <Field label="Start time">
           <Select value={String(hour)} onChange={(e) => setHour(Number(e.target.value))}>
             {Array.from({ length: 16 }, (_, i) => i + 6).map((h) => (
               <option key={h} value={h}>
@@ -113,10 +122,10 @@ function Page() {
             ))}
           </Select>
         </Field>
-        <Field label="Bắt đầu">
-          <DateField value={form.start_on} onChange={(v) => setForm({ ...form, start_on: v })} aria-label="Ngày bắt đầu" />
+        <Field label="First day">
+          <DateField value={form.start_on} onChange={(v) => setForm({ ...form, start_on: v })} aria-label="Start date" />
         </Field>
-        <Field label="Sĩ số">
+        <Field label="Capacity">
           <Input
             type="number"
             value={form.capacity}
@@ -132,22 +141,24 @@ function Page() {
                   ...form,
                   rrule: composeWeeklyRrule(days, hour),
                 });
-                toast.success("Đã tạo nháp");
+                toast.success("Draft created");
                 const pub = await apiPost<{ sessions: unknown[]; skipped: unknown[] }>(`/classes/${row.id}/publish`);
-                toast.success(`Xuất bản ${pub.sessions.length} buổi`);
+                toast.success(`Published ${pub.sessions.length} sessions`);
                 await load();
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Lỗi");
+                toast.error(e instanceof Error ? e.message : "Something went wrong");
               }
             }}
           >
-            Tạo & xuất bản
+            Create & publish
           </Button>
         </div>
       </Card>
-      <div className="grid gap-3 md:grid-cols-2">
+      </Reveal>
+      <Stagger className="grid gap-3 md:grid-cols-2" gap={0.06}>
         {items.map((c) => (
-          <Card key={c.id}>
+          <StaggerItem key={c.id} className="h-full">
+          <Card interactive className="h-full">
             <StatusBadge status={c.status} />
             <h2 className="mt-2 font-display text-2xl">
               {sportLabel(c.sport)} · {levelLabel(c.level)}
@@ -162,19 +173,20 @@ function Page() {
                 onClick={async () => {
                   try {
                     await apiPost(`/classes/${c.id}/publish`);
-                    toast.success("Đã xuất bản");
+                    toast.success("Published");
                     await load();
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Lỗi");
+                    toast.error(e instanceof Error ? e.message : "Something went wrong");
                   }
                 }}
               >
-                Xuất bản
+                Publish
               </Button>
             ) : null}
           </Card>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
     </Shell>
   );
 }

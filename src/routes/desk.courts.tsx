@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { CourtGrid, DateStrip, sportLabel, type Court, type OccSlot } from "@/components/court-grid";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, DateField, Field, Input, Select, Seg, Skeleton } from "@/components/ui";
+import { AnimatePresence, motion } from "motion/react";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { todayISO } from "@/lib/arena3/labels";
 
@@ -35,8 +36,8 @@ function Page() {
   return (
     <Shell
       role="receptionist"
-      title="Sơ đồ sân"
-      subtitle="Khách vãng lai thu tại chỗ. Gộp tạm BR và BC khi cả hai sân trống."
+      title="Court map"
+      subtitle="Take walk-in payment on the spot. Merge BR and BC when both courts are free."
     >
       <div className="mb-4 grid gap-3">
         <DateStrip value={date} onChange={setDate} />
@@ -45,50 +46,57 @@ function Page() {
             value={mode}
             onChange={setMode}
             options={[
-              { value: "walkin", label: "Khách vãng lai" },
-              { value: "convert", label: "Gộp tạm BR và BC" },
+              { value: "walkin", label: "Walk-in" },
+              { value: "convert", label: "Merge BR + BC" },
             ]}
           />
           <Seg
             value={sport}
             onChange={setSport}
             options={[
-              { value: "", label: "Tất cả" },
-              { value: "badminton", label: "Cầu lông" },
-              { value: "basketball", label: "Bóng rổ" },
-              { value: "volleyball", label: "Bóng chuyền" },
+              { value: "", label: "All" },
+              { value: "badminton", label: "Badminton" },
+              { value: "basketball", label: "Basketball" },
+              { value: "volleyball", label: "Volleyball" },
             ]}
           />
           <DateField value={date} onChange={setDate} />
         </div>
       </div>
+      <AnimatePresence>
       {pick && mode === "walkin" ? (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="overflow-hidden"
+        >
         <Card className="mb-4 grid gap-3 md:grid-cols-4">
           <div className="md:col-span-4">
             <p className="text-sm text-muted">
-              Khách vãng lai {pick.court.court_code} · {sportLabel(pick.court.sport)} · {String(pick.hour).padStart(2, "0")}
+              Walk-in · {pick.court.court_code} · {sportLabel(pick.court.sport)} · {String(pick.hour).padStart(2, "0")}
               :00
             </p>
           </div>
-          <Field label="Họ tên">
+          <Field label="Full name">
             <Input
               value={form.guest_name}
               onChange={(e) => setForm({ ...form, guest_name: e.target.value })}
-              placeholder="Tên khách"
+              placeholder="Guest name"
             />
           </Field>
-          <Field label="SĐT">
+          <Field label="Phone">
             <Input
               value={form.guest_phone}
               onChange={(e) => setForm({ ...form, guest_phone: e.target.value })}
               placeholder="0901…"
             />
           </Field>
-          <Field label="Thanh toán">
+          <Field label="Payment method">
             <Select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
-              <option value="cash">Tiền mặt</option>
-              <option value="transfer">Chuyển khoản</option>
-              <option value="card">Thẻ</option>
+              <option value="cash">Cash</option>
+              <option value="transfer">Bank transfer</option>
+              <option value="card">Card</option>
             </Select>
           </Field>
           <div className="flex items-end gap-2">
@@ -100,32 +108,41 @@ function Page() {
                     { court_id: pick.court.id, start_at: isoAt(pick.hour), ...form },
                     true,
                   );
-                  toast.success(`Thu ${money(res.payment.amount_vnd)} · ${res.payment.code}`);
+                  toast.success(`Took ${money(res.payment.amount_vnd)} · ${res.payment.code}`);
                   setPick(null);
                   setForm({ guest_name: "", guest_phone: "", method: "cash" });
                   await load();
                   if (res.invoice_id) await openInvoice(res.invoice_id);
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Lỗi");
+                  toast.error(e instanceof Error ? e.message : "Something went wrong");
                 }
               }}
             >
-              Thu & giữ sân
+              Take payment & hold
             </Button>
             <Button variant="ghost" onClick={() => setPick(null)}>
-              Hủy
+              Never mind
             </Button>
           </div>
         </Card>
+        </motion.div>
       ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
       {pick && mode === "convert" ? (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="overflow-hidden"
+        >
         <Card className="mb-4">
           <p className="text-sm">
-            Gộp tạm {pick.court.court_code} ({sportLabel(pick.court.sport)}) lúc {String(pick.hour).padStart(2, "0")}
-            :00 — khóa cả cặp sân 60 phút.
+            Merge {pick.court.court_code} ({sportLabel(pick.court.sport)}) at {String(pick.hour).padStart(2, "0")}
+            :00 — this locks both courts of the pair for 60 minutes.
           </p>
           {!pick.court.convertible ? (
-            <p className="mt-2 text-sm text-danger">Sân này không gộp được. Chỉ BR-01 ↔ BC-01.</p>
+            <p className="mt-2 text-sm text-danger">This court cannot be merged. Only BR-01 ↔ BC-01 pairs up.</p>
           ) : null}
           <div className="mt-3 flex gap-2">
             <Button
@@ -141,22 +158,24 @@ function Page() {
                     },
                     true,
                   );
-                  toast.success("Đã gộp cặp sân");
+                  toast.success("Courts merged");
                   setPick(null);
                   await load();
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Không gộp được");
+                  toast.error(e instanceof Error ? e.message : "Could not merge those courts");
                 }
               }}
             >
-              Khóa cặp sân
+              Lock the pair
             </Button>
             <Button variant="ghost" onClick={() => setPick(null)}>
-              Hủy
+              Never mind
             </Button>
           </div>
         </Card>
+        </motion.div>
       ) : null}
+      </AnimatePresence>
       {data ? (
         <CourtGrid
           date={date}
@@ -174,10 +193,10 @@ function Page() {
             if (occ?.kind === "convert" && occ.convert_group_id) {
               try {
                 await apiPost(`/convert/${occ.convert_group_id}/release`);
-                toast.success("Đã mở lại cặp sân");
+                toast.success("Pair released");
                 await load();
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Lỗi");
+                toast.error(e instanceof Error ? e.message : "Something went wrong");
               }
               return;
             }

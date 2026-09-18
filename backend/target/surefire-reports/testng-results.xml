@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testng-results ignored="0" total="13" passed="13" failed="0" skipped="0">
+  <reporter-output>
+  </reporter-output>
+  <suite started-at="2026-09-17T02:26:37 ICT" name="Arena3-TestSuite" finished-at="2026-09-17T02:26:39 ICT" duration-ms="2215">
+    <groups>
+    </groups>
+    <test started-at="2026-09-17T02:26:37 ICT" name="Business-Rules-Tests" finished-at="2026-09-17T02:26:39 ICT" duration-ms="2215">
+      <class name="com.arena3.service.CourtBookingServiceTest">
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:39 ICT" duration-ms="323" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testCancelBookingSuccess()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="testCancelBookingSuccess" description="Hủy lượt giữ chỗ: giải phóng occupancy và đổi trạng thái sang cancelled" finished-at="2026-09-17T02:26:39 ICT" duration-ms="13" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testCancelBookingSuccess -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="setUp" finished-at="2026-09-17T02:26:39 ICT" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testHoldBookingCourtInMaintenance()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="testHoldBookingCourtInMaintenance" description="Từ chối giữ chỗ nếu sân đang ở trạng thái bảo trì (BR-12)" finished-at="2026-09-17T02:26:39 ICT" duration-ms="3" status="PASS">
+          <exception class="com.arena3.exception.ApiException">
+            <message>
+              <![CDATA[Sân đang bảo trì.]]>
+            </message>
+            <full-stacktrace>
+              <![CDATA[com.arena3.exception.ApiException: Sân đang bảo trì.
+at com.arena3.exception.ApiException.br(ApiException.java:64)
+at com.arena3.service.CourtBookingService.holdBooking(CourtBookingService.java:96)
+at com.arena3.service.CourtBookingServiceTest.testHoldBookingCourtInMaintenance(CourtBookingServiceTest.java:199)
+at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+at org.testng.internal.invokers.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:141)
+at org.testng.internal.invokers.TestInvoker.invokeMethod(TestInvoker.java:686)
+at org.testng.internal.invokers.TestInvoker.invokeTestMethod(TestInvoker.java:230)
+at org.testng.internal.invokers.MethodRunner.runInSequence(MethodRunner.java:63)
+at org.testng.internal.invokers.TestInvoker$MethodInvocationAgent.invoke(TestInvoker.java:992)
+at org.testng.internal.invokers.TestInvoker.invokeTestMethods(TestInvoker.java:203)
+at org.testng.internal.invokers.TestMethodWorker.invokeTestMethods(TestMethodWorker.java:154)
+at org.testng.internal.invokers.TestMethodWorker.run(TestMethodWorker.java:134)
+at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+at org.testng.TestRunner.privateRun(TestRunner.java:739)
+at org.testng.TestRunner.run(TestRunner.java:614)
+at org.testng.SuiteRunner.runTest(SuiteRunner.java:421)
+at org.testng.SuiteRunner.runSequentially(SuiteRunner.java:413)
+at org.testng.SuiteRunner.privateRun(SuiteRunner.java:373)
+at org.testng.SuiteRunner.run(SuiteRunner.java:312)
+at org.testng.SuiteRunnerWorker.runSuite(SuiteRunnerWorker.java:52)
+at org.testng.SuiteRunnerWorker.run(SuiteRunnerWorker.java:95)
+at org.testng.TestNG.runSuitesSequentially(TestNG.java:1274)
+at org.testng.TestNG.runSuitesLocally(TestNG.java:1208)
+at org.testng.TestNG.runSuites(TestNG.java:1112)
+at org.testng.TestNG.run(TestNG.java:1079)
+at org.apache.maven.surefire.testng.TestNGExecutor.run(TestNGExecutor.java:308)
+at org.apache.maven.surefire.testng.TestNGXmlTestSuite.execute(TestNGXmlTestSuite.java:71)
+at org.apache.maven.surefire.testng.TestNGProvider.invoke(TestNGProvider.java:113)
+at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+]]>
+            </full-stacktrace>
+          </exception> <!-- com.arena3.exception.ApiException -->
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testHoldBookingCourtInMaintenance -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="setUp" finished-at="2026-09-17T02:26:39 ICT" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testHoldBookingOverlapConflict()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="testHoldBookingOverlapConflict" description="Phát hiện trùng lịch: ném lỗi CONFLICT_SLOT khi khung giờ đã bị chiếm" finished-at="2026-09-17T02:26:39 ICT" duration-ms="4" status="PASS">
+          <exception class="com.arena3.exception.ApiException">
+            <message>
+              <![CDATA[Khung giờ đã có người đặt hoặc trùng lịch.]]>
+            </message>
+            <full-stacktrace>
+              <![CDATA[com.arena3.exception.ApiException: Khung giờ đã có người đặt hoặc trùng lịch.
+at com.arena3.exception.ApiException.conflictSlot(ApiException.java:52)
+at com.arena3.service.CourtBookingService.holdBooking(CourtBookingService.java:115)
+at com.arena3.service.CourtBookingServiceTest.testHoldBookingOverlapConflict(CourtBookingServiceTest.java:134)
+at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+at org.testng.internal.invokers.MethodInvocationHelper.invokeMethod(MethodInvocationHelper.java:141)
+at org.testng.internal.invokers.TestInvoker.invokeMethod(TestInvoker.java:686)
+at org.testng.internal.invokers.TestInvoker.invokeTestMethod(TestInvoker.java:230)
+at org.testng.internal.invokers.MethodRunner.runInSequence(MethodRunner.java:63)
+at org.testng.internal.invokers.TestInvoker$MethodInvocationAgent.invoke(TestInvoker.java:992)
+at org.testng.internal.invokers.TestInvoker.invokeTestMethods(TestInvoker.java:203)
+at org.testng.internal.invokers.TestMethodWorker.invokeTestMethods(TestMethodWorker.java:154)
+at org.testng.internal.invokers.TestMethodWorker.run(TestMethodWorker.java:134)
+at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+at org.testng.TestRunner.privateRun(TestRunner.java:739)
+at org.testng.TestRunner.run(TestRunner.java:614)
+at org.testng.SuiteRunner.runTest(SuiteRunner.java:421)
+at org.testng.SuiteRunner.runSequentially(SuiteRunner.java:413)
+at org.testng.SuiteRunner.privateRun(SuiteRunner.java:373)
+at org.testng.SuiteRunner.run(SuiteRunner.java:312)
+at org.testng.SuiteRunnerWorker.runSuite(SuiteRunnerWorker.java:52)
+at org.testng.SuiteRunnerWorker.run(SuiteRunnerWorker.java:95)
+at org.testng.TestNG.runSuitesSequentially(TestNG.java:1274)
+at org.testng.TestNG.runSuitesLocally(TestNG.java:1208)
+at org.testng.TestNG.runSuites(TestNG.java:1112)
+at org.testng.TestNG.run(TestNG.java:1079)
+at org.apache.maven.surefire.testng.TestNGExecutor.run(TestNGExecutor.java:308)
+at org.apache.maven.surefire.testng.TestNGXmlTestSuite.execute(TestNGXmlTestSuite.java:71)
+at org.apache.maven.surefire.testng.TestNGProvider.invoke(TestNGProvider.java:113)
+at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+]]>
+            </full-stacktrace>
+          </exception> <!-- com.arena3.exception.ApiException -->
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testHoldBookingOverlapConflict -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="setUp" finished-at="2026-09-17T02:26:39 ICT" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testHoldBookingReplacesOldHold()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="testHoldBookingReplacesOldHold" description="Chống chiếm dụng sân: Khách hàng giữ sân mới thì lượt giữ chỗ cũ tự động bị hủy và giải phóng" finished-at="2026-09-17T02:26:39 ICT" duration-ms="12" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testHoldBookingReplacesOldHold -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="setUp" finished-at="2026-09-17T02:26:39 ICT" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testHoldBookingSuccess()[pri:0, instance:com.arena3.service.CourtBookingServiceTest@37f1104d]" started-at="2026-09-17T02:26:39 ICT" name="testHoldBookingSuccess" description="Giữ chỗ sân thành công khi khung giờ còn trống" finished-at="2026-09-17T02:26:39 ICT" duration-ms="6" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testHoldBookingSuccess -->
+      </class> <!-- com.arena3.service.CourtBookingServiceTest -->
+      <class name="com.arena3.service.PricingServiceTest">
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:37 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="1664" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testApplyDiscountRounding()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testApplyDiscountRounding" description="Kiểm tra công thức áp dụng chiết khấu và làm tròn 1.000đ" finished-at="2026-09-17T02:26:38 ICT" duration-ms="15" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testApplyDiscountRounding -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testCourtSpecificPriceRulePriority()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testCourtSpecificPriceRulePriority" description="Ưu tiên luật giá riêng của từng sân so với luật giá chung của môn thể thao" finished-at="2026-09-17T02:26:38 ICT" duration-ms="54" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testCourtSpecificPriceRulePriority -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testLookupPriceDynamic(java.lang.String,java.lang.String,int,int,boolean)[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testLookupPriceDynamic" description="Kiểm tra tính giá sân theo giờ cao điểm và ngày thường/cuối tuần" data-provider="timePriceProvider" finished-at="2026-09-17T02:26:38 ICT" duration-ms="2" status="PASS">
+          <params>
+            <param index="0">
+              <value>
+                <![CDATA[2026-09-16T09:00:00+07:00]]>
+              </value>
+            </param>
+            <param index="1">
+              <value>
+                <![CDATA[weekday]]>
+              </value>
+            </param>
+            <param index="2">
+              <value>
+                <![CDATA[540]]>
+              </value>
+            </param>
+            <param index="3">
+              <value>
+                <![CDATA[80000]]>
+              </value>
+            </param>
+            <param index="4">
+              <value>
+                <![CDATA[false]]>
+              </value>
+            </param>
+          </params>
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testLookupPriceDynamic -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testLookupPriceDynamic(java.lang.String,java.lang.String,int,int,boolean)[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testLookupPriceDynamic" description="Kiểm tra tính giá sân theo giờ cao điểm và ngày thường/cuối tuần" data-provider="timePriceProvider" finished-at="2026-09-17T02:26:38 ICT" duration-ms="2" status="PASS">
+          <params>
+            <param index="0">
+              <value>
+                <![CDATA[2026-09-16T18:00:00+07:00]]>
+              </value>
+            </param>
+            <param index="1">
+              <value>
+                <![CDATA[weekday]]>
+              </value>
+            </param>
+            <param index="2">
+              <value>
+                <![CDATA[1080]]>
+              </value>
+            </param>
+            <param index="3">
+              <value>
+                <![CDATA[140000]]>
+              </value>
+            </param>
+            <param index="4">
+              <value>
+                <![CDATA[true]]>
+              </value>
+            </param>
+          </params>
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testLookupPriceDynamic -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testLookupPriceDynamic(java.lang.String,java.lang.String,int,int,boolean)[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testLookupPriceDynamic" description="Kiểm tra tính giá sân theo giờ cao điểm và ngày thường/cuối tuần" data-provider="timePriceProvider" finished-at="2026-09-17T02:26:38 ICT" duration-ms="2" status="PASS">
+          <params>
+            <param index="0">
+              <value>
+                <![CDATA[2026-09-20T07:00:00+07:00]]>
+              </value>
+            </param>
+            <param index="1">
+              <value>
+                <![CDATA[weekend]]>
+              </value>
+            </param>
+            <param index="2">
+              <value>
+                <![CDATA[420]]>
+              </value>
+            </param>
+            <param index="3">
+              <value>
+                <![CDATA[80000]]>
+              </value>
+            </param>
+            <param index="4">
+              <value>
+                <![CDATA[false]]>
+              </value>
+            </param>
+          </params>
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testLookupPriceDynamic -->
+        <test-method signature="testLookupPriceDynamic(java.lang.String,java.lang.String,int,int,boolean)[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testLookupPriceDynamic" description="Kiểm tra tính giá sân theo giờ cao điểm và ngày thường/cuối tuần" data-provider="timePriceProvider" finished-at="2026-09-17T02:26:38 ICT" duration-ms="3" status="PASS">
+          <params>
+            <param index="0">
+              <value>
+                <![CDATA[2026-09-20T10:00:00+07:00]]>
+              </value>
+            </param>
+            <param index="1">
+              <value>
+                <![CDATA[weekend]]>
+              </value>
+            </param>
+            <param index="2">
+              <value>
+                <![CDATA[600]]>
+              </value>
+            </param>
+            <param index="3">
+              <value>
+                <![CDATA[140000]]>
+              </value>
+            </param>
+            <param index="4">
+              <value>
+                <![CDATA[true]]>
+              </value>
+            </param>
+          </params>
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testLookupPriceDynamic -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testMemberDiscountActiveSubscription()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testMemberDiscountActiveSubscription" description="Kiểm tra chiết khấu hội viên có gói tập hoạt động" finished-at="2026-09-17T02:26:38 ICT" duration-ms="6" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testMemberDiscountActiveSubscription -->
+        <test-method is-config="true" signature="setUp()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="setUp" finished-at="2026-09-17T02:26:38 ICT" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setUp -->
+        <test-method signature="testMemberDiscountDifferentSport()[pri:0, instance:com.arena3.service.PricingServiceTest@1dac5ef]" started-at="2026-09-17T02:26:38 ICT" name="testMemberDiscountDifferentSport" description="Gói tập môn khác không được áp dụng giảm giá" finished-at="2026-09-17T02:26:38 ICT" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testMemberDiscountDifferentSport -->
+      </class> <!-- com.arena3.service.PricingServiceTest -->
+    </test> <!-- Business-Rules-Tests -->
+  </suite> <!-- Arena3-TestSuite -->
+</testng-results>

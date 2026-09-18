@@ -1,13 +1,17 @@
-import type {
-  ButtonHTMLAttributes,
-  HTMLAttributes,
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
+import {
+  useEffect,
+  useId,
+  type ButtonHTMLAttributes,
+  type HTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "@/lib/cn";
-import { formatViDate, statusLabel, statusTone } from "@/lib/arena3/labels";
+import { formatDate, statusLabel, statusTone } from "@/lib/arena3/labels";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { EASE_SMOOTH } from "./motion";
 
 export function Button({
   variant = "primary",
@@ -16,18 +20,23 @@ export function Button({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "ghost" | "outline" | "danger" | "ink";
-  size?: "md" | "sm";
+  size?: "md" | "sm" | "lg";
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow] duration-150 ease-[var(--ease-smooth)] disabled:opacity-50 disabled:pointer-events-none active:scale-[0.96]";
+    "sweep inline-flex items-center justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow,color] duration-200 ease-[var(--ease-smooth)] disabled:opacity-50 disabled:pointer-events-none active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+  // Fully-rounded: a pill reads as "pressable" at a glance and is the one shape
+  // that never fights the square data tables and court grids around it.
   const sizes = {
-    md: "min-h-11 rounded-[var(--radius-sm)] px-4 text-sm",
-    sm: "min-h-9 rounded-[var(--radius-sm)] px-3 text-xs",
+    lg: "min-h-13 rounded-[var(--radius-pill)] px-7 text-[0.95rem]",
+    md: "min-h-11 rounded-[var(--radius-pill)] px-5 text-sm",
+    sm: "min-h-9 rounded-[var(--radius-pill)] px-4 text-xs",
   };
   const styles = {
-    primary: "bg-accent text-accent-fg hover:bg-accent-2",
-    ink: "bg-fg text-bg hover:opacity-90",
-    outline: "border border-line bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-wood",
+    primary:
+      "bg-accent text-accent-fg shadow-[var(--shadow-accent)] hover:bg-accent-2 hover:shadow-[var(--shadow-accent-lg)] hover:-translate-y-px",
+    ink: "bg-fg text-bg hover:opacity-90 hover:-translate-y-px",
+    outline:
+      "border border-line bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-wood hover:border-line-strong",
     ghost: "text-fg hover:bg-wood",
     danger: "bg-danger text-bg hover:opacity-90",
   } as const;
@@ -46,12 +55,12 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   );
 }
 
-/** Native date picker with a Vietnamese dd/MM/yyyy overlay (Chromium ignores html lang). */
+/** Native date picker with a readable "17 Sep 2026" overlay (Chromium ignores html lang). */
 export function DateField({
   value,
   onChange,
   className,
-  "aria-label": ariaLabel = "Chọn ngày",
+  "aria-label": ariaLabel = "Pick a date",
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -66,7 +75,7 @@ export function DateField({
       )}
     >
       <span className="pointer-events-none absolute inset-0 flex items-center px-3 text-sm tabular-nums text-fg">
-        {value ? formatViDate(value) : "dd/mm/yyyy"}
+        {value ? formatDate(value) : "Pick a date"}
       </span>
       <input
         type="date"
@@ -109,12 +118,24 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
 }
 
 export function Label({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn("text-2xs font-medium uppercase tracking-wider text-muted", className)} {...props} />;
+  return <span className={cn("kicker text-2xs text-muted", className)} {...props} />;
 }
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  interactive = false,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
   return (
-    <div className={cn("rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-border)]", className)} {...props} />
+    <div
+      className={cn(
+        "rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-border)]",
+        interactive &&
+          "transition-[transform,box-shadow] duration-300 ease-[var(--ease-smooth)] hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
@@ -160,7 +181,11 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-[var(--radius-md)] bg-wood", className)} />;
+  return (
+    <div className={cn("relative overflow-hidden rounded-[var(--radius-md)] bg-wood", className)}>
+      <div className="shimmer absolute inset-0" />
+    </div>
+  );
 }
 
 export function Empty({
@@ -190,21 +215,39 @@ export function Seg({
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const group = useId();
+  const reduced = useReducedMotion();
   return (
-    <div className="flex flex-wrap gap-1 rounded-[var(--radius-md)] bg-wood p-1">
-      {options.map((o) => (
-        <button
-          key={o.value || "all"}
-          type="button"
-          onClick={() => onChange(o.value)}
-          className={cn(
-            "min-h-9 rounded-[var(--radius-sm)] px-3 text-sm font-medium transition-colors duration-150",
-            value === o.value ? "bg-fg text-bg" : "text-muted hover:text-fg",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap gap-1 rounded-[var(--radius-pill)] bg-wood p-1">
+      {options.map((o) => {
+        const active = value === o.value;
+        return (
+          <button
+            key={o.value || "all"}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={active}
+            className={cn(
+              "relative min-h-9 rounded-[var(--radius-pill)] px-4 text-sm font-medium transition-colors duration-200",
+              active ? "text-accent-fg" : "text-muted hover:text-fg",
+            )}
+          >
+            {/* Sliding pill travels between options instead of blinking on. */}
+            {active ? (
+              reduced ? (
+                <span className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent" />
+              ) : (
+                <motion.span
+                  layoutId={`seg-${group}`}
+                  className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent shadow-[var(--shadow-accent)]"
+                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                />
+              )
+            ) : null}
+            <span className="relative z-[1]">{o.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -222,18 +265,51 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  if (!open) return null;
+  // Escape closes the dialog, and the page behind it stops scrolling while open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
   return (
-    <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <button type="button" className="absolute inset-0 bg-fg/35" aria-label="Đóng" onClick={onClose} />
-      <div className="relative mx-auto mt-[8vh] max-h-[84dvh] w-[min(32rem,calc(100%-2rem))] overflow-y-auto rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-soft)]">
-        <h2 id="modal-title" className="font-display text-2xl">
-          {title}
-        </h2>
-        <div className="mt-4">{children}</div>
-        {footer ? <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div> : null}
-      </div>
-    </div>
+    <AnimatePresence>
+      {open ? (
+        <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+          <motion.button
+            type="button"
+            className="absolute inset-0 bg-fg/40 backdrop-blur-[2px]"
+            aria-label="Close"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          />
+          <motion.div
+            className="relative mx-auto mt-[8vh] max-h-[84dvh] w-[min(32rem,calc(100%-2rem))] overflow-y-auto rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-soft)]"
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.28, ease: EASE_SMOOTH }}
+          >
+            <h2 id="modal-title" className="font-display text-2xl">
+              {title}
+            </h2>
+            <div className="mt-4">{children}</div>
+            {footer ? <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div> : null}
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -248,9 +324,9 @@ export function Stat({
 }) {
   return (
     <Card>
-      <p className="text-2xs font-medium uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-2 font-display text-4xl tabular-nums tracking-tight">{value}</p>
-      {hint ? <p className="mt-1 text-sm text-muted">{hint}</p> : null}
+      <p className="kicker text-2xs text-muted">{label}</p>
+      <p className="athletic mt-2.5 text-4xl tabular-nums">{value}</p>
+      {hint ? <p className="mt-1.5 text-sm text-muted">{hint}</p> : null}
     </Card>
   );
 }

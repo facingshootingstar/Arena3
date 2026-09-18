@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, Empty, Skeleton } from "@/components/ui";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -32,7 +33,7 @@ function Page() {
   }, []);
 
   return (
-    <Shell role="member" title="Gói thành viên" subtitle="Thanh toán tại quầy sau khi đặt mua — hạn mới hiện trước khi chốt.">
+    <Shell role="member" title="Membership plans" subtitle="Order here, pay at the desk — you see the new end date before anything is charged.">
       {!items ? (
         <div className="grid gap-3 md:grid-cols-3">
           <Skeleton className="h-56" />
@@ -40,9 +41,10 @@ function Page() {
           <Skeleton className="h-56" />
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-3">
+        <Stagger className="grid gap-3 md:grid-cols-3" gap={0.08}>
           {items.map((p) => (
-            <Card key={p.id} className="flex flex-col overflow-hidden p-0">
+            <StaggerItem key={p.id} className="h-full">
+            <Card interactive className="flex h-full flex-col overflow-hidden p-0">
               <Cover src={sportPhoto(p.sport_scope)} alt="" scrim="none" className="h-36">
                 <MediaCaption>
                   <p className="text-2xs uppercase tracking-wider">{sportLabel(p.sport_scope)}</p>
@@ -54,21 +56,21 @@ function Page() {
                 <ul className="mt-4 grid gap-2 text-sm text-muted">
                   <li className="flex items-center gap-2">
                     <Check className="size-4 text-accent" strokeWidth={1.75} />
-                    {p.duration_days ? `${p.duration_days} ngày` : "Theo buổi"}
+                    {p.duration_days ? `${p.duration_days} days` : "Per session"}
                   </li>
                   {p.session_quota ? (
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-accent" strokeWidth={1.75} />
-                      {p.session_quota} buổi lớp
+                      {p.session_quota} class sessions
                     </li>
                   ) : null}
                   <li className="flex items-center gap-2">
                     <Check className="size-4 text-accent" strokeWidth={1.75} />
-                    {p.court_hours} giờ thuê sân
+                    {p.court_hours} court hours
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="size-4 text-accent" strokeWidth={1.75} />
-                    Giảm {p.court_discount_pct}% giá sân
+                    {p.court_discount_pct}% off court rental
                   </li>
                 </ul>
                 <Button
@@ -80,21 +82,22 @@ function Page() {
                       });
                       toast.success(
                         res.renewal
-                          ? `Gia hạn đến ${res.preview_end} — thanh toán tại quầy`
-                          : `Đơn pending, hạn mới ${res.preview_end} — thanh toán tại quầy`,
+                          ? `Renewed through ${res.preview_end} — pay at the desk`
+                          : `Order placed, valid through ${res.preview_end} — pay at the desk`,
                       );
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Lỗi");
+                      toast.error(e instanceof Error ? e.message : "Something went wrong");
                     }
                   }}
                 >
-                  Mua / gia hạn
+                  Buy or renew
                 </Button>
               </div>
             </Card>
+            </StaggerItem>
           ))}
-          {!items.length ? <Empty title="Chưa có gói đang bán" /> : null}
-        </div>
+          {!items.length ? <Empty title="No plans on sale right now" /> : null}
+        </Stagger>
       )}
     </Shell>
   );

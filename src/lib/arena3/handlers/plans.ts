@@ -24,7 +24,7 @@ export async function plansCreate(sql: Sql, request: Request, user: PublicUser) 
   const name = str(b.name);
   const sport_scope = str(b.sport_scope);
   const price_vnd = num(b.price_vnd);
-  if (!name || !sport_scope || price_vnd == null) throw err.validation("Thiếu name/sport_scope/price_vnd.");
+  if (!name || !sport_scope || price_vnd == null) throw err.validation("name, sport_scope and price_vnd are required.");
   const row = await one(
     sql,
     `insert into membership_plans
@@ -83,7 +83,7 @@ export async function plansPatch(sql: Sql, id: string, request: Request, user: P
 export async function subscriptionsCreate(sql: Sql, request: Request, user: PublicUser) {
   const b = await readJson(request);
   const planId = str(b.plan_id);
-  if (!planId) throw err.validation("Thiếu plan_id.");
+  if (!planId) throw err.validation("plan_id is required.");
   let userId = user.id;
   if (user.role === "receptionist" || user.role === "manager") {
     userId = str(b.user_id) ?? user.id;
@@ -99,8 +99,8 @@ export async function subscriptionsCreate(sql: Sql, request: Request, user: Publ
     price_vnd: number;
     is_on_sale: boolean;
   }>(sql, `select * from membership_plans where id = $1`, [planId]);
-  if (!plan) throw err.notFound("Không có gói.");
-  if (!plan.is_on_sale && user.role === "member") throw err.br("BR-65", "Gói không còn mở bán.");
+  if (!plan) throw err.notFound("No such plan.");
+  if (!plan.is_on_sale && user.role === "member") throw err.br("BR-65", "That plan is no longer on sale.");
 
   const today = ictDateString();
   const duration = plan.duration_days ?? 365;
@@ -116,7 +116,7 @@ export async function subscriptionsCreate(sql: Sql, request: Request, user: Publ
       limit 1`,
     [userId, plan.sport_scope],
   );
-  if (live?.status === "frozen") throw err.br("BR-14", "Gói đang đóng băng — không mua thêm.");
+  if (live?.status === "frozen") throw err.br("BR-14", "Your plan is frozen — unfreeze it before buying more.");
   if (live?.status === "active") {
     const preview =
       live.end_on >= today ? addDays(live.end_on, duration) : addDays(today, duration);
@@ -126,7 +126,7 @@ export async function subscriptionsCreate(sql: Sql, request: Request, user: Publ
         subscription: live,
         preview_end: preview,
         renewal: true,
-        message: "Thanh toán để gia hạn trên hợp đồng hiện tại.",
+        message: "Pay to renew on your current contract.",
       },
     };
   }

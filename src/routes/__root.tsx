@@ -15,7 +15,8 @@ export const Route = createRootRoute({
       { name: "theme-color", content: "#2d6a4f" },
       {
         name: "description",
-        content: "Arena3 — quản lý trung tâm thể thao: gói, lớp, thuê sân, quầy thu ngân.",
+        content:
+          "Arena3 — one sports centre, one schedule: memberships, classes, court hire and the front desk.",
       },
     ],
     links: [
@@ -23,14 +24,14 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Anton&family=Be+Vietnam+Pro:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&display=swap",
       },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
     ],
   }),
   component: () => (
-    <html lang="vi" className="antialiased" suppressHydrationWarning>
+    <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

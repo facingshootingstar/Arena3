@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Badge, Button, Card, Field, Input, Modal, Select } from "@/components/ui";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -52,7 +53,7 @@ function Page() {
   async function create() {
     const price = Number(form.price_vnd);
     if (!form.name.trim() || !Number.isFinite(price)) {
-      toast.error("Cần tên gói và giá.");
+      toast.error("A plan needs a name and a price.");
       return;
     }
     setBusy(true);
@@ -68,123 +69,125 @@ function Page() {
         is_on_sale: form.is_on_sale,
         carry_over_hours: form.carry_over_hours,
       });
-      toast.success("Đã tạo gói");
+      toast.success("Plan created");
       setOpen(false);
       setForm(emptyForm);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Không tạo được");
+      toast.error(e instanceof Error ? e.message : "Could not create the plan");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Shell role="manager" title="Gói thành viên" subtitle="Giá gói mới không sửa gói đã bán (BR-65).">
+    <Shell role="manager" title="Membership plans" subtitle="A new price never rewrites a plan someone already bought (BR-65).">
       <div className="mb-4 flex justify-end">
-        <Button onClick={() => setOpen(true)}>Tạo gói mới</Button>
+        <Button onClick={() => setOpen(true)}>New plan</Button>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <Stagger className="grid gap-3 md:grid-cols-3" gap={0.07}>
         {items.map((p) => (
-          <Card key={p.id} className="overflow-hidden p-0">
+          <StaggerItem key={p.id} className="h-full">
+          <Card interactive className="flex h-full flex-col overflow-hidden p-0">
             <Cover src={sportPhoto(p.sport_scope)} alt="" className="h-28">
               <p className="absolute bottom-3 left-4 text-2xs uppercase tracking-wider text-on-media on-media">
                 {sportLabel(p.sport_scope)}
               </p>
             </Cover>
-            <div className="p-5">
-              <Badge tone={p.is_on_sale ? "accent" : "muted"}>{p.is_on_sale ? "Đang bán" : "Ngừng"}</Badge>
+            <div className="flex flex-1 flex-col p-5">
+              <Badge tone={p.is_on_sale ? "accent" : "muted"}>{p.is_on_sale ? "On sale" : "Paused"}</Badge>
               <h2 className="mt-2 font-display text-2xl">{p.name}</h2>
               <p className="mt-2 font-display text-3xl tabular-nums">{money(p.price_vnd)}</p>
               <p className="mt-2 text-sm text-muted">
-                {p.duration_days ? `${p.duration_days} ngày` : "Theo buổi"}
-                {p.session_quota ? ` · ${p.session_quota} buổi` : ""}
-                {` · ${p.court_hours} giờ sân · giảm ${p.court_discount_pct}%`}
+                {p.duration_days ? `${p.duration_days} days` : "Per session"}
+                {p.session_quota ? ` · ${p.session_quota} class sessions` : ""}
+                {` · ${p.court_hours} court hours · ${p.court_discount_pct}% off courts`}
               </p>
               <Button
-                className="mt-4"
+                className="mt-auto pt-4"
                 variant="outline"
                 onClick={async () => {
                   try {
                     await apiPatch(`/plans/${p.id}`, { is_on_sale: !p.is_on_sale });
                     await load();
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Lỗi");
+                    toast.error(e instanceof Error ? e.message : "Something went wrong");
                   }
                 }}
               >
-                {p.is_on_sale ? "Ngừng bán" : "Mở bán"}
+                {p.is_on_sale ? "Pause sales" : "Put on sale"}
               </Button>
             </div>
           </Card>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Tạo gói thành viên"
+        title="New membership plan"
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
-              Hủy
+              Cancel
             </Button>
             <Button disabled={busy} onClick={() => void create()}>
-              {busy ? "Đang lưu…" : "Tạo gói"}
+              {busy ? "Saving…" : "Create plan"}
             </Button>
           </>
         }
       >
         <div className="grid gap-3">
-          <Field label="Tên gói">
+          <Field label="Plan name">
             <Input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Bóng rổ 30 ngày"
+              placeholder="Basketball 30 days"
             />
           </Field>
-          <Field label="Môn">
+          <Field label="Sport">
             <Select
               value={form.sport_scope}
               onChange={(e) => setForm({ ...form, sport_scope: e.target.value })}
             >
-              <option value="badminton">Cầu lông</option>
-              <option value="basketball">Bóng rổ</option>
-              <option value="volleyball">Bóng chuyền</option>
-              <option value="all">Cả ba môn</option>
+              <option value="badminton">Badminton</option>
+              <option value="basketball">Basketball</option>
+              <option value="volleyball">Volleyball</option>
+              <option value="all">All three sports</option>
             </Select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Giá (đ)">
+            <Field label="Price (đ)">
               <Input
                 inputMode="numeric"
                 value={form.price_vnd}
                 onChange={(e) => setForm({ ...form, price_vnd: e.target.value })}
               />
             </Field>
-            <Field label="Số ngày">
+            <Field label="Duration (days)">
               <Input
                 inputMode="numeric"
                 value={form.duration_days}
                 onChange={(e) => setForm({ ...form, duration_days: e.target.value })}
-                placeholder="Để trống nếu theo buổi"
+                placeholder="Leave blank for per-session"
               />
             </Field>
-            <Field label="Số buổi lớp">
+            <Field label="Class sessions">
               <Input
                 inputMode="numeric"
                 value={form.session_quota}
                 onChange={(e) => setForm({ ...form, session_quota: e.target.value })}
               />
             </Field>
-            <Field label="Giờ sân">
+            <Field label="Court hours">
               <Input
                 inputMode="numeric"
                 value={form.court_hours}
                 onChange={(e) => setForm({ ...form, court_hours: e.target.value })}
               />
             </Field>
-            <Field label="Giảm giá sân %">
+            <Field label="Court discount %">
               <Input
                 inputMode="numeric"
                 value={form.court_discount_pct}
@@ -198,7 +201,7 @@ function Page() {
               checked={form.is_on_sale}
               onChange={(e) => setForm({ ...form, is_on_sale: e.target.checked })}
             />
-            Đăng bán ngay (TV thấy trên app)
+            Put it on sale now (members see it in the app)
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -206,7 +209,7 @@ function Page() {
               checked={form.carry_over_hours}
               onChange={(e) => setForm({ ...form, carry_over_hours: e.target.checked })}
             />
-            Cộng dồn giờ sân khi gia hạn
+            Carry unused court hours over on renewal
           </label>
         </div>
       </Modal>

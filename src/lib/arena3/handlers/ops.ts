@@ -29,7 +29,7 @@ export async function flagsPatch(sql: Sql, request: Request, user: PublicUser) {
 export async function subscriptionFreeze(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager", "receptionist"]);
   const days = num((await readJson(request)).days) ?? 7;
-  if (days < 1 || days > 90) throw err.validation("Số ngày đóng băng 1–90.");
+  if (days < 1 || days > 90) throw err.validation("Freeze length must be 1–90 days.");
   const settings = await getSettings(sql);
   const sub = await one<{
     id: string;
@@ -39,9 +39,9 @@ export async function subscriptionFreeze(sql: Sql, id: string, request: Request,
     user_id: string;
   }>(sql, `select id, status, frozen_days, end_on::text, user_id from subscriptions where id = $1 for update`, [id]);
   if (!sub) throw err.notFound();
-  if (sub.status !== "active") throw err.br("BR-14", "Chỉ đóng băng gói đang active.");
+  if (sub.status !== "active") throw err.br("BR-14", "Only an active plan can be frozen.");
   if (sub.frozen_days + days > settings.freeze_max_days_year) {
-    throw err.br("BR-15", `Vượt trần ${settings.freeze_max_days_year} ngày/năm.`);
+    throw err.br("BR-15", `Over the limit of ${settings.freeze_max_days_year} freeze days a year.`);
   }
   const end = addDays(sub.end_on, days);
   await sql.query(
@@ -56,7 +56,7 @@ export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUse
   requireRole(user, ["manager", "receptionist"]);
   const sub = await one<{ status: string }>(sql, `select status from subscriptions where id = $1 for update`, [id]);
   if (!sub) throw err.notFound();
-  if (sub.status !== "frozen") throw err.conflictState("Gói không ở trạng thái đóng băng.");
+  if (sub.status !== "frozen") throw err.conflictState("That plan is not frozen.");
   await sql.query(`update subscriptions set status = 'active' where id = $1`, [id]);
   await audit(sql, user.id, "unfreeze_sub", "subscription", id);
   return { status: 200, body: await one(sql, `select * from subscriptions where id = $1`, [id]) };
@@ -71,7 +71,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   }>(sql, `select * from waitlist_offers where id = $1 for update`, [offerId]);
   if (!offer) throw err.notFound();
   if (offer.status !== "pending") throw err.conflictState();
-  if (new Date(offer.expires_at) < new Date()) throw err.br("BR-25", "Hết hạn nhận chỗ.");
+  if (new Date(offer.expires_at) < new Date()) throw err.br("BR-25", "That offer has expired.");
   const enr = await one<{ id: string; class_id: string; user_id: string; status: string }>(
     sql,
     `select * from enrollments where id = $1 for update`,
@@ -84,7 +84,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [enr.class_id],
   );
   if (!cl) throw err.notFound();
-  if (cl.enrolled_count >= cl.capacity) throw err.br("BR-22", "Chỗ vừa kín.");
+  if (cl.enrolled_count >= cl.capacity) throw err.br("BR-22", "The class just filled up.");
   await sql.query(
     `update enrollments set status = 'confirmed', waitlist_pos = null where id = $1`,
     [enr.id],
@@ -137,7 +137,7 @@ export async function convertSlot(sql: Sql, request: Request, user: PublicUser) 
   const court_id = str(b.court_id);
   const start_at = str(b.start_at);
   const end_at = str(b.end_at);
-  if (!court_id || !start_at || !end_at) throw err.validation("Thiếu court_id/start_at/end_at.");
+  if (!court_id || !start_at || !end_at) throw err.validation("court_id, start_at and end_at are required.");
   const ref = crypto.randomUUID();
   try {
     const occ = await one<{ occupancy_attach_convert: string }>(
@@ -148,9 +148,9 @@ export async function convertSlot(sql: Sql, request: Request, user: PublicUser) 
     await audit(sql, user.id, "convert_court", "occupancy", occ!.occupancy_attach_convert);
     return { status: 201, body: { occupancy_id: occ!.occupancy_attach_convert, ref } };
   } catch (e) {
-    if (isConflictSlot(e)) throw err.conflictSlot("Không convert — sân cặp đang bận.");
+    if (isConflictSlot(e)) throw err.conflictSlot("Cannot convert — the paired court is busy.");
     const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("COURT_NOT_CONVERTIBLE")) throw err.br("BR-39G", "Sân không convert được.");
+    if (msg.includes("COURT_NOT_CONVERTIBLE")) throw err.br("BR-39G", "That court cannot be converted.");
     throw e;
   }
 }
@@ -173,14 +173,14 @@ export async function equipmentLoan(sql: Sql, request: Request, user: PublicUser
   const item_id = str(b.item_id);
   const phone = normalizePhone(str(b.phone) ?? "");
   const qty = num(b.qty) ?? 1;
-  if (!item_id || !isValidVnPhone(phone) || qty < 1) throw err.validation("Thiếu dụng cụ / SĐT / số lượng.");
+  if (!item_id || !isValidVnPhone(phone) || qty < 1) throw err.validation("Gear, phone or quantity is missing.");
   const item = await one<{ stock: number; rent_vnd: number; name: string }>(
     sql,
     `select stock, rent_vnd, name from equipment_items where id = $1 for update`,
     [item_id],
   );
   if (!item) throw err.notFound();
-  if (item.stock < qty) throw err.br("BR-38", "Hết hàng cho thuê.");
+  if (item.stock < qty) throw err.br("BR-38", "That gear is out of stock.");
   await sql.query(`update equipment_items set stock = stock - $2 where id = $1`, [item_id, qty]);
   const loan = await one(
     sql,
@@ -252,7 +252,7 @@ export async function sessionAttendancePost(sql: Sql, sessionId: string, request
     [sessionId],
   );
   if (!session) throw err.notFound();
-  if (session.status === "done") throw err.br("BR-27", "Buổi đã khóa điểm danh.");
+  if (session.status === "done") throw err.br("BR-27", "Attendance for this session is locked.");
   const b = await readJson(request);
   const items = Array.isArray(b.items) ? b.items : [];
   for (const it of items) {
@@ -325,20 +325,20 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
   const b = await readJson(request);
   const sport = str(b.sport) ?? "badminton";
   const level = str(b.level) ?? "beginner";
-  const goal = str(b.goal) ?? "kỹ thuật nền";
+  const goal = str(b.goal) ?? "core technique";
   const drills: Record<string, Record<string, string[]>> = {
     badminton: {
-      beginner: ["Footwork 6 hướng 8′", "Clear cao sâu 12′", "Net shot 10′", "Game 11 điểm"],
-      intermediate: ["Smash có đà 12′", "Drive đôi công 10′", "Phủ lưới 8′", "Set 21"],
-      advanced: ["Jump smash 10′", "Tấn công góc chéo", "Phòng ngự thấp", "Thi đấu có trọng tài"],
+      beginner: ["Six-corner footwork 8′", "Deep clears 12′", "Net shots 10′", "Game to 11"],
+      intermediate: ["Smash off the step 12′", "Flat drive exchanges 10′", "Net coverage 8′", "Set to 21"],
+      advanced: ["Jump smash 10′", "Cross-court attack", "Low defence", "Umpired match play"],
     },
     basketball: {
-      beginner: ["Form ném 10′", "Dẫn bóng 2 tay", "Lay-up 2 bên", "3v3 nửa sân"],
-      intermediate: ["Pick and roll", "Ném 3 điểm chân", "Phòng 2-3 zone", "5v5"],
+      beginner: ["Shooting form 10′", "Two-hand dribbling", "Lay-ups both sides", "Half-court 3v3"],
+      intermediate: ["Pick and roll", "Three-point footwork", "2-3 zone defence", "Full-court 5v5"],
     },
     volleyball: {
-      beginner: ["Đỡ bóng thấp", "Phát tay dưới", "Chuyền 2", "6 chạm xoay"],
-      intermediate: ["Phát nhảy", "Chặn 2 người", "Tấn công biên", "Set thi đấu"],
+      beginner: ["Low digs", "Underarm serve", "Setting", "Six-touch rotation"],
+      intermediate: ["Jump serve", "Two-player block", "Outside hitting", "Match set"],
     },
   };
   const list = drills[sport]?.[level] ?? drills.badminton.beginner;
@@ -349,7 +349,7 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
     source: "ai",
     generated_on: ictDateString(),
     blocks: list.map((title, i) => ({ order: i + 1, title, minutes: 10 + i })),
-    note: "HLV duyệt trước khi giao. AI không thay giáo án đã publish.",
+    note: "A coach reviews this before it goes out. AI never overwrites a published plan.",
   };
   return { status: 200, body: { payload } };
 }
@@ -358,10 +358,10 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   await requireFlag(sql, "F6");
   const body = await readJson(request);
   const message = (str(body.message) ?? "").trim().slice(0, 800);
-  if (message.length < 2) throw err.validation("Nhập câu hỏi.");
+  if (message.length < 2) throw err.validation("Type a question first.");
   const q = message.toLowerCase();
 
-  if (/ticket:|khiếu nại|góp ý/.test(q) || q.startsWith("ticket:")) {
+  if (/ticket:|complaint|feedback|khiếu nại|góp ý/.test(q) || q.startsWith("ticket:")) {
     const t = await one<{ id: string }>(
       sql,
       `insert into tickets (user_id, body) values ($1,$2) returning id`,
@@ -371,7 +371,7 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     return {
       status: 200,
       body: {
-        reply: `Đã mở phiếu ${t!.id.slice(0, 8)} cho quầy. Lễ tân trả lời trong giờ mở cửa.`,
+        reply: `Opened request ${t!.id.slice(0, 8)} for the front desk. Reception replies during opening hours.`,
         source: "rules" as const,
       },
     };
@@ -413,24 +413,24 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   );
 
   const facts = [
-    `Trung tâm: Arena3. Mở cửa ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} ICT mỗi ngày.`,
-    `Hold sân ${settings.hold_minutes} phút. Hủy sân ≥ ${settings.cancel_court_hours} giờ. Hủy lớp ≥ ${settings.cancel_class_hours} giờ. No-show không hoàn.`,
-    `Waitlist FIFO; mời trong ${settings.waitlist_offer_hours} giờ. Vị thành niên (<${settings.minor_age}) không tự đặt sân / ghi danh.`,
-    `Gói đang bán:\n${plans.map((p) => `• ${p.name} (${p.sport_scope}): ${p.price_vnd.toLocaleString("vi-VN")}đ · ${p.court_hours} giờ sân`).join("\n") || "—"}`,
-    `Lớp đang mở:\n${classes.map((c) => `• ${c.sport} ${c.level} · HLV ${c.coach_name ?? "—"} · ${c.enrolled_count}/${c.capacity}`).join("\n") || "Chưa có lớp mở."}`,
-    `HLV:\n${COACHES.map((c) => `• ${c.name} — ${c.title}. ${c.blurb}`).join("\n")}`,
-    `Hội viên đang hỏi: ${user.full_name} (${user.member_code ?? "chưa có mã"}).`,
-    `Gói của họ:\n${subs.map((s) => `• ${s.plan_name} · ${s.status} · hạn ${s.end_on.slice(0, 10)} · còn ${s.court_hours_left} giờ`).join("\n") || "Chưa có gói."}`,
-    `Hôm nay / 24h tới:\n${todayBookings.map((b) => `• ${b.court_code} ${b.start_at} (${b.status})`).join("\n") || "Trống."}`,
+    `Centre: Arena3. Open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} ICT every day.`,
+    `Court holds last ${settings.hold_minutes} minutes. Cancel a court at least ${settings.cancel_court_hours}h ahead, a class at least ${settings.cancel_class_hours}h ahead. No-shows are not refunded.`,
+    `Waitlists are first-come; an offer stands for ${settings.waitlist_offer_hours}h. Under-${settings.minor_age}s cannot book or enrol on their own.`,
+    `Plans on sale:\n${plans.map((p) => `• ${p.name} (${p.sport_scope}): ${p.price_vnd.toLocaleString("en-US")}đ · ${p.court_hours} court hours`).join("\n") || "—"}`,
+    `Open classes:\n${classes.map((c) => `• ${c.sport} ${c.level} · coach ${c.coach_name ?? "—"} · ${c.enrolled_count}/${c.capacity}`).join("\n") || "No classes are open."}`,
+    `Coaches:\n${COACHES.map((c) => `• ${c.name} — ${c.title}. ${c.blurb}`).join("\n")}`,
+    `Member asking: ${user.full_name} (${user.member_code ?? "no member code yet"}).`,
+    `Their plans:\n${subs.map((s) => `• ${s.plan_name} · ${s.status} · through ${s.end_on.slice(0, 10)} · ${s.court_hours_left} court hours left`).join("\n") || "No plan yet."}`,
+    `Today / next 24h:\n${todayBookings.map((b) => `• ${b.court_code} ${b.start_at} (${b.status})`).join("\n") || "Nothing booked."}`,
   ].join("\n\n");
 
-  const system = `Bạn là trợ lý lễ tân Arena3 (app hội viên). Trả lời tiếng Việt, ngắn (2–8 câu), đúng sự thật trong KHỐI DỮ LIỆU.
-Không tư vấn y khoa, không hứa giảm giá ngoài gói, không bịa slot trống.
-Chỉ nêu HLV / gói / lớp có trong khối dữ liệu — không bịa tên.
-Nếu không biết: bảo hỏi quầy hoặc gõ «ticket: …».
-Có thể hướng dẫn: Đặt sân / Lớp / Gói trong app. Thu tiền tại quầy sau khi đặt trên app.
+  const system = `You are the Arena3 front-desk assistant inside the member app. Answer in English, keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
+No medical advice, no discounts beyond the listed plans, never invent a free slot.
+Only name coaches, plans and classes that appear in the data block.
+If you do not know: tell them to ask the desk or type «ticket: …».
+You can walk them through Book / Classes / Plans in the app. Payment is taken at the desk after they order in the app.
 
-KHỐI DỮ LIỆU:
+DATA BLOCK:
 ${facts}`;
 
   const history = parseHistory(body.history);
@@ -468,29 +468,30 @@ function ruleReply(
   plans: Array<{ name: string; price_vnd: number }>,
   classes: Array<{ sport: string; level: string; enrolled_count: number; capacity: number }>,
 ): string {
-  if (/giá|bao nhiêu|gói/.test(q)) {
-    return `Gói đang bán:\n${plans.map((p) => `• ${p.name}: ${p.price_vnd.toLocaleString("vi-VN")}đ`).join("\n")}\nThu tại quầy sau khi đặt trên app.`;
+  if (/price|cost|how much|plan|giá|gói/.test(q)) {
+    return `Plans on sale:\n${plans.map((p) => `• ${p.name}: ${p.price_vnd.toLocaleString("en-US")}đ`).join("\n")}\nPay at the desk after you order in the app.`;
   }
-  if (/giờ|mở cửa|mấy giờ/.test(q)) {
-    return `Arena3 mở ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} mỗi ngày (ICT). Hold sân ${settings.hold_minutes} phút, hủy sân ≥ ${settings.cancel_court_hours} giờ.`;
+  if (/hour|open|close|what time|giờ|mở cửa/.test(q)) {
+    return `Arena3 is open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} every day (ICT). Court holds last ${settings.hold_minutes} minutes, and you can cancel a court up to ${settings.cancel_court_hours}h before.`;
   }
-  if (/lớp|học|hlv/.test(q)) {
+  if (/class|coach|lesson|lớp|hlv/.test(q)) {
     return classes.length
-      ? `Lớp đang mở:\n${classes.map((c) => `• ${c.sport} ${c.level} (${c.enrolled_count}/${c.capacity})`).join("\n")}`
-      : "Chưa có lớp mở. Liên hệ quầy.";
+      ? `Open classes:\n${classes.map((c) => `• ${c.sport} ${c.level} (${c.enrolled_count}/${c.capacity})`).join("\n")}`
+      : "No classes are open right now — ask the desk.";
   }
-  if (/hủy|đặt sân|hold/.test(q)) {
-    return `Đặt sân trên app: giữ chỗ ${settings.hold_minutes} phút. Hủy sân ≥ ${settings.cancel_court_hours} giờ trước giờ chơi. Hủy lớp ≥ ${settings.cancel_class_hours} giờ. No-show không hoàn.`;
+  if (/cancel|book|hold|hủy|đặt sân/.test(q)) {
+    return `Book in the app and the slot is held for ${settings.hold_minutes} minutes. Cancel a court at least ${settings.cancel_court_hours}h before you play, a class at least ${settings.cancel_class_hours}h before. No-shows are not refunded.`;
   }
-  if (/waitlist|chờ|đầy/.test(q)) {
-    return `Lớp đầy thì vào danh sách chờ FIFO. Có chỗ, hệ thống mời trong ${settings.waitlist_offer_hours} giờ — nhận trên app.`;
+  if (/waitlist|full|queue|chờ|đầy/.test(q)) {
+    return `When a class is full you join a first-come waitlist. If a seat frees up you get an offer that stands for ${settings.waitlist_offer_hours}h — claim it in the app.`;
   }
-  return "Mình trả lời lịch, gói, HLV, hủy/đặt, waitlist trong phạm vi Arena3. Gõ «ticket: …» để gửi quầy. Không tư vấn y khoa.";
+  return "I can help with the timetable, plans, coaches, booking and cancelling, and waitlists at Arena3. Type «ticket: …» to send a note to the desk. I do not give medical advice.";
 }
+
 
 export async function ticketsCreate(sql: Sql, request: Request, user: PublicUser) {
   const body = str((await readJson(request)).body);
-  if (!body) throw err.validation("Thiếu nội dung.");
+  if (!body) throw err.validation("The message is empty.");
   const row = await one(sql, `insert into tickets (user_id, body) values ($1,$2) returning *`, [user.id, body]);
   return { status: 201, body: row };
 }

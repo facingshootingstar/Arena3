@@ -53,34 +53,35 @@ export function PassCard({
   code?: string | null;
 }) {
   return (
-    <article className="relative overflow-hidden rounded-[var(--radius-xl)] bg-pass p-6 text-pass-fg">
+    <article className="group relative overflow-hidden rounded-[var(--radius-xl)] bg-pass p-6 text-pass-fg transition-transform duration-300 hover:-translate-y-0.5">
+      <span className="sweep pointer-events-none absolute inset-0" aria-hidden />
       <CourtBackdrop className="pointer-events-none absolute -right-10 -bottom-8 h-56 w-56 text-pass-fg opacity-[0.14]" />
       <div className="relative flex flex-col gap-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="inline-block rounded-[var(--radius-sm)] border border-pass-fg/20 bg-accent px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-accent-fg">
-              Thẻ thành viên
+              Membership pass
             </span>
             <p className="mt-3 font-display text-2xl tracking-tight">{plan}</p>
           </div>
           {code ? (
             <div className="text-right">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-pass-muted">Mã thẻ</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-pass-muted">Member code</p>
               <p className="font-mono text-sm font-semibold tracking-wider">{code}</p>
             </div>
           ) : null}
         </div>
         <div className="grid grid-cols-3 gap-3 border-t border-pass-fg/15 pt-4">
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-pass-muted">Môn tập</p>
+            <p className="text-[11px] uppercase tracking-wider text-pass-muted">Sport</p>
             <p className="mt-0.5 text-sm font-semibold">{sport}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-wider text-pass-muted">Hạn mức</p>
-            <p className="mt-0.5 text-sm font-semibold tabular-nums">{hours} giờ sân</p>
+            <p className="text-[11px] uppercase tracking-wider text-pass-muted">Court hours</p>
+            <p className="mt-0.5 text-sm font-semibold tabular-nums">{hours} left</p>
           </div>
           <div className="text-right">
-            <p className="text-[11px] uppercase tracking-wider text-pass-muted">Hạn dùng</p>
+            <p className="text-[11px] uppercase tracking-wider text-pass-muted">Valid through</p>
             <p className="mt-0.5 text-sm font-semibold tabular-nums">{endOn}</p>
           </div>
         </div>

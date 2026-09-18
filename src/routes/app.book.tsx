@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CourtGrid, DateStrip, type Court, type OccSlot } from "@/components/court-grid";
@@ -47,13 +48,13 @@ function Page() {
       );
       setHold(res);
       setOverlap(null);
-      toast.success(`Giữ ${court.court_code} · ${res.booking.code}`);
+      toast.success(`Holding ${court.court_code} · ${res.booking.code}`);
       await load();
     } catch (e) {
       if (e instanceof ApiClientError && e.body.requires_confirm && !confirmOverlap) {
         setOverlap({ court, hour, message: e.body.message });
       } else {
-        toast.error(e instanceof Error ? e.message : "Không giữ được");
+        toast.error(e instanceof Error ? e.message : "Could not hold that slot");
       }
     } finally {
       setBusy(false);
@@ -65,18 +66,22 @@ function Page() {
     setBusy(true);
     try {
       await apiPost(`/bookings/${hold.booking.id}/confirm`, { method }, true);
-      toast.success(method === "quota" ? "Đã trừ 1 giờ quota" : "Đã xác nhận");
+      toast.success(method === "quota" ? "One plan hour deducted" : "Booking confirmed");
       setHold(null);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Không xác nhận được");
+      toast.error(e instanceof Error ? e.message : "Could not confirm the booking");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Shell role="member" title="Đặt sân" subtitle="Chọn ngày, môn, rồi bấm ô trống — giữ chỗ 5 phút.">
+    <Shell
+      role="member"
+      title="Book a court"
+      subtitle="Pick a date and sport, then tap a free slot — we hold it for five minutes."
+    >
       <Cover
         src={sport ? sportPhoto(sport) : media.hallCourts}
         alt=""
@@ -84,7 +89,9 @@ function Page() {
         className="mb-4 h-36 rounded-[var(--radius-xl)] md:h-44"
       >
         <MediaCaption>
-          <p className="font-display text-2xl">{sport ? sportLabel(sport) : "Cả 3 môn"} · slot 60′</p>
+          <p className="font-display text-2xl">
+            {sport ? sportLabel(sport) : "All 3 sports"} · 60′ slots
+          </p>
         </MediaCaption>
       </Cover>
       <div className="mb-4 grid gap-3">
@@ -94,47 +101,68 @@ function Page() {
             value={sport}
             onChange={setSport}
             options={[
-              { value: "", label: "Tất cả" },
+              { value: "", label: "All" },
               { value: "badminton", label: sportLabel("badminton") },
               { value: "basketball", label: sportLabel("basketball") },
               { value: "volleyball", label: sportLabel("volleyball") },
             ]}
           />
-          <DateField value={date} onChange={setDate} aria-label="Chọn ngày khác" />
+          <DateField value={date} onChange={setDate} aria-label="Pick another date" />
         </div>
       </div>
-      {overlap ? (
-        <Card className="mb-4">
-          <p className="text-sm">{overlap.message}</p>
-          <p className="mt-1 text-xs text-muted">Ghi danh lớp không bị hủy — chỉ cảnh báo trùng giờ.</p>
-          <div className="mt-3 flex gap-2">
-            <Button disabled={busy} onClick={() => void holdSlot(overlap.court, overlap.hour, true)}>
-              Vẫn giữ chỗ
-            </Button>
-            <Button variant="outline" onClick={() => setOverlap(null)}>
-              Bỏ
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-      {hold ? (
-        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted">
-              Đang giữ · còn <HoldTimer until={hold.hold_until} onExpire={() => setHold(null)} />
-            </p>
-            <p className="font-display text-2xl tabular-nums">{money(hold.price)}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={busy} onClick={() => void confirmPay("quota")}>
-              Dùng quota
-            </Button>
-            <Button variant="outline" disabled={busy} onClick={() => void confirmPay("transfer")}>
-              Chuyển khoản
-            </Button>
-          </div>
-        </Card>
-      ) : null}
+      <AnimatePresence>
+        {overlap ? (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <Card className="mb-4 border border-hold/30 bg-hold/5">
+              <p className="text-sm">{overlap.message}</p>
+              <p className="mt-1 text-xs text-muted">
+                Your class enrolment stays put — this is only a clash warning.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button disabled={busy} onClick={() => void holdSlot(overlap.court, overlap.hour, true)}>
+                  Hold it anyway
+                </Button>
+                <Button variant="outline" onClick={() => setOverlap(null)}>
+                  Never mind
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {hold ? (
+          <motion.div
+            initial={{ opacity: 0, y: -8, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: -8, height: 0 }}
+            className="overflow-hidden"
+          >
+            <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-accent/30">
+              <div>
+                <p className="text-sm text-muted">
+                  On hold ·{" "}
+                  <HoldTimer until={hold.hold_until} onExpire={() => setHold(null)} /> left
+                </p>
+                <p className="font-display text-2xl tabular-nums">{money(hold.price)}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={busy} onClick={() => void confirmPay("quota")}>
+                  Use plan hours
+                </Button>
+                <Button variant="outline" disabled={busy} onClick={() => void confirmPay("transfer")}>
+                  Bank transfer
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       {data ? (
         <CourtGrid
           date={date}

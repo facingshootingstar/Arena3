@@ -6,14 +6,9 @@ import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
 import { Cover, MediaCaption, media } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, DateField, Seg, Skeleton, Stat } from "@/components/ui";
+import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { apiGet } from "@/lib/arena3/client";
-import {
-  addDaysISO,
-  formatViDate,
-  methodLabel,
-  sourceLabel,
-  todayISO,
-} from "@/lib/arena3/labels";
+import { addDaysISO, formatDate, methodLabel, sourceLabel, todayISO } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/manager/")({
   component: Page,
@@ -40,11 +35,11 @@ function monthStart(iso: string) {
 }
 
 function deltaHint(cur: number, prev: number) {
-  if (prev === 0 && cur === 0) return "Bằng kỳ trước";
-  if (prev === 0) return "Mới phát sinh";
+  if (prev === 0 && cur === 0) return "Same as the previous period";
+  if (prev === 0) return "New this period";
   const pct = Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10;
   const sign = pct > 0 ? "+" : "";
-  return `${sign}${pct}% so với kỳ trước`;
+  return `${sign}${pct}% vs the previous period`;
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
@@ -114,12 +109,12 @@ function Page() {
   return (
     <Shell
       role="manager"
-      title="Báo cáo"
-      subtitle={`Doanh thu = phiếu thu − hoàn. Công suất ${formatViDate(to)}.`}
+      title="Reports"
+      subtitle={`Revenue = payments taken − refunds. Court usage for ${formatDate(to)}.`}
     >
       <Cover src={media.hallCourts} alt="" scrim="none" className="mb-5 h-32 rounded-[var(--radius-xl)]">
         <MediaCaption>
-          <p className="font-display text-2xl">Khóa sổ trong kỳ</p>
+          <p className="font-display text-2xl">Close the books for this period</p>
         </MediaCaption>
       </Cover>
       <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -127,57 +122,57 @@ function Page() {
           value={period}
           onChange={applyPeriod}
           options={[
-            { value: "today", label: "Hôm nay" },
-            { value: "week", label: "7 ngày" },
-            { value: "month", label: "Tháng này" },
-            { value: "custom", label: "Tùy chọn" },
+            { value: "today", label: "Today" },
+            { value: "week", label: "7 days" },
+            { value: "month", label: "This month" },
+            { value: "custom", label: "Custom" },
           ]}
         />
-        <span className="text-2xs uppercase tracking-wider text-muted">Từ</span>
+        <span className="text-2xs uppercase tracking-wider text-muted">From</span>
         <DateField
           value={from}
           onChange={(v) => {
             setPeriod("custom");
             setFrom(v);
           }}
-          aria-label="Từ ngày"
+          aria-label="From date"
         />
-        <span className="text-2xs uppercase tracking-wider text-muted">Đến</span>
+        <span className="text-2xs uppercase tracking-wider text-muted">To</span>
         <DateField
           value={to}
           onChange={(v) => {
             setPeriod("custom");
             setTo(v);
           }}
-          aria-label="Đến ngày"
+          aria-label="To date"
         />
         <Button
           variant="outline"
           onClick={() => {
             if (!rev || !occ) return;
-            downloadCsv(`arena3-bao-cao-${from}_${to}.csv`, [
-              ["Từ", formatViDate(from), "Đến", formatViDate(to)],
+            downloadCsv(`arena3-report-${from}_${to}.csv`, [
+              ["From", formatDate(from), "To", formatDate(to)],
               [
-                "Doanh thu",
+                "Revenue",
                 rev.totals.revenue_vnd,
-                "Hoàn",
+                "Refunds",
                 rev.totals.refund_vnd ?? 0,
-                "Giờ gói",
+                "Plan hours used",
                 rev.totals.quota_hours,
               ],
               [],
-              ["Hình thức", "Số tiền"],
+              ["Method", "Amount"],
               ...Object.entries(rev.by_method).map(([k, v]) => [methodLabel(k), v]),
               [],
-              ["Nguồn", "Số tiền"],
+              ["Source", "Amount"],
               ...Object.entries(rev.by_source).map(([k, v]) => [sourceLabel(k), v]),
               [],
-              ["Sân", "Phút", "%"],
+              ["Court", "Minutes", "%"],
               ...(occ.items ?? []).map((c) => [c.court_code, c.minutes, c.pct]),
             ]);
           }}
         >
-          Xuất Excel
+          Export CSV
         </Button>
       </div>
       {!rev ? (
@@ -187,28 +182,34 @@ function Page() {
           <Skeleton className="h-28" />
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-3">
+        <Stagger className="grid gap-3 md:grid-cols-3" gap={0.08}>
+          <StaggerItem>
           <Stat
-            label="Doanh thu"
+            label="Revenue"
             value={money(rev.totals.revenue_vnd)}
             hint={prev ? deltaHint(rev.totals.revenue_vnd, prev.totals.revenue_vnd) : undefined}
           />
+          </StaggerItem>
+          <StaggerItem>
           <Stat
-            label="Hoàn"
+            label="Refunds"
             value={money(rev.totals.refund_vnd ?? 0)}
             hint={prev ? deltaHint(rev.totals.refund_vnd ?? 0, prev.totals.refund_vnd ?? 0) : undefined}
           />
+          </StaggerItem>
+          <StaggerItem>
           <Stat
-            label="Giờ tiêu gói"
+            label="Plan hours used"
             value={rev.totals.quota_hours}
             hint={prev ? deltaHint(rev.totals.quota_hours, prev.totals.quota_hours) : undefined}
           />
-        </div>
+          </StaggerItem>
+        </Stagger>
       )}
 
-      <div className="mt-6 grid gap-3 md:grid-cols-2">
+      <Reveal className="mt-6 grid gap-3 md:grid-cols-2">
         <Card>
-          <p className="text-2xs font-medium uppercase tracking-wider text-muted">Theo hình thức</p>
+          <p className="text-2xs font-medium uppercase tracking-wider text-muted">By payment method</p>
           {chartReady && chartData.length ? (
             <div className="mt-3 h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -228,11 +229,11 @@ function Page() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="mt-4 text-sm text-muted">Chưa phát sinh.</p>
+            <p className="mt-4 text-sm text-muted">Nothing recorded yet.</p>
           )}
         </Card>
         <Card>
-          <p className="text-2xs font-medium uppercase tracking-wider text-muted">Theo nguồn</p>
+          <p className="text-2xs font-medium uppercase tracking-wider text-muted">By source</p>
           <ul className="mt-3 space-y-2 text-sm">
             {Object.entries(rev?.by_source ?? {}).map(([k, v]) => (
               <li key={k} className="flex justify-between gap-3">
@@ -240,25 +241,37 @@ function Page() {
                 <span className="tabular-nums">{money(v)}</span>
               </li>
             ))}
-            {!Object.keys(rev?.by_source ?? {}).length ? <li className="text-muted">Chưa phát sinh.</li> : null}
+            {!Object.keys(rev?.by_source ?? {}).length ? (
+              <li className="text-muted">Nothing recorded yet.</li>
+            ) : null}
           </ul>
         </Card>
-      </div>
+      </Reveal>
 
-      <h2 className="mt-8 font-display text-2xl">Công suất sân · {formatViDate(to)}</h2>
-      <div className="mt-3 grid gap-2 md:grid-cols-2">
+      <h2 className="mt-8 font-display text-2xl">Court usage · {formatDate(to)}</h2>
+      <Stagger className="mt-3 grid gap-2 md:grid-cols-2" gap={0.05}>
         {(occ?.items ?? []).map((c) => (
-          <Card key={c.court_code} className="p-4">
+          <StaggerItem key={c.court_code}>
+          <Card className="p-4">
             <div className="flex justify-between text-sm">
               <span className="font-medium">{c.court_code}</span>
-              <span className="tabular-nums">{c.pct}%</span>
+              <span className="tabular-nums">
+                <CountUp to={c.pct} duration={0.9} suffix="%" />
+              </span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-wood">
-              <div className="h-full bg-accent" style={{ width: `${Math.min(100, c.pct)}%` }} />
+              <motion.div
+                className="h-full bg-accent"
+                initial={{ width: 0 }}
+                whileInView={{ width: `${Math.min(100, c.pct)}%` }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+              />
             </div>
           </Card>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
       {map ? (
         <div className="mt-4">
           <CourtGrid date={to} courts={map.courts} slots={map.slots} />

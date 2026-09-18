@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
 import { Badge, Button, Card, Field, Input, Modal, Select, StatusBadge } from "@/components/ui";
+import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -42,7 +43,12 @@ function Page() {
   >([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [newUser, setNewUser] = useState<{ id: string; full_name: string; member_code?: string | null } | null>(null);
+  const [newUser, setNewUser] = useState<{
+    id: string;
+    full_name: string;
+    member_code?: string | null;
+    temp_password?: string;
+  } | null>(null);
   const [picked, setPicked] = useState<Plan | null>(null);
   const [subId, setSubId] = useState<string | null>(null);
   const [method, setMethod] = useState("cash");
@@ -88,23 +94,23 @@ function Page() {
   }
 
   return (
-    <Shell role="receptionist" title="Quầy lễ tân" subtitle="Tìm hội viên, bán gói, thu — ba thao tác.">
-      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]">
+    <Shell role="receptionist" title="Front desk" subtitle="Find a member, sell a plan, take payment — three moves.">
+      <Reveal className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]" from="down">
         {shift ? (
-          <Badge tone="accent">Ca mở · tiền mặt {money(shift.totals?.cash ?? 0)}</Badge>
+          <Badge tone="accent">Shift open · cash {money(shift.totals?.cash ?? 0)}</Badge>
         ) : (
           <Button
             onClick={async () => {
               try {
                 await apiPost("/shifts/open");
                 await loadShift();
-                toast.success("Đã mở ca");
+                toast.success("Shift opened");
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Lỗi");
+                toast.error(e instanceof Error ? e.message : "Something went wrong");
               }
             }}
           >
-            Mở ca
+            Shift open
           </Button>
         )}
         {shift ? (
@@ -115,32 +121,35 @@ function Page() {
               setCloseOpen(true);
             }}
           >
-            Đóng ca
+            Close shift
           </Button>
         ) : null}
         <Link to="/desk/courts" className="ml-auto">
-          <Button variant="ink">Sơ đồ sân</Button>
+          <Button variant="ink">Court map</Button>
         </Link>
-      </div>
+      </Reveal>
 
-      <Field label="Tìm hội viên">
+      <Field label="Find a member">
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Tên, số điện thoại hoặc mã TV"
+          placeholder="Name, phone or member code"
           autoFocus
         />
       </Field>
       <div className="mt-3 grid gap-2">
         {q.trim().length > 0 && q.trim().length < 3 ? (
-          <p className="text-sm text-muted">Gõ ít nhất 3 ký tự.</p>
+          <p className="text-sm text-muted">Type at least 3 characters.</p>
         ) : null}
-        {items.map((m) => (
-          <button
+        {items.map((m, i) => (
+          <motion.button
             key={m.id}
             type="button"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: Math.min(i, 6) * 0.03, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => navigate({ to: "/desk/member/$id", params: { id: m.id } })}
-            className="flex min-h-14 items-center justify-between rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left shadow-[var(--shadow-border)] hover:bg-wood"
+            className="flex min-h-14 items-center justify-between rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left shadow-[var(--shadow-border)] transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-wood"
           >
             <div>
               <div className="font-medium">{m.full_name}</div>
@@ -149,65 +158,79 @@ function Page() {
               </div>
             </div>
             <StatusBadge status={m.status} />
-          </button>
+          </motion.button>
         ))}
       </div>
 
-      <h2 className="mt-8 font-display text-2xl">Tạo hội viên mới</h2>
-      <p className="mt-1 text-sm text-muted">Ba bước: hồ sơ → gói → thu.</p>
+      <h2 className="mt-8 font-display text-2xl">New member</h2>
+      <p className="mt-1 text-sm text-muted">Three steps: profile → plan → payment.</p>
       <ol className="mt-3 flex gap-2 text-2xs font-medium uppercase tracking-wider">
         {[
-          [1, "Hồ sơ"],
-          [2, "Gói"],
-          [3, "Thu"],
+          [1, "Profile"],
+          [2, "Plan"],
+          [3, "Payment"],
         ].map(([n, l]) => (
-          <li
-            key={n}
-            className={`rounded-full px-3 py-1 ${step === n ? "bg-accent text-accent-fg" : "bg-wood text-muted"}`}
-          >
-            {n}. {l}
+          <li key={n} className="relative rounded-full px-3 py-1">
+            {step === n ? (
+              <motion.span
+                layoutId="desk-wizard-step"
+                className="absolute inset-0 rounded-full bg-accent"
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+            ) : (
+              <span className="absolute inset-0 rounded-full bg-wood" />
+            )}
+            <span className={`relative ${step === n ? "text-accent-fg" : "text-muted"}`}>
+              {n}. {l}
+            </span>
           </li>
         ))}
       </ol>
       <Card className="mt-3">
         {step === 1 ? (
           <div className="grid gap-3 md:grid-cols-3">
-            <Field label="Họ tên">
+            <Field label="Full name">
               <Input
                 value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                placeholder="Nguyễn Văn A"
+                placeholder="Alex Nguyen"
               />
             </Field>
-            <Field label="Số điện thoại">
+            <Field label="Phone number">
               <Input
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="0901…"
+                placeholder="0901 234 567"
+                inputMode="tel"
               />
             </Field>
             <div className="flex items-end">
               <Button
                 className="w-full"
-                disabled={busy}
+                disabled={busy || !form.full_name.trim() || !form.phone.trim()}
                 onClick={async () => {
                   setBusy(true);
                   try {
                     const res = await apiPost<{
                       user: { id: string; full_name: string; member_code?: string | null };
                       existing?: boolean;
+                      temp_password?: string;
                     }>("/members", { ...form, pii_consent: true });
-                    setNewUser(res.user);
+                    setNewUser({ ...res.user, temp_password: res.temp_password });
                     setStep(2);
-                    toast.success(res.existing ? "Đã có hồ sơ — chọn gói" : "Đã tạo hồ sơ — chọn gói");
+                    toast.success(
+                      res.existing
+                        ? "This person already has a profile — pick a plan or stop here"
+                        : `Created ${res.user.member_code ?? "the profile"}. Temporary password: ${res.temp_password}`,
+                    );
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Lỗi");
+                    toast.error(e instanceof Error ? e.message : "Could not create the account");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                Tiếp: chọn gói
+                Create profile
               </Button>
             </div>
           </div>
@@ -218,13 +241,20 @@ function Page() {
               {newUser.full_name}
               {newUser.member_code ? ` · ${newUser.member_code}` : ""}
             </p>
+            {newUser.temp_password ? (
+              <Card className="mb-4 border border-hold/30 bg-hold/5 p-4">
+                <p className="text-2xs uppercase tracking-wider text-muted">Temporary password — hand this to the member so they can sign in</p>
+                <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{newUser.temp_password}</p>
+                <p className="mt-1 text-xs text-muted">They change it after the first sign-in.</p>
+              </Card>
+            ) : null}
             <div className="grid gap-2 sm:grid-cols-2">
               {plans.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => setPicked(p)}
-                  className={`rounded-[var(--radius-lg)] border px-4 py-3 text-left transition-colors ${
+                  className={`rounded-[var(--radius-lg)] border px-4 py-3 text-left transition-[background-color,border-color,transform] duration-200 active:scale-[0.98] ${
                     picked?.id === p.id ? "border-accent bg-accent/10" : "border-line hover:bg-wood"
                   }`}
                 >
@@ -232,14 +262,14 @@ function Page() {
                   <p className="font-medium">{p.name}</p>
                   <p className="text-sm tabular-nums text-muted">
                     {money(p.price_vnd)}
-                    {p.duration_days ? ` · ${p.duration_days} ngày` : ""} · {p.court_hours} giờ sân
+                    {p.duration_days ? ` · ${p.duration_days} days` : ""} · {p.court_hours} court hours
                   </p>
                 </button>
               ))}
             </div>
             <div className="mt-4 flex gap-2">
               <Button variant="ghost" onClick={() => setStep(1)}>
-                Quay lại
+                Back
               </Button>
               <Button
                 disabled={!picked || busy}
@@ -254,13 +284,13 @@ function Page() {
                     setSubId(res.subscription.id);
                     setStep(3);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Không tạo được gói");
+                    toast.error(e instanceof Error ? e.message : "Could not start the plan");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                Tiếp: thu tiền
+                Next: take payment
               </Button>
             </div>
           </div>
@@ -270,11 +300,11 @@ function Page() {
             <div className="md:col-span-3 text-sm">
               {newUser.full_name} · {picked.name} · {money(picked.price_vnd)}
             </div>
-            <Field label="Thanh toán">
+            <Field label="Payment method">
               <Select value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="cash">Tiền mặt</option>
-                <option value="transfer">Chuyển khoản</option>
-                <option value="card">Thẻ</option>
+                <option value="cash">Cash</option>
+                <option value="transfer">Bank transfer</option>
+                <option value="card">Card</option>
               </Select>
             </Field>
             <div className="flex items-end gap-2 md:col-span-2">
@@ -294,22 +324,22 @@ function Page() {
                       },
                       true,
                     );
-                    toast.success("Đã thu · phiếu đã mở");
+                    toast.success("Paid — receipt opened");
                     if (res.invoice?.id) await openInvoice(res.invoice.id);
                     const uid = newUser.id;
                     resetWizard();
                     navigate({ to: "/desk/member/$id", params: { id: uid } });
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Không thu được");
+                    toast.error(e instanceof Error ? e.message : "Payment did not go through");
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                {shift ? "Thu & in phiếu" : "Cần mở ca"}
+                {shift ? "Take payment & print" : "Open a shift first"}
               </Button>
               <Button variant="ghost" onClick={() => setStep(2)}>
-                Quay lại
+                Back
               </Button>
             </div>
           </div>
@@ -319,42 +349,43 @@ function Page() {
       <Modal
         open={closeOpen}
         onClose={() => setCloseOpen(false)}
-        title="Đóng ca"
+        title="Close shift"
         footer={
           <>
             <Button variant="ghost" onClick={() => setCloseOpen(false)}>
-              Huỷ
+              Cancel
             </Button>
             <Button
               onClick={async () => {
                 if (!shift) return;
                 try {
                   await apiPost(`/shifts/${shift.shift.id}/close`, { cash_declared_vnd: Number(cash) });
-                  toast.success("Đã đóng ca");
+                  toast.success("Shift closed");
                   setCloseOpen(false);
                   await loadShift();
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Lỗi");
+                  toast.error(e instanceof Error ? e.message : "Something went wrong");
                 }
               }}
             >
-              Đối soát & đóng
+              Reconcile & close
             </Button>
           </>
         }
       >
-        <Field label="Tiền mặt thực tế (VND)">
+        <Field label="Cash counted (VND)">
           <Input inputMode="numeric" value={cash} onChange={(e) => setCash(e.target.value)} />
         </Field>
-        <p className="mt-2 text-sm text-muted">Sổ sách: {money(shift?.totals?.cash ?? 0)}</p>
+        <p className="mt-2 text-sm text-muted">Expected from the books: {money(shift?.totals?.cash ?? 0)}</p>
       </Modal>
 
       {tickets.length ? (
         <div className="mt-8">
-          <h2 className="font-display text-2xl">Phiếu từ app</h2>
-          <div className="mt-3 grid gap-2">
+          <h2 className="font-display text-2xl">Requests from the app</h2>
+          <Stagger className="mt-3 grid gap-2" gap={0.05}>
             {tickets.map((t) => (
-              <Card key={t.id} className="flex items-start justify-between gap-3 p-4">
+              <StaggerItem key={t.id}>
+              <Card className="flex items-start justify-between gap-3 p-4">
                 <div>
                   <p className="text-sm">{t.body}</p>
                   <p className="mt-1 text-xs text-muted">
@@ -368,17 +399,18 @@ function Page() {
                     try {
                       await apiPost(`/tickets/${t.id}/close`);
                       setTickets((list) => list.filter((x) => x.id !== t.id));
-                      toast.success("Đã đóng phiếu");
+                      toast.success("Request closed");
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Lỗi");
+                      toast.error(e instanceof Error ? e.message : "Something went wrong");
                     }
                   }}
                 >
-                  Đóng
+                  Close
                 </Button>
               </Card>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </div>
       ) : null}
     </Shell>

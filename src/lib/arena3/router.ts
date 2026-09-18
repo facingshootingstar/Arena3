@@ -268,12 +268,12 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
 
   if (method === "DELETE" && p0 === "payments") {
-    throw err.forbidden("Phiếu thu không xóa — chỉ hoàn đối ứng.");
+    throw err.forbidden("Payments cannot be deleted — issue a refund instead.");
   }
 
   void staffRoles;
   void idem;
-  throw err.notFound(`Không có ${method} /v1/${parts.join("/")}`);
+  throw err.notFound(`No route for ${method} /v1/${parts.join("/")}`);
 }
 
 export async function handleApi(request: Request): Promise<Response> {

@@ -5,18 +5,19 @@ import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
 import { Cover, HeroVideo, MediaCaption, media } from "@/components/media";
 import { Button, Card, Field, Input } from "@/components/ui";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
 import { roleLabel } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
 const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: string }[] = [
-  { role: "manager", phone: "0900000001", name: "Quản lý Arena3", note: "Giá · lớp · báo cáo" },
-  { role: "receptionist", phone: "0900000002", name: "Lễ tân ca 1", note: "Tìm TV · thu · walk-in" },
-  { role: "coach", phone: "0901110011", name: "HLV Nguyễn Minh Khoa", note: "Lớp cầu lông" },
-  { role: "member", phone: "0901230101", name: "Nguyễn Văn Nam", note: "Gói tất cả môn · đặt sân hôm nay" },
-  { role: "member", phone: "0901230102", name: "Trần Mỹ Linh", note: "Gói còn ~4 ngày" },
-  { role: "member", phone: "0901230106", name: "Võ Thanh Hà", note: "Hết hạn — gia hạn" },
+  { role: "manager", phone: "0900000001", name: "Arena3 Manager", note: "Pricing · classes · reports" },
+  { role: "receptionist", phone: "0900000002", name: "Front Desk", note: "Search · take payment · walk-ins" },
+  { role: "coach", phone: "0901110011", name: "Coach Khoa", note: "Badminton classes" },
+  { role: "member", phone: "0901230101", name: "Nam", note: "All-access plan · court booked today" },
+  { role: "member", phone: "0901230102", name: "Linh", note: "Plan expires in ~4 days" },
+  { role: "member", phone: "0901230106", name: "Ha", note: "Expired — needs a renewal" },
 ];
 
 function Login() {
@@ -35,10 +36,10 @@ function Login() {
         password,
       });
       setSession(res.token, res.user);
-      toast.success(`Xin chào ${res.user.full_name}`, { id: "login-hello" });
+      toast.success(`Welcome, ${res.user.full_name}`, { id: "login-hello" });
       navigate({ to: homeFor(res.user.role) });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đăng nhập thất bại");
+      toast.error(err instanceof Error ? err.message : "Could not sign you in");
     } finally {
       setBusy(false);
     }
@@ -55,8 +56,8 @@ function Login() {
             <span className="font-display text-2xl">Arena3</span>
           </Link>
           <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-            <p className="text-2xs uppercase tracking-wider text-pass-muted">Quầy đang mở</p>
-            <p className="mt-2 font-display text-4xl leading-tight">Một lịch cho sân, lớp và tiền.</p>
+            <p className="text-2xs uppercase tracking-wider text-pass-muted">The desk is open</p>
+            <p className="mt-2 font-display text-4xl leading-tight">One schedule for courts, classes and cash.</p>
           </div>
         </div>
       </div>
@@ -68,16 +69,17 @@ function Login() {
         </Cover>
         <div className="mb-6 flex items-center gap-2 lg:hidden">
           <ArenaMark />
-          <p className="text-2xs font-medium uppercase tracking-wider text-muted">Trung tâm thể thao</p>
+          <p className="text-2xs font-medium uppercase tracking-wider text-muted">Sports centre</p>
         </div>
-        <h1 className="font-display text-4xl">Đăng nhập</h1>
-        <p className="mt-1 text-sm text-muted">SĐT hoặc email · mật khẩu demo ChangeMe!a3</p>
-        <Card className="mt-6 p-5">
+        <h1 className="font-display text-4xl">Sign in</h1>
+        <p className="mt-1 text-sm text-muted">Phone or email · demo password ChangeMe!a3</p>
+        <Reveal className="mt-6" from="up">
+        <Card className="p-5">
           <form className="grid gap-4" onSubmit={submit}>
-            <Field label="Số điện thoại / email">
+            <Field label="Phone or email">
               <Input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" />
             </Field>
-            <Field label="Mật khẩu">
+            <Field label="Password">
               <div className="relative">
                 <Input
                   type={show ? "text" : "password"}
@@ -90,40 +92,43 @@ function Login() {
                   type="button"
                   className="absolute right-1 top-1 grid size-9 place-items-center text-muted hover:text-fg"
                   onClick={() => setShow((v) => !v)}
-                  aria-label={show ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  aria-label={show ? "Hide password" : "Show password"}
                 >
                   {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
             </Field>
             <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "Đang vào…" : "Vào sân"}
+              {busy ? "Signing in…" : "Sign in"}
             </Button>
           </form>
           <div className="mt-4 flex justify-between text-sm">
             <Link to="/register" className="text-accent-2 hover:underline">
-              Đăng ký thành viên
+              Create an account
             </Link>
-            <span className="text-subtle">OTP hiện trên màn hình</span>
+            <span className="text-subtle">OTP appears on screen</span>
           </div>
         </Card>
-        <p className="mt-8 text-2xs font-semibold uppercase tracking-widest text-muted">Tài khoản thử nghiệm</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        </Reveal>
+        <p className="mt-8 text-2xs font-semibold uppercase tracking-widest text-muted">Demo accounts</p>
+        <Stagger className="mt-3 flex flex-wrap gap-2" gap={0.05}>
           {DEMOS.map((d) => (
+            <StaggerItem key={d.phone}>
             <button
-              key={d.phone}
               type="button"
+              title={d.note}
               onClick={() => {
                 setLogin(d.phone);
                 void submit(undefined, d.phone);
               }}
-              className="rounded-full border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent"
+              className="rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_10px_24px_-18px_rgba(27,31,29,0.6)] active:scale-95"
             >
               <span className="text-2xs font-semibold uppercase tracking-wider text-accent">{roleLabel(d.role)}</span>
-              <span className="ml-2 text-sm font-medium">{d.name.split(" ").slice(-1)[0]}</span>
+              <span className="ml-2 text-sm font-medium">{d.name}</span>
             </button>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </div>
     </main>
   );

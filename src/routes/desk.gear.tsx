@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, Field, Input, Select } from "@/components/ui";
+import { Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -31,21 +32,22 @@ function Page() {
   }, []);
 
   return (
-    <Shell role="receptionist" title="Dụng cụ" subtitle="Cho thuê theo SĐT — trừ kho, trả thì cộng lại.">
+    <Shell role="receptionist" title="Gear" subtitle="Rent against a phone number — stock comes down on the way out, back up on return.">
+      <Reveal from="down">
       <Card className="mb-4 grid gap-3 md:grid-cols-4">
-        <Field label="Món">
+        <Field label="Item">
           <Select value={form.item_id} onChange={(e) => setForm({ ...form, item_id: e.target.value })}>
             {items.map((i) => (
               <option key={i.id} value={i.id}>
-                {i.name} · còn {i.stock} · {money(i.rent_vnd)}
+                {i.name} · {i.stock} left · {money(i.rent_vnd)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="SĐT khách">
+        <Field label="Guest phone">
           <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         </Field>
-        <Field label="SL">
+        <Field label="Qty">
           <Input value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} />
         </Field>
         <div className="flex items-end">
@@ -58,32 +60,36 @@ function Page() {
                   phone: form.phone,
                   qty: Number(form.qty),
                 });
-                toast.success(`Đã cho thuê · ${money(r.rent_vnd)}`);
+                toast.success(`Rented out · ${money(r.rent_vnd)}`);
                 await load();
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Lỗi");
+                toast.error(e instanceof Error ? e.message : "Something went wrong");
               }
             }}
           >
-            Cho thuê
+            Rent out
           </Button>
         </div>
       </Card>
-      <div className="grid gap-3 md:grid-cols-2">
+      </Reveal>
+      <Stagger className="grid gap-3 md:grid-cols-2" gap={0.05}>
         {items.map((i) => (
-          <Card key={i.id} className="p-4">
-            <p className="text-2xs uppercase tracking-wider text-muted">{i.sport ? sportLabel(i.sport) : "Chung"}</p>
+          <StaggerItem key={i.id} className="h-full">
+          <Card interactive className="h-full p-4">
+            <p className="text-2xs uppercase tracking-wider text-muted">{i.sport ? sportLabel(i.sport) : "General"}</p>
             <p className="font-medium">{i.name}</p>
             <p className="text-sm text-muted">
-              Kho {i.stock} · {money(i.rent_vnd)}/món
+              {i.stock} in stock · {money(i.rent_vnd)} each
             </p>
           </Card>
+          </StaggerItem>
         ))}
-      </div>
-      <h2 className="mt-8 font-display text-2xl">Đang mang ra</h2>
-      <div className="mt-3 grid gap-2">
+      </Stagger>
+      <h2 className="mt-8 font-display text-2xl">Out on loan</h2>
+      <Stagger className="mt-3 grid gap-2" gap={0.05}>
         {loans.map((l) => (
-          <Card key={l.id} className="flex items-center justify-between p-4">
+          <StaggerItem key={l.id}>
+          <Card className="flex items-center justify-between p-4">
             <div>
               <p className="font-medium">
                 {l.name} × {l.qty}
@@ -96,19 +102,20 @@ function Page() {
               onClick={async () => {
                 try {
                   await apiPost(`/equipment/loans/${l.id}/return`);
-                  toast.success("Đã trả");
+                  toast.success("Returned");
                   await load();
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Lỗi");
+                  toast.error(e instanceof Error ? e.message : "Something went wrong");
                 }
               }}
             >
-              Nhận lại
+              Take it back
             </Button>
           </Card>
+          </StaggerItem>
         ))}
-        {!loans.length ? <p className="text-sm text-muted">Không có phiếu đang mở.</p> : null}
-      </div>
+        {!loans.length ? <p className="text-sm text-muted">Nothing is out right now.</p> : null}
+      </Stagger>
     </Shell>
   );
 }

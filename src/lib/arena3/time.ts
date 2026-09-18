@@ -58,7 +58,7 @@ export function roundVnd(n: number, step = 1000): number {
 }
 
 export function formatVnd(n: number): string {
-  return `${new Intl.NumberFormat("vi-VN").format(n)}đ`;
+  return `${new Intl.NumberFormat("en-US").format(n)}đ`;
 }
 
 export function slotHours(): number[] {

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { Shell } from "@/components/shell";
 import { Badge, Button, Card, Empty, Seg, Skeleton } from "@/components/ui";
+import { Stagger, StaggerItem, motion } from "@/components/motion";
+import { cn } from "@/lib/cn";
 import { apiDelete, apiGet, apiPost } from "@/lib/arena3/client";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 
@@ -49,18 +51,19 @@ function Page() {
   const byClass = Object.fromEntries(mine.map((e) => [e.class_id, e]));
 
   return (
-    <Shell role="member" title="Lớp học" subtitle="Ghi danh theo môn. Hết chỗ thì vào danh sách chờ FIFO.">
+    <Shell role="member" title="Classes" subtitle="Enrol by sport. When a class is full you join a first-come waitlist.">
       {offers.length ? (
         <Card className="mb-4 border border-hold/30 bg-hold/5">
-          <p className="text-sm font-medium">Có chỗ từ danh sách chờ</p>
+          <p className="text-sm font-medium">A waitlist seat opened up</p>
           {offers.map((o) => (
             <div key={o.id} className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm">
-                {sportLabel(o.sport)} · {levelLabel(o.level)} — nhận trước{" "}
-                {new Date(o.expires_at).toLocaleTimeString("vi-VN", {
+                {sportLabel(o.sport)} · {levelLabel(o.level)} — claim before{" "}
+                {new Date(o.expires_at).toLocaleTimeString("en-GB", {
                   timeZone: "Asia/Ho_Chi_Minh",
                   hour: "2-digit",
                   minute: "2-digit",
+                  hour12: false,
                 })}
               </p>
               <Button
@@ -68,14 +71,14 @@ function Page() {
                 onClick={async () => {
                   try {
                     await apiPost(`/waitlist/${o.id}/accept`);
-                    toast.success("Đã nhận chỗ");
+                    toast.success("Seat claimed");
                     await load();
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Hết hạn nhận chỗ");
+                    toast.error(e instanceof Error ? e.message : "This offer has expired");
                   }
                 }}
               >
-                Nhận chỗ
+                Claim seat
               </Button>
             </div>
           ))}
@@ -86,10 +89,10 @@ function Page() {
           value={sport}
           onChange={setSport}
           options={[
-            { value: "", label: "Tất cả" },
-            { value: "badminton", label: "Cầu lông" },
-            { value: "basketball", label: "Bóng rổ" },
-            { value: "volleyball", label: "Bóng chuyền" },
+            { value: "", label: "All" },
+            { value: "badminton", label: "Badminton" },
+            { value: "basketball", label: "Basketball" },
+            { value: "volleyball", label: "Volleyball" },
           ]}
         />
       </div>
@@ -99,13 +102,14 @@ function Page() {
           <Skeleton className="h-40" />
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
           {shown.map((c) => {
             const full = c.enrolled_count >= c.capacity;
             const pct = Math.min(100, Math.round((c.enrolled_count / Math.max(1, c.capacity)) * 100));
             const enr = byClass[c.id];
             return (
-              <Card key={c.id} className="flex flex-col overflow-hidden p-0">
+              <StaggerItem key={c.id} className="h-full">
+              <Card interactive className="flex h-full flex-col overflow-hidden p-0">
                 <Cover src={sportPhoto(c.sport)} alt="" scrim="none" className="h-36">
                   <MediaCaption className="flex items-end justify-between">
                     <Badge tone="accent" className="bg-surface text-fg">
@@ -121,7 +125,12 @@ function Page() {
                   </p>
                   <p className="text-sm">{rruleLabel(c.rrule)}</p>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-wood">
-                    <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+                    <motion.div
+                      className={cn("h-full rounded-full", full ? "bg-hold" : "bg-accent")}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                    />
                   </div>
                   {enr?.status === "confirmed" ? (
                     <Button
@@ -130,14 +139,14 @@ function Page() {
                       onClick={async () => {
                         try {
                           await apiDelete(`/enrollments/${enr.id}`);
-                          toast.success("Đã hủy ghi danh");
+                          toast.success("Enrolment cancelled");
                           await load();
                         } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Không hủy được");
+                          toast.error(e instanceof Error ? e.message : "Could not cancel");
                         }
                       }}
                     >
-                      Hủy ghi danh
+                      Leave this class
                     </Button>
                   ) : enr?.status === "waitlisted" ? (
                     <Button
@@ -146,14 +155,14 @@ function Page() {
                       onClick={async () => {
                         try {
                           await apiDelete(`/enrollments/${enr.id}`);
-                          toast.success("Đã rời danh sách chờ");
+                          toast.success("Left the waitlist");
                           await load();
                         } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Lỗi");
+                          toast.error(e instanceof Error ? e.message : "Something went wrong");
                         }
                       }}
                     >
-                      Đang chờ #{enr.waitlist_pos ?? "—"} · Rời
+                      Waitlisted #{enr.waitlist_pos ?? "—"} · Leave
                     </Button>
                   ) : (
                     <Button
@@ -162,22 +171,25 @@ function Page() {
                       onClick={async () => {
                         try {
                           const r = await apiPost<{ waitlisted?: boolean }>(`/classes/${c.id}/enroll`, {});
-                          toast.success(r.waitlisted ? "Đã vào danh sách chờ" : "Đã ghi danh");
+                          toast.success(r.waitlisted ? "Added to the waitlist" : "You are enrolled");
                           await load();
                         } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Không ghi danh được");
+                          toast.error(e instanceof Error ? e.message : "Could not enrol");
                         }
                       }}
                     >
-                      {full ? "Vào danh sách chờ" : "Ghi danh"}
+                      {full ? "Join the waitlist" : "Enrol"}
                     </Button>
                   )}
                 </div>
               </Card>
+              </StaggerItem>
             );
           })}
-          {!shown.length ? <Empty title="Chưa có lớp mở" hint="Quản lý sẽ xuất bản lớp theo tuần." /> : null}
-        </div>
+          {!shown.length ? (
+            <Empty title="No open classes" hint="The manager publishes the weekly timetable." />
+          ) : null}
+        </Stagger>
       )}
     </Shell>
   );

@@ -38,16 +38,16 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   const capacity = num(b.capacity) ?? 12;
   const duration_min = num(b.duration_min) ?? 90;
   if (!sport || !level || !coach_id || !court_id || !rrule || !start_on || !end_on) {
-    throw err.validation("Thiếu thông tin lớp.");
+    throw err.validation("Class details are incomplete.");
   }
   const coach = await one<{ role: string }>(sql, `select role from users where id = $1`, [coach_id]);
-  if (!coach || coach.role !== "coach") throw err.br("BR-23", "HLV không hợp lệ.");
+  if (!coach || coach.role !== "coach") throw err.br("BR-23", "That coach is not valid.");
   const sportOk = await one(
     sql,
     `select 1 from coach_sports where user_id = $1 and (sport = $2 or sport = 'all')`,
     [coach_id, sport],
   );
-  if (!sportOk) throw err.br("BR-23", "HLV chưa gắn môn này.");
+  if (!sportOk) throw err.br("BR-23", "That coach is not assigned to this sport.");
   const row = await one(
     sql,
     `insert into classes
@@ -88,7 +88,7 @@ export async function materializeClassSessions(
     end_on: string;
   }>(sql, `select * from classes where id = $1 for update`, [id]);
   if (!cl) throw err.notFound();
-  if (cl.status === "cancelled") throw err.conflictState("Lớp đã hủy.");
+  if (cl.status === "cancelled") throw err.conflictState("That class is cancelled.");
   const from = new Date();
   const until = new Date(Date.now() + 14 * 86400000);
   const windowStart = cl.start_on > ictDateString(from) ? new Date(cl.start_on + "T00:00:00+07:00") : from;
@@ -215,10 +215,10 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
     enrolled_count: number;
   }>(sql, `select * from classes where id = $1`, [id]);
   if (!cl) throw err.notFound();
-  if (cl.status !== "open") throw err.br("BR-67", "Lớp chưa mở.");
+  if (cl.status !== "open") throw err.br("BR-67", "That class is not open yet.");
   const sub = await classSubscription(sql, userId, cl.sport);
-  if (!sub) throw err.br("BR-12", "Cần gói active đúng môn.");
-  if (sub.session_left != null && sub.session_left <= 0) throw err.br("BR-18", "Hết buổi.");
+  if (!sub) throw err.br("BR-12", "You need an active plan covering this sport.");
+  if (sub.session_left != null && sub.session_left <= 0) throw err.br("BR-18", "You have no sessions left.");
   const overlap = await one(
     sql,
     `select 1
@@ -234,7 +234,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
       limit 1`,
     [userId, id],
   );
-  if (overlap) throw err.br("BR-24", "Trùng lịch lớp khác.");
+  if (overlap) throw err.br("BR-24", "This clashes with another class you are in.");
   await sql.query("savepoint sp_enroll");
   try {
     const row = await one<{ enrollment_confirm: string }>(
@@ -268,7 +268,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
       const enr = await one(sql, `select * from enrollments where id = $1`, [wl!.enrollment_waitlist]);
       return { status: 201, body: { enrollment: enr, waitlisted: true } };
     }
-    if (msg.includes("ALREADY_ENROLLED")) throw err.br("BR-24", "Đã ghi danh.");
+    if (msg.includes("ALREADY_ENROLLED")) throw err.br("BR-24", "You are already enrolled.");
     throw e;
   }
 }
@@ -298,7 +298,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
   if (next) {
     const hours = (new Date(next.start_at).getTime() - Date.now()) / 3600000;
     if (hours < settings.cancel_class_hours) {
-      throw err.br("BR-20", "Hủy lớp cần ≥ 4 giờ trước buổi kế.");
+      throw err.br("BR-20", "Cancel at least 4 hours before the next session.");
     }
   }
   await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null where id = $1`, [id]);

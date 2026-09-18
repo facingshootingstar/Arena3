@@ -30,26 +30,26 @@ export async function register(sql: Sql, request: Request) {
   const dob = str(body.dob) ?? str(body.date_of_birth);
   const email = str(body.email);
   const pii = body.pii_consent === true;
-  if (!full_name) throw err.validation("Thiếu họ tên.");
-  if (!isValidVnPhone(phone)) throw err.validation("Số điện thoại không hợp lệ.");
+  if (!full_name) throw err.validation("Full name is required.");
+  if (!isValidVnPhone(phone)) throw err.validation("That phone number is not valid.");
   if (!password || !passwordOk(password)) {
-    throw err.br("BR-02", "Mật khẩu tối thiểu 8 ký tự, gồm chữ và số.");
+    throw err.br("BR-02", "Password needs at least 8 characters, with letters and numbers.");
   }
-  if (!pii) throw err.br("BR-08", "Cần đồng ý điều khoản và NĐ 13/2023.");
+  if (!pii) throw err.br("BR-08", "You must accept the terms and the data-privacy notice.");
   const settings = await getSettings(sql);
   if (dob) {
     const age = ageYears(dob);
     if (age < settings.minor_age) {
       const gn = str(body.guardian_name);
       const gp = str(body.guardian_phone);
-      if (!gn || !gp) throw err.br("BR-07", "Người chưa thành niên cần thông tin giám hộ.");
+      if (!gn || !gp) throw err.br("BR-07", "A minor needs guardian details.");
     }
   }
   const exists = await one(sql, `select id from users where phone = $1 or email = $2`, [
     phone,
     email ?? null,
   ]);
-  if (exists) throw err.br("BR-01", "Số điện thoại hoặc email đã có tài khoản.");
+  if (exists) throw err.br("BR-01", "That phone or email already has an account.");
   const otp = randomOtp();
   const row = await one<{ id: string }>(
     sql,
@@ -74,7 +74,7 @@ export async function register(sql: Sql, request: Request) {
   console.info("[otp-stub] register", phone, otp);
   return {
     status: 202,
-    body: { challenge_id: row!.id, otp, staging: true, message: "OTP (môi trường thử) — nhập để xác thực." },
+    body: { challenge_id: row!.id, otp, staging: true, message: "OTP (demo environment) — enter it to verify." },
   };
 }
 
@@ -83,7 +83,7 @@ export async function verifyOtp(sql: Sql, request: Request) {
   const phone = normalizePhone(str(body.phone) ?? "");
   const otp = str(body.otp);
   const purpose = str(body.purpose) ?? "register";
-  if (!phone || !otp) throw err.validation("Thiếu phone hoặc otp.");
+  if (!phone || !otp) throw err.validation("Phone or OTP is missing.");
   const ch = await one<{
     id: string;
     otp_hash: string;
@@ -100,16 +100,16 @@ export async function verifyOtp(sql: Sql, request: Request) {
       for update`,
     [phone, purpose],
   );
-  if (!ch) throw err.validation("Không có yêu cầu OTP.");
-  if (ch.attempts >= 5) throw err.rateLimited("OTP bị khóa 15 phút.");
-  if (new Date(ch.expires_at) < new Date()) throw err.validation("OTP hết hạn.");
+  if (!ch) throw err.validation("No OTP request is pending.");
+  if (ch.attempts >= 5) throw err.rateLimited("Too many OTP attempts — locked for 15 minutes.");
+  if (new Date(ch.expires_at) < new Date()) throw err.validation("That OTP has expired.");
   if (ch.otp_hash !== hashOtp(otp)) {
     await sql.query(`update otp_challenges set attempts = attempts + 1 where id = $1`, [ch.id]);
-    throw err.validation("OTP không đúng.");
+    throw err.validation("That OTP is not correct.");
   }
   if (purpose === "reset") {
     const newPw = str(body.password);
-    if (!newPw || !passwordOk(newPw)) throw err.br("BR-02", "Mật khẩu mới không hợp lệ.");
+    if (!newPw || !passwordOk(newPw)) throw err.br("BR-02", "The new password is not valid.");
     await sql.query(`update users set password_hash = $1, failed_logins = 0, locked_until = null where phone = $2`, [
       hashPassword(newPw),
       phone,
@@ -119,7 +119,7 @@ export async function verifyOtp(sql: Sql, request: Request) {
   }
   const p = ch.payload ?? {};
   const existing = await one(sql, `select id from users where phone = $1`, [phone]);
-  if (existing) throw err.br("BR-01", "Số điện thoại đã có tài khoản.");
+  if (existing) throw err.br("BR-01", "That phone number already has an account.");
   const codeRow = await one<{ next_member_code: string }>(sql, `select next_member_code() as next_member_code`);
   const inserted = await one<{ id: string }>(
     sql,
@@ -151,18 +151,18 @@ export async function login(sql: Sql, request: Request) {
   const body = await readJson(request);
   const loginId = str(body.login) ?? str(body.phone) ?? str(body.email);
   const password = str(body.password);
-  if (!loginId || !password) throw err.validation("Thiếu thông tin đăng nhập.");
+  if (!loginId || !password) throw err.validation("Enter your login and password.");
   const ident = loginId.includes("@") ? loginId : normalizePhone(loginId);
   const user = await findUserByLogin(sql, ident);
-  if (!user) throw err.unauth("Sai tài khoản hoặc mật khẩu.");
-  if (user.status !== "active") throw err.unauth("Tài khoản không hoạt động.");
+  if (!user) throw err.unauth("Wrong login or password.");
+  if (user.status !== "active") throw err.unauth("This account is not active.");
   const locked = await one<{ locked_until: string | null; failed_logins: number }>(
     sql,
     `select locked_until::text, failed_logins from users where id = $1`,
     [user.id],
   );
   if (locked?.locked_until && new Date(locked.locked_until) > new Date()) {
-    throw err.rateLimited("Tài khoản đang bị khóa 15 phút.");
+    throw err.rateLimited("This account is locked for 15 minutes.");
   }
   if (!verifyPassword(password, user.password_hash)) {
     const fails = (locked?.failed_logins ?? 0) + 1;
@@ -171,10 +171,10 @@ export async function login(sql: Sql, request: Request) {
         `update users set failed_logins = $1, locked_until = now() + interval '15 minutes' where id = $2`,
         [fails, user.id],
       );
-      throw err.rateLimited("Sai mật khẩu 5 lần — khóa 15 phút.");
+      throw err.rateLimited("5 wrong passwords — locked for 15 minutes.");
     }
     await sql.query(`update users set failed_logins = $1 where id = $2`, [fails, user.id]);
-    throw err.unauth("Sai tài khoản hoặc mật khẩu.");
+    throw err.unauth("Wrong login or password.");
   }
   await sql.query(`update users set failed_logins = 0, locked_until = null where id = $1`, [user.id]);
   const session = await issueSession(sql, toPublic(user));
@@ -197,7 +197,7 @@ export async function logout(sql: Sql, request: Request, user: PublicUser) {
 export async function forgot(sql: Sql, request: Request) {
   const body = await readJson(request);
   const phone = normalizePhone(str(body.phone) ?? "");
-  if (!isValidVnPhone(phone)) throw err.validation("Số điện thoại không hợp lệ.");
+  if (!isValidVnPhone(phone)) throw err.validation("That phone number is not valid.");
   const user = await one(sql, `select id from users where phone = $1`, [phone]);
   const otp = randomOtp();
   const row = await one<{ id: string }>(
@@ -286,7 +286,7 @@ export async function meGet(sql: Sql, user: PublicUser) {
 export async function mePatch(sql: Sql, request: Request, user: PublicUser) {
   const body = await readJson(request);
   if (body.phone || body.email) {
-    throw err.validation("Đổi SĐT/email cần OTP (slice 2).");
+    throw err.validation("Changing phone or email needs an OTP (slice 2).");
   }
   const full_name = str(body.full_name) ?? user.full_name;
   const health_notes = body.health_notes === undefined ? user.health_notes : str(body.health_notes);

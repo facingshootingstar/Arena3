@@ -1,74 +1,74 @@
 export const SPORT_LABEL: Record<string, string> = {
-  badminton: "Cầu lông",
-  basketball: "Bóng rổ",
-  volleyball: "Bóng chuyền",
-  all: "Cả 3 môn",
+  badminton: "Badminton",
+  basketball: "Basketball",
+  volleyball: "Volleyball",
+  all: "All 3 sports",
 };
 
 export const ROLE_LABEL: Record<string, string> = {
-  manager: "Quản lý",
-  receptionist: "Lễ tân",
-  coach: "Huấn luyện viên",
-  member: "Thành viên",
+  manager: "Manager",
+  receptionist: "Front desk",
+  coach: "Coach",
+  member: "Member",
 };
 
 export const LEVEL_LABEL: Record<string, string> = {
-  beginner: "Mới",
-  intermediate: "Trung bình",
-  advanced: "Nâng cao",
-  team: "Đội",
-  new: "Mới",
-  tb: "Trung bình",
-  nc: "Nâng cao",
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+  team: "Team",
+  new: "Beginner",
+  tb: "Intermediate",
+  nc: "Advanced",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
-  confirmed: "Đã chốt",
-  hold: "Giữ chỗ",
-  in_use: "Đang chơi",
-  cancelled: "Đã hủy",
-  completed: "Hoàn tất",
-  noshow: "Vắng",
-  active: "Đang dùng",
-  pending: "Chờ thu",
-  expired: "Hết hạn",
-  frozen: "Tạm khóa",
-  draft: "Nháp",
-  published: "Đang mở",
-  archived: "Lưu trữ",
-  open: "Mở",
-  closed: "Đóng",
-  waitlisted: "Danh sách chờ",
-  present: "Có mặt",
-  late: "Muộn",
-  absent: "Vắng",
-  excused: "Có phép",
-  out: "Đang mang",
-  returned: "Đã trả",
+  confirmed: "Confirmed",
+  hold: "On hold",
+  in_use: "Playing",
+  cancelled: "Cancelled",
+  completed: "Completed",
+  noshow: "No-show",
+  active: "Active",
+  pending: "Unpaid",
+  expired: "Expired",
+  frozen: "Frozen",
+  draft: "Draft",
+  published: "Published",
+  archived: "Archived",
+  open: "Open",
+  closed: "Closed",
+  waitlisted: "Waitlisted",
+  present: "Present",
+  late: "Late",
+  absent: "Absent",
+  excused: "Excused",
+  out: "Checked out",
+  returned: "Returned",
 };
 
 export const KIND_LABEL: Record<string, string> = {
-  hold: "Giữ",
-  booking: "Đặt",
-  session: "Lớp",
-  maintenance: "Bảo trì",
-  convert: "Gộp sân",
+  hold: "Hold",
+  booking: "Booking",
+  session: "Class",
+  maintenance: "Maintenance",
+  convert: "Merged court",
 };
 
 export const DAY_KIND_LABEL: Record<string, string> = {
-  weekday: "Ngày thường",
-  weekend: "Cuối tuần",
-  holiday: "Ngày lễ",
+  weekday: "Weekday",
+  weekend: "Weekend",
+  holiday: "Holiday",
 };
 
 const BYDAY: Record<string, string> = {
-  MO: "T2",
-  TU: "T3",
-  WE: "T4",
-  TH: "T5",
-  FR: "T6",
-  SA: "T7",
-  SU: "CN",
+  MO: "Mon",
+  TU: "Tue",
+  WE: "Wed",
+  TH: "Thu",
+  FR: "Fri",
+  SA: "Sat",
+  SU: "Sun",
 };
 
 export function sportLabel(s: string) {
@@ -99,20 +99,20 @@ export function statusTone(s: string): "ink" | "accent" | "hold" | "muted" | "da
 }
 
 export const METHOD_LABEL: Record<string, string> = {
-  cash: "Tiền mặt",
-  transfer: "Chuyển khoản",
-  card: "Thẻ",
-  quota: "Giờ gói",
+  cash: "Cash",
+  transfer: "Bank transfer",
+  card: "Card",
+  quota: "Plan hours",
 };
 
 export const SOURCE_LABEL: Record<string, string> = {
-  court: "Thuê sân",
-  booking: "Thuê sân",
-  class: "Lớp",
-  membership: "Gói",
-  subscription: "Gói",
-  walk_in: "Khách vãng lai",
-  other: "Khác",
+  court: "Court rental",
+  booking: "Court rental",
+  class: "Class",
+  membership: "Plan",
+  subscription: "Plan",
+  walk_in: "Walk-in",
+  other: "Other",
 };
 
 export function methodLabel(s: string) {
@@ -123,11 +123,29 @@ export function sourceLabel(s: string) {
   return SOURCE_LABEL[s] ?? s;
 }
 
-export function formatViDate(iso: string) {
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/** 2026-09-17 → 17 Sep 2026 */
+export function formatDate(iso: string) {
   const day = iso.slice(0, 10);
   const [y, m, d] = day.split("-");
   if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
+  const month = MONTH_SHORT[Number(m) - 1];
+  if (!month) return iso;
+  return `${Number(d)} ${month} ${y}`;
 }
 
 export function addDaysISO(iso: string, days: number) {
@@ -139,7 +157,7 @@ export function addDaysISO(iso: string, days: number) {
 export function weekdayShort(iso: string) {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
-  return ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][dt.getUTCDay()] ?? "";
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getUTCDay()] ?? "";
 }
 
 export function todayISO() {

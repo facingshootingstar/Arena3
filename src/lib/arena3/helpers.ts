@@ -40,7 +40,7 @@ export async function getSettings(sql: Sql): Promise<Settings> {
             deposit_pct_activates, tax_code, legal_name, address
        from center_settings where id = 1`,
   );
-  if (!row) throw err.validation("Thiếu center_settings.");
+  if (!row) throw err.validation("center_settings is missing.");
   return row;
 }
 
@@ -98,7 +98,7 @@ export async function withIdempotency(
   handler: () => Promise<{ status: number; body: unknown }>,
 ): Promise<{ status: number; body: unknown; replay?: boolean }> {
   const key = request.headers.get("idempotency-key");
-  if (required && !key) throw err.validation("Thiếu Idempotency-Key.");
+  if (required && !key) throw err.validation("Idempotency-Key is required.");
   if (!key) return handler();
   const raw = await request.clone().text();
   const hash = sha256(`${request.method}:${new URL(request.url).pathname}:${raw}`);
@@ -115,7 +115,7 @@ export async function withIdempotency(
   );
   if (existing && new Date(existing.expires_at) > new Date()) {
     if (existing.request_hash !== hash) {
-      throw err.validation("Idempotency-Key đã dùng cho nội dung khác.");
+      throw err.validation("Idempotency-Key was already used for a different request.");
     }
     return { status: existing.response_code, body: existing.response_body, replay: true };
   }
@@ -144,7 +144,7 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    throw err.validation("JSON không hợp lệ.");
+    throw err.validation("Invalid JSON body.");
   }
 }
 

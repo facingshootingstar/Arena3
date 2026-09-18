@@ -2,7 +2,7 @@ import type { Sql } from "@/lib/db";
 import { hashPassword } from "../crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, readJson, str, userDebt } from "../helpers";
-import { isValidVnPhone, normalizePhone, unaccentVi } from "../phone";
+import { isValidVnPhone, normalizePhone, phoneLast9, unaccentVi } from "../phone";
 import { requireRole, toPublic, type PublicUser } from "../session";
 import { one } from "../tx";
 
@@ -12,6 +12,7 @@ export async function membersSearch(sql: Sql, request: Request, user: PublicUser
   if (q.length < 3) return { status: 200, body: { items: [] } };
   const nq = unaccentVi(q);
   const phone = q.replace(/[\s-]/g, "");
+  const tail = phoneLast9(q);
   const items = await sql.query(
     `select id, member_code, full_name, phone, email, role, status, date_of_birth
        from users
@@ -20,10 +21,11 @@ export async function membersSearch(sql: Sql, request: Request, user: PublicUser
           name_normalized like '%' || $1 || '%'
           or phone like '%' || $2 || '%'
           or coalesce(member_code,'') ilike '%' || $3 || '%'
+          or ($4::text is not null and right(phone, 9) = $4)
         )
       order by name_normalized
       limit 20`,
-    [nq, phone, q],
+    [nq, phone, q, tail],
   );
   return { status: 200, body: { items } };
 }
@@ -35,9 +37,9 @@ export async function membersCreate(sql: Sql, request: Request, user: PublicUser
   const phone = normalizePhone(str(body.phone) ?? "");
   const dob = str(body.dob) ?? str(body.date_of_birth);
   const pii = body.pii_consent === true;
-  if (!full_name) throw err.validation("Thiếu họ tên.");
-  if (!isValidVnPhone(phone)) throw err.validation("Số điện thoại không hợp lệ.");
-  if (!pii) throw err.br("BR-08", "Cần đồng ý điều khoản và NĐ 13/2023.");
+  if (!full_name) throw err.validation("Full name is required.");
+  if (!isValidVnPhone(phone)) throw err.validation("That phone number is not valid.");
+  if (!pii) throw err.br("BR-08", "You must accept the terms and the data-privacy notice.");
   const existing = await one<Record<string, unknown>>(
     sql,
     `select id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password
@@ -50,7 +52,7 @@ export async function membersCreate(sql: Sql, request: Request, user: PublicUser
   const settings = await getSettings(sql);
   if (dob && ageYears(dob) < settings.minor_age) {
     if (!str(body.guardian_name) || !str(body.guardian_phone)) {
-      throw err.br("BR-07", "Người chưa thành niên cần thông tin giám hộ.");
+      throw err.br("BR-07", "A minor needs guardian details.");
     }
   }
   const tmp = `A3tmp${Math.floor(1000 + Math.random() * 9000)}a`;
@@ -102,7 +104,7 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
         limit 1`,
       [id, user.id],
     );
-    if (!taught) throw err.forbidden("HLV chỉ xem học viên lớp mình.");
+    if (!taught) throw err.forbidden("Coaches can only view members in their own classes.");
   }
   const subs = await sql.query(
     `select s.id, s.status, s.start_on::text, s.end_on::text, s.sport_scope, s.court_hours_left, s.session_left,

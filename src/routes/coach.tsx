@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { Guard, Shell, hhmm } from "@/components/shell";
 import { Badge, Button, Card, Empty, Field, Select, Skeleton } from "@/components/ui";
+import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 
@@ -37,10 +38,10 @@ type AttRow = {
 };
 
 const RESULTS = [
-  { v: "present", l: "Có mặt" },
-  { v: "late", l: "Muộn" },
-  { v: "absent", l: "Vắng" },
-  { v: "excused", l: "Phép" },
+  { v: "present", l: "Present" },
+  { v: "late", l: "Late" },
+  { v: "absent", l: "Absent" },
+  { v: "excused", l: "Excused" },
 ];
 
 function Page() {
@@ -54,7 +55,7 @@ function Page() {
     level: string;
     goal: string;
     payload: { blocks?: Array<{ title: string; minutes: number }>; note?: string; goal?: string } | null;
-  }>({ sport: "badminton", level: "beginner", goal: "kỹ thuật nền", payload: null });
+  }>({ sport: "badminton", level: "beginner", goal: "core technique", payload: null });
 
   useEffect(() => {
     void apiGet<{ items: SessionRow[] }>("/coach/schedule")
@@ -79,22 +80,24 @@ function Page() {
         setMarks({});
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Lỗi");
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   }
 
   return (
-    <Shell role="coach" title="Lịch dạy" subtitle="Điểm danh F4 · gợi ý giáo án F5 — HLV duyệt trước khi giao.">
+    <Shell role="coach" title="Teaching" subtitle="Take the register, then review an AI session plan before you hand it to the class.">
       {!items ? (
         <div className="grid gap-3 md:grid-cols-2">
           <Skeleton className="h-36" />
           <Skeleton className="h-36" />
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
           {items.map((s) => (
-            <button key={s.id} type="button" className="text-left" onClick={() => void openSession(s)}>
-              <Card className={open?.id === s.id ? "overflow-hidden p-0 ring-2 ring-accent/40" : "overflow-hidden p-0"}>
+            <StaggerItem key={s.id}>
+            <button type="button" className="w-full text-left" onClick={() => void openSession(s)}>
+              <Card interactive
+                className={open?.id === s.id ? "overflow-hidden p-0 ring-2 ring-accent/40" : "overflow-hidden p-0"}>
                 <Cover src={sportPhoto(s.sport)} alt="" className="h-28">
                   <div className="absolute bottom-3 left-4">
                     <Badge tone="accent" className="bg-surface text-fg">
@@ -108,21 +111,23 @@ function Page() {
                     {hhmm(s.start_at)}–{hhmm(s.end_at)} · {s.court_code}
                   </p>
                   <p className="tabular-nums text-sm">
-                    {s.enrolled_count}/{s.capacity} học viên
+                    {s.enrolled_count}/{s.capacity} students
                   </p>
                 </div>
               </Card>
             </button>
+            </StaggerItem>
           ))}
-          {!items.length ? <Empty title="Chưa có buổi dạy sắp tới" /> : null}
-        </div>
+          {!items.length ? <Empty title="No sessions coming up" /> : null}
+        </Stagger>
       )}
       {open && att.length ? (
         <div className="mt-8">
-          <h2 className="font-display text-2xl">Điểm danh · {levelLabel(open.level)}</h2>
-          <div className="mt-3 grid gap-2">
+          <h2 className="font-display text-2xl">Register · {levelLabel(open.level)}</h2>
+          <Stagger className="mt-3 grid gap-2" gap={0.04}>
             {att.map((u) => (
-              <Card key={u.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <StaggerItem key={u.id}>
+              <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
                   <p className="font-medium">{u.full_name}</p>
                   <p className="text-xs text-muted">{u.member_code}</p>
@@ -134,17 +139,25 @@ function Page() {
                       key={r.v}
                       type="button"
                       onClick={() => setMarks((m) => ({ ...m, [u.id]: r.v }))}
-                      className={`min-h-9 rounded-[var(--radius-sm)] px-2 text-xs font-medium ${
-                        marks[u.id] === r.v ? "bg-fg text-bg" : "bg-wood text-muted"
+                      className={`relative min-h-9 rounded-[var(--radius-sm)] px-2 text-xs font-medium transition-colors duration-200 active:scale-95 ${
+                        marks[u.id] === r.v ? "text-bg" : "bg-wood text-muted hover:bg-wood/70"
                       }`}
                     >
-                      {r.l}
+                      {marks[u.id] === r.v ? (
+                        <motion.span
+                          layoutId={`att-${u.id}`}
+                          className="absolute inset-0 rounded-[var(--radius-sm)] bg-fg"
+                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                        />
+                      ) : null}
+                      <span className="relative">{r.l}</span>
                     </button>
                   ))}
                 </div>
               </Card>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
           <Button
             className="mt-4"
             onClick={async () => {
@@ -152,47 +165,47 @@ function Page() {
                 await apiPost(`/sessions/${open.id}/attendance`, {
                   items: Object.entries(marks).map(([user_id, result]) => ({ user_id, result })),
                 });
-                toast.success("Đã lưu điểm danh");
+                toast.success("Register saved");
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "F4 đang tắt");
+                toast.error(e instanceof Error ? e.message : "Attendance is switched off (flag F4)");
               }
             }}
           >
-            Lưu điểm danh
+            Save register
           </Button>
         </div>
       ) : null}
 
       {flags.F5 !== false ? (
         <div className="mt-10">
-          <h2 className="font-display text-2xl">Gợi ý giáo án</h2>
-          <p className="mt-1 text-sm text-muted">AI chỉ đề xuất. Bấm xuất bản để học viên thấy trên mục Tập.</p>
-          <Card className="mt-3 grid gap-3 md:grid-cols-4">
-            <Field label="Môn">
+          <h2 className="font-display text-2xl">Session plan</h2>
+          <p className="mt-1 text-sm text-muted">The AI only suggests. Publish it and your students see it under Train.</p>
+          <Reveal><Card className="mt-3 grid gap-3 md:grid-cols-4">
+            <Field label="Sport">
               <Select
                 value={suggest.sport}
                 onChange={(e) => setSuggest({ ...suggest, sport: e.target.value })}
               >
-                <option value="badminton">Cầu lông</option>
-                <option value="basketball">Bóng rổ</option>
-                <option value="volleyball">Bóng chuyền</option>
+                <option value="badminton">Badminton</option>
+                <option value="basketball">Basketball</option>
+                <option value="volleyball">Volleyball</option>
               </Select>
             </Field>
-            <Field label="Trình độ">
+            <Field label="Level">
               <Select
                 value={suggest.level}
                 onChange={(e) => setSuggest({ ...suggest, level: e.target.value })}
               >
-                <option value="beginner">Mới</option>
-                <option value="intermediate">Trung bình</option>
-                <option value="advanced">Nâng cao</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
               </Select>
             </Field>
-            <Field label="Mục tiêu">
+            <Field label="Focus">
               <Select value={suggest.goal} onChange={(e) => setSuggest({ ...suggest, goal: e.target.value })}>
-                <option value="kỹ thuật nền">Kỹ thuật nền</option>
-                <option value="thể lực">Thể lực</option>
-                <option value="thi đấu">Thi đấu</option>
+                <option value="core technique">Core technique</option>
+                <option value="conditioning">Conditioning</option>
+                <option value="match play">Match play</option>
               </Select>
             </Field>
             <div className="flex items-end">
@@ -207,14 +220,14 @@ function Page() {
                     );
                     setSuggest((s) => ({ ...s, payload: r.payload }));
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "F5 đang tắt");
+                    toast.error(e instanceof Error ? e.message : "Plan suggestions are switched off (flag F5)");
                   }
                 }}
               >
-                Gợi ý
+                Suggest a plan
               </Button>
             </div>
-          </Card>
+          </Card></Reveal>
           {suggest.payload ? (
             <Card className="mt-3">
               <ol className="grid gap-1 text-sm">
@@ -235,13 +248,13 @@ function Page() {
                       published: true,
                       payload: { ...suggest.payload, goal: suggest.goal },
                     });
-                    toast.success("Đã giao giáo án");
+                    toast.success("Plan published to the class");
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Lỗi");
+                    toast.error(e instanceof Error ? e.message : "Something went wrong");
                   }
                 }}
               >
-                Xuất bản cho lớp
+                Publish to the class
               </Button>
             </Card>
           ) : null}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isValidVnPhone, normalizePhone, passwordOk } from "./phone.ts";
+import { isValidVnPhone, normalizePhone, passwordOk, phoneLast9 } from "./phone.ts";
 import { rruleLabel } from "./labels.ts";
 import { addDays, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd } from "./time.ts";
 
@@ -8,6 +8,10 @@ describe("phone", () => {
   it("normalizes VN mobiles to +84", () => {
     assert.equal(normalizePhone("0900000001"), "+84900000001");
     assert.equal(normalizePhone("+84900000001"), "+84900000001");
+    assert.equal(normalizePhone("900000001"), "+84900000001");
+    assert.equal(normalizePhone("090 000 0001"), "+84900000001");
+    assert.equal(phoneLast9("0908825218"), "908825218");
+    assert.ok(isValidVnPhone("0900000001"));
     assert.ok(isValidVnPhone("+84900000001"));
     assert.equal(isValidVnPhone("+84120000001"), false);
   });
@@ -42,8 +46,8 @@ describe("pricing", () => {
 });
 
 describe("rrule", () => {
-  it("labels weekly BYDAY in Vietnamese", () => {
-    assert.equal(rruleLabel("FREQ=WEEKLY;BYDAY=MO,WE,FR;BYHOUR=18"), "T2, T4, T6 · 18:00");
+  it("labels weekly BYDAY in English", () => {
+    assert.equal(rruleLabel("FREQ=WEEKLY;BYDAY=MO,WE,FR;BYHOUR=18"), "Mon, Wed, Fri · 18:00");
   });
   it("builds Monday 18:00 ICT from the date+hour helper", () => {
     const start = ictDateTime("2026-09-14", "18:00");

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
 import { Cover, media } from "@/components/media";
 import { Button, Card, DateField, Field, Input } from "@/components/ui";
+import { AnimatePresence, motion } from "motion/react";
+import { Reveal } from "@/components/motion";
 import { apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
 
 export const Route = createFileRoute("/register")({ component: Register });
@@ -29,9 +31,9 @@ function Register() {
       const res = await apiPost<{ otp?: string }>("/auth/register", form);
       setShown(res.otp ?? "");
       setStep("otp");
-      toast.message("OTP đã ghi log staging.");
+      toast.message("OTP written to the staging log.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Không đăng ký được");
+      toast.error(err instanceof Error ? err.message : "Could not create the account");
     } finally {
       setBusy(false);
     }
@@ -48,7 +50,7 @@ function Register() {
       setSession(res.token, res.user);
       navigate({ to: homeFor(res.user.role) });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "OTP sai");
+      toast.error(err instanceof Error ? err.message : "That OTP is not right");
     } finally {
       setBusy(false);
     }
@@ -64,28 +66,38 @@ function Register() {
               <span className="font-display text-2xl">Arena3</span>
             </Link>
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-              <p className="font-display text-4xl leading-tight">Gói còn hạn là chìa khóa sân và lớp.</p>
+              <p className="font-display text-4xl leading-tight">A live plan is your key to the courts and the classes.</p>
             </div>
           </div>
         </Cover>
       </div>
       <div className="grid min-h-dvh place-items-center px-4 py-10">
-        <Card className="relative w-full max-w-md p-6">
+        <Reveal className="w-full max-w-md" from="up">
+        <Card className="relative w-full p-6">
           <div className="flex items-center gap-2">
             <ArenaMark className="size-7" />
             <p className="text-2xs uppercase tracking-wider text-muted">Arena3</p>
           </div>
-          <h1 className="mt-3 font-display text-3xl">Tạo tài khoản</h1>
+          <h1 className="mt-3 font-display text-3xl">Create an account</h1>
+          <AnimatePresence mode="wait">
           {step === "form" ? (
-            <form className="mt-6 grid gap-4" onSubmit={send}>
-              <Field label="Họ tên">
+            <motion.form
+              key="form"
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-6 grid gap-4"
+              onSubmit={send}
+            >
+              <Field label="Full name">
                 <Input
                   required
                   value={form.full_name}
                   onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                 />
               </Field>
-              <Field label="Số điện thoại">
+              <Field label="Phone number">
                 <Input
                   required
                   value={form.phone}
@@ -93,10 +105,10 @@ function Register() {
                   placeholder="0901…"
                 />
               </Field>
-              <Field label="Ngày sinh">
-                <DateField value={form.dob} onChange={(v) => setForm({ ...form, dob: v })} aria-label="Ngày sinh" />
+              <Field label="Date of birth">
+                <DateField value={form.dob} onChange={(v) => setForm({ ...form, dob: v })} aria-label="Date of birth" />
               </Field>
-              <Field label="Mật khẩu">
+              <Field label="Password">
                 <Input
                   type="password"
                   value={form.password}
@@ -110,34 +122,44 @@ function Register() {
                   checked={form.pii_consent}
                   onChange={(e) => setForm({ ...form, pii_consent: e.target.checked })}
                 />
-                Đồng ý điều khoản và NĐ 13/2023 về bảo vệ dữ liệu cá nhân.
+                I agree to the terms and to Decree 13/2023 on personal data protection.
               </label>
               <Button type="submit" disabled={busy} className="w-full">
-                Gửi OTP
+                Send OTP
               </Button>
-            </form>
+            </motion.form>
           ) : (
-            <form className="mt-6 grid gap-4" onSubmit={verify}>
+            <motion.form
+              key="otp"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-6 grid gap-4"
+              onSubmit={verify}
+            >
               {shown ? (
                 <p className="rounded-[var(--radius-md)] bg-wood px-3 py-2 text-sm">
-                  OTP thử nghiệm: <span className="font-medium tabular-nums">{shown}</span>
+                  Test OTP: <span className="font-medium tabular-nums">{shown}</span>
                 </p>
               ) : null}
-              <Field label="Mã OTP 6 số">
+              <Field label="6-digit OTP">
                 <Input value={otp} onChange={(e) => setOtp(e.target.value)} inputMode="numeric" />
               </Field>
               <Button type="submit" disabled={busy} className="w-full">
-                Xác thực
+                Verify
               </Button>
-            </form>
+            </motion.form>
           )}
+          </AnimatePresence>
           <p className="mt-4 text-sm text-muted">
-            Đã có tài khoản?{" "}
+            Already have an account?{" "}
             <Link to="/login" className="text-accent-2 hover:underline">
-              Đăng nhập
+              Sign in
             </Link>
           </p>
         </Card>
+        </Reveal>
       </div>
     </main>
   );

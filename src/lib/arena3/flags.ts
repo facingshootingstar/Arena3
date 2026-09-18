@@ -19,5 +19,5 @@ export async function flagOn(sql: Sql, key: FlagKey): Promise<boolean> {
 }
 
 export async function requireFlag(sql: Sql, key: FlagKey) {
-  if (!(await flagOn(sql, key))) throw err.br("C-07", `Tính năng ${key} đang tắt.`);
+  if (!(await flagOn(sql, key))) throw err.br("C-07", `Feature ${key} is switched off.`);
 }

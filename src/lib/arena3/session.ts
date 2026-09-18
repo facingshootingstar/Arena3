@@ -85,11 +85,11 @@ export async function authFromRequest(sql: Sql, request: Request): Promise<Publi
       where s.token_hash = $1`,
     [sha256(m[1]!)],
   );
-  if (!row) throw err.unauth("Phiên không hợp lệ.");
-  if (new Date(row.expires_at) < new Date()) throw err.unauth("Hết phiên.");
-  if (row.status !== "active") throw err.unauth("Tài khoản không hoạt động.");
+  if (!row) throw err.unauth("That session is not valid.");
+  if (new Date(row.expires_at) < new Date()) throw err.unauth("Your session has expired.");
+  if (row.status !== "active") throw err.unauth("This account is not active.");
   if (row.locked_until && new Date(row.locked_until) > new Date()) {
-    throw err.rateLimited("Tài khoản đang bị khóa.");
+    throw err.rateLimited("This account is locked.");
   }
   return toPublic(row);
 }

@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 import { addDaysISO, kindLabel, sportLabel, todayISO, weekdayShort } from "@/lib/arena3/labels";
 
 function hhmm(iso: string) {
-  return new Date(iso).toLocaleTimeString("vi-VN", {
+  return new Date(iso).toLocaleTimeString("en-GB", {
     timeZone: "Asia/Ho_Chi_Minh",
     hour: "2-digit",
     minute: "2-digit",
@@ -72,12 +72,14 @@ export function DateStrip({
             type="button"
             onClick={() => onChange(it.iso)}
             className={cn(
-              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-colors duration-150",
-              on ? "bg-accent text-accent-fg" : "bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-wood",
+              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color,transform,box-shadow] duration-200 active:scale-95",
+              on
+                ? "bg-accent text-accent-fg shadow-[0_8px_20px_-12px_rgba(31,92,67,0.9)]"
+                : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
             )}
           >
             <span className="text-2xs font-medium uppercase tracking-wide opacity-70">
-              {it.isToday ? "Nay" : it.wd}
+              {it.isToday ? "Today" : it.wd}
             </span>
             <span className="font-display text-xl tabular-nums leading-none">{it.day}</span>
           </button>
@@ -89,11 +91,11 @@ export function DateStrip({
 
 export function CourtLegend() {
   const items = [
-    { cls: "bg-surface shadow-[var(--shadow-border)]", label: "Trống" },
-    { cls: "bg-fg", label: "Lớp" },
-    { cls: "bg-accent/25", label: "Đặt" },
-    { cls: "bg-hold/25", label: "Giữ" },
-    { cls: "bg-wood", label: "Bảo trì / gộp" },
+    { cls: "bg-surface shadow-[var(--shadow-border)]", label: "Free" },
+    { cls: "bg-fg", label: "Class" },
+    { cls: "bg-accent/25", label: "Booked" },
+    { cls: "bg-hold/25", label: "On hold" },
+    { cls: "bg-wood", label: "Maintenance / merged" },
   ];
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted">
@@ -128,10 +130,10 @@ export function CourtGrid({
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CourtLegend />
-        <p className="text-xs tabular-nums text-muted">{free} ô trống</p>
+        <p className="text-xs tabular-nums text-muted">{free} free slots</p>
       </div>
       {!hasClass ? (
-        <p className="text-sm text-muted">Chưa có buổi lớp trên sân ngày này — chỉ thấy đặt sân của hội viên.</p>
+        <p className="text-sm text-muted">No classes scheduled on court today — you are seeing member bookings only.</p>
       ) : null}
 
       <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:hidden">
@@ -154,7 +156,7 @@ export function CourtGrid({
                       <button
                         key={h}
                         type="button"
-                        title="Bấm để mở lại cặp sân"
+                        title="Tap to release the paired court"
                         onClick={() => onPick(c, h)}
                         className={cn(
                           "grid min-h-11 place-items-center rounded-[var(--radius-xs)] text-2xs font-medium tabular-nums",
@@ -183,7 +185,7 @@ export function CourtGrid({
                     key={h}
                     type="button"
                     onClick={() => onPick?.(c, h)}
-                    className="grid min-h-11 place-items-center rounded-[var(--radius-xs)] bg-wood/60 text-xs tabular-nums text-muted transition-colors hover:bg-accent/15 hover:text-accent-2"
+                    className="grid min-h-11 place-items-center rounded-[var(--radius-xs)] bg-wood/60 text-xs tabular-nums text-muted transition-[background-color,color,transform] duration-150 hover:bg-accent/20 hover:text-accent-2 active:scale-95"
                   >
                     {label}
                   </button>
@@ -200,7 +202,7 @@ export function CourtGrid({
           style={{ gridTemplateColumns: `3.25rem repeat(${Math.max(list.length, 1)}, minmax(0, 1fr))` }}
         >
           <div className="sticky left-0 z-10 bg-surface px-2 py-2 text-2xs font-medium uppercase tracking-wider text-muted">
-            Giờ
+            Hour
           </div>
           {list.map((c) => (
             <div key={c.id} className="border-l border-line/80 px-1 py-2 text-center">
@@ -246,7 +248,7 @@ function HourRow({
               <div key={c.id} className="border-l border-t border-line/70 p-1">
                 <button
                   type="button"
-                  title="Bấm để mở lại cặp sân"
+                  title="Tap to release the paired court"
                   onClick={() => onPick(c, hour)}
                   className={cn("h-9 w-full overflow-hidden rounded-[var(--radius-xs)]", kindClass(occ.kind))}
                 />
@@ -266,9 +268,9 @@ function HourRow({
           <div key={c.id} className="border-l border-t border-line/70 p-1">
             <button
               type="button"
-              aria-label={`Đặt ${c.court_code} ${String(hour).padStart(2, "0")}:00`}
+              aria-label={`Book ${c.court_code} at ${String(hour).padStart(2, "0")}:00`}
               onClick={() => onPick?.(c, hour)}
-              className="block h-9 w-full rounded-[var(--radius-xs)] bg-wood/50 transition-colors hover:bg-accent/20"
+              className="block h-9 w-full rounded-[var(--radius-xs)] bg-wood/50 transition-[background-color,transform] duration-150 hover:scale-[1.04] hover:bg-accent/25 active:scale-95"
             />
           </div>
         );

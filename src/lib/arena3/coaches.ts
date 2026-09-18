@@ -9,42 +9,42 @@ export type CoachCard = {
   photo: string;
 };
 
-/** Presentation copy for seeded HLV — not a new table. */
+/** Presentation copy for the seeded coaches — not a new table. */
 export const COACHES: CoachCard[] = [
   {
     name: "Nguyễn Minh Khoa",
     sport: "badminton",
-    title: "HLV trưởng cầu lông",
+    title: "Head badminton coach",
     blurb:
-      "Phụ trách lớp mới và nâng cao. Ưu tiên chân vị trí, smash có kiểm soát — không đốt vai học viên mới.",
-    creds: ["Lớp mới T2/T4/T6 18:00", "Nâng cao T7 08:00", "Sân CL-01 · CL-05"],
+      "Runs the beginner and advanced ladders. Footwork first, controlled smashes second — no shoulders burned out in week one.",
+    creds: ["Beginner Mon/Wed/Fri 18:00", "Advanced Sat 08:00", "Courts CL-01 · CL-05"],
     photo: media.coachKhoa,
   },
   {
     name: "Trần Thị Lan",
     sport: "badminton",
-    title: "HLV cầu lông trung bình",
+    title: "Intermediate badminton coach",
     blurb:
-      "Trợ giảng lớp mới, chủ lớp trung bình. Kiên nhẫn với học viên vừa chuyển từ tự tập sang có giáo án.",
-    creds: ["Trung bình T3/T5 19:00", "Trợ giảng lớp mới", "Sân CL-03"],
+      "Assists the beginner ladder, owns intermediate. Patient with players moving from casual rallies to a real training plan.",
+    creds: ["Intermediate Tue/Thu 19:00", "Beginner assistant", "Court CL-03"],
     photo: media.coachLan,
   },
   {
     name: "Phạm Đức Anh",
     sport: "basketball",
-    title: "HLV trưởng bóng rổ",
+    title: "Head basketball coach",
     blurb:
-      "Giáo án beginner trên BR-01: chân, nhả bóng, chơi nhóm. Sân convert — lịch lớp không đè slot đã bán.",
-    creds: ["Lớp mới T2/T4 17:00", "Sân BR-01", "Sức bật · phối hợp"],
+      "Beginner program on BR-01: footwork, release, reading the floor. A convertible court — classes never sit on a sold slot.",
+    creds: ["Beginner Mon/Wed 17:00", "Court BR-01", "Vertical · coordination"],
     photo: media.coachAnh,
   },
   {
     name: "Lê Quốc Việt",
     sport: "volleyball",
-    title: "HLV trưởng bóng chuyền",
+    title: "Head volleyball coach",
     blurb:
-      "Trung bình trên BC-01. Tập đỡ bóng, phát, tư duy đội — phù hợp người đã chơi sân phủi muốn vào khung.",
-    creds: ["Trung bình T7 16:00", "Sân BC-01", "Đội hình · phản xạ"],
+      "Intermediate on BC-01. Digs, serves and team reading — built for players moving off the sand into a structured side.",
+    creds: ["Intermediate Sat 16:00", "Court BC-01", "Rotations · reflexes"],
     photo: media.coachViet,
   },
 ];

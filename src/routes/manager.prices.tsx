@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, Input } from "@/components/ui";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { apiGet, apiPut } from "@/lib/arena3/client";
 import { DAY_KIND_LABEL, sportLabel } from "@/lib/arena3/labels";
 
@@ -31,16 +32,17 @@ function Page() {
   }, []);
 
   return (
-    <Shell role="manager" title="Bảng giá sân" subtitle="Đổi giá chỉ áp cho giao dịch mới — không hồi tố booking đã chốt.">
-      <div className="grid gap-2">
+    <Shell role="manager" title="Court pricing" subtitle="A new price only applies to new transactions — bookings already confirmed keep theirs.">
+      <Stagger className="grid gap-2" gap={0.04}>
         {items.map((r, i) => (
-          <Card key={r.id} className="grid grid-cols-2 items-center gap-2 p-3 md:grid-cols-6">
+          <StaggerItem key={r.id}>
+          <Card className="grid grid-cols-2 items-center gap-2 p-3 md:grid-cols-6">
             <span className="text-sm font-medium">{sportLabel(r.sport)}</span>
             <span className="text-sm text-muted">{DAY_KIND_LABEL[r.day_kind] ?? r.day_kind}</span>
             <span className="text-sm tabular-nums">
               {r.start_local.slice(0, 5)}–{r.end_local.slice(0, 5)}
             </span>
-            <span className="text-sm">{r.is_peak ? "Cao điểm" : "Thấp điểm"}</span>
+            <span className="text-sm">{r.is_peak ? "Peak" : "Off-peak"}</span>
             <Input
               type="number"
               value={r.price_vnd}
@@ -52,21 +54,22 @@ function Page() {
             />
             <span className="text-right text-sm tabular-nums">{money(r.price_vnd)}</span>
           </Card>
+          </StaggerItem>
         ))}
-      </div>
+      </Stagger>
       <Button
         className="mt-4"
         onClick={async () => {
           try {
             await apiPut("/price-rules", { items });
-            toast.success("Đã lưu bảng giá");
+            toast.success("Pricing saved");
             await load();
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Lỗi");
+            toast.error(e instanceof Error ? e.message : "Something went wrong");
           }
         }}
       >
-        Lưu bộ giá mới
+        Save new prices
       </Button>
     </Shell>
   );

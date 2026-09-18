@@ -5,7 +5,6 @@ import {
   enqueue,
   getSettings,
   nextCode,
-  num,
   readJson,
   str,
   userDebt,
@@ -23,7 +22,7 @@ async function courtById(sql: Sql, id: string) {
     sport: string;
     status: string;
   }>(sql, `select id, court_code, sport, status from courts where id = $1`, [id]);
-  if (!c) throw err.notFound("Không có sân.");
+  if (!c) throw err.notFound("No such court.");
   return c;
 }
 
@@ -38,19 +37,19 @@ async function assertBookWindow(
   opts: { walkIn: boolean; settings: Awaited<ReturnType<typeof getSettings>> },
 ) {
   const now = new Date();
-  if (!opts.walkIn && start < now) throw err.br("BR-66", "Không đặt sân quá khứ.");
+  if (!opts.walkIn && start < now) throw err.br("BR-66", "You cannot book a slot in the past.");
   if (opts.walkIn && start < now) {
     const remain = (start.getTime() + opts.settings.slot_minutes * 60_000 - now.getTime()) / 60_000;
-    if (remain < 20) throw err.br("BR-66", "Khách vãng lai chỉ khi còn ≥ 20 phút.");
+    if (remain < 20) throw err.br("BR-66", "Walk-ins need at least 20 minutes left in the slot.");
   }
   const date = ictDateString(start);
   const open = ictDateTime(date, opts.settings.open_time.slice(0, 5));
   const close = ictDateTime(date, opts.settings.close_time.slice(0, 5));
-  if (start < open || start >= close) throw err.br("BR-35", "Ngoài giờ mở cửa.");
+  if (start < open || start >= close) throw err.br("BR-35", "That is outside opening hours.");
   if (!opts.walkIn) {
     const ahead = opts.settings.book_ahead_days;
     const max = new Date(now.getTime() + ahead * 86400000);
-    if (start > max) throw err.br("BR-32", `Chỉ đặt trước tối đa ${ahead} ngày.`);
+    if (start > max) throw err.br("BR-32", `You can book at most ${ahead} days ahead.`);
   }
 }
 
@@ -130,20 +129,20 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
   const b = await readJson(request);
   const courtId = str(b.court_id);
   const startAt = str(b.start_at);
-  if (!courtId || !startAt) throw err.validation("Thiếu court_id/start_at.");
+  if (!courtId || !startAt) throw err.validation("court_id and start_at are required.");
   const settings = await getSettings(sql);
   const start = new Date(startAt);
   const { end } = slotBounds(start, settings.slot_minutes);
   await assertBookWindow(sql, start, { walkIn: false, settings });
   const court = await courtById(sql, courtId);
-  if (court.status !== "ready") throw err.br("BR-35", "Sân không sẵn sàng.");
+  if (court.status !== "ready") throw err.br("BR-35", "That court is not available.");
   const debt = await userDebt(sql, user.id);
-  if (debt > settings.debt_limit_vnd) throw err.br("BR-44", "Công nợ vượt trần — thanh toán tại quầy.");
+  if (debt > settings.debt_limit_vnd) throw err.br("BR-44", "Your balance is over the limit — settle it at the desk.");
   const n = await countSlotsToday(sql, user.id, start);
-  if (n >= settings.max_slots_per_day) throw err.br("BR-32", "Tối đa 2 slot/ngày.");
+  if (n >= settings.max_slots_per_day) throw err.br("BR-32", "You can hold at most 2 slots a day.");
   const overlap = await overlapClass(sql, user.id, start, end);
   if (overlap && b.confirm_overlap !== true) {
-    throw err.br("BR-39C", "Khung giờ trùng lớp của bạn. Xác nhận để giữ chỗ.", {
+    throw err.br("BR-39C", "This slot clashes with a class you are in. Confirm to hold it anyway.", {
       requires_confirm: true,
     });
   }
@@ -162,7 +161,7 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
     );
     occId = occ!.booking_replace_hold;
   } catch (e) {
-    if (isConflictSlot(e)) throw err.conflictSlot("Khung giờ vừa được giữ.");
+    if (isConflictSlot(e)) throw err.conflictSlot("Someone just took that slot.");
     throw e;
   }
   const code = await nextCode(sql, "CRT");
@@ -216,7 +215,7 @@ export async function bookingsConfirm(sql: Sql, id: string, request: Request, us
   );
   if (!booking) throw err.notFound();
   if (booking.user_id !== user.id) throw err.forbidden();
-  if (booking.status !== "hold") throw err.conflictState("Booking không còn hold.");
+  if (booking.status !== "hold") throw err.conflictState("That booking is no longer on hold.");
   if (!booking.hold_until || new Date(booking.hold_until) < new Date()) {
     throw err.holdExpired();
   }
@@ -226,7 +225,7 @@ export async function bookingsConfirm(sql: Sql, id: string, request: Request, us
   let subId: string | null = null;
   if (method === "quota") {
     const disc = await memberDiscount(sql, user.id, court.sport);
-    if (disc.court_hours_left < 1) throw err.br("BR-17", "Hết quota giờ thuê sân.");
+    if (disc.court_hours_left < 1) throw err.br("BR-17", "You have no court hours left on your plan.");
     payAmount = 0;
     quotaHours = 1;
     subId = disc.sub_id;
@@ -289,7 +288,7 @@ export async function bookingsCancel(sql: Sql, id: string, user: PublicUser) {
   if (!booking) throw err.notFound();
   if (user.role === "member" && booking.user_id !== user.id) throw err.forbidden();
   if (!["hold", "confirmed"].includes(booking.status)) {
-    throw err.conflictState("Không hủy được trạng thái này.");
+    throw err.conflictState("A booking in this state cannot be cancelled.");
   }
   const settings = await getSettings(sql);
   if (booking.status === "hold") {
@@ -339,13 +338,13 @@ export async function bookingsCheckIn(sql: Sql, id: string, user: PublicUser) {
     start_at: string;
   }>(sql, `select * from court_bookings where id = $1 for update`, [id]);
   if (!booking) throw err.notFound();
-  if (booking.status !== "confirmed") throw err.conflictState("Chỉ check-in booking confirmed.");
+  if (booking.status !== "confirmed") throw err.conflictState("Only confirmed bookings can be checked in.");
   const start = new Date(booking.start_at).getTime();
   const now = Date.now();
   const min = start - settings.checkin_before_minutes * 60_000;
   const max = start + settings.noshow_grace_minutes * 60_000;
   if (now < min || now > max) {
-    throw err.br("BR-39B", "Ngoài cửa sổ check-in −15/+10 phút.");
+    throw err.br("BR-39B", "Outside the check-in window of −15/+10 minutes.");
   }
   await sql.query(`update court_bookings set status = 'in_use' where id = $1`, [id]);
   return { status: 200, body: { status: "in_use" } };
@@ -360,23 +359,23 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
   const guest_phone_raw = str(b.guest_phone);
   const method = str(b.method) ?? "cash";
   if (!courtId || !startAt || !guest_name || !guest_phone_raw) {
-    throw err.validation("Thiếu sân, giờ, tên hoặc SĐT.");
+    throw err.validation("Court, time, name or phone is missing.");
   }
   const guest_phone = normalizePhone(guest_phone_raw);
-  if (!isValidVnPhone(guest_phone)) throw err.validation("SĐT không hợp lệ.");
+  if (!isValidVnPhone(guest_phone)) throw err.validation("That phone number is not valid.");
   const settings = await getSettings(sql);
   const start = new Date(startAt);
   const { end } = slotBounds(start, settings.slot_minutes);
   await assertBookWindow(sql, start, { walkIn: true, settings });
   const court = await courtById(sql, courtId);
-  if (court.status !== "ready") throw err.br("BR-35", "Sân không sẵn sàng.");
+  if (court.status !== "ready") throw err.br("BR-35", "That court is not available.");
   if (user.role === "receptionist") {
     const shift = await one<{ id: string }>(
       sql,
       `select id from cashier_shifts where receptionist_id = $1 and closed_at is null`,
       [user.id],
     );
-    if (!shift) throw err.br("BR-49", "Cần mở ca trước khi thu tiền.");
+    if (!shift) throw err.br("BR-49", "Open a till shift before taking payment.");
     (b as { _shift?: string })._shift = shift.id;
   }
   const member = await one<{ id: string; full_name: string }>(

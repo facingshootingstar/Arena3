@@ -21,7 +21,7 @@ export async function shiftOpen(sql: Sql, user: PublicUser) {
     `select id from cashier_shifts where receptionist_id = $1 and closed_at is null`,
     [user.id],
   );
-  if (existing) throw err.conflictState("Đã có ca đang mở.");
+  if (existing) throw err.conflictState("A till shift is already open.");
   const row = await one(
     sql,
     `insert into cashier_shifts (receptionist_id) values ($1) returning *`,
@@ -37,7 +37,7 @@ export async function shiftCurrent(sql: Sql, user: PublicUser) {
     `select * from cashier_shifts where receptionist_id = $1 and closed_at is null`,
     [user.id],
   );
-  if (!row) throw err.notFound("Không có ca đang mở.");
+  if (!row) throw err.notFound("No till shift is open.");
   const totals = await one<{ cash: number; all: number }>(
     sql,
     `select coalesce(sum(amount_vnd) filter (where method = 'cash' and status = 'posted'),0)::int as cash,
@@ -52,7 +52,7 @@ export async function shiftClose(sql: Sql, id: string, request: Request, user: P
   requireRole(user, ["receptionist"]);
   const b = await readJson(request);
   const cash = num(b.cash_declared_vnd);
-  if (cash == null) throw err.validation("Thiếu cash_declared_vnd.");
+  if (cash == null) throw err.validation("cash_declared_vnd is required.");
   const sh = await one<{ id: string; receptionist_id: string; closed_at: string | null }>(
     sql,
     `select * from cashier_shifts where id = $1 for update`,
@@ -60,7 +60,7 @@ export async function shiftClose(sql: Sql, id: string, request: Request, user: P
   );
   if (!sh) throw err.notFound();
   if (sh.receptionist_id !== user.id) throw err.forbidden();
-  if (sh.closed_at) throw err.conflictState("Ca đã đóng.");
+  if (sh.closed_at) throw err.conflictState("That shift is already closed.");
   await sql.query(
     `update cashier_shifts set closed_at = now(), cash_declared_vnd = $2 where id = $1`,
     [id, cash],
@@ -135,7 +135,7 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
   const method = str(b.method);
   const amount = num(b.amount_vnd);
   if (!ref_type || !ref_id || !method || amount == null) {
-    throw err.validation("Thiếu ref_type/ref_id/method/amount_vnd.");
+    throw err.validation("ref_type, ref_id, method and amount_vnd are required.");
   }
   const settings = await getSettings(sql);
   let shiftId: string | null = str(b.shift_id) ?? null;
@@ -145,7 +145,7 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
       `select id from cashier_shifts where receptionist_id = $1 and closed_at is null`,
       [user.id],
     );
-    if (!sh) throw err.br("BR-49", "Lễ tân cần ca đang mở.");
+    if (!sh) throw err.br("BR-49", "The front desk needs an open shift.");
     shiftId = sh.id;
   }
   let buyer = user.full_name;
@@ -156,7 +156,7 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
       `select user_id, plan_id from subscriptions where id = $1`,
       [ref_id],
     );
-    if (!sub) throw err.notFound("Không có gói.");
+    if (!sub) throw err.notFound("No such plan.");
     userId = sub.user_id;
     const u = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [userId]);
     buyer = u?.full_name ?? buyer;
@@ -215,7 +215,7 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
   const b = await readJson(request);
   const amount = num(b.amount_vnd);
   const reason = str(b.reason) ?? "";
-  if (amount == null || amount === 0) throw err.validation("amount_vnd phải âm hoặc dương hoàn.");
+  if (amount == null || amount === 0) throw err.validation("amount_vnd must not be zero.");
   const orig = await one<{
     id: string;
     amount_vnd: number;
@@ -227,7 +227,7 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
   if (!orig) throw err.notFound();
   const settings = await getSettings(sql);
   const signed = amount > 0 ? -amount : amount;
-  if (Math.abs(signed) > orig.amount_vnd) throw err.validation("Hoàn vượt số đã thu.");
+  if (Math.abs(signed) > orig.amount_vnd) throw err.validation("The refund is larger than the amount taken.");
   const needMgr = Math.abs(signed) >= settings.refund_manager_vnd;
   if (needMgr && user.role !== "manager") {
     const payCode = await nextCode(sql, "PAY");
@@ -470,7 +470,7 @@ export async function priceRulesPut(sql: Sql, request: Request, user: PublicUser
   requireRole(user, ["manager"]);
   const b = await readJson(request);
   const items = Array.isArray(b.items) ? b.items : Array.isArray(b) ? b : null;
-  if (!items) throw err.validation("Cần items[].");
+  if (!items) throw err.validation("items[] is required.");
   await sql.query(`delete from price_rules`);
   for (const it of items as Record<string, unknown>[]) {
     await sql.query(

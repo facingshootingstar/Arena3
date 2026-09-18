@@ -1,13 +1,19 @@
+/** Last 9 digits of a VN mobile, or null if the input is not a number. */
+export function phoneLast9(raw: string): string | null {
+  let d = raw.replace(/\D/g, "");
+  if (d.startsWith("84")) d = d.slice(2);
+  if (d.startsWith("0")) d = d.slice(1);
+  return /^\d{9}$/.test(d) ? d : null;
+}
+
 export function normalizePhone(raw: string): string {
-  const p = raw.trim().replace(/[\s-]/g, "");
-  if (p.startsWith("+84")) return p;
-  if (p.startsWith("84")) return `+${p}`;
-  if (p.startsWith("0")) return `+84${p.slice(1)}`;
-  return p;
+  const tail = phoneLast9(raw);
+  if (tail) return `+84${tail}`;
+  return raw.trim().replace(/[\s.-]/g, "");
 }
 
 export function isValidVnPhone(p: string): boolean {
-  return /^\+84[3-9]\d{8}$/.test(p);
+  return /^\+84[3-9]\d{8}$/.test(normalizePhone(p));
 }
 
 export function unaccentVi(s: string): string {
