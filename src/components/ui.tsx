@@ -9,6 +9,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDate, statusLabel, statusTone } from "@/lib/arena3/labels";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -376,20 +377,54 @@ export function Modal({
   );
 }
 
+/**
+ * How a figure moved against the period before it.
+ *
+ * `good` is carried rather than derived from the sign, because whether "up" is
+ * good news depends entirely on what is being counted. Revenue climbing is the
+ * centre doing well; refunds climbing is the centre doing badly. Painting both
+ * green for going up would tell a manager the opposite of what happened.
+ */
+export type Trend = {
+  /** Percent change, or null when there was nothing to compare against. */
+  pct: number | null;
+  label: string;
+  /** null when the figure did not move, or when the direction carries no verdict. */
+  good: boolean | null;
+};
+
 export function Stat({
   label,
   value,
   hint,
+  trend,
 }: {
   label: string;
   value: ReactNode;
   hint?: string;
+  trend?: Trend;
 }) {
+  const Arrow =
+    trend?.pct == null || trend.pct === 0 ? Minus : trend.pct > 0 ? ArrowUpRight : ArrowDownRight;
   return (
     <Card>
       <p className="kicker text-2xs text-muted">{label}</p>
-      <p className="athletic mt-2.5 text-4xl tabular-nums">{value}</p>
-      {hint ? <p className="mt-1.5 text-sm text-muted">{hint}</p> : null}
+      <p className="figure mt-2.5 text-4xl">{value}</p>
+      {trend ? (
+        <p
+          className={cn(
+            "mt-1.5 flex items-center gap-1 text-sm font-medium",
+            trend.good === true && "text-accent",
+            trend.good === false && "text-danger",
+            trend.good == null && "text-muted",
+          )}
+        >
+          <Arrow className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+          {trend.label}
+        </p>
+      ) : hint ? (
+        <p className="mt-1.5 text-sm text-muted">{hint}</p>
+      ) : null}
     </Card>
   );
 }

@@ -52,7 +52,7 @@ function Page() {
       <Shell
         role={user?.role ?? "member"}
         title="Account settings"
-        subtitle="Your details, your password, and every receipt Arena3 has issued you."
+        subtitle="Your details, your password, your receipts, and anything you have asked us."
       >
         <div className="mb-5">
           <Seg
@@ -62,12 +62,14 @@ function Page() {
               { value: "profile", label: "Profile" },
               { value: "security", label: "Security" },
               { value: "receipts", label: "Receipts" },
+              { value: "support", label: "Support" },
             ]}
           />
         </div>
         {tab === "profile" ? <Profile user={user} /> : null}
         {tab === "security" ? <Security /> : null}
         {tab === "receipts" ? <Receipts /> : null}
+        {tab === "support" ? <Support /> : null}
       </Shell>
     </Guard>
   );
@@ -247,6 +249,117 @@ function Security() {
         </form>
       </Card>
     </SpotlightCard>
+  );
+}
+
+type Ticket = {
+  id: string;
+  body: string;
+  status: string;
+  created_at: string;
+  reply: string | null;
+  replied_at: string | null;
+  replied_by_name: string | null;
+};
+
+/**
+ * Customer care, from the member's side.
+ *
+ * Until now the only way to reach the desk was to type «ticket: …» at the
+ * assistant, which opened a row nobody could answer and pointed the member at
+ * no screen. Everything else in this app — a booking, a class, a receipt — can
+ * be looked up afterwards; a complaint was the one thing you sent into silence.
+ */
+function Support() {
+  const [items, setItems] = useState<Ticket[] | null>(null);
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const r = await apiGet<{ items: Ticket[] }>("/tickets/mine");
+    setItems(r.items);
+  }
+
+  useEffect(() => {
+    void load().catch((e) => toast.error(e instanceof Error ? e.message : "Could not load your requests"));
+  }, []);
+
+  async function send(e: FormEvent) {
+    e.preventDefault();
+    const text = body.trim();
+    if (text.length < 2 || busy) return;
+    setBusy(true);
+    try {
+      await apiPost("/tickets", { body: text });
+      setBody("");
+      await load();
+      toast.success("Sent to the front desk");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not send that");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-5">
+      <Card className="p-5">
+        <h2 className="font-display text-xl">Ask the front desk</h2>
+        <p className="mt-1 text-sm text-muted">
+          A question, a complaint, something broken on a court. Reception answers during opening
+          hours and the reply shows up here.
+        </p>
+        <form className="mt-3 grid gap-3" onSubmit={send}>
+          <Field label="Your message">
+            <Textarea
+              rows={3}
+              maxLength={2000}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="The lights over BC2 have been out since Tuesday…"
+            />
+          </Field>
+          <div>
+            <StarBorder>
+              <Button type="submit" disabled={busy || body.trim().length < 2}>
+                {busy ? "Sending…" : "Send to reception"}
+              </Button>
+            </StarBorder>
+          </div>
+        </form>
+      </Card>
+
+      {!items ? (
+        <Skeleton className="h-24" />
+      ) : items.length === 0 ? (
+        <Empty title="Nothing asked yet" hint="Anything you send the desk will be kept here with its reply." />
+      ) : (
+        <Stagger className="grid gap-2.5" gap={0.05}>
+          {items.map((t) => (
+            <StaggerItem key={t.id}>
+              <Card className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 whitespace-pre-wrap text-sm">{t.body}</p>
+                  <Badge tone={t.reply ? "accent" : "hold"}>{t.reply ? "Answered" : "Waiting"}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted">{when(t.created_at)}</p>
+                {t.reply ? (
+                  /* Indented and on the wood tone so the reply reads as somebody
+                     else speaking, not as more of the member's own message. */
+                  <div className="mt-3 rounded-[var(--radius-md)] border-l-2 border-accent bg-wood/50 p-3">
+                    <p className="whitespace-pre-wrap text-sm">{t.reply}</p>
+                    <p className="mt-1 text-2xs text-muted">
+                      {t.replied_by_name ?? "Reception"}
+                      {t.replied_at ? ` · ${when(t.replied_at)}` : ""}
+                    </p>
+                  </div>
+                ) : null}
+              </Card>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      )}
+    </div>
   );
 }
 

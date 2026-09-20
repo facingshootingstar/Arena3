@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
 import { Cover, MediaCaption, media } from "@/components/media";
 import { Shell, money } from "@/components/shell";
-import { Button, Card, DateField, Seg, Skeleton, Stat } from "@/components/ui";
+import { Button, Card, DateField, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet } from "@/lib/arena3/client";
@@ -35,12 +35,24 @@ function monthStart(iso: string) {
   return `${iso.slice(0, 7)}-01`;
 }
 
-function deltaHint(cur: number, prev: number) {
-  if (prev === 0 && cur === 0) return "Same as the previous period";
-  if (prev === 0) return "New this period";
+/**
+ * This period against the one before it.
+ *
+ * `upIsGood` is asked for rather than assumed. These three tiles sit in a row
+ * and two of them mean opposite things: revenue rising is the centre having a
+ * good week, refunds rising is the centre having a bad one. A single colour
+ * rule keyed on the sign would paint a week of refunds green.
+ */
+function delta(cur: number, prev: number, upIsGood: boolean): Trend {
+  if (prev === 0 && cur === 0) return { pct: 0, label: "Same as the previous period", good: null };
+  if (prev === 0) return { pct: null, label: "New this period", good: upIsGood };
   const pct = Math.round(((cur - prev) / Math.abs(prev)) * 1000) / 10;
   const sign = pct > 0 ? "+" : "";
-  return `${sign}${pct}% vs the previous period`;
+  return {
+    pct,
+    label: `${sign}${pct}% vs the previous period`,
+    good: pct === 0 ? null : pct > 0 === upIsGood,
+  };
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
@@ -200,21 +212,21 @@ function Page() {
           <Stat
             label="Revenue"
             value={money(rev.totals.revenue_vnd)}
-            hint={prev ? deltaHint(rev.totals.revenue_vnd, prev.totals.revenue_vnd) : undefined}
+            trend={prev ? delta(rev.totals.revenue_vnd, prev.totals.revenue_vnd, true) : undefined}
           />
           </StaggerItem>
           <StaggerItem>
           <Stat
             label="Refunds"
             value={money(rev.totals.refund_vnd ?? 0)}
-            hint={prev ? deltaHint(rev.totals.refund_vnd ?? 0, prev.totals.refund_vnd ?? 0) : undefined}
+            trend={prev ? delta(rev.totals.refund_vnd ?? 0, prev.totals.refund_vnd ?? 0, false) : undefined}
           />
           </StaggerItem>
           <StaggerItem>
           <Stat
             label="Plan hours used"
             value={rev.totals.quota_hours}
-            hint={prev ? deltaHint(rev.totals.quota_hours, prev.totals.quota_hours) : undefined}
+            trend={prev ? delta(rev.totals.quota_hours, prev.totals.quota_hours, true) : undefined}
           />
           </StaggerItem>
         </Stagger>

@@ -13,7 +13,9 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#2d6a4f" },
+      // The same green the manifest and the palette use. It was a lighter one
+      // here, so the phone chrome did not match the header it sat above.
+      { name: "theme-color", content: "#1f5c43" },
       {
         name: "description",
         content:
@@ -23,9 +25,16 @@ export const Route = createRootRoute({
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
+      // The stylesheet and the font files come from two different hosts, so
+      // without these the browser opens the second connection only after it has
+      // parsed the first response. That delay is the flash of fallback type
+      // every heading does on a cold load — the page is not badly set, it is
+      // briefly set in the wrong faces.
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Anton&family=Be+Vietnam+Pro:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600;6..72,700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Anton&family=Be+Vietnam+Pro:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&display=swap",
       },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },

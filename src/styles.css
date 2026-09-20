@@ -169,14 +169,35 @@
   body {
     font-family: var(--font-sans);
     line-height: 1.5;
+    /* The page sits on cream rather than white and Be Vietnam Pro has fairly
+       light stems; unsmoothed it renders chalky against that background. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Only 400–700 are loaded. Without this a `font-semibold` on a weight that
+       did not arrive gets faked by slanting and smearing the 400. */
+    font-synthesis-weight: none;
   }
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
+    /* Newsreader carries an optical-size axis. Letting it choose means headings
+       get the display cut — open counters, finer hairlines — instead of the
+       text cut scaled up, which is what makes a serif look inflated. */
+    font-optical-sizing: auto;
     text-wrap: balance;
-    letter-spacing: -0.03em;
     line-height: 1.15;
+    /* Tracking is a function of size, not of tag. -0.03em was chosen for the
+       landing page's 5rem headlines and then inherited by every h3 on every
+       card, where at 1.125rem it closes the counters up and the word turns
+       into a smudge. Each level gets the tightening its own size can carry. */
+    letter-spacing: -0.012em;
+  }
+  h1 {
+    letter-spacing: -0.028em;
+  }
+  h2 {
+    letter-spacing: -0.02em;
   }
   p {
     text-wrap: pretty;
@@ -290,6 +311,21 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   line-height: 0.92;
+}
+
+/* Scoreboard numerals — the same block-caps voice as `.athletic` with the caps
+   transform taken off.
+   The only letter in a VND figure is the currency mark, and uppercasing
+   "1,500,000đ" gives "1,500,000Đ": a letter Vietnamese does not use for money,
+   set in a heavy condensed face, at the top of every stat tile in the reports.
+   Tracking is pulled back too — Anton's digits are already tight, and the extra
+   0.02em that keeps its caps from colliding just loosens a number. */
+.figure {
+  font-family: var(--font-athletic);
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 0.92;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Small label that sits above a heading. Same family, opened right up — wide

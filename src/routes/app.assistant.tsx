@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Send, Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AssistantMark } from "@/components/mark";
 import { Shell } from "@/components/shell";
 import { Button } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
@@ -12,6 +13,20 @@ import { cn } from "@/lib/cn";
 export const Route = createFileRoute("/app/assistant")({ component: Page });
 
 type Msg = { role: "me" | "bot"; text: string; source?: "gemini" | "xai" | "rules" };
+
+/**
+ * The longest question the assistant will read.
+ *
+ * This is the server's own limit, not a number picked for the UI. `assistantChat`
+ * slices the message at 800 characters and answers whatever survives, so a long
+ * question used to come back answered confidently — and wrong, because the half
+ * that mattered was cut off silently. Stopping the typing at the same boundary
+ * is the only place a member can be told about it.
+ */
+const MAX_CHARS = 800;
+
+/** Where the remaining-characters line starts showing itself. */
+const COUNTER_FROM = MAX_CHARS - 120;
 
 const CHIPS = [
   "What are your opening hours?",
@@ -43,7 +58,8 @@ function Page() {
   }, [log, busy]);
 
   async function send(text?: string) {
-    const message = (text ?? q).trim();
+    // Trimmed before the cap so trailing spaces cannot eat the last words.
+    const message = (text ?? q).trim().slice(0, MAX_CHARS);
     if (message.length < 2 || busy) return;
     setQ("");
     const nextLog: Msg[] = [...log, { role: "me", text: message }];
@@ -83,7 +99,7 @@ function Page() {
       <div className="relative mx-auto flex max-w-2xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface/70 shadow-[0_24px_60px_-40px_rgba(20,28,18,0.7)] backdrop-blur-sm">
         <div className="flex items-center gap-2.5 border-b border-line/70 bg-surface/80 px-4 py-3">
           <span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-accent/12 text-accent">
-            <Sparkles className="size-4" strokeWidth={1.75} />
+            <AssistantMark className="size-4" strokeWidth={1.9} />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium leading-tight">Arena3 assistant</p>
@@ -184,9 +200,13 @@ function Page() {
           >
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => setQ(e.target.value.slice(0, MAX_CHARS))}
               placeholder="Ask about prices, opening hours, coaches…"
               disabled={busy}
+              // maxLength stops typing; the slice above stops a paste, which
+              // maxLength does not always catch on every browser.
+              maxLength={MAX_CHARS}
+              aria-describedby={q.length >= COUNTER_FROM ? "assistant-remaining" : undefined}
               className="h-11 min-w-0 flex-1 rounded-[var(--radius-pill)] border border-line bg-bg px-4 text-sm text-fg placeholder:text-subtle outline-none transition-[box-shadow,border-color] duration-150 focus:border-accent/40 focus:ring-2 focus:ring-accent/25"
             />
             <Magnet radius={110} pull={0.25} wrapperClassName="shrink-0">
@@ -195,6 +215,24 @@ function Page() {
               </Button>
             </Magnet>
           </form>
+
+          {/* Silent until it is nearly relevant. A counter sitting under an empty
+              box reads as a form with a word limit; what a member needs is a
+              warning shortly before the box stops accepting their typing. */}
+          {q.length >= COUNTER_FROM ? (
+            <p
+              id="assistant-remaining"
+              aria-live="polite"
+              className={cn(
+                "mt-2 px-4 text-2xs tabular-nums",
+                q.length >= MAX_CHARS ? "text-danger" : "text-muted",
+              )}
+            >
+              {q.length >= MAX_CHARS
+                ? "That is as long as a question can be."
+                : `${MAX_CHARS - q.length} characters left`}
+            </p>
+          ) : null}
         </div>
       </div>
 

@@ -355,6 +355,28 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
   return { status: 200, body: { payload } };
 }
 
+/** A `ticket:` marker at the very start of what is left of the message. */
+const TICKET_PREFIX = /^\s*ticket\s*:\s*/i;
+
+/**
+ * The note a `ticket:` message actually leaves at the desk.
+ *
+ * People type "ticket: ticket: the lights in BC2 are out" — the second prefix is
+ * what you write when the first one did not look like it was heard. The desk was
+ * then reading the word "ticket" back to itself before getting to the lights.
+ *
+ * The first prefix is the instruction: it is the thing that routed this message
+ * to the desk at all, so it is consumed rather than stored. Every repeat of it is
+ * the same instruction given again, so it goes too. Only leading repeats are
+ * removed — a "ticket:" in the middle of a sentence is the member writing prose
+ * about a ticket, and cutting it there would edit their complaint.
+ */
+export function ticketBody(message: string) {
+  let body = message;
+  while (TICKET_PREFIX.test(body)) body = body.replace(TICKET_PREFIX, "");
+  return body.trim();
+}
+
 export async function assistantChat(sql: Sql, request: Request, user: PublicUser) {
   await requireFlag(sql, "F6");
   const body = await readJson(request);
@@ -365,12 +387,24 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   const q = message.toLowerCase();
 
   if (/ticket:|complaint|feedback|khiếu nại|góp ý/.test(q) || q.startsWith("ticket:")) {
+    const note = ticketBody(message);
+    // "ticket:" and nothing else. Opening a blank request would put a row at the
+    // desk that nobody can answer, so ask for the rest before writing anything.
+    if (note.length < 2) {
+      return {
+        status: 200,
+        body: {
+          reply: "Tell me what happened after «ticket:» and I'll pass it to the front desk.",
+          source: "rules" as const,
+        },
+      };
+    }
     const t = await one<{ id: string }>(
       sql,
       `insert into tickets (user_id, body) values ($1,$2) returning id`,
-      [user.id, message],
+      [user.id, note],
     );
-    await audit(sql, user.id, "assistant", "chat", user.id, null, { q: message.slice(0, 200), source: "ticket" });
+    await audit(sql, user.id, "assistant", "chat", user.id, null, { q: note.slice(0, 200), source: "ticket" });
     return {
       status: 200,
       body: {
@@ -493,26 +527,103 @@ function ruleReply(
 
 
 export async function ticketsCreate(sql: Sql, request: Request, user: PublicUser) {
-  const body = str((await readJson(request)).body);
-  if (!body) throw err.validation("The message is empty.");
+  // Same stripping as the assistant route: a member who typed "ticket:" into
+  // the support box is repeating the habit the assistant taught them.
+  const body = ticketBody(str((await readJson(request)).body) ?? "").slice(0, 2000);
+  if (body.length < 2) throw err.validation("The message is empty.");
   const row = await one(sql, `insert into tickets (user_id, body) values ($1,$2) returning *`, [user.id, body]);
   return { status: 201, body: row };
 }
 
-export async function ticketsList(sql: Sql, user: PublicUser) {
-  requireRole(user, ["receptionist", "manager"]);
+/**
+ * The member's own side of customer care.
+ *
+ * Closed tickets come back too. A request that has been answered is the most
+ * useful row on this screen — it is the answer — and hiding it the moment the
+ * desk replies would mean the reply is only ever seen if the member happens to
+ * be looking when the notification lands.
+ */
+export async function ticketsMine(sql: Sql, user: PublicUser) {
   const items = await sql.query(
-    `select t.*, u.full_name, u.phone from tickets t
-       left join users u on u.id = t.user_id
-      where t.status = 'open'
+    `select t.id, t.body, t.status, t.created_at, t.reply, t.replied_at,
+            s.full_name as replied_by_name
+       from tickets t
+       left join users s on s.id = t.replied_by
+      where t.user_id = $1
       order by t.created_at desc
       limit 50`,
+    [user.id],
   );
   return { status: 200, body: { items } };
+}
+
+export async function ticketsList(sql: Sql, request: Request, user: PublicUser) {
+  requireRole(user, ["receptionist", "manager"]);
+  // The desk works the open queue, but wants to be able to read back what it
+  // told somebody last week without opening the database.
+  const all = new URL(request.url).searchParams.get("status") === "all";
+  const items = await sql.query(
+    `select t.id, t.body, t.status, t.created_at, t.reply, t.replied_at,
+            u.full_name, u.phone, u.member_code,
+            s.full_name as replied_by_name
+       from tickets t
+       left join users u on u.id = t.user_id
+       left join users s on s.id = t.replied_by
+      where ($1::bool or t.status = 'open')
+      order by t.status = 'open' desc, t.created_at desc
+      limit 50`,
+    [all],
+  );
+  return { status: 200, body: { items } };
+}
+
+/**
+ * Reception answers, and the member is told there is an answer.
+ *
+ * Replying closes the ticket in the same statement rather than leaving that as
+ * a second button: an answered request that stays in the open queue is one a
+ * colleague will answer again. Reopening is the member's move — they send
+ * another note — which is also the honest signal that the first answer did not
+ * land.
+ */
+export async function ticketReply(sql: Sql, id: string, request: Request, user: PublicUser) {
+  requireRole(user, ["receptionist", "manager"]);
+  const reply = (str((await readJson(request)).reply) ?? "").trim().slice(0, 2000);
+  if (reply.length < 2) throw err.validation("Write a reply first.");
+  const t = await one<{ id: string; user_id: string | null; status: string }>(
+    sql,
+    `select id, user_id, status from tickets where id = $1 for update`,
+    [id],
+  );
+  if (!t) throw err.notFound();
+  const row = await one(
+    sql,
+    `update tickets
+        set reply = $2, replied_at = now(), replied_by = $3, status = 'closed'
+      where id = $1
+      returning *`,
+    [id, reply, user.id],
+  );
+  // A ticket raised by a walk-in the desk typed in has nobody to notify.
+  if (t.user_id) {
+    await enqueue(
+      sql,
+      "inapp",
+      "ticket_replied",
+      t.user_id,
+      { ticket_id: id, reply: reply.slice(0, 200) },
+      // Keyed on the reply, not the ticket: if the desk answers again after the
+      // member writes back, that second answer is its own notification.
+      `ticket_replied|${id}|${Date.now()}`,
+    );
+  }
+  await audit(sql, user.id, "ticket_reply", "ticket", id);
+  return { status: 200, body: { ticket: row } };
 }
 
 export async function ticketClose(sql: Sql, id: string, user: PublicUser) {
   requireRole(user, ["receptionist", "manager"]);
   await sql.query(`update tickets set status = 'closed' where id = $1`, [id]);
+  await audit(sql, user.id, "ticket_close", "ticket", id);
   return { status: 200, body: { ok: true } };
 }

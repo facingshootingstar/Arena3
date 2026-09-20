@@ -3,6 +3,7 @@ import { err, isConflictSlot } from "../errors";
 import {
   audit,
   enqueue,
+  enqueueReceipt,
   getSettings,
   nextCode,
   readJson,
@@ -313,6 +314,16 @@ async function settleHeldBooking(
     { booking_id: booking.id, code: booking.code },
     `booking_confirmed|${booking.id}`,
   );
+  // Paid with plan hours is still a transaction worth a record, but it is not a
+  // receipt for money — there is nothing for the member to have been charged.
+  if (opts.payAmount > 0) {
+    await enqueueReceipt(sql, booking.user_id, {
+      payment_id: pay!.id,
+      invoice_id: inv!.id,
+      amount_vnd: opts.payAmount,
+      method: opts.method,
+    });
+  }
   const fresh = await one(sql, `select * from court_bookings where id = $1`, [booking.id]);
   const payment = await one(sql, `select * from payments where id = $1`, [pay!.id]);
   return { booking: fresh, payment, invoice_id: inv!.id };

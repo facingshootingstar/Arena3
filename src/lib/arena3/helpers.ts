@@ -93,6 +93,31 @@ export async function enqueue(
   );
 }
 
+/**
+ * Tell the payer their receipt exists, and where it is.
+ *
+ * Every route that takes money ends up here, which is the point: the till, a
+ * member confirming a court, and reception reconciling a bank transfer hours
+ * later all have to leave the same trace, because to the person who paid they
+ * are the same event. Court bookings used to leave none at all — the invoice was
+ * written and the member was told only that their booking was confirmed, so the
+ * proof of payment existed but nobody was ever pointed at it.
+ *
+ * `invoice_id` and `amount_vnd` travel in the payload rather than being looked
+ * up when the notification is read: the receipt is a record of what was paid at
+ * the time, and a later refund or correction must not quietly restate it.
+ *
+ * Walk-ins have no account to notify, hence the null check.
+ */
+export async function enqueueReceipt(
+  sql: Sql,
+  userId: string | null,
+  receipt: { payment_id: string; invoice_id: string; amount_vnd: number; method: string },
+) {
+  if (!userId) return;
+  await enqueue(sql, "inapp", "payment_receipt", userId, receipt, `payment_receipt|${receipt.payment_id}`);
+}
+
 export async function withIdempotency(
   sql: Sql,
   request: Request,

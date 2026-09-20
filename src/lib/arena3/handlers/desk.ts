@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import {
   audit,
+  enqueueReceipt,
   getSettings,
   nextCode,
   num,
@@ -193,21 +194,16 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
      values ($1,$2,1,$3,$3)`,
     [inv!.id, ref_type === "subscription" ? "Goi thanh vien" : "Thu ngan", amount],
   );
-  await enqueueReceipt(sql, userId, pay!.id);
+  await enqueueReceipt(sql, userId, {
+    payment_id: pay!.id,
+    invoice_id: inv!.id,
+    amount_vnd: amount,
+    method,
+  });
   const payment = await one(sql, `select * from payments where id = $1`, [pay!.id]);
   const invoice = await one(sql, `select * from invoices where id = $1`, [inv!.id]);
   await audit(sql, user.id, "create_payment", "payment", pay!.id);
   return { status: 201, body: { payment, invoice } };
-}
-
-async function enqueueReceipt(sql: Sql, userId: string | null, payId: string) {
-  if (!userId) return;
-  await sql.query(
-    `insert into outbox (channel, template, user_id, payload, dedupe_key, sent_at)
-     values ('inapp','payment_receipt',$1,$2::jsonb,$3, now())
-     on conflict (dedupe_key) do nothing`,
-    [userId, JSON.stringify({ payment_id: payId }), `payment_receipt|${payId}`],
-  );
 }
 
 export async function paymentsRefund(sql: Sql, id: string, request: Request, user: PublicUser) {
@@ -309,8 +305,8 @@ export async function paymentsRejectRefund(sql: Sql, id: string, user: PublicUse
   return { status: 200, body: { status: "refund_rejected" } };
 }
 
-/** How many bank transfers the reconciliation list will show at once. */
-const TRANSFER_CAP = 60;
+/** How many receipts the reconciliation list will show at once. */
+const RECEIPT_CAP = 60;
 
 /**
  * Everything at the desk that is still waiting on money.
@@ -399,28 +395,43 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
       order by p.created_at asc`,
   );
 
-  const transfers = await sql.query(
+  /*
+   * Every posted payment, whatever it was paid with.
+   *
+   * This list was filtered to `method = 'transfer'`, which made it a bank
+   * reconciliation tool and nothing else. But a receipt is a receipt: cash taken
+   * at the counter, a card tapped, a plan paid off, a court settled in the app —
+   * each one issues an invoice, and none of them appeared anywhere at reception.
+   * A member coming back with "I paid on Tuesday, can I have that again?" had to
+   * be met by somebody guessing which queue to open.
+   *
+   * `taken_by` comes along because with cash in the list the obvious next
+   * question is whose till it went into.
+   */
+  const receipts = await sql.query(
     `select p.id, p.code, p.method, p.amount_vnd, p.created_at, p.ref_type, p.ref_id,
             u.full_name as member_name, u.member_code,
+            s.full_name as taken_by,
             i.id as invoice_id
        from payments p
        left join users u on u.id = p.user_id
+       left join users s on s.id = p.created_by
        left join invoices i on i.payment_id = p.id
-      where p.method = 'transfer' and p.status = 'posted'
+      where p.status = 'posted'
         and p.created_at >= now() - ($1::int * interval '1 day')
       order by p.created_at desc
       limit $2`,
-    [days, TRANSFER_CAP + 1],
+    [days, RECEIPT_CAP + 1],
   );
 
   // One row over the cap is fetched purely to answer "is there more?" — the
   // desk reads this list back against a bank statement, so a silently truncated
   // list is worse than a short one that admits it is short.
-  const capped = transfers.length > TRANSFER_CAP;
+  const capped = receipts.length > RECEIPT_CAP;
 
   return {
     status: 200,
-    body: { awaiting, orders, refunds, transfers: transfers.slice(0, TRANSFER_CAP), days, capped },
+    body: { awaiting, orders, refunds, receipts: receipts.slice(0, RECEIPT_CAP), days, capped },
   };
 }
 

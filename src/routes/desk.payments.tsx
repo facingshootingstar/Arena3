@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowUpRight, Clock3, Landmark, Undo2 } from "lucide-react";
+import { ArrowUpRight, Banknote, Clock3, CreditCard, Landmark, Ticket, Undo2 } from "lucide-react";
 import { HoldTimer } from "@/components/media";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
 import { Badge, Button, Card, Empty, Seg, Select, Skeleton } from "@/components/ui";
@@ -40,7 +40,8 @@ type Refund = {
   raised_by: string | null;
 };
 
-type Transfer = {
+/** A payment that has been posted — money the centre has actually taken. */
+type Receipt = {
   id: string;
   code: string;
   method: string;
@@ -49,6 +50,7 @@ type Transfer = {
   ref_type: string;
   member_name: string | null;
   member_code: string | null;
+  taken_by: string | null;
   invoice_id: string | null;
 };
 
@@ -72,11 +74,32 @@ type Queue = {
   awaiting: Awaiting[];
   orders: Order[];
   refunds: Refund[];
-  transfers: Transfer[];
+  receipts: Receipt[];
   days: number;
-  /** The transfer list hit its cap and there is more behind it. */
+  /** The receipt list hit its cap and there is more behind it. */
   capped: boolean;
 };
+
+const METHODS = [
+  { value: "all", label: "All" },
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "transfer", label: "Transfer" },
+] as const;
+
+function methodLabel(m: string) {
+  return (
+    { cash: "Cash", card: "Card", transfer: "Bank transfer", quota: "Plan hours" } as Record<string, string>
+  )[m] ?? m;
+}
+
+/* With one method in the list the icon was decoration; with four it is how you
+   scan the column without reading every line. */
+function MethodIcon({ method }: { method: string }) {
+  const Icon =
+    method === "cash" ? Banknote : method === "card" ? CreditCard : method === "quota" ? Ticket : Landmark;
+  return <Icon className="size-4 shrink-0 text-muted" />;
+}
 
 /** Whole days between an ICT date string and today, floored at zero. */
 function daysWaiting(dateOnly: string) {
@@ -89,6 +112,7 @@ function Page() {
   const isManager = me?.role === "manager";
   const [data, setData] = useState<Queue | null>(null);
   const [days, setDays] = useState("7");
+  const [payMethod, setPayMethod] = useState("all");
   const [shift, setShift] = useState<{ shift: { id: string } } | null>(null);
   // Method and busy flag are per-order: the desk works one member at a time,
   // but a slow network should never grey out the whole queue.
@@ -117,7 +141,10 @@ function Page() {
   const awaiting = data?.awaiting ?? [];
   const orders = data?.orders ?? [];
   const refunds = data?.refunds ?? [];
-  const transfers = data?.transfers ?? [];
+  // Filtered here rather than at the server: the cap is applied before the
+  // filter either way, and narrowing a list already on screen should not cost a
+  // round trip while somebody is reading down a statement.
+  const receipts = (data?.receipts ?? []).filter((r) => payMethod === "all" || r.method === payMethod);
   // Per-row flooring, not a floor on the total: one over-paid order must not
   // quietly cancel out what another member still owes.
   const owed = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
@@ -238,7 +265,7 @@ function Page() {
     <Shell
       role={isManager ? "manager" : "receptionist"}
       title="Payments"
-      subtitle="Plans ordered in the app and waiting to be paid for, refunds waiting on a manager, and the transfers to read back against the bank."
+      subtitle="Plans ordered in the app and waiting to be paid for, refunds waiting on a manager, and every receipt the centre has issued."
     >
       <GLBackground
         variant="dotgrid"
@@ -470,37 +497,41 @@ function Page() {
 
       <div className="mt-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <SplitText as="h2" text="Bank transfers" className="font-display text-2xl" />
-          <Seg
-            value={days}
-            onChange={setDays}
-            options={[
-              { value: "7", label: "7 days" },
-              { value: "14", label: "14 days" },
-              { value: "30", label: "30 days" },
-            ]}
-          />
+          <SplitText as="h2" text="Receipts" className="font-display text-2xl" />
+          <div className="flex flex-wrap items-center gap-2">
+            <Seg value={payMethod} onChange={setPayMethod} options={[...METHODS]} />
+            <Seg
+              value={days}
+              onChange={setDays}
+              options={[
+                { value: "7", label: "7 days" },
+                { value: "14", label: "14 days" },
+                { value: "30", label: "30 days" },
+              ]}
+            />
+          </div>
         </div>
         <p className="mt-1 text-sm text-muted">
-          Money the books already count as taken. Read it back against the statement — the bank clears
-          on its own schedule, not ours.
+          Every payment the centre has taken, however it was paid — cash at the counter, a card, a
+          transfer off the statement, or a court settled in the app. Each one has its receipt here.
         </p>
         {!data ? (
           <Skeleton className="mt-3 h-24" />
-        ) : transfers.length ? (
+        ) : receipts.length ? (
           <Stagger className="mt-3 grid gap-2" gap={0.04}>
-            {transfers.map((t) => (
+            {receipts.map((t) => (
               <StaggerItem key={t.id}>
                 <motion.div
                   className="flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3 shadow-[var(--shadow-border)]"
                   whileHover={{ x: 2 }}
                   transition={{ type: "spring", stiffness: 320, damping: 26 }}
                 >
-                  <Landmark className="size-4 shrink-0 text-muted" />
+                  <MethodIcon method={t.method} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{t.member_name ?? "Walk-in"}</p>
                     <p className="truncate text-xs tabular-nums text-muted">
-                      {t.code} · {t.ref_type} · {when(t.created_at)}
+                      {t.code} · {methodLabel(t.method)} · {t.ref_type} · {when(t.created_at)}
+                      {t.taken_by ? ` · ${t.taken_by}` : ""}
                     </p>
                   </div>
                   <span className="ml-auto font-medium tabular-nums">{money(t.amount_vnd)}</span>
@@ -516,14 +547,14 @@ function Page() {
         ) : (
           <div className="mt-3">
             <Empty
-              title="No transfers in this window"
-              hint="Widen the range, or the centre has simply been taking cash."
+              title={payMethod === "all" ? "Nothing taken in this window" : `No ${methodLabel(payMethod).toLowerCase()} in this window`}
+              hint="Widen the range, or try another method."
             />
           </div>
         )}
         {data?.capped ? (
           <p className="mt-3 text-xs text-muted">
-            Showing the {transfers.length} most recent — there are older transfers in this window
+            Showing the {data.receipts.length} most recent — there are older receipts in this window
             that this list does not reach. Pull the full period from Reports to reconcile it.
           </p>
         ) : null}

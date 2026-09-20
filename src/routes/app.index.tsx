@@ -1,13 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Map, MessageCircle, Ticket, Wallet } from "lucide-react";
+import { Map, Ticket, Wallet } from "lucide-react";
+import { AssistantMark } from "@/components/mark";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PassCard } from "@/components/media";
-import { Shell, hhmm, when } from "@/components/shell";
+import { Shell, hhmm, money, when } from "@/components/shell";
 import { Button, Card, Empty, Skeleton, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
-import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
+import { apiGet, apiPost, getStoredUser, openInvoice } from "@/lib/arena3/client";
 import { formatDate, levelLabel, sportLabel, todayISO } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/app/")({
@@ -198,7 +199,7 @@ function Page() {
                   { to: "/app/book" as const, label: "Book a court", Icon: Map },
                   { to: "/app/classes" as const, label: "Classes", Icon: Ticket },
                   { to: "/app/plans" as const, label: "Plans", Icon: Wallet },
-                  { to: "/app/assistant" as const, label: "Ask AI", Icon: MessageCircle },
+                  { to: "/app/assistant" as const, label: "Ask AI", Icon: AssistantMark },
                 ] as const
               ).map((a) => (
                 <StaggerItem key={a.to}>
@@ -308,14 +309,44 @@ function Page() {
 
       <SplitText as="h2" text="Notifications" className="mt-8 font-display text-2xl" />
       <Stagger className="mt-3 grid gap-2" gap={0.05}>
-        {(me?.inbox ?? []).slice(0, 8).map((n) => (
-          <StaggerItem key={n.id}>
-            <Card className="p-4 transition-colors duration-200 hover:bg-wood/40">
-              <p className="text-sm font-medium text-fg">{inboxLabel(n.template)}</p>
-              <p className="text-xs text-muted">{when(n.sent_at)}</p>
+        {(me?.inbox ?? []).slice(0, 8).map((n) => {
+          const receipt = n.template === "payment_receipt" ? asReceipt(n.payload) : null;
+          const body = (
+            <Card className="p-4 text-left transition-colors duration-200 hover:bg-wood/40">
+              <p className="text-sm font-medium text-fg">
+                {receipt ? `Receipt · ${money(receipt.amount_vnd)}` : inboxLabel(n.template)}
+              </p>
+              <p className="text-xs text-muted">
+                {when(n.sent_at)}
+                {receipt ? ` · ${methodLabel(receipt.method)} · tap to open` : ""}
+              </p>
             </Card>
-          </StaggerItem>
-        ))}
+          );
+          return (
+            <StaggerItem key={n.id}>
+              {/* The receipt is the only notification with somewhere to go, so it
+                  is the only one that becomes a button. Making every row look
+                  tappable would promise eight links and deliver one. */}
+              {receipt ? (
+                <button
+                  type="button"
+                  className="block w-full"
+                  onClick={async () => {
+                    try {
+                      await openInvoice(receipt.invoice_id);
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "The receipt would not open");
+                    }
+                  }}
+                >
+                  {body}
+                </button>
+              ) : (
+                body
+              )}
+            </StaggerItem>
+          );
+        })}
         {me && !me.inbox.length ? <p className="text-sm text-muted">Nothing here yet.</p> : null}
       </Stagger>
     </Shell>
@@ -326,6 +357,30 @@ function daysUntil(iso: string) {
   const a = Date.parse(`${todayISO()}T00:00:00+07:00`);
   const b = Date.parse(`${iso.slice(0, 10)}T00:00:00+07:00`);
   return Math.round((b - a) / 86400000);
+}
+
+/**
+ * A receipt notification, or null if it is one of the older ones.
+ *
+ * Rows written before receipts carried their invoice hold only `{payment_id}`,
+ * and they stay in the inbox forever. Reading them back as a plain notification
+ * is the right outcome: the alternative is a tappable row that opens nothing.
+ */
+function asReceipt(payload: unknown) {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as { invoice_id?: unknown; amount_vnd?: unknown; method?: unknown };
+  if (typeof p.invoice_id !== "string" || typeof p.amount_vnd !== "number") return null;
+  return {
+    invoice_id: p.invoice_id,
+    amount_vnd: p.amount_vnd,
+    method: typeof p.method === "string" ? p.method : "",
+  };
+}
+
+function methodLabel(m: string) {
+  return (
+    { cash: "Cash", card: "Card", transfer: "Bank transfer", quota: "Plan hours" } as Record<string, string>
+  )[m] ?? "Paid";
 }
 
 function inboxLabel(t: string) {
@@ -340,6 +395,7 @@ function inboxLabel(t: string) {
       sub_expiring: "Plan expiring soon",
       waitlist_offer: "A class seat opened — claim it in the app",
       payment_receipt: "Payment receipt",
+      ticket_replied: "Reception replied — read it under Account › Support",
     } as Record<string, string>
   )[t] ?? t;
 }

@@ -11,6 +11,45 @@ export function ArenaMark({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The mark for the in-app assistant.
+ *
+ * A plain speech bubble was doing this job — the same glyph every chat widget
+ * on the internet uses, and one that says nothing about what this particular
+ * assistant knows. It also sat in the header and in the Quick actions grid at
+ * once, so the member met the same anonymous bubble twice.
+ *
+ * This is the court the Arena3 mark is built from, with a spark over the corner
+ * it leaves open: the assistant answers out of the centre's own timetable and
+ * prices, and the icon should say which centre. Drawn to lucide's geometry —
+ * 24px box, 1.75 stroke, round joins — so it sits in a row of lucide icons
+ * without looking pasted in.
+ */
+export function AssistantMark({
+  className,
+  strokeWidth = 1.75,
+}: {
+  className?: string;
+  strokeWidth?: number;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn("size-6", className)}
+      aria-hidden
+    >
+      <path d="M13.5 5H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-7" />
+      <path d="M4 12h15" />
+      <path d="M18.6 2l.85 1.9 1.9.85-1.9.85-.85 1.9-.85-1.9-1.9-.85 1.9-.85z" />
+    </svg>
+  );
+}
+
 export function CourtBackdrop({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 200 280" className={cn("text-accent", className)} aria-hidden>

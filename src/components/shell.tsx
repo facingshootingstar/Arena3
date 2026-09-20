@@ -6,7 +6,6 @@ import {
   LayoutGrid,
   LogOut,
   Map,
-  MessageCircle,
   Settings,
   Ticket,
   UserCog,
@@ -14,7 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ArenaMark } from "./mark";
+import { ArenaMark, AssistantMark } from "./mark";
 import { AnimatePresence, PageIn, motion } from "./motion";
 import { GradualBlur, SplitText } from "./fx";
 import { cn } from "@/lib/cn";
@@ -242,7 +241,7 @@ export function Shell({
                     : "text-fg hover:bg-wood",
                 )}
               >
-                <MessageCircle className="size-4" strokeWidth={1.75} />
+                <AssistantMark className="size-4" strokeWidth={1.9} />
               </Link>
             ) : null}
             <AccountMenu user={user} role={role} onLogout={() => void logout()} />

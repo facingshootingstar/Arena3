@@ -42,6 +42,12 @@ function Page() {
   const [tickets, setTickets] = useState<
     Array<{ id: string; body: string; full_name: string | null; phone: string | null; created_at: string }>
   >([]);
+  // Which request the desk is writing an answer to, and the answer so far. One
+  // at a time: the box opens on the row being answered rather than sitting
+  // under all of them, so it is obvious whose complaint is being replied to.
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
+  const [replying, setReplying] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
   // Just the count — the queue itself lives one screen over, but a receptionist
   // has to be able to see from here that somebody is owed attention.
@@ -427,28 +433,77 @@ function Page() {
           <Stagger className="mt-3 grid gap-2" gap={0.05}>
             {tickets.map((t) => (
               <StaggerItem key={t.id}>
-              <Card className="flex items-start justify-between gap-3 p-4">
-                <div>
-                  <p className="text-sm">{t.body}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {t.full_name} · {t.phone}
-                  </p>
+              <Card className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm">{t.body}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {t.full_name} · {t.phone}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setReplyTo(replyTo === t.id ? null : t.id);
+                        setReply("");
+                      }}
+                    >
+                      {replyTo === t.id ? "Cancel" : "Reply"}
+                    </Button>
+                    {/* Closing without answering is still allowed — a duplicate,
+                        or something dealt with at the counter in person — but it
+                        is no longer the only thing the desk can do. */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await apiPost(`/tickets/${t.id}/close`);
+                          setTickets((list) => list.filter((x) => x.id !== t.id));
+                          toast.success("Request closed");
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Something went wrong");
+                        }
+                      }}
+                    >
+                      Close
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      await apiPost(`/tickets/${t.id}/close`);
-                      setTickets((list) => list.filter((x) => x.id !== t.id));
-                      toast.success("Request closed");
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Something went wrong");
-                    }
-                  }}
-                >
-                  Close
-                </Button>
+                {replyTo === t.id ? (
+                  <form
+                    className="mt-3 flex flex-wrap gap-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (reply.trim().length < 2 || replying) return;
+                      setReplying(true);
+                      try {
+                        await apiPost(`/tickets/${t.id}/reply`, { reply: reply.trim() });
+                        setTickets((list) => list.filter((x) => x.id !== t.id));
+                        setReplyTo(null);
+                        setReply("");
+                        toast.success("Replied — the member has been notified");
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Something went wrong");
+                      } finally {
+                        setReplying(false);
+                      }
+                    }}
+                  >
+                    <Input
+                      className="min-w-0 flex-1"
+                      autoFocus
+                      maxLength={2000}
+                      placeholder="What should we tell them?"
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                    />
+                    <Button type="submit" disabled={replying || reply.trim().length < 2}>
+                      Send
+                    </Button>
+                  </form>
+                ) : null}
               </Card>
               </StaggerItem>
             ))}
