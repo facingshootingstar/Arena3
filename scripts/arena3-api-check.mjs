@@ -113,11 +113,78 @@ async function main() {
   });
   if (hold.status === 201 && hold.data.booking?.id) {
     expect(hold.data.price > 0, "hold has a price", hold);
-    const cancel = await req(`/bookings/${hold.data.booking.id}/cancel`, {
+    const bookingId = hold.data.booking.id;
+
+    /*
+     * A bank transfer is a promise, not a payment.
+     *
+     * The assertions that matter here are the negative ones. Tapping "Bank
+     * transfer" used to post a payment and confirm the booking on the spot, so
+     * the centre's revenue counted money nobody had looked for yet. Nothing
+     * may be posted until somebody finds it on the statement; the slot is held
+     * in the meantime, which is what makes that safe to wait for.
+     */
+    const promised = await req(`/bookings/${bookingId}/confirm`, {
+      method: "POST",
+      token: member.token,
+      idem: true,
+      body: { method: "transfer" },
+    });
+    expect(promised.status === 202, "transfer does not confirm the booking", promised);
+    expect(promised.data.awaiting_transfer === true, "confirm reports awaiting_transfer", promised);
+    expect(promised.data.payment === null, "no payment row while the money is outstanding", promised);
+    expect(promised.data.booking?.status === "hold", "the slot stays held for the transfer", promised);
+
+    // Whose word counts. A member reconciling their own transfer is the exact
+    // thing this queue exists to stop.
+    const selfConfirm = await req(`/bookings/${bookingId}/transfer-confirm`, {
       method: "POST",
       token: member.token,
     });
-    expect(cancel.status === 200, "cancel hold", cancel);
+    expect(selfConfirm.status === 403, "members cannot reconcile their own transfer", selfConfirm);
+
+    const pending = await req("/payments/pending", { token: desk.token });
+    expect(pending.status === 200, "GET /payments/pending", pending);
+    expect(
+      pending.data.awaiting?.some((a) => a.id === bookingId),
+      "the transfer reaches the desk queue",
+      pending.data.awaiting,
+    );
+
+    const settled = await req(`/bookings/${bookingId}/transfer-confirm`, {
+      method: "POST",
+      token: desk.token,
+    });
+    expect(settled.status === 200, "desk confirms the transfer", settled);
+    expect(settled.data.booking?.status === "confirmed", "the booking is confirmed once money lands", settled);
+    expect(settled.data.payment?.status === "posted", "the payment exists only now", settled);
+    expect(settled.data.invoice_id, "a receipt is issued for a reconciled transfer", settled);
+
+    /*
+     * The same money must not go back twice.
+     *
+     * No refund row links to the payment it undoes, so the guard has to read
+     * the whole ledger for the booking rather than compare against one row.
+     * The second call below asks for money that has already been sent back.
+     */
+    const paid = settled.data.payment;
+    const refund = await req(`/payments/${paid.id}/refund`, {
+      method: "POST",
+      token: desk.token,
+      idem: true,
+      body: { amount_vnd: paid.amount_vnd, reason: "api-check" },
+    });
+    expect([200, 201].includes(refund.status), "desk raises a refund", refund);
+    const again = await req(`/payments/${paid.id}/refund`, {
+      method: "POST",
+      token: desk.token,
+      idem: true,
+      body: { amount_vnd: paid.amount_vnd, reason: "api-check duplicate" },
+    });
+    expect(again.status === 422, "the same payment cannot be refunded twice", again);
+
+    // Hand the court back. Tidying after the check, not an assertion.
+    await req(`/bookings/${bookingId}/cancel`, { method: "POST", token: member.token });
   } else {
     expect(
       hold.status === 422 || hold.status === 409,
