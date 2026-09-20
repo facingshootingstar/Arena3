@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
 import { Card, Empty, Skeleton } from "@/components/ui";
-import { Stagger, StaggerItem, motion } from "@/components/motion";
+import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
+import { SpotlightCard } from "@/components/fx";
 import { apiGet } from "@/lib/arena3/client";
 
 export const Route = createFileRoute("/app/train")({ component: Page });
@@ -34,7 +35,9 @@ function Page() {
         <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
           {items.map((p) => (
             <StaggerItem key={p.id} className="h-full">
-            <Card interactive className="h-full">
+            <Lift className="h-full">
+            <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
+            <Card interactive className="relative z-[2] h-full">
               <p className="text-2xs uppercase tracking-wider text-muted">
                 {p.source === "ai" ? "AI draft, coach-approved" : "Written by your coach"} · {p.scope}
               </p>
@@ -54,6 +57,8 @@ function Page() {
               </ol>
               {p.payload.note ? <p className="mt-3 text-xs text-muted">{p.payload.note}</p> : null}
             </Card>
+            </SpotlightCard>
+            </Lift>
             </StaggerItem>
           ))}
         </Stagger>

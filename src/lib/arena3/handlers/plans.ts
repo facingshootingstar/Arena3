@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import { addDays, ictDateString } from "../time";
 import { audit, bool, num, readJson, str } from "../helpers";
+import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { one } from "../tx";
 
@@ -89,6 +90,14 @@ export async function subscriptionsCreate(sql: Sql, request: Request, user: Publ
     userId = str(b.user_id) ?? user.id;
   } else if (user.role !== "member") {
     throw err.forbidden();
+  }
+  // Members only. Staff raise these on behalf of somebody standing at the desk,
+  // and a queue of walk-ins legitimately looks like a burst.
+  if (user.role === "member") {
+    // Short window first: a double-tap or a stuck button is the common case and
+    // deserves the cheaper, friendlier message.
+    limit(`plan:${user.id}`, RULES.planRequest, "plan requests");
+    limit(`plan-h:${user.id}`, RULES.planRequestHourly, "plan requests");
   }
   const plan = await one<{
     id: string;

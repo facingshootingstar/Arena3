@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useRef,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type InputHTMLAttributes,
@@ -55,34 +56,82 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   );
 }
 
-/** Native date picker with a readable "17 Sep 2026" overlay (Chromium ignores html lang). */
+/**
+ * Native date picker with a readable "17 Sep 2026" overlay (Chromium ignores html lang).
+ *
+ * The input is transparent rather than hidden, which is what makes the overlay
+ * possible — but it also means the only thing that opens the calendar natively
+ * is the invisible icon glyph in its corner. Clicking anywhere else on the
+ * field did nothing at all, which is exactly how the Reports "Custom from/to"
+ * pair came to look broken. `showPicker()` on a click over the whole box is
+ * what restores the obvious behaviour, with a real icon so there is something
+ * to aim at.
+ */
 export function DateField({
   value,
   onChange,
   className,
+  disabled,
   "aria-label": ariaLabel = "Pick a date",
 }: {
   value: string;
   onChange: (v: string) => void;
   className?: string;
+  disabled?: boolean;
   "aria-label"?: string;
 }) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  const open = () => {
+    const el = ref.current;
+    if (!el || disabled) return;
+    el.focus();
+    // Safari and older Firefox have no `showPicker`; there the focus above plus
+    // the native field is all we can offer, and typing still works.
+    try {
+      el.showPicker?.();
+    } catch {
+      // Chrome throws if the call is not considered user-initiated. Focus stands.
+    }
+  };
+
   return (
     <div
+      role="presentation"
+      onClick={open}
       className={cn(
-        "relative h-11 min-w-[11rem] overflow-hidden rounded-[var(--radius-sm)] border border-line bg-surface",
+        "relative flex h-11 min-w-[11rem] items-center gap-2 rounded-[var(--radius-sm)] border border-line bg-surface px-3 transition-[border-color,box-shadow] duration-150",
+        disabled
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:border-line-strong focus-within:ring-2 focus-within:ring-accent/30",
         className,
       )}
     >
-      <span className="pointer-events-none absolute inset-0 flex items-center px-3 text-sm tabular-nums text-fg">
-        {value ? formatDate(value) : "Pick a date"}
+      <span className="pointer-events-none flex-1 truncate text-sm tabular-nums text-fg">
+        {value ? formatDate(value) : <span className="text-subtle">Pick a date</span>}
       </span>
+      <svg
+        aria-hidden
+        viewBox="0 0 24 24"
+        className="pointer-events-none size-4 shrink-0 text-muted"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      >
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M8 3v4M16 3v4M3 10h18" />
+      </svg>
       <input
+        ref={ref}
         type="date"
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         aria-label={ariaLabel}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        // Still stretched over the whole field so keyboard focus lands on the
+        // real control, but `opacity-0` means the overlay above is what shows.
+        className="absolute inset-0 size-full cursor-pointer rounded-[var(--radius-sm)] opacity-0 disabled:cursor-not-allowed"
       />
     </div>
   );
@@ -171,11 +220,25 @@ export function StatusBadge({ status, className }: { status: string; className?:
   );
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({
+  label,
+  children,
+  hint,
+  tone = "danger",
+}: {
+  label: string;
+  children: ReactNode;
+  /** Validation message or helper text shown under the control. */
+  hint?: string;
+  tone?: "danger" | "muted";
+}) {
   return (
     <label className="grid gap-1.5">
       <Label>{label}</Label>
       {children}
+      {hint ? (
+        <span className={cn("text-xs", tone === "danger" ? "text-danger" : "text-muted")}>{hint}</span>
+      ) : null}
     </label>
   );
 }

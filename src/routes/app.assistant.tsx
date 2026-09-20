@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Send } from "lucide-react";
+import { Send, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
 import { Button } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
+import { GLBackground, Magnet, ShinyText } from "@/components/fx";
 import { apiPost } from "@/lib/arena3/client";
 import { cn } from "@/lib/cn";
 
@@ -64,7 +65,45 @@ function Page() {
 
   return (
     <Shell role="member" title="Assistant" subtitle="Gemini answers, grounded in Arena3's own timetable, plans and coaches.">
-      <div className="mx-auto grid max-w-2xl gap-3">
+      {/* The dot field tracks the cursor behind the thread — it makes an empty
+          conversation feel awake without competing with the messages. */}
+      <GLBackground
+        variant="dotgrid"
+        position="fixed"
+        className="-z-[1]"
+        color="#1f5c43"
+        gap={30}
+        dot={1.6}
+        radius={140}
+        opacity={0.18}
+      />
+      {/* One framed panel rather than bubbles floating loose on the page. The
+          thread scrolls inside it and the composer is pinned to its foot, so
+          the conversation reads as a single object with a beginning and an end. */}
+      <div className="relative mx-auto flex max-w-2xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface/70 shadow-[0_24px_60px_-40px_rgba(20,28,18,0.7)] backdrop-blur-sm">
+        <div className="flex items-center gap-2.5 border-b border-line/70 bg-surface/80 px-4 py-3">
+          <span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-accent/12 text-accent">
+            <Sparkles className="size-4" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-tight">Arena3 assistant</p>
+            <p className="text-2xs text-muted">Grounded in this centre's timetable and prices</p>
+          </div>
+          {log.length > 1 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setLog([WELCOME]);
+                setQ("");
+              }}
+            >
+              Clear
+            </Button>
+          ) : null}
+        </div>
+
+      <div className="relative grid max-h-[min(58vh,34rem)] gap-3 overflow-y-auto p-4">
         {log.map((m, i) => (
           <motion.div
             key={`${i}-${m.role}`}
@@ -95,7 +134,9 @@ function Page() {
             exit={{ opacity: 0 }}
             className="mr-auto max-w-[85%] rounded-[var(--radius-lg)] bg-surface px-4 py-3 shadow-[var(--shadow-border)]"
           >
-            <p className="text-2xs uppercase tracking-wider text-muted">Assistant</p>
+            <ShinyText className="shiny-muted text-2xs uppercase tracking-wider" speed={2.4}>
+              Assistant
+            </ShinyText>
             <p className="mt-1 flex items-center gap-1 text-sm text-muted">
               Typing
               {[0, 1, 2].map((i) => (
@@ -113,45 +154,51 @@ function Page() {
         <div ref={bottom} />
       </div>
 
-      {!busy && log.length < 3 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="mx-auto mt-4 flex max-w-2xl flex-wrap gap-2"
-        >
-          {CHIPS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => void send(c)}
-              className="rounded-full border border-line bg-surface px-3 py-2 text-xs font-medium text-fg transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-wood active:scale-95"
+        <div className="border-t border-line/70 bg-surface/80 p-3">
+          {!busy && log.length < 3 ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="mb-3 flex flex-wrap gap-2"
             >
-              {c}
-            </button>
-          ))}
-        </motion.div>
-      ) : null}
+              {CHIPS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => void send(c)}
+                  className="rounded-full border border-line bg-surface px-3 py-2 text-xs font-medium text-fg transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-wood active:scale-95"
+                >
+                  {c}
+                </button>
+              ))}
+            </motion.div>
+          ) : null}
 
-      <form
-        className="mx-auto mt-4 flex max-w-2xl gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Ask about prices, opening hours, coaches…"
-          disabled={busy}
-          className="h-11 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-line bg-surface px-3 text-sm text-fg placeholder:text-subtle outline-none transition-[box-shadow] duration-150 focus:ring-2 focus:ring-accent/30"
-        />
-        <Button type="submit" disabled={busy || q.trim().length < 2} aria-label="Send" className="size-11 shrink-0 px-0">
-          <Send className="size-4" />
-        </Button>
-      </form>
-      <p className="mx-auto mt-2 max-w-2xl text-2xs text-muted">
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+          >
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Ask about prices, opening hours, coaches…"
+              disabled={busy}
+              className="h-11 min-w-0 flex-1 rounded-[var(--radius-pill)] border border-line bg-bg px-4 text-sm text-fg placeholder:text-subtle outline-none transition-[box-shadow,border-color] duration-150 focus:border-accent/40 focus:ring-2 focus:ring-accent/25"
+            />
+            <Magnet radius={110} pull={0.25} wrapperClassName="shrink-0">
+              <Button type="submit" disabled={busy || q.trim().length < 2} aria-label="Send" className="size-11 shrink-0 px-0">
+                <Send className="size-4" />
+              </Button>
+            </Magnet>
+          </form>
+        </div>
+      </div>
+
+      <p className="mx-auto mt-3 max-w-2xl text-2xs text-muted">
         No medical advice. Booking still happens on{" "}
         <Link to="/app/book" className="underline">
           Book

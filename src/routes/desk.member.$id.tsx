@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money, when } from "@/components/shell";
 import { Button, Card, Skeleton, StatusBadge } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { formatDate, sportLabel } from "@/lib/arena3/labels";
 
@@ -59,7 +60,9 @@ function Page() {
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
         {data.subscriptions.map((s) => (
           <StaggerItem key={s.id} className="h-full">
-          <Card interactive className="h-full">
+          <Lift className="h-full">
+          <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
+          <Card interactive className="relative z-[2] h-full">
             <StatusBadge status={s.status} />
             <h2 className="mt-2 font-display text-2xl">{s.plan_name}</h2>
             <p className="text-sm text-muted">
@@ -122,11 +125,13 @@ function Page() {
               </Button>
             ) : null}
           </Card>
+          </SpotlightCard>
+          </Lift>
           </StaggerItem>
         ))}
       </Stagger>
 
-      <h2 className="mt-8 font-display text-2xl">Sell another plan</h2>
+      <SplitText as="h2" text="Sell another plan" className="mt-8 font-display text-2xl" />
       <Reveal className="mt-3 flex flex-wrap gap-2">
         {plans.map((p) => (
           <Button
@@ -147,7 +152,7 @@ function Page() {
         ))}
       </Reveal>
 
-      <h2 className="mt-8 font-display text-2xl">Today</h2>
+      <SplitText as="h2" text="Today" className="mt-8 font-display text-2xl" />
       <Stagger className="mt-3 grid gap-2" gap={0.05}>
         {data.today.bookings.map((b) => (
           <StaggerItem key={b.id}>

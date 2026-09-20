@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { Shell } from "@/components/shell";
 import { Badge, Button, Card, Empty, Seg, Skeleton } from "@/components/ui";
-import { Stagger, StaggerItem, motion } from "@/components/motion";
+import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
+import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { apiDelete, apiGet, apiPost } from "@/lib/arena3/client";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
@@ -109,15 +110,19 @@ function Page() {
             const enr = byClass[c.id];
             return (
               <StaggerItem key={c.id} className="h-full">
-              <Card interactive className="flex h-full flex-col overflow-hidden p-0">
-                <Cover src={sportPhoto(c.sport)} alt="" scrim="none" className="h-36">
-                  <MediaCaption className="flex items-end justify-between">
-                    <Badge tone="accent" className="bg-surface text-fg">
-                      {sportLabel(c.sport)}
-                    </Badge>
-                    <p className="tabular-nums text-sm">{c.enrolled_count}/{c.capacity}</p>
-                  </MediaCaption>
-                </Cover>
+              <Lift className="h-full">
+              <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.11}>
+              <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
+                <GlareHover>
+                  <Cover src={sportPhoto(c.sport)} alt="" scrim="none" className="h-36">
+                    <MediaCaption className="flex items-end justify-between">
+                      <Badge tone="accent" className="bg-surface text-fg">
+                        {sportLabel(c.sport)}
+                      </Badge>
+                      <p className="tabular-nums text-sm">{c.enrolled_count}/{c.capacity}</p>
+                    </MediaCaption>
+                  </Cover>
+                </GlareHover>
                 <div className="flex flex-1 flex-col p-5">
                   <h2 className="font-display text-2xl">{levelLabel(c.level)}</h2>
                   <p className="mt-1 text-sm text-muted">
@@ -183,6 +188,8 @@ function Page() {
                   )}
                 </div>
               </Card>
+              </SpotlightCard>
+              </Lift>
               </StaggerItem>
             );
           })}

@@ -124,6 +124,42 @@ export async function courtsList(sql: Sql) {
   return { status: 200, body: { items } };
 }
 
+const COURT_STATUSES = ["ready", "maintenance", "closed"] as const;
+
+/**
+ * Take a court out of service, or put it back.
+ *
+ * Closing a court does not cancel what is already on it: bookings that were
+ * paid for stay honoured, and the desk sorts those out with the members
+ * directly. The status only gates *new* holds — `bookingsHold` refuses
+ * anything that is not `ready`. Surfacing the count of live occupancies in the
+ * response lets the manager see what they have just committed the desk to.
+ */
+export async function courtsPatch(sql: Sql, id: string, request: Request, user: PublicUser) {
+  requireRole(user, ["manager"]);
+  const b = await readJson(request);
+  const status = str(b.status);
+  if (!status || !(COURT_STATUSES as readonly string[]).includes(status)) {
+    throw err.validation(`status must be one of ${COURT_STATUSES.join(", ")}.`);
+  }
+  const cur = await courtById(sql, id);
+  if (cur.status === status) return { status: 200, body: { court: cur, upcoming: 0 } };
+  const reason = str(b.reason) ?? null;
+  await sql.query(`update courts set status = $2 where id = $1`, [id, status]);
+  const live = await one<{ n: number }>(
+    sql,
+    `select count(*)::int as n from occupancies where court_id = $1 and end_at > now()`,
+    [id],
+  );
+  await audit(sql, user.id, "patch_court", "court", id, { from: cur.status, to: status, reason });
+  const court = await one(
+    sql,
+    `select id, court_code, sport, status, convertible, pair_court_id from courts where id = $1`,
+    [id],
+  );
+  return { status: 200, body: { court, upcoming: live?.n ?? 0 } };
+}
+
 export async function bookingsHold(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["member"]);
   const b = await readJson(request);

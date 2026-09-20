@@ -6,6 +6,7 @@ import { PassCard } from "@/components/media";
 import { Shell, hhmm, when } from "@/components/shell";
 import { Button, Card, Empty, Skeleton, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
 import { formatDate, levelLabel, sportLabel, todayISO } from "@/lib/arena3/labels";
 
@@ -89,10 +90,19 @@ function Page() {
     <Shell role="member">
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-muted">Member</p>
-          <h1 className="font-display text-3xl font-medium tracking-tight sm:text-4xl">
-            Welcome back, {greet}
-          </h1>
+          <ShinyText
+            className="shiny-muted mb-1 block text-[11px] font-semibold uppercase tracking-widest"
+            speed={6}
+          >
+            Member
+          </ShinyText>
+          <SplitText
+            as="h1"
+            text={`Welcome back, ${greet}`}
+            stagger={0.02}
+            duration={0.6}
+            className="font-display text-3xl font-medium tracking-tight sm:text-4xl"
+          />
         </div>
         {u?.member_code ? (
           <span className="rounded-[var(--radius-sm)] border border-line bg-surface px-2.5 py-1 font-mono text-xs font-semibold text-muted">
@@ -162,13 +172,15 @@ function Page() {
         <div className="grid gap-4 md:grid-cols-2">
           <Reveal className="order-1">
             {first ? (
-              <PassCard
-                plan={first.plan_name}
-                sport={sportLabel(first.sport_scope)}
-                endOn={formatDate(first.end_on)}
-                hours={Number(first.court_hours_left)}
-                code={u?.member_code}
-              />
+              <GlareHover className="rounded-[var(--radius-xl)]" duration={1.1}>
+                <PassCard
+                  plan={first.plan_name}
+                  sport={sportLabel(first.sport_scope)}
+                  endOn={formatDate(first.end_on)}
+                  hours={Number(first.court_hours_left)}
+                  code={u?.member_code}
+                />
+              </GlareHover>
             ) : (
               <Empty title="No active plan" hint="Buy a plan to enrol in classes and book courts.">
                 <Link to="/app/plans">
@@ -179,7 +191,7 @@ function Page() {
           </Reveal>
 
           <div className="order-2 md:order-3 md:col-span-2">
-            <h2 className="font-display text-lg tracking-tight">Quick actions</h2>
+            <SplitText as="h2" text="Quick actions" className="font-display text-lg tracking-tight" />
             <Stagger className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4" gap={0.06}>
               {(
                 [
@@ -191,15 +203,17 @@ function Page() {
               ).map((a) => (
                 <StaggerItem key={a.to}>
                   <Lift>
-                    <Link
-                      to={a.to}
-                      className="group flex h-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-line bg-surface px-2 py-4 text-center transition-colors duration-200 hover:border-accent/40"
-                    >
-                      <span className="mb-2.5 grid size-12 place-items-center rounded-[var(--radius-sm)] bg-wood text-accent transition-colors duration-200 group-hover:bg-accent group-hover:text-accent-fg">
-                        <a.Icon className="size-6" strokeWidth={1.75} />
-                      </span>
-                      <span className="text-xs font-semibold tracking-tight text-fg">{a.label}</span>
-                    </Link>
+                    <SpotlightCard className="h-full rounded-[var(--radius-md)]" size={200} strength={0.12}>
+                      <Link
+                        to={a.to}
+                        className="group relative z-[2] flex h-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-line bg-surface/85 px-2 py-4 text-center transition-colors duration-200 hover:border-accent/40"
+                      >
+                        <span className="mb-2.5 grid size-12 place-items-center rounded-[var(--radius-sm)] bg-wood text-accent transition-colors duration-200 group-hover:bg-accent group-hover:text-accent-fg">
+                          <a.Icon className="size-6" strokeWidth={1.75} />
+                        </span>
+                        <span className="text-xs font-semibold tracking-tight text-fg">{a.label}</span>
+                      </Link>
+                    </SpotlightCard>
                   </Lift>
                 </StaggerItem>
               ))}
@@ -207,7 +221,8 @@ function Page() {
           </div>
 
           <Reveal className="order-3 md:order-2" delay={0.08}>
-            <Card>
+            <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.1}>
+            <Card className="relative z-[2] h-full">
               <div className="mb-3 flex items-baseline justify-between">
                 <p className="font-display text-xl">Today</p>
                 <span className="text-xs text-muted">
@@ -268,6 +283,7 @@ function Page() {
                 </div>
               )}
             </Card>
+            </SpotlightCard>
           </Reveal>
         </div>
       )}
@@ -290,7 +306,7 @@ function Page() {
         </Stagger>
       ) : null}
 
-      <h2 className="mt-8 font-display text-2xl">Notifications</h2>
+      <SplitText as="h2" text="Notifications" className="mt-8 font-display text-2xl" />
       <Stagger className="mt-3 grid gap-2" gap={0.05}>
         {(me?.inbox ?? []).slice(0, 8).map((n) => (
           <StaggerItem key={n.id}>

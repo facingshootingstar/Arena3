@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
 import { flagOn, flagsMap, requireFlag, type FlagKey } from "../flags";
 import { audit, enqueue, getSettings, num, readJson, str } from "../helpers";
+import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
 import { generateAssistantReply, type ChatTurn } from "../gemini";
@@ -359,6 +360,8 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   const body = await readJson(request);
   const message = (str(body.message) ?? "").trim().slice(0, 800);
   if (message.length < 2) throw err.validation("Type a question first.");
+  // Every turn that falls through to the model costs a call upstream.
+  limit(`ai:${user.id}`, RULES.assistant, "questions");
   const q = message.toLowerCase();
 
   if (/ticket:|complaint|feedback|khiếu nại|góp ý/.test(q) || q.startsWith("ticket:")) {

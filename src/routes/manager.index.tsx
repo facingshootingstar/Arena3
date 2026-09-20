@@ -7,6 +7,7 @@ import { Cover, MediaCaption, media } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, DateField, Seg, Skeleton, Stat } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet } from "@/lib/arena3/client";
 import { addDaysISO, formatDate, methodLabel, sourceLabel, todayISO } from "@/lib/arena3/labels";
 
@@ -112,11 +113,23 @@ function Page() {
       title="Reports"
       subtitle={`Revenue = payments taken − refunds. Court usage for ${formatDate(to)}.`}
     >
-      <Cover src={media.hallCourts} alt="" scrim="none" className="mb-5 h-32 rounded-[var(--radius-xl)]">
-        <MediaCaption>
-          <p className="font-display text-2xl">Close the books for this period</p>
-        </MediaCaption>
-      </Cover>
+      <GLBackground
+        variant="dotgrid"
+        position="fixed"
+        className="-z-[1]"
+        color="#1f5c43"
+        gap={32}
+        dot={1.5}
+        radius={130}
+        opacity={0.12}
+      />
+      <GlareHover className="mb-5 rounded-[var(--radius-xl)]" duration={1.1}>
+        <Cover src={media.hallCourts} alt="" scrim="none" className="h-32 rounded-[var(--radius-xl)]">
+          <MediaCaption>
+            <p className="font-display text-2xl">Close the books for this period</p>
+          </MediaCaption>
+        </Cover>
+      </GlareHover>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Seg
           value={period}
@@ -208,7 +221,8 @@ function Page() {
       )}
 
       <Reveal className="mt-6 grid gap-3 md:grid-cols-2">
-        <Card>
+        <SpotlightCard className="rounded-[var(--radius-xl)]" size={380} strength={0.09}>
+        <Card className="relative z-[2] h-full">
           <p className="text-2xs font-medium uppercase tracking-wider text-muted">By payment method</p>
           {chartReady && chartData.length ? (
             <div className="mt-3 h-52">
@@ -232,7 +246,9 @@ function Page() {
             <p className="mt-4 text-sm text-muted">Nothing recorded yet.</p>
           )}
         </Card>
-        <Card>
+        </SpotlightCard>
+        <SpotlightCard className="rounded-[var(--radius-xl)]" size={380} strength={0.09}>
+        <Card className="relative z-[2] h-full">
           <p className="text-2xs font-medium uppercase tracking-wider text-muted">By source</p>
           <ul className="mt-3 space-y-2 text-sm">
             {Object.entries(rev?.by_source ?? {}).map(([k, v]) => (
@@ -246,9 +262,14 @@ function Page() {
             ) : null}
           </ul>
         </Card>
+        </SpotlightCard>
       </Reveal>
 
-      <h2 className="mt-8 font-display text-2xl">Court usage · {formatDate(to)}</h2>
+      <SplitText
+        as="h2"
+        text={`Court usage · ${formatDate(to)}`}
+        className="mt-8 font-display text-2xl"
+      />
       <Stagger className="mt-3 grid gap-2 md:grid-cols-2" gap={0.05}>
         {(occ?.items ?? []).map((c) => (
           <StaggerItem key={c.court_code}>

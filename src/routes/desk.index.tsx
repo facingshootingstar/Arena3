@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
 import { Badge, Button, Card, Field, Input, Modal, Select, StatusBadge } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { GLBackground, SplitText, SpotlightCard, StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -95,6 +96,18 @@ function Page() {
 
   return (
     <Shell role="receptionist" title="Front desk" subtitle="Find a member, sell a plan, take payment — three moves.">
+      {/* Kept well under the text: this console is stared at all shift, so the
+          field is a texture, not a feature. */}
+      <GLBackground
+        variant="dotgrid"
+        position="fixed"
+        className="-z-[1]"
+        color="#1f5c43"
+        gap={32}
+        dot={1.5}
+        radius={130}
+        opacity={0.12}
+      />
       <Reveal className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]" from="down">
         {shift ? (
           <Badge tone="accent">Shift open · cash {money(shift.totals?.cash ?? 0)}</Badge>
@@ -162,7 +175,7 @@ function Page() {
         ))}
       </div>
 
-      <h2 className="mt-8 font-display text-2xl">New member</h2>
+      <SplitText as="h2" text="New member" className="mt-8 font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">Three steps: profile → plan → payment.</p>
       <ol className="mt-3 flex gap-2 text-2xs font-medium uppercase tracking-wider">
         {[
@@ -186,7 +199,8 @@ function Page() {
           </li>
         ))}
       </ol>
-      <Card className="mt-3">
+      <SpotlightCard className="mt-3 rounded-[var(--radius-xl)]" size={420} strength={0.09}>
+      <Card className="relative z-[2]">
         {step === 1 ? (
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Full name">
@@ -308,6 +322,7 @@ function Page() {
               </Select>
             </Field>
             <div className="flex items-end gap-2 md:col-span-2">
+              <StarBorder speed={4}>
               <Button
                 disabled={busy || !shift}
                 onClick={async () => {
@@ -338,6 +353,7 @@ function Page() {
               >
                 {shift ? "Take payment & print" : "Open a shift first"}
               </Button>
+              </StarBorder>
               <Button variant="ghost" onClick={() => setStep(2)}>
                 Back
               </Button>
@@ -345,6 +361,7 @@ function Page() {
           </div>
         ) : null}
       </Card>
+      </SpotlightCard>
 
       <Modal
         open={closeOpen}
@@ -381,7 +398,7 @@ function Page() {
 
       {tickets.length ? (
         <div className="mt-8">
-          <h2 className="font-display text-2xl">Requests from the app</h2>
+          <SplitText as="h2" text="Requests from the app" className="font-display text-2xl" />
           <Stagger className="mt-3 grid gap-2" gap={0.05}>
             {tickets.map((t) => (
               <StaggerItem key={t.id}>

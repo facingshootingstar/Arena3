@@ -130,6 +130,24 @@
   }
 }
 
+/* Travelling glint for `.shiny-text`. Pans right-to-left so it reads as light
+   moving across the letters rather than the letters moving. */
+@keyframes shiny-pan {
+  from {
+    background-position: 220% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+/* Arc of light orbiting a `.star-border` pill. */
+@keyframes star-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -299,13 +317,101 @@
   background-clip: text;
   color: transparent;
   /* A clipped background paints *under* the text shadow, so the shadow inherited
-     from `.on-media` lands on top of the letters and greys them out. Kill it and
-     shadow the glyph shape with a filter instead, which composites after the clip. */
+     from `.on-media` lands on top of the letters and greys them out. */
   text-shadow: none;
+}
+
+/* The shadow for clipped text has to live on an *ancestor*, never on the clipped
+   element itself: a `filter` on the same box that carries `background-clip: text`
+   makes Chrome drop the fill entirely once the text sits inside transformed,
+   overflow-hidden descendants — which is exactly what the word-reveal wrappers
+   are. Put this on the heading and `.text-gradient-media` on the span inside. */
+.media-glow {
   filter: drop-shadow(0 2px 7px rgba(8, 12, 6, 0.6));
 }
 
+/* Band of light sliding across the glyphs. The two stops are variables rather
+   than `currentColor` on purpose: clipping the background needs
+   `color: transparent`, which would make `currentColor` transparent too. */
+.shiny-text {
+  --shiny-base: var(--color-fg);
+  --shiny-glint: var(--color-accent);
+  background: linear-gradient(
+    110deg,
+    var(--shiny-base) 42%,
+    var(--shiny-glint) 50%,
+    var(--shiny-base) 58%
+  );
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Same trap as `.text-gradient-media`: a clipped fill paints under any
+     inherited text-shadow. Shadow the glyph shape instead. */
+  text-shadow: none;
+  animation: shiny-pan var(--shiny-duration, 4.5s) linear infinite;
+}
+/* Reversed-out variant for headings sitting on footage or ink. */
+.shiny-on-media {
+  --shiny-base: var(--color-on-media);
+  --shiny-glint: #f5e2b4;
+  filter: drop-shadow(0 2px 7px rgba(8, 12, 6, 0.55));
+}
+/* Quiet variant for eyebrow labels on cream — reads as a muted kicker until the
+   glint passes, so it never competes with the heading under it. */
+.shiny-muted {
+  --shiny-base: var(--color-muted);
+  --shiny-glint: var(--color-accent-2);
+}
+
+/* Heavy display type drawn as outline only — the quiet half of a two-voice
+   headline, where a filled italic serif overlaps a hollow block-caps word. */
+.stroke-text {
+  color: transparent;
+  -webkit-text-stroke: 1.5px currentColor;
+  /* `-webkit-text-stroke` wins over `color`, so the fill has to be cleared with
+     the shorthand's own fill property to keep the glyph hollow in WebKit. */
+  -webkit-text-fill-color: transparent;
+}
+
+/* Film grain for dark media sections. Parent must be relative. */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
 /* ── Surfaces ────────────────────────────────────────────────────── */
+
+/* Pill whose border is an orbiting arc of light. The glow is an oversized
+   rotating conic gradient clipped by the pill; the inner element covers all of
+   it but the 1px padding ring. */
+.star-border {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.star-border::before {
+  content: "";
+  position: absolute;
+  /* Square and oversized, so the rotation sweeps the full perimeter instead of
+     stalling at the corners of a wide pill. */
+  inset: -150%;
+  z-index: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 58%,
+    color-mix(in oklab, var(--color-accent) 70%, transparent) 74%,
+    var(--color-hold) 86%,
+    transparent 94% 100%
+  );
+  animation: star-spin var(--star-duration, 5s) linear infinite;
+}
 
 .glass {
   background: color-mix(in oklab, var(--color-surface) 72%, transparent);

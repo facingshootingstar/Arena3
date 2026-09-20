@@ -2,9 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Button, Card, Field, Input, Skeleton } from "@/components/ui";
+import { Button, Card, Field, Input, Seg, Skeleton } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { SplitText } from "@/components/fx";
+import { cn } from "@/lib/cn";
 import { apiGet, apiPatch } from "@/lib/arena3/client";
+import { sportLabel } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/manager/settings")({
   component: Page,
@@ -44,7 +47,7 @@ function Page() {
   }
   return (
     <Shell role="manager" title="Centre settings" subtitle="New transactions pick these up within a minute.">
-      <h2 className="mb-3 font-display text-2xl">Features</h2>
+      <SplitText as="h2" text="Features" className="mb-3 font-display text-2xl" />
       <Stagger className="mb-6 grid gap-2 md:grid-cols-2" gap={0.05}>
         {FLAG_META.map((fl) => (
           <StaggerItem key={fl.key}>
@@ -82,6 +85,13 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
+      <SplitText as="h2" text="Courts" className="mb-1 font-display text-2xl" />
+      <p className="mb-3 text-sm text-muted">
+        Taking a court out of service stops new bookings on it. Anything already booked stays — the desk sorts those out.
+      </p>
+      <Courts />
+
+      <SplitText as="h2" text="Centre details" className="mb-3 mt-8 font-display text-2xl" />
       <Reveal>
       <Card className="grid gap-3 md:grid-cols-2">
         {f("legal_name", "Legal name")}
@@ -121,5 +131,124 @@ function Page() {
       </Card>
       </Reveal>
     </Shell>
+  );
+}
+
+type Court = { id: string; court_code: string; sport: string; status: string; convertible?: boolean };
+
+const STATUSES = [
+  { value: "ready", label: "Open", tone: "accent" as const },
+  { value: "maintenance", label: "Maintenance", tone: "hold" as const },
+  { value: "closed", label: "Closed", tone: "danger" as const },
+];
+
+function Courts() {
+  const [items, setItems] = useState<Court[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [sport, setSport] = useState("");
+
+  useEffect(() => {
+    void apiGet<{ items: Court[] }>("/courts")
+      .then((r) => setItems(r.items))
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Could not load the courts"));
+  }, []);
+
+  async function set(court: Court, status: string) {
+    if (court.status === status || busy) return;
+    setBusy(court.id);
+    // Optimistic: the pill is the only feedback, and waiting ~300ms for the
+    // round trip before it moves makes the control feel unresponsive. Rolled
+    // back below if the server disagrees.
+    setItems((list) => (list ?? []).map((c) => (c.id === court.id ? { ...c, status } : c)));
+    try {
+      const res = await apiPatch<{ court: Court; upcoming: number }>(`/courts/${court.id}`, { status });
+      setItems((list) => (list ?? []).map((c) => (c.id === court.id ? res.court : c)));
+      const label = STATUSES.find((s) => s.value === status)?.label ?? status;
+      toast.success(
+        status !== "ready" && res.upcoming > 0
+          ? `${court.court_code} → ${label}. ${res.upcoming} booking${res.upcoming === 1 ? "" : "s"} still stand — tell the desk.`
+          : `${court.court_code} → ${label}`,
+      );
+    } catch (e) {
+      setItems((list) => (list ?? []).map((c) => (c.id === court.id ? { ...c, status: court.status } : c)));
+      toast.error(e instanceof Error ? e.message : "Could not change that court");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!items) return <Skeleton className="h-40" />;
+
+  const shown = sport ? items.filter((c) => c.sport === sport) : items;
+  const down = items.filter((c) => c.status !== "ready").length;
+
+  return (
+    <div className="mb-2 grid gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Seg
+          value={sport}
+          onChange={setSport}
+          options={[
+            { value: "", label: "All" },
+            { value: "badminton", label: "Badminton" },
+            { value: "basketball", label: "Basketball" },
+            { value: "volleyball", label: "Volleyball" },
+          ]}
+        />
+        <p className="text-xs tabular-nums text-muted">
+          {items.length - down} of {items.length} open
+        </p>
+      </div>
+      <Stagger className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" gap={0.03}>
+        {shown.map((c) => (
+          <StaggerItem key={c.id}>
+            <Card className="flex h-full flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <p className="font-medium">
+                  {c.court_code}
+                  {c.convertible ? <span className="ml-1 text-subtle">↔</span> : null}
+                </p>
+                <p className="text-xs text-muted">{sportLabel(c.sport)}</p>
+              </div>
+              <div
+                role="radiogroup"
+                aria-label={`Status for ${c.court_code}`}
+                className="inline-flex rounded-[var(--radius-pill)] bg-wood p-1"
+              >
+                {STATUSES.map((st) => {
+                  const on = c.status === st.value;
+                  return (
+                    <button
+                      key={st.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      disabled={busy === c.id}
+                      onClick={() => void set(c, st.value)}
+                      className={cn(
+                        "relative min-h-8 rounded-[var(--radius-pill)] px-3 text-2xs font-semibold uppercase tracking-wider transition-colors duration-200 disabled:opacity-60",
+                        on ? "text-bg" : "text-muted hover:text-fg",
+                      )}
+                    >
+                      {on ? (
+                        <motion.span
+                          layoutId={`court-status-${c.id}`}
+                          className={cn(
+                            "absolute inset-0 rounded-[var(--radius-pill)]",
+                            st.tone === "accent" ? "bg-accent" : st.tone === "hold" ? "bg-hold" : "bg-danger",
+                          )}
+                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                        />
+                      ) : null}
+                      <span className="relative z-[1]">{st.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
+          </StaggerItem>
+        ))}
+      </Stagger>
+    </div>
   );
 }

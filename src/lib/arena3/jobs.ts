@@ -194,16 +194,70 @@ const g = globalThis as typeof globalThis & {
   __arena3GenAt__?: number;
 };
 
+/**
+ * One read that answers "does any job have work?" for all eight at once.
+ *
+ * Almost every pass has nothing to do, and the naive loop still paid full price
+ * for that answer: eight `withTx` calls, each a BEGIN + scan + COMMIT. Against
+ * Neon that is ~24 network round trips every 15 seconds — measured at ~7
+ * seconds of chatter per pass, which every user request then queued behind.
+ * One transaction-free `select` of eight `exists()` subqueries costs a single
+ * round trip, and any job that does have work still runs in its own
+ * transaction, so a failure in one can't roll back another.
+ *
+ * Each clause mirrors its job's own `where` exactly. Change one and you must
+ * change the other, or the job will be skipped while it still has rows.
+ */
+const DUE_PROBE = `
+  select
+    exists(select 1 from court_bookings
+            where status = 'hold' and hold_until < now())                              as expire_holds,
+    exists(select 1 from court_bookings b join center_settings s on s.id = 1
+            where b.status = 'confirmed'
+              and b.start_at + (s.noshow_grace_minutes * interval '1 minute') < now())  as mark_noshow,
+    exists(select 1 from court_bookings b join center_settings s on s.id = 1
+            where b.status = 'in_use' and b.end_at + interval '10 minutes' < now())     as complete_bookings,
+    exists(select 1 from outbox
+            where sent_at is null and attempts < 5)                                     as notify_flush,
+    exists(select 1 from waitlist_offers
+            where status = 'pending' and expires_at < now())                            as waitlist_expire,
+    exists(select 1 from sessions
+            where status = 'scheduled' and end_at + interval '2 hours' < now())         as lock_attendance,
+    exists(select 1 from subscriptions
+            where status = 'active'
+              and end_on < (now() at time zone 'Asia/Ho_Chi_Minh')::date)               as subscription_status,
+    exists(select 1 from subscriptions
+            where status = 'active'
+              and end_on in ((now() at time zone 'Asia/Ho_Chi_Minh')::date + 7,
+                             (now() at time zone 'Asia/Ho_Chi_Minh')::date + 3,
+                             (now() at time zone 'Asia/Ho_Chi_Minh')::date))            as expiry_reminders
+`;
+
+type DueFlags = {
+  expire_holds: boolean;
+  mark_noshow: boolean;
+  complete_bookings: boolean;
+  notify_flush: boolean;
+  waitlist_expire: boolean;
+  lock_attendance: boolean;
+  subscription_status: boolean;
+  expiry_reminders: boolean;
+};
+
 export async function runDueJobs() {
   try {
-    await expireHolds();
-    await markNoshow();
-    await completeBookings();
-    await notifyFlush();
-    await waitlistExpire();
-    await lockAttendance();
-    await subscriptionStatus();
-    await expiryReminders();
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const [due] = await sql.query<DueFlags>(DUE_PROBE);
+    if (!due) return;
+    if (due.expire_holds) await expireHolds();
+    if (due.mark_noshow) await markNoshow();
+    if (due.complete_bookings) await completeBookings();
+    if (due.notify_flush) await notifyFlush();
+    if (due.waitlist_expire) await waitlistExpire();
+    if (due.lock_attendance) await lockAttendance();
+    if (due.subscription_status) await subscriptionStatus();
+    if (due.expiry_reminders) await expiryReminders();
     const now = Date.now();
     if (elapsedAtLeast(g.__arena3GenAt__, now, GENERATE_SESSIONS_EVERY_MS)) {
       g.__arena3GenAt__ = now;

@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, Field, Input, Select } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -75,17 +76,21 @@ function Page() {
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.05}>
         {items.map((i) => (
           <StaggerItem key={i.id} className="h-full">
-          <Card interactive className="h-full p-4">
+          <Lift className="h-full">
+          <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={280} strength={0.1}>
+          <Card interactive className="relative z-[2] h-full p-4">
             <p className="text-2xs uppercase tracking-wider text-muted">{i.sport ? sportLabel(i.sport) : "General"}</p>
             <p className="font-medium">{i.name}</p>
             <p className="text-sm text-muted">
               {i.stock} in stock · {money(i.rent_vnd)} each
             </p>
           </Card>
+          </SpotlightCard>
+          </Lift>
           </StaggerItem>
         ))}
       </Stagger>
-      <h2 className="mt-8 font-display text-2xl">Out on loan</h2>
+      <SplitText as="h2" text="Out on loan" className="mt-8 font-display text-2xl" />
       <Stagger className="mt-3 grid gap-2" gap={0.05}>
         {loans.map((l) => (
           <StaggerItem key={l.id}>

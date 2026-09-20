@@ -90,6 +90,20 @@ export function PassCard({
   );
 }
 
+/**
+ * A muted, looping background video that only fetches once it is near the
+ * viewport — and never before the page has painted.
+ *
+ * The landing page carries two of these, 8 MB of MP4 between them. With a plain
+ * `<video src>` the browser starts both during the initial load, on the same
+ * connection as the JS and CSS the page actually needs to become interactive;
+ * on a slow link that is the whole "why is it still loading" feeling. Holding
+ * `src` back until the element is observed costs nothing visually, because the
+ * poster is the same frame the video opens on.
+ *
+ * `rootMargin` is generous so the hero — which is on screen from the start —
+ * begins fetching immediately after hydration rather than after a scroll.
+ */
 export function HeroVideo({
   src,
   poster,
@@ -99,16 +113,60 @@ export function HeroVideo({
   poster: string;
   className?: string;
 }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [near, setNear] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || near) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    // Watch the wrapper, not the video. These sit `absolute inset-0` inside a
+    // `Cover`, and a source-less `<video>` has no intrinsic size, so its own box
+    // frequently measures zero on one axis — height, usually, since the width
+    // comes from the wrapper. An element with no *area* never intersects
+    // anything, so observing it directly means the video silently never loads.
+    // Both axes have to be checked: testing width alone stops the walk on a
+    // 313×0 box that can never fire. Climb to the first ancestor that really
+    // occupies space, and if somehow nothing does, load rather than leave a
+    // poster frozen on screen.
+    const empty = (n: HTMLElement) => {
+      const r = n.getBoundingClientRect();
+      return r.width === 0 || r.height === 0;
+    };
+    let target: HTMLElement = el;
+    while (empty(target) && target.parentElement) {
+      target = target.parentElement;
+    }
+    if (empty(target)) {
+      setNear(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setNear(true);
+      },
+      { rootMargin: "400px" },
+    );
+    io.observe(target);
+    return () => io.disconnect();
+  }, [near]);
+
   return (
     <video
+      ref={ref}
       className={cn("absolute inset-0 size-full object-cover", className)}
-      src={src}
+      // Attaching `src` is what starts the download, so it stays off until the
+      // observer fires. The poster is painted either way.
+      src={near ? src : undefined}
       poster={poster}
       autoPlay
       muted
       loop
       playsInline
-      preload="metadata"
+      preload="none"
       aria-hidden
     />
   );

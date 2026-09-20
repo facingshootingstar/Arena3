@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
 import { Button, Card, DateField, Field, Input, Select, StatusBadge } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 
@@ -158,7 +159,9 @@ function Page() {
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.06}>
         {items.map((c) => (
           <StaggerItem key={c.id} className="h-full">
-          <Card interactive className="h-full">
+          <Lift className="h-full">
+          <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
+          <Card interactive className="relative z-[2] h-full">
             <StatusBadge status={c.status} />
             <h2 className="mt-2 font-display text-2xl">
               {sportLabel(c.sport)} · {levelLabel(c.level)}
@@ -184,6 +187,8 @@ function Page() {
               </Button>
             ) : null}
           </Card>
+          </SpotlightCard>
+          </Lift>
           </StaggerItem>
         ))}
       </Stagger>

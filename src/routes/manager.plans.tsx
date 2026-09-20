@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Badge, Button, Card, Field, Input, Modal, Select } from "@/components/ui";
-import { Stagger, StaggerItem } from "@/components/motion";
+import { Lift, Stagger, StaggerItem } from "@/components/motion";
+import { GlareHover, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -88,12 +89,16 @@ function Page() {
       <Stagger className="grid gap-3 md:grid-cols-3" gap={0.07}>
         {items.map((p) => (
           <StaggerItem key={p.id} className="h-full">
-          <Card interactive className="flex h-full flex-col overflow-hidden p-0">
-            <Cover src={sportPhoto(p.sport_scope)} alt="" className="h-28">
-              <p className="absolute bottom-3 left-4 text-2xs uppercase tracking-wider text-on-media on-media">
-                {sportLabel(p.sport_scope)}
-              </p>
-            </Cover>
+          <Lift className="h-full">
+          <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
+          <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
+            <GlareHover>
+              <Cover src={sportPhoto(p.sport_scope)} alt="" className="h-28">
+                <p className="absolute bottom-3 left-4 text-2xs uppercase tracking-wider text-on-media on-media">
+                  {sportLabel(p.sport_scope)}
+                </p>
+              </Cover>
+            </GlareHover>
             <div className="flex flex-1 flex-col p-5">
               <Badge tone={p.is_on_sale ? "accent" : "muted"}>{p.is_on_sale ? "On sale" : "Paused"}</Badge>
               <h2 className="mt-2 font-display text-2xl">{p.name}</h2>
@@ -119,6 +124,8 @@ function Page() {
               </Button>
             </div>
           </Card>
+          </SpotlightCard>
+          </Lift>
           </StaggerItem>
         ))}
       </Stagger>

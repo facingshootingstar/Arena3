@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { Guard, Shell, hhmm } from "@/components/shell";
 import { Badge, Button, Card, Empty, Field, Select, Skeleton } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { GlareHover, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 
@@ -96,15 +97,19 @@ function Page() {
           {items.map((s) => (
             <StaggerItem key={s.id}>
             <button type="button" className="w-full text-left" onClick={() => void openSession(s)}>
+              <Lift>
+              <SpotlightCard className="rounded-[var(--radius-xl)]" size={320} strength={0.11}>
               <Card interactive
-                className={open?.id === s.id ? "overflow-hidden p-0 ring-2 ring-accent/40" : "overflow-hidden p-0"}>
-                <Cover src={sportPhoto(s.sport)} alt="" className="h-28">
-                  <div className="absolute bottom-3 left-4">
-                    <Badge tone="accent" className="bg-surface text-fg">
-                      {sportLabel(s.sport)}
-                    </Badge>
-                  </div>
-                </Cover>
+                className={open?.id === s.id ? "relative z-[2] overflow-hidden p-0 ring-2 ring-accent/40" : "relative z-[2] overflow-hidden p-0"}>
+                <GlareHover>
+                  <Cover src={sportPhoto(s.sport)} alt="" className="h-28">
+                    <div className="absolute bottom-3 left-4">
+                      <Badge tone="accent" className="bg-surface text-fg">
+                        {sportLabel(s.sport)}
+                      </Badge>
+                    </div>
+                  </Cover>
+                </GlareHover>
                 <div className="p-5">
                   <h2 className="font-display text-2xl">{levelLabel(s.level)}</h2>
                   <p className="text-sm text-muted">
@@ -115,6 +120,8 @@ function Page() {
                   </p>
                 </div>
               </Card>
+              </SpotlightCard>
+              </Lift>
             </button>
             </StaggerItem>
           ))}
@@ -123,7 +130,7 @@ function Page() {
       )}
       {open && att.length ? (
         <div className="mt-8">
-          <h2 className="font-display text-2xl">Register · {levelLabel(open.level)}</h2>
+          <SplitText as="h2" text={`Register · ${levelLabel(open.level)}`} className="font-display text-2xl" />
           <Stagger className="mt-3 grid gap-2" gap={0.04}>
             {att.map((u) => (
               <StaggerItem key={u.id}>
@@ -178,7 +185,7 @@ function Page() {
 
       {flags.F5 !== false ? (
         <div className="mt-10">
-          <h2 className="font-display text-2xl">Session plan</h2>
+          <SplitText as="h2" text="Session plan" className="font-display text-2xl" />
           <p className="mt-1 text-sm text-muted">The AI only suggests. Publish it and your students see it under Train.</p>
           <Reveal><Card className="mt-3 grid gap-3 md:grid-cols-4">
             <Field label="Sport">

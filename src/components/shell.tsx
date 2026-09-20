@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   CalendarDays,
+  ChevronDown,
   ClipboardList,
   LayoutGrid,
   LogOut,
@@ -8,13 +9,14 @@ import {
   MessageCircle,
   Settings,
   Ticket,
+  UserCog,
   Users,
   Wallet,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ArenaMark } from "./mark";
-import { PageIn, motion } from "./motion";
-import { Button } from "./ui";
+import { AnimatePresence, PageIn, motion } from "./motion";
+import { GradualBlur, SplitText } from "./fx";
 import { cn } from "@/lib/cn";
 import {
   apiGet,
@@ -63,6 +65,99 @@ function navActive(pathname: string, to: string, items: { to: string }[]) {
   return best?.to === to;
 }
 
+function initials(name: string | undefined) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "A3";
+  // Vietnamese names put the given name last, and that is the one people answer
+  // to — so take the first and last word rather than the first two.
+  const first = parts[0]![0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? "") : "";
+  return (first + last).toUpperCase();
+}
+
+/** Avatar button that opens the account menu. */
+function AccountMenu({ user, role, onLogout }: { user: SessionUser | null; role: SessionUser["role"]; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Any click outside, or Escape, closes it — the two things every menu on the
+  // web does, and the two things people try first.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded-[var(--radius-pill)] py-1 pl-1 pr-1 transition-colors duration-150 hover:bg-wood sm:pr-3"
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold tracking-wide text-accent-fg">
+          {initials(user?.full_name)}
+        </span>
+        <span className="hidden text-left sm:block">
+          <span className="block max-w-[10rem] truncate text-sm font-medium leading-tight">{user?.full_name ?? "—"}</span>
+          <span className="kicker text-2xs text-muted">{roleLabel(role)}</span>
+        </span>
+        <ChevronDown className={cn("hidden size-4 text-muted transition-transform duration-200 sm:block", open && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-56 origin-top-right overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(20,28,18,0.8)]"
+          >
+            <div className="border-b border-line/70 px-3 pb-2.5 pt-2 sm:hidden">
+              <p className="truncate text-sm font-medium">{user?.full_name ?? "—"}</p>
+              <p className="kicker text-2xs text-muted">{roleLabel(role)}</p>
+            </div>
+            <Link
+              to="/account"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-sm transition-colors duration-150 hover:bg-wood"
+            >
+              <UserCog className="size-4 text-muted" strokeWidth={1.75} />
+              Account settings
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onLogout();
+              }}
+              className="flex min-h-11 w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-left text-sm text-danger transition-colors duration-150 hover:bg-danger/10"
+            >
+              <LogOut className="size-4" strokeWidth={1.75} />
+              Sign out
+            </button>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export { roleLabel };
 
 export function Shell({
@@ -81,6 +176,10 @@ export function Shell({
   const user = useSessionUser();
   const items = NAV[role] ?? [];
   const home = homeFor(role);
+  // A single tab is not a choice — it just repeats the page heading back at
+  // you, which is why the coach screen read "Teaching / Teaching". Roles with
+  // one destination get a plain wordmark and no nav at all.
+  const showNav = items.length > 1;
 
   async function logout() {
     // Drop the local session immediately, before awaiting the server call.
@@ -102,7 +201,7 @@ export function Shell({
             <ArenaMark className="size-8" />
             <span className="hidden font-display text-2xl font-normal italic tracking-tight sm:inline">Arena3</span>
           </Link>
-          <nav className="ml-3 hidden items-center gap-1 md:flex">
+          <nav className={cn("ml-3 items-center gap-1", showNav ? "hidden md:flex" : "hidden")}>
             {items.map((it) => {
               const active = navActive(pathname, it.to, items);
               const Icon = it.icon;
@@ -145,29 +244,43 @@ export function Shell({
                 <MessageCircle className="size-4" strokeWidth={1.75} />
               </Link>
             ) : null}
-            <span className="hidden text-right sm:block">
-              <span className="block text-sm font-medium leading-tight">{user?.full_name}</span>
-              <span className="kicker text-2xs text-muted">{roleLabel(role)}</span>
-            </span>
-            <Button variant="ghost" className="size-11 px-0" onClick={() => logout()} aria-label="Sign out">
-              <LogOut className="size-4" />
-            </Button>
+            <AccountMenu user={user} role={role} onLogout={() => void logout()} />
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-10">
+      <main
+        className={cn(
+          "mx-auto max-w-6xl px-4 py-6 md:pb-10",
+          // Only reserve room for the dock when there is a dock.
+          showNav ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-10",
+        )}
+      >
         <PageIn key={pathname}>
           {title ? (
             <header className="mb-5">
-              <h1 className="font-display text-3xl font-semibold sm:text-4xl">{title}</h1>
+              <SplitText
+                as="h1"
+                text={title}
+                splitBy="chars"
+                stagger={0.016}
+                duration={0.6}
+                className="font-display text-3xl font-semibold sm:text-4xl"
+              />
               {subtitle ? <p className="mt-1 text-sm text-muted">{subtitle}</p> : null}
             </header>
           ) : null}
           {children}
         </PageIn>
       </main>
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="grid auto-cols-fr grid-flow-col">
+      {showNav ? (
+        <>
+      {/* The page fades out under the floating bar instead of being cut by it. */}
+      <GradualBlur side="bottom" position="fixed" height="5.5rem" strength={1.6} className="z-[19] md:hidden" />
+      {/* A dock rather than a bar: it floats clear of the page, but every item is
+          still a real <Link>, so prefetch, long-press and "open in new tab" work
+          the way a tab bar should on a touch device. */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] md:hidden">
+        <div className="glass mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-pill)] p-1.5 shadow-[0_18px_40px_-24px_rgba(20,28,18,0.75)]">
           {items.map((it) => {
             const active = navActive(pathname, it.to, items);
             const Icon = it.icon;
@@ -177,17 +290,32 @@ export function Shell({
                 to={it.to}
                 activeOptions={{ exact: true }}
                 className={cn(
-                  "flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] uppercase tracking-wider",
-                  active ? "font-semibold text-accent" : "font-medium text-muted",
+                  "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-pill)] text-[10px] uppercase tracking-wider transition-colors duration-200",
+                  active ? "font-semibold text-accent-fg" : "font-medium text-muted",
                 )}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
-                {it.label}
+                {active ? (
+                  <motion.span
+                    layoutId="shell-dock-active"
+                    className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent shadow-[var(--shadow-accent)]"
+                    transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                  />
+                ) : null}
+                <motion.span
+                  className="relative z-[1]"
+                  animate={{ y: active ? -1 : 0, scale: active ? 1.08 : 1 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 26 }}
+                >
+                  <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
+                </motion.span>
+                <span className="relative z-[1]">{it.label}</span>
               </Link>
             );
           })}
         </div>
       </nav>
+        </>
+      ) : null}
     </div>
   );
 }

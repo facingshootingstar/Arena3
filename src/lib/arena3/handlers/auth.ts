@@ -3,6 +3,7 @@ import { hashOtp, hashPassword, randomOtp, verifyPassword } from "../crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
+import { limit, RULES } from "../ratelimit";
 import {
   findUserByLogin,
   issueSession,
@@ -215,60 +216,66 @@ export async function forgot(sql: Sql, request: Request) {
 }
 
 export async function meGet(sql: Sql, user: PublicUser) {
-  const subs = await sql.query(
-    `select s.id, s.plan_id, s.sport_scope, s.start_on::text, s.end_on::text, s.status,
-            s.court_hours_left, s.session_left, p.name as plan_name, p.court_discount_pct
-       from subscriptions s
-       join membership_plans p on p.id = s.plan_id
-      where s.user_id = $1
-      order by s.status = 'active' desc, s.end_on desc`,
-    [user.id],
-  );
-  const inbox = await sql.query(
-    `select id, template, payload, sent_at from inbox
-      where user_id = $1 order by sent_at desc limit 30`,
-    [user.id],
-  );
-  const today = await sql.query(
-    `select b.id, b.code, b.start_at, b.end_at, b.status, b.court_id, c.court_code
-       from court_bookings b join courts c on c.id = b.court_id
-      where b.user_id = $1
-        and (b.start_at at time zone 'Asia/Ho_Chi_Minh')::date
-            = (now() at time zone 'Asia/Ho_Chi_Minh')::date
-        and b.status in ('hold','confirmed','in_use')
-      order by b.start_at`,
-    [user.id],
-  );
-  const classesToday = await sql.query(
-    `select s.id, s.start_at, s.end_at, cl.level, cl.sport, c.court_code, u.full_name as coach_name
-       from sessions s
-       join classes cl on cl.id = s.class_id
-       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
-       join courts c on c.id = s.court_id
-       join users u on u.id = cl.coach_id
-      where s.status = 'scheduled'
-        and (s.start_at at time zone 'Asia/Ho_Chi_Minh')::date
-            = (now() at time zone 'Asia/Ho_Chi_Minh')::date
-      order by s.start_at`,
-    [user.id],
-  );
-  const enrollments = await sql.query(
-    `select e.id, e.status, e.waitlist_pos, e.class_id, cl.sport, cl.level, cl.rrule, c.court_code
-       from enrollments e
-       join classes cl on cl.id = e.class_id
-       join courts c on c.id = cl.court_id
-      where e.user_id = $1 and e.status in ('confirmed','waitlisted')`,
-    [user.id],
-  );
-  const offers = await sql.query(
-    `select o.id, o.expires_at, o.status, e.class_id, cl.sport, cl.level
-       from waitlist_offers o
-       join enrollments e on e.id = o.enrollment_id
-       join classes cl on cl.id = e.class_id
-      where e.user_id = $1 and o.status = 'pending' and o.expires_at > now()`,
-    [user.id],
-  );
-  const flags = await sql.query<{ key: string; enabled: boolean }>(`select key, enabled from feature_flags`);
+  // Seven independent reads. Awaited one at a time this was the slowest request
+  // in the app — and it is on the critical path of every sign-in. Issued
+  // together they each land on their own pooled connection, so the handler
+  // costs one round trip instead of seven.
+  const [subs, inbox, today, classesToday, enrollments, offers, flags] = await Promise.all([
+    sql.query(
+      `select s.id, s.plan_id, s.sport_scope, s.start_on::text, s.end_on::text, s.status,
+              s.court_hours_left, s.session_left, p.name as plan_name, p.court_discount_pct
+         from subscriptions s
+         join membership_plans p on p.id = s.plan_id
+        where s.user_id = $1
+        order by s.status = 'active' desc, s.end_on desc`,
+      [user.id],
+    ),
+    sql.query(
+      `select id, template, payload, sent_at from inbox
+        where user_id = $1 order by sent_at desc limit 30`,
+      [user.id],
+    ),
+    sql.query(
+      `select b.id, b.code, b.start_at, b.end_at, b.status, b.court_id, c.court_code
+         from court_bookings b join courts c on c.id = b.court_id
+        where b.user_id = $1
+          and (b.start_at at time zone 'Asia/Ho_Chi_Minh')::date
+              = (now() at time zone 'Asia/Ho_Chi_Minh')::date
+          and b.status in ('hold','confirmed','in_use')
+        order by b.start_at`,
+      [user.id],
+    ),
+    sql.query(
+      `select s.id, s.start_at, s.end_at, cl.level, cl.sport, c.court_code, u.full_name as coach_name
+         from sessions s
+         join classes cl on cl.id = s.class_id
+         join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
+         join courts c on c.id = s.court_id
+         join users u on u.id = cl.coach_id
+        where s.status = 'scheduled'
+          and (s.start_at at time zone 'Asia/Ho_Chi_Minh')::date
+              = (now() at time zone 'Asia/Ho_Chi_Minh')::date
+        order by s.start_at`,
+      [user.id],
+    ),
+    sql.query(
+      `select e.id, e.status, e.waitlist_pos, e.class_id, cl.sport, cl.level, cl.rrule, c.court_code
+         from enrollments e
+         join classes cl on cl.id = e.class_id
+         join courts c on c.id = cl.court_id
+        where e.user_id = $1 and e.status in ('confirmed','waitlisted')`,
+      [user.id],
+    ),
+    sql.query(
+      `select o.id, o.expires_at, o.status, e.class_id, cl.sport, cl.level
+         from waitlist_offers o
+         join enrollments e on e.id = o.enrollment_id
+         join classes cl on cl.id = e.class_id
+        where e.user_id = $1 and o.status = 'pending' and o.expires_at > now()`,
+      [user.id],
+    ),
+    sql.query<{ key: string; enabled: boolean }>(`select key, enabled from feature_flags`),
+  ]);
   return {
     status: 200,
     body: {
@@ -288,6 +295,7 @@ export async function mePatch(sql: Sql, request: Request, user: PublicUser) {
   if (body.phone || body.email) {
     throw err.validation("Changing phone or email needs an OTP (slice 2).");
   }
+  limit(`profile:${user.id}`, RULES.profileUpdate, "profile updates");
   const full_name = str(body.full_name) ?? user.full_name;
   const health_notes = body.health_notes === undefined ? user.health_notes : str(body.health_notes);
   await sql.query(
@@ -295,4 +303,38 @@ export async function mePatch(sql: Sql, request: Request, user: PublicUser) {
     [full_name, unaccentVi(full_name), health_notes ?? null, user.id],
   );
   return { status: 200, body: { user: await loadUser(sql, user.id) } };
+}
+
+/**
+ * Change your own password.
+ *
+ * The current password is required even though the caller is already
+ * authenticated — a session left open on a shared desk machine should not be
+ * enough to lock the real owner out. Rate limited because the current-password
+ * check is otherwise a free password oracle for whoever is sitting at that
+ * machine.
+ */
+export async function mePassword(sql: Sql, request: Request, user: PublicUser) {
+  const body = await readJson(request);
+  const current = str(body.current_password) ?? "";
+  const next = str(body.new_password) ?? "";
+  const confirm = str(body.confirm_password);
+  if (!current || !next) throw err.validation("current_password and new_password are required.");
+  if (confirm !== undefined && confirm !== next) throw err.validation("The two new passwords do not match.");
+  limit(`pw:${user.id}`, RULES.passwordChange, "password changes");
+  if (!passwordOk(next)) {
+    throw err.validation("Use at least 8 characters with a letter and a number.");
+  }
+  if (next === current) throw err.validation("Pick a password you have not used here before.");
+  const row = await one<{ password_hash: string }>(sql, `select password_hash from users where id = $1`, [user.id]);
+  if (!row || !verifyPassword(current, row.password_hash)) {
+    throw err.validation("That is not your current password.");
+  }
+  await sql.query(
+    `update users set password_hash = $1, must_change_password = false, failed_logins = 0, locked_until = null
+      where id = $2`,
+    [hashPassword(next), user.id],
+  );
+  await audit(sql, user.id, "change_password", "user", user.id);
+  return { status: 200, body: { ok: true } };
 }

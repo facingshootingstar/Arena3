@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, Input } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion";
+import { StarBorder } from "@/components/fx";
 import { apiGet, apiPut } from "@/lib/arena3/client";
 import { DAY_KIND_LABEL, sportLabel } from "@/lib/arena3/labels";
 
@@ -57,20 +58,21 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
-      <Button
-        className="mt-4"
-        onClick={async () => {
-          try {
-            await apiPut("/price-rules", { items });
-            toast.success("Pricing saved");
-            await load();
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Something went wrong");
-          }
-        }}
-      >
-        Save new prices
-      </Button>
+      <StarBorder className="mt-4" speed={4}>
+        <Button
+          onClick={async () => {
+            try {
+              await apiPut("/price-rules", { items });
+              toast.success("Pricing saved");
+              await load();
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Something went wrong");
+            }
+          }}
+        >
+          Save new prices
+        </Button>
+      </StarBorder>
     </Shell>
   );
 }

@@ -5,6 +5,7 @@ import { CourtGrid, DateStrip, sportLabel, type Court, type OccSlot } from "@/co
 import { Shell, money } from "@/components/shell";
 import { Button, Card, DateField, Field, Input, Select, Seg, Skeleton } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
+import { SpotlightCard, StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { todayISO } from "@/lib/arena3/labels";
 
@@ -71,7 +72,8 @@ function Page() {
           exit={{ opacity: 0, height: 0 }}
           className="overflow-hidden"
         >
-        <Card className="mb-4 grid gap-3 md:grid-cols-4">
+        <SpotlightCard className="mb-4 rounded-[var(--radius-xl)]" size={420} strength={0.1}>
+        <Card className="relative z-[2] grid gap-3 md:grid-cols-4">
           <div className="md:col-span-4">
             <p className="text-sm text-muted">
               Walk-in · {pick.court.court_code} · {sportLabel(pick.court.sport)} · {String(pick.hour).padStart(2, "0")}
@@ -99,32 +101,38 @@ function Page() {
               <option value="card">Card</option>
             </Select>
           </Field>
-          <div className="flex items-end gap-2">
-            <Button
-              onClick={async () => {
-                try {
-                  const res = await apiPost<{ payment: { amount_vnd: number; code: string }; invoice_id: string }>(
-                    "/walk-in",
-                    { court_id: pick.court.id, start_at: isoAt(pick.hour), ...form },
-                    true,
-                  );
-                  toast.success(`Took ${money(res.payment.amount_vnd)} · ${res.payment.code}`);
-                  setPick(null);
-                  setForm({ guest_name: "", guest_phone: "", method: "cash" });
-                  await load();
-                  if (res.invoice_id) await openInvoice(res.invoice_id);
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Something went wrong");
-                }
-              }}
-            >
-              Take payment & hold
-            </Button>
+          {/* Own row: the star border needs the button at its natural width, and
+              a quarter-column squeezes "Take payment & hold" onto three lines. */}
+          <div className="flex items-end gap-2 md:col-span-4">
+            {/* The one control that moves money on this screen. */}
+            <StarBorder speed={4}>
+              <Button
+                onClick={async () => {
+                  try {
+                    const res = await apiPost<{ payment: { amount_vnd: number; code: string }; invoice_id: string }>(
+                      "/walk-in",
+                      { court_id: pick.court.id, start_at: isoAt(pick.hour), ...form },
+                      true,
+                    );
+                    toast.success(`Took ${money(res.payment.amount_vnd)} · ${res.payment.code}`);
+                    setPick(null);
+                    setForm({ guest_name: "", guest_phone: "", method: "cash" });
+                    await load();
+                    if (res.invoice_id) await openInvoice(res.invoice_id);
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Something went wrong");
+                  }
+                }}
+              >
+                Take payment & hold
+              </Button>
+            </StarBorder>
             <Button variant="ghost" onClick={() => setPick(null)}>
               Never mind
             </Button>
           </div>
         </Card>
+        </SpotlightCard>
         </motion.div>
       ) : null}
       </AnimatePresence>
@@ -136,13 +144,14 @@ function Page() {
           exit={{ opacity: 0, height: 0 }}
           className="overflow-hidden"
         >
-        <Card className="mb-4">
+        <SpotlightCard className="mb-4 rounded-[var(--radius-xl)]" size={420} strength={0.1}>
+        <Card className="relative z-[2]">
           <p className="text-sm">
             Merge {pick.court.court_code} ({sportLabel(pick.court.sport)}) at {String(pick.hour).padStart(2, "0")}
             :00 — this locks both courts of the pair for 60 minutes.
           </p>
           {!pick.court.convertible ? (
-            <p className="mt-2 text-sm text-danger">This court cannot be merged. Only BR-01 ↔ BC-01 pairs up.</p>
+            <p className="mt-2 text-sm text-danger">This court cannot be merged. Only the BR ↔ BC pairs convert.</p>
           ) : null}
           <div className="mt-3 flex gap-2">
             <Button
@@ -173,6 +182,7 @@ function Page() {
             </Button>
           </div>
         </Card>
+        </SpotlightCard>
         </motion.div>
       ) : null}
       </AnimatePresence>

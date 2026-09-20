@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { addDaysISO, kindLabel, sportLabel, todayISO, weekdayShort } from "@/lib/arena3/labels";
 
@@ -48,6 +49,43 @@ function occAt(slots: OccSlot[], courtId: string, date: string, hour: number): O
   });
 }
 
+/**
+ * Has this hour already finished?
+ *
+ * The slot is written in ICT, so the string carries `+07:00` and comparing the
+ * parsed instant against `Date.now()` is correct whatever timezone the browser
+ * is in. An hour counts as past only once it has fully elapsed — the 14:00 slot
+ * is still live at 14:30, and the desk can still sell the tail of it as a
+ * walk-in.
+ */
+function isPast(date: string, hour: number, now: number) {
+  const end = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00+07:00`).getTime() + 3_600_000;
+  return end <= now;
+}
+
+/** Dimmed, struck-through treatment shared by both layouts. */
+const PAST_CELL = "bg-wood/30 text-subtle/60 line-through decoration-subtle/40";
+
+/**
+ * A clock that ticks once a minute.
+ *
+ * The grid greys out hours as they elapse, so it has to re-render on its own —
+ * leaving a tab open through 18:00 should not leave a sellable-looking 17:00
+ * on screen. Starting at `0` and filling in from an effect keeps the server
+ * render and the first client render identical, which is what hydration needs;
+ * `0` simply means "nothing is past yet" for the one frame before the effect
+ * runs.
+ */
+function useNowMinute() {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
 export function DateStrip({
   value,
   onChange,
@@ -96,6 +134,7 @@ export function CourtLegend() {
     { cls: "bg-accent/25", label: "Booked" },
     { cls: "bg-hold/25", label: "On hold" },
     { cls: "bg-wood", label: "Maintenance / merged" },
+    { cls: "bg-wood/30", label: "Already passed" },
   ];
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted">
@@ -122,15 +161,28 @@ export function CourtGrid({
   sport?: string;
   onPick?: (court: Court, hour: number) => void;
 }) {
+  const now = useNowMinute();
   const list = sport ? courts.filter((c) => c.sport === sport) : courts;
-  const free = list.reduce((n, c) => n + HOURS.filter((h) => !occAt(slots, c.id, date, h)).length, 0);
+  const free = list.reduce(
+    (n, c) => n + HOURS.filter((h) => !occAt(slots, c.id, date, h) && !isPast(date, h, now)).length,
+    0,
+  );
   const hasClass = slots.some((s) => s.kind === "session" && list.some((c) => c.id === s.court_id));
+
+  if (list.length === 0) {
+    return (
+      <div className="grid place-items-center gap-1 rounded-[var(--radius-xl)] bg-surface px-6 py-14 text-center shadow-[var(--shadow-border)]">
+        <p className="font-medium">No {sport ? sportLabel(sport).toLowerCase() : ""} courts</p>
+        <p className="text-sm text-muted">Nothing is set up for this sport yet. Try another filter.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CourtLegend />
-        <p className="text-xs tabular-nums text-muted">{free} free slots</p>
+        <p className="text-xs tabular-nums text-muted">{free} free slots left</p>
       </div>
       {!hasClass ? (
         <p className="text-sm text-muted">No classes scheduled on court today — you are seeing member bookings only.</p>
@@ -150,6 +202,23 @@ export function CourtGrid({
               {HOURS.map((h) => {
                 const occ = occAt(slots, c.id, date, h);
                 const label = String(h).padStart(2, "0");
+                const past = isPast(date, h, now);
+                // Past hours are shown, never offered — seeing the whole day is
+                // the point of the grid, but nothing can be sold backwards.
+                if (past) {
+                  return (
+                    <div
+                      key={h}
+                      title={occ ? `${kindLabel(occ.kind)} · finished` : "This hour has passed"}
+                      className={cn(
+                        "grid min-h-11 place-items-center rounded-[var(--radius-xs)] text-2xs font-medium tabular-nums",
+                        PAST_CELL,
+                      )}
+                    >
+                      {label}
+                    </div>
+                  );
+                }
                 if (occ) {
                   if (occ.kind === "convert" && onPick) {
                     return (
@@ -198,8 +267,18 @@ export function CourtGrid({
 
       <div className="hidden overflow-x-auto rounded-[var(--radius-xl)] bg-surface shadow-[var(--shadow-border)] md:block">
         <div
-          className="grid min-w-[640px]"
-          style={{ gridTemplateColumns: `3.25rem repeat(${Math.max(list.length, 1)}, minmax(0, 1fr))` }}
+          className="grid"
+          style={{
+            gridTemplateColumns: `3.25rem repeat(${list.length}, minmax(0, 1fr))`,
+            // Sized to the courts actually on screen rather than a flat 640px.
+            // Filtering to the two basketball courts used to leave the table
+            // wider than its container, so a two-column grid scrolled sideways
+            // for no reason. `max(100%, …)` fills the container when the courts
+            // fit and only overflows — and only then shows a scrollbar — once
+            // there are genuinely too many to lay out. 4.5rem is the narrowest
+            // a "BC1 / Basketball" heading stays readable at.
+            minWidth: `max(100%, ${3.25 + list.length * 4.5}rem)`,
+          }}
         >
           <div className="sticky left-0 z-10 bg-surface px-2 py-2 text-2xs font-medium uppercase tracking-wider text-muted">
             Hour
@@ -214,7 +293,7 @@ export function CourtGrid({
             </div>
           ))}
           {HOURS.map((h) => (
-            <HourRow key={h} hour={h} list={list} slots={slots} date={date} onPick={onPick} />
+            <HourRow key={h} hour={h} list={list} slots={slots} date={date} onPick={onPick} now={now} />
           ))}
         </div>
       </div>
@@ -228,20 +307,38 @@ function HourRow({
   slots,
   date,
   onPick,
+  now,
 }: {
   hour: number;
   list: Court[];
   slots: OccSlot[];
   date: string;
   onPick?: (court: Court, hour: number) => void;
+  now: number;
 }) {
+  const past = isPast(date, hour, now);
   return (
     <>
-      <div className="sticky left-0 z-10 border-t border-line/70 bg-surface px-2 py-1 text-xs tabular-nums text-muted">
+      <div
+        className={cn(
+          "sticky left-0 z-10 border-t border-line/70 bg-surface px-2 py-1 text-xs tabular-nums",
+          past ? "text-subtle/60 line-through" : "text-muted",
+        )}
+      >
         {String(hour).padStart(2, "0")}
       </div>
       {list.map((c) => {
         const occ = occAt(slots, c.id, date, hour);
+        if (past) {
+          return (
+            <div key={c.id} className="border-l border-t border-line/70 p-1">
+              <div
+                title={occ ? `${kindLabel(occ.kind)} · finished` : "This hour has passed"}
+                className={cn("h-9 overflow-hidden rounded-[var(--radius-xs)]", PAST_CELL)}
+              />
+            </div>
+          );
+        }
         if (occ) {
           if (occ.kind === "convert" && onPick) {
             return (

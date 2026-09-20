@@ -6,6 +6,7 @@ import { ArenaMark } from "@/components/mark";
 import { Cover, HeroVideo, MediaCaption, media } from "@/components/media";
 import { Button, Card, Field, Input } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion";
+import { GLBackground, Magnet, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
 import { roleLabel } from "@/lib/arena3/labels";
 
@@ -47,17 +48,34 @@ function Login() {
 
   return (
     <main className="min-h-dvh lg:grid lg:grid-cols-2">
-      <div className="relative hidden min-h-dvh overflow-hidden lg:block">
+      <div className="grain relative hidden min-h-dvh overflow-hidden lg:block">
         <HeroVideo src={media.receptionVideo} poster={media.reception} />
         <div className="hero-scrim absolute inset-0" />
+        <GLBackground
+          variant="threads"
+          className="opacity-55 mix-blend-screen"
+          color="#eadfcb"
+          amplitude={1.1}
+          speed={0.5}
+          opacity={0.3}
+        />
         <div className="relative flex h-full flex-col justify-between p-10">
           <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
             <ArenaMark className="size-8" />
             <span className="font-display text-2xl">Arena3</span>
           </Link>
           <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-            <p className="text-2xs uppercase tracking-wider text-pass-muted">The desk is open</p>
-            <p className="mt-2 font-display text-4xl leading-tight">One schedule for courts, classes and cash.</p>
+            <ShinyText className="shiny-on-media text-2xs uppercase tracking-wider" speed={6}>
+              The desk is open
+            </ShinyText>
+            <SplitText
+              as="p"
+              text="One schedule for courts, classes and cash."
+              splitBy="words"
+              stagger={0.055}
+              delay={0.25}
+              className="mt-2 block font-display text-4xl leading-tight"
+            />
           </div>
         </div>
       </div>
@@ -74,7 +92,8 @@ function Login() {
         <h1 className="font-display text-4xl">Sign in</h1>
         <p className="mt-1 text-sm text-muted">Phone or email · demo password ChangeMe!a3</p>
         <Reveal className="mt-6" from="up">
-        <Card className="p-5">
+        <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
+        <Card className="relative z-[2] p-5">
           <form className="grid gap-4" onSubmit={submit}>
             <Field label="Phone or email">
               <Input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" />
@@ -98,17 +117,19 @@ function Login() {
                 </button>
               </div>
             </Field>
-            <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "Signing in…" : "Sign in"}
-            </Button>
+            <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
+              <Button type="submit" disabled={busy} className="w-full">
+                {busy ? "Signing in…" : "Sign in"}
+              </Button>
+            </Magnet>
           </form>
-          <div className="mt-4 flex justify-between text-sm">
+          <div className="mt-4 text-sm">
             <Link to="/register" className="text-accent-2 hover:underline">
               Create an account
             </Link>
-            <span className="text-subtle">OTP appears on screen</span>
           </div>
         </Card>
+        </SpotlightCard>
         </Reveal>
         <p className="mt-8 text-2xs font-semibold uppercase tracking-widest text-muted">Demo accounts</p>
         <Stagger className="mt-3 flex flex-wrap gap-2" gap={0.05}>

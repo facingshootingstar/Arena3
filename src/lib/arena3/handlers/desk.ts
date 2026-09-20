@@ -277,6 +277,29 @@ export async function paymentsRejectRefund(sql: Sql, id: string, user: PublicUse
   return { status: 200, body: { status: "refund_rejected" } };
 }
 
+/**
+ * Every receipt the signed-in member has paid for, newest first.
+ *
+ * Invoices hang off payments, and it is the payment that knows whose money it
+ * was — so ownership is a join, not a column on the invoice.
+ */
+export async function invoicesMine(sql: Sql, request: Request, user: PublicUser) {
+  requireRole(user, ["member", "receptionist", "manager"]);
+  const sp = new URL(request.url).searchParams;
+  const take = Math.min(100, Math.max(1, Number(sp.get("limit") ?? 30) || 30));
+  const items = await sql.query(
+    `select i.id, i.code, i.issued_at::text as issued_at,
+            p.code as payment_code, p.method, p.amount_vnd, p.status, p.ref_type
+       from invoices i
+       join payments p on p.id = i.payment_id
+      where p.user_id = $1
+      order by i.issued_at desc
+      limit $2`,
+    [user.id, take],
+  );
+  return { status: 200, body: { items } };
+}
+
 export async function invoicePdf(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager", "receptionist", "member"]);
   const format = new URL(request.url).searchParams.get("format") ?? "a5";
@@ -291,11 +314,15 @@ export async function invoicePdf(sql: Sql, id: string, request: Request, user: P
     id,
   ]);
   if (!inv) throw err.notFound();
-  const pay = await one<{ code: string; method: string; amount_vnd: number }>(
+  const pay = await one<{ code: string; method: string; amount_vnd: number; user_id: string | null }>(
     sql,
-    `select code, method, amount_vnd from payments where id = $1`,
+    `select code, method, amount_vnd, user_id from payments where id = $1`,
     [inv.payment_id],
   );
+  // Staff work the till and print anybody's receipt; a member may only see
+  // their own. Invoice ids are UUIDs, but "unguessable" is not an access
+  // control — without this a member could walk the whole centre's takings.
+  if (user.role === "member" && pay?.user_id !== user.id) throw err.notFound();
   const lines = await sql.query<{
     description: string;
     qty: number;

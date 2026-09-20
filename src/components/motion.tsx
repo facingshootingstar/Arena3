@@ -4,6 +4,7 @@ import {
   motion,
   useInView,
   useMotionValue,
+  useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useSpring,
@@ -12,6 +13,10 @@ import {
   type Variants,
 } from "motion/react";
 import {
+  Children,
+  createContext,
+  isValidElement,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -105,6 +110,22 @@ const staggerChild: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_SMOOTH } },
 };
 
+/**
+ * Each item animates itself rather than waiting to be told to.
+ *
+ * Variant propagation was the obvious way to build this and it does not
+ * survive contact with a filter: motion resolves a child's variant when the
+ * child mounts, and a parent that has already finished its cascade has no
+ * label change left to broadcast. Swapping the sport on Classes remounts the
+ * whole list into exactly that state, so every replacement card sat at
+ * `opacity: 0` and the list looked wiped.
+ *
+ * So `Stagger` publishes only the two facts an item needs — has the container
+ * been seen, and how long should this one wait — and the item drives its own
+ * `animate`. Whenever an item mounts, it animates in.
+ */
+const StaggerCtx = createContext<{ inView: boolean; delay: number }>({ inView: true, delay: 0 });
+
 /** Parent for a list whose children should cascade in. Pair with `<StaggerItem>`. */
 export function Stagger({
   children,
@@ -118,20 +139,43 @@ export function Stagger({
   gap?: number;
 }) {
   const reduced = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  // `amount: 0` because most of these lists are filled by a fetch: the
+  // container is empty and therefore zero-height when the observer first
+  // looks at it, and a ratio threshold can never be met by a box with no area.
+  const observed = useInView(ref, { once: true, amount: 0, margin: "0px 0px -60px 0px" });
+
+  // The observer does not reliably deliver a first callback for a container
+  // that mounts already on screen — which is every one of these lists, since
+  // they mount when their fetch lands. Without this the cards sat at
+  // `opacity: 0` until something happened to scroll the page. Measuring once
+  // after mount answers the same question directly.
+  const [onScreenAtMount, setOnScreenAtMount] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) setOnScreenAtMount(true);
+  }, []);
+
+  const inView = observed || onScreenAtMount;
+
   if (reduced) return <div className={className}>{children}</div>;
+
   return (
-    <motion.div
-      className={className}
-      variants={{
-        hidden: {},
-        show: { transition: { staggerChildren: gap, delayChildren: delay } },
-      }}
-      initial="hidden"
-      whileInView="show"
-      viewport={{ once: true, amount: 0.15, margin: "0px 0px -60px 0px" }}
-    >
-      {children}
-    </motion.div>
+    <div ref={ref} className={className}>
+      {Children.map(children, (child, i) =>
+        isValidElement(child) ? (
+          // Capped so a long list does not leave its tail waiting several
+          // seconds — past a dozen items the offsets are indistinguishable.
+          <StaggerCtx.Provider value={{ inView, delay: delay + Math.min(i, 12) * gap }}>
+            {child}
+          </StaggerCtx.Provider>
+        ) : (
+          child
+        ),
+      )}
+    </div>
   );
 }
 
@@ -141,9 +185,16 @@ export function StaggerItem({
   ...rest
 }: { children: ReactNode; className?: string } & MotionProps) {
   const reduced = useReducedMotion();
+  const { inView, delay } = useContext(StaggerCtx);
   if (reduced) return <div className={className}>{children}</div>;
   return (
-    <motion.div className={className} variants={staggerChild} {...rest}>
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 20 }}
+      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      transition={{ duration: 0.55, ease: EASE_SMOOTH, delay }}
+      {...rest}
+    >
       {children}
     </motion.div>
   );
@@ -378,4 +429,12 @@ export function PageIn({
   );
 }
 
-export { AnimatePresence, motion, useReducedMotion, useScroll, useTransform, useInView };
+export {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  useInView,
+  useMotionValueEvent,
+};

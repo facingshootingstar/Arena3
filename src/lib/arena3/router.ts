@@ -75,27 +75,45 @@ async function dispatch(request: Request): Promise<Response | Result> {
     });
   };
 
+  // Same authentication, no transaction. Every handler reached through this is
+  // a pure `select` — verified one by one — so a BEGIN/COMMIT buys nothing and
+  // costs real time: it takes a connection out of the pool and spends two extra
+  // round trips on it. That is cheap when the app and the database share a
+  // region and brutal when they don't — against a database a continent away it
+  // was half a second per read.
+  const authedRead = async (fn: (sql: Awaited<ReturnType<typeof getSql>>, user: PublicUser) => Promise<Result | Response>) => {
+    const sql = await getSql();
+    const user = await authFromRequest(sql, request);
+    return fn(sql, user);
+  };
+
   if (method === "POST" && p0 === "auth" && p1 === "logout") {
     return authed((sql, user) => authH.logout(sql, request, user));
   }
   if (method === "GET" && p0 === "me" && !p1) {
-    return authed((sql, user) => authH.meGet(sql, user));
+    return authedRead((sql, user) => authH.meGet(sql, user));
   }
   if (method === "PATCH" && p0 === "me" && !p1) {
     return authed((sql, user) => authH.mePatch(sql, request, user));
   }
+  if (method === "POST" && p0 === "me" && p1 === "password") {
+    return authed((sql, user) => authH.mePassword(sql, request, user));
+  }
   if (method === "GET" && p0 === "occupancy" && !p1) {
-    return authed((sql) => bookH.occupancyGet(sql, request));
+    return authedRead((sql) => bookH.occupancyGet(sql, request));
+  }
+  if (method === "PATCH" && p0 === "courts" && p1 && !p2) {
+    return authed((sql, user) => bookH.courtsPatch(sql, p1, request, user));
   }
 
   if (method === "GET" && p0 === "members" && !p1) {
-    return authed((sql, user) => memberH.membersSearch(sql, request, user));
+    return authedRead((sql, user) => memberH.membersSearch(sql, request, user));
   }
   if (method === "POST" && p0 === "members" && !p1) {
     return authed((sql, user) => memberH.membersCreate(sql, request, user));
   }
   if (method === "GET" && p0 === "members" && p1 && !p2) {
-    return authed((sql, user) => memberH.memberGet(sql, p1, user));
+    return authedRead((sql, user) => memberH.memberGet(sql, p1, user));
   }
 
   if (method === "POST" && p0 === "plans" && !p1) {
@@ -125,7 +143,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => bookH.bookingsCheckIn(sql, p1, user));
   }
   if (method === "GET" && p0 === "bookings" && p1 && !p2) {
-    return authed((sql, user) => bookH.bookingGet(sql, p1, user));
+    return authedRead((sql, user) => bookH.bookingGet(sql, p1, user));
   }
   if (method === "POST" && p0 === "walk-in") {
     return authed((sql, user) =>
@@ -137,7 +155,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => deskH.shiftOpen(sql, user));
   }
   if (method === "GET" && p0 === "shifts" && p1 === "current") {
-    return authed((sql, user) => deskH.shiftCurrent(sql, user));
+    return authedRead((sql, user) => deskH.shiftCurrent(sql, user));
   }
   if (method === "POST" && p0 === "shifts" && p1 && p2 === "close") {
     return authed((sql, user) => deskH.shiftClose(sql, p1, request, user));
@@ -153,10 +171,10 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => classH.classesEnroll(sql, p1, request, user));
   }
   if (method === "GET" && p0 === "classes" && p1 && p2 === "roster") {
-    return authed((sql, user) => classH.classRoster(sql, p1, user));
+    return authedRead((sql, user) => classH.classRoster(sql, p1, user));
   }
   if (method === "GET" && p0 === "coach" && p1 === "schedule") {
-    return authed((sql, user) => classH.coachSchedule(sql, user));
+    return authedRead((sql, user) => classH.coachSchedule(sql, user));
   }
   if (method === "DELETE" && p0 === "enrollments" && p1) {
     return authed((sql, user) => classH.enrollmentDelete(sql, p1, user));
@@ -176,22 +194,26 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "POST" && p0 === "payments" && p1 && p2 === "reject-refund") {
     return authed((sql, user) => deskH.paymentsRejectRefund(sql, p1, user));
   }
+  // Ordered before the `.pdf` case only for readability — the two cannot collide.
+  if (method === "GET" && p0 === "invoices" && !p1) {
+    return authedRead((sql, user) => deskH.invoicesMine(sql, request, user));
+  }
   if (method === "GET" && p0 === "invoices" && p1?.endsWith(".pdf")) {
     const id = p1.replace(/\.pdf$/, "");
-    return authed((sql, user) => deskH.invoicePdf(sql, id, request, user));
+    return authedRead((sql, user) => deskH.invoicePdf(sql, id, request, user));
   }
 
   if (method === "GET" && p0 === "reports" && p1 === "revenue") {
-    return authed((sql, user) => {
+    return authedRead((sql, user) => {
       requireRole(user, ["manager"]);
       return deskH.reportsRevenue(sql, request, user);
     });
   }
   if (method === "GET" && p0 === "reports" && p1 === "occupancy") {
-    return authed((sql, user) => deskH.reportsOccupancy(sql, request, user));
+    return authedRead((sql, user) => deskH.reportsOccupancy(sql, request, user));
   }
   if (method === "GET" && p0 === "settings" && !p1) {
-    return authed((sql, user) => deskH.settingsGet(sql, user));
+    return authedRead((sql, user) => deskH.settingsGet(sql, user));
   }
   if (method === "PATCH" && p0 === "settings" && !p1) {
     return authed((sql, user) => deskH.settingsPatch(sql, request, user));
@@ -200,7 +222,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => deskH.priceRulesPut(sql, request, user));
   }
   if (method === "GET" && p0 === "audit") {
-    return authed((sql, user) => deskH.auditList(sql, request, user));
+    return authedRead((sql, user) => deskH.auditList(sql, request, user));
   }
 
   if (method === "POST" && p0 === "subscriptions" && p1 && p2 === "freeze") {
@@ -221,10 +243,10 @@ async function dispatch(request: Request): Promise<Response | Result> {
     );
   }
   if (method === "GET" && p0 === "equipment" && !p1) {
-    return authed((sql) => opsH.equipmentList(sql));
+    return authedRead((sql) => opsH.equipmentList(sql));
   }
   if (method === "GET" && p0 === "equipment" && p1 === "loans") {
-    return authed((sql, user) => opsH.loansOpen(sql, user));
+    return authedRead((sql, user) => opsH.loansOpen(sql, user));
   }
   if (method === "POST" && p0 === "equipment" && p1 === "loans" && !p2) {
     return authed((sql, user) => opsH.equipmentLoan(sql, request, user));
@@ -233,13 +255,13 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => opsH.equipmentReturn(sql, p2, user));
   }
   if (method === "GET" && p0 === "sessions" && p1 && p2 === "attendance") {
-    return authed((sql, user) => opsH.sessionAttendanceGet(sql, p1, user));
+    return authedRead((sql, user) => opsH.sessionAttendanceGet(sql, p1, user));
   }
   if (method === "POST" && p0 === "sessions" && p1 && p2 === "attendance") {
     return authed((sql, user) => opsH.sessionAttendancePost(sql, p1, request, user));
   }
   if (method === "GET" && p0 === "training-plans" && !p1) {
-    return authed((sql, user) => opsH.trainingList(sql, request, user));
+    return authedRead((sql, user) => opsH.trainingList(sql, request, user));
   }
   if (method === "POST" && p0 === "training-plans" && !p1) {
     return authed((sql, user) => opsH.trainingCreate(sql, request, user));
@@ -251,7 +273,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => opsH.assistantChat(sql, request, user));
   }
   if (method === "GET" && p0 === "tickets" && !p1) {
-    return authed((sql, user) => opsH.ticketsList(sql, user));
+    return authedRead((sql, user) => opsH.ticketsList(sql, user));
   }
   if (method === "POST" && p0 === "tickets" && !p1) {
     return authed((sql, user) => opsH.ticketsCreate(sql, request, user));

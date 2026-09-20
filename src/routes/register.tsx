@@ -1,11 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/cn";
 import { ArenaMark } from "@/components/mark";
 import { Cover, media } from "@/components/media";
 import { Button, Card, DateField, Field, Input } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { Reveal } from "@/components/motion";
+import { GLBackground, Magnet, SplitText, SpotlightCard } from "@/components/fx";
 import { apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
 
 export const Route = createFileRoute("/register")({ component: Register });
@@ -23,9 +26,21 @@ function Register() {
     dob: "1998-01-15",
     pii_consent: true,
   });
+  const [confirm, setConfirm] = useState("ChangeMe!a3");
+  const [show, setShow] = useState(false);
+
+  // Only complain once there is something to complain about — a red line under
+  // an empty box the moment the page loads is noise, not help.
+  const mismatch = confirm.length > 0 && confirm !== form.password;
+  const tooWeak =
+    form.password.length > 0 && !(form.password.length >= 8 && /[A-Za-z]/.test(form.password) && /\d/.test(form.password));
 
   async function send(e: FormEvent) {
     e.preventDefault();
+    if (form.password !== confirm) {
+      toast.error("The two passwords do not match.");
+      return;
+    }
     setBusy(true);
     try {
       const res = await apiPost<{ otp?: string }>("/auth/register", form);
@@ -58,22 +73,38 @@ function Register() {
 
   return (
     <main className="min-h-dvh lg:grid lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden lg:block">
+      <div className="grain relative hidden overflow-hidden lg:block">
         <Cover src={media.athlete} alt="" className="h-full min-h-dvh" scrim="hero">
+          <GLBackground
+            variant="threads"
+            className="opacity-50 mix-blend-screen"
+            color="#eadfcb"
+            amplitude={1}
+            speed={0.45}
+            opacity={0.28}
+          />
           <div className="relative flex h-full min-h-dvh flex-col justify-between p-10">
             <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
               <ArenaMark className="size-8" />
               <span className="font-display text-2xl">Arena3</span>
             </Link>
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-              <p className="font-display text-4xl leading-tight">A live plan is your key to the courts and the classes.</p>
+              <SplitText
+                as="p"
+                text="A live plan is your key to the courts and the classes."
+                splitBy="words"
+                stagger={0.05}
+                delay={0.2}
+                className="block font-display text-4xl leading-tight"
+              />
             </div>
           </div>
         </Cover>
       </div>
       <div className="grid min-h-dvh place-items-center px-4 py-10">
         <Reveal className="w-full max-w-md" from="up">
-        <Card className="relative w-full p-6">
+        <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
+        <Card className="relative z-[2] w-full p-6">
           <div className="flex items-center gap-2">
             <ArenaMark className="size-7" />
             <p className="text-2xs uppercase tracking-wider text-muted">Arena3</p>
@@ -108,11 +139,34 @@ function Register() {
               <Field label="Date of birth">
                 <DateField value={form.dob} onChange={(v) => setForm({ ...form, dob: v })} aria-label="Date of birth" />
               </Field>
-              <Field label="Password">
+              <Field label="Password" hint={tooWeak ? "At least 8 characters, with a letter and a number." : undefined}>
+                <div className="relative">
+                  <Input
+                    required
+                    type={show ? "text" : "password"}
+                    value={form.password}
+                    autoComplete="new-password"
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    className={cn("pr-12", tooWeak && "border-danger/60")}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-1 top-1 grid size-9 place-items-center text-muted hover:text-fg"
+                    onClick={() => setShow((v) => !v)}
+                    aria-label={show ? "Hide password" : "Show password"}
+                  >
+                    {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+              </Field>
+              <Field label="Confirm password" hint={mismatch ? "The two passwords do not match." : undefined}>
                 <Input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  required
+                  type={show ? "text" : "password"}
+                  value={confirm}
+                  autoComplete="new-password"
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className={cn(mismatch && "border-danger/60")}
                 />
               </Field>
               <label className="flex items-start gap-2 text-sm text-muted">
@@ -124,9 +178,11 @@ function Register() {
                 />
                 I agree to the terms and to Decree 13/2023 on personal data protection.
               </label>
-              <Button type="submit" disabled={busy} className="w-full">
-                Send OTP
-              </Button>
+              <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
+                <Button type="submit" disabled={busy || mismatch || tooWeak} className="w-full">
+                  {busy ? "Sending…" : "Send OTP"}
+                </Button>
+              </Magnet>
             </motion.form>
           ) : (
             <motion.form
@@ -146,9 +202,11 @@ function Register() {
               <Field label="6-digit OTP">
                 <Input value={otp} onChange={(e) => setOtp(e.target.value)} inputMode="numeric" />
               </Field>
-              <Button type="submit" disabled={busy} className="w-full">
-                Verify
-              </Button>
+              <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
+                <Button type="submit" disabled={busy} className="w-full">
+                  Verify
+                </Button>
+              </Magnet>
             </motion.form>
           )}
           </AnimatePresence>
@@ -159,6 +217,7 @@ function Register() {
             </Link>
           </p>
         </Card>
+        </SpotlightCard>
         </Reveal>
       </div>
     </main>

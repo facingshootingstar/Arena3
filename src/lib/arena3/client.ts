@@ -37,6 +37,17 @@ export function setSession(token: string, user: SessionUser) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
+/**
+ * Refresh the cached user without touching the token.
+ *
+ * The shell reads the name and role out of local storage so it can paint the
+ * header before `/me` comes back. After a profile edit that copy is stale —
+ * the header would keep showing the old name until the next sign-in.
+ */
+export function setStoredUser(user: SessionUser) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
@@ -91,7 +102,32 @@ export async function api<T>(
   return data as T;
 }
 
-export const apiGet = <T>(path: string) => api<T>(path);
+/**
+ * GETs that are already in flight, keyed by path.
+ *
+ * Several components legitimately ask for the same thing at the same moment —
+ * `Guard` and the page it wraps both want `/me`, and React's StrictMode mounts
+ * each of them twice in dev. `/me` is the most expensive read in the app, so
+ * firing it two or four times over is the single largest thing standing
+ * between a sign-in and a rendered page; measured on the deployed app, the
+ * duplicate alone added ~840ms to every load.
+ *
+ * Callers still each get their own promise result; only the network trip is
+ * shared. The entry is dropped as soon as the request settles, so this is a
+ * de-duplicator for concurrent calls, not a cache — a later `load()` after a
+ * mutation always hits the server.
+ */
+const inflight = new Map<string, Promise<unknown>>();
+
+export const apiGet = <T>(path: string): Promise<T> => {
+  const running = inflight.get(path);
+  if (running) return running as Promise<T>;
+  const p = api<T>(path).finally(() => {
+    inflight.delete(path);
+  });
+  inflight.set(path, p);
+  return p;
+};
 export const apiPost = <T>(path: string, body?: unknown, idempotent = false) =>
   api<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined, idempotent });
 export const apiPatch = <T>(path: string, body?: unknown) =>

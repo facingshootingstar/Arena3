@@ -1,5 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
+import { ClickSpark } from "@/components/fx";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
@@ -38,6 +39,9 @@ export const Route = createRootRoute({
       <body className="bg-bg text-fg">
         <PreviewHostBridge />
         <AuthProvider>
+          {/* One shared canvas for click feedback across every route; it parks
+              its rAF loop whenever there is nothing left to draw. */}
+          <ClickSpark />
           <Outlet />
           <Toaster
             position="top-center"
