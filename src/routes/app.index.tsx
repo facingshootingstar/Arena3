@@ -244,9 +244,14 @@ function Page() {
                         <p className="mt-2 font-display text-xl tracking-tight">
                           {hhmm(ev.start)} · {ev.title}
                         </p>
-                        <p className="mt-0.5 font-mono text-xs text-muted">{ev.meta}</p>
-                        {ev.bookingId && (ev.status === "hold" || ev.status === "confirmed") ? (
-                          <div className="mt-3 flex justify-end">
+                        {/* The action shares the reference line rather than
+                            claiming a row of its own. A court booking and a
+                            class sitting next to each other used to differ by
+                            a whole button in height purely because one of them
+                            can be cancelled. */}
+                        <div className="mt-1 flex min-h-8 items-center justify-between gap-2">
+                          <p className="font-mono text-xs text-muted">{ev.meta}</p>
+                          {ev.bookingId && (ev.status === "hold" || ev.status === "confirmed") ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -262,8 +267,8 @@ function Page() {
                             >
                               Cancel
                             </Button>
-                          </div>
-                        ) : null}
+                          ) : null}
+                        </div>
                       </div>
                     </StaggerItem>
                   ))}

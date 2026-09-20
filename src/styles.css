@@ -148,6 +148,18 @@
   }
 }
 
+/* One character (or word) of a `SplitText` heading rising into its line. */
+@keyframes split-rise {
+  from {
+    transform: translateY(var(--split-distance, 118%));
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -471,6 +483,39 @@
 }
 .sweep:hover::after {
   animation: sweep 0.9s var(--ease-out-soft);
+}
+
+/* A heading split into characters, each one rising out of a clipping mask.
+ *
+ * Deliberately CSS rather than a JS tween. There are thirty-odd of these across
+ * the app — every section heading is one — and a tween per character means a
+ * scroll listener and a measured trigger position per heading. More to the
+ * point, a heading's *resting* state should not depend on an animation frame
+ * ever arriving: a CSS animation is on the document timeline, so however badly
+ * the main thread is starved it still ends on the last keyframe, whereas a
+ * frame-driven tween that stops advancing leaves the title stranded half-faded.
+ *
+ * `both` fill keeps the unit hidden through its own delay and holds it visible
+ * afterwards, so the rule below is the only place the hidden state is written. */
+.split-unit {
+  display: inline-block;
+  transform: translateY(var(--split-distance, 118%));
+  opacity: 0;
+}
+[data-split-shown="true"] .split-unit {
+  animation: split-rise var(--split-duration, 0.8s) var(--ease-out-soft) both;
+  animation-delay: var(--split-delay, 0s);
+}
+
+/* The global reduce rule kills `animation`, which would otherwise freeze every
+   unit on the hidden keyframe above — an invisible heading is a worse outcome
+   than a moving one. `SplitText` also renders plain text when it can read the
+   preference in JS; this is the belt to that braces. */
+@media (prefers-reduced-motion: reduce) {
+  .split-unit {
+    transform: none;
+    opacity: 1;
+  }
 }
 
 /* Expanding halo behind a live/now indicator. */

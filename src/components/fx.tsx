@@ -295,12 +295,16 @@ export function ShinyText({
 }
 
 /**
- * Splits a headline into characters or words and animates them into place.
+ * Splits a headline into characters or words and rises them into place.
  *
- * GSAP rather than `motion` here because the reveal is tied to a ScrollTrigger:
- * we want the stagger to start at a scroll position, play once, and leave the
- * text alone afterwards. `WordReveal` in `./motion` remains the on-mount
- * equivalent for hero copy that should fire immediately.
+ * The movement is a CSS animation, staggered by a per-unit `animation-delay`;
+ * the only thing JavaScript decides is *when* to start it, via an
+ * IntersectionObserver. See the `.split-unit` rules in `styles.css` for why the
+ * animation itself is not a tween.
+ *
+ * The observer is what keeps this usable for the landing page's section
+ * headings, which should hold still until they are scrolled to; anything
+ * already on screen at mount intersects immediately and plays at once.
  */
 export function SplitText({
   text,
@@ -310,7 +314,7 @@ export function SplitText({
   duration = 0.8,
   delay = 0,
   distance = 118,
-  start = "top 88%",
+  margin = "0px 0px -12% 0px",
   as: Tag = "span",
 }: {
   text: string;
@@ -320,52 +324,68 @@ export function SplitText({
   duration?: number;
   delay?: number;
   distance?: number;
-  /** ScrollTrigger start position. */
-  start?: string;
+  /** How far into the viewport the heading must come before it plays. */
+  margin?: string;
   as?: ElementType;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const reduced = useReducedMotion();
-  useScrollTriggerPlugin();
+  const [shown, setShown] = useState(false);
 
   useIsoLayoutEffect(() => {
     const el = ref.current;
-    if (!el || reduced) return;
-    const targets = el.querySelectorAll<HTMLElement>("[data-split-unit]");
-    if (!targets.length) return;
+    if (!el || reduced || shown) return;
 
-    const ctx = gsap.context(() => {
-      // `y: 0` is not redundant: the units carry an inline `translateY(<distance>%)`
-      // so they start hidden before GSAP runs, and GSAP parses that percentage
-      // back out of the computed matrix as a *pixel* `y`. Without clearing it the
-      // tween lands on `yPercent: 0` while the stale pixel offset survives, and
-      // every headline settles a few px low — descenders clipped by the mask.
-      gsap.fromTo(
-        targets,
-        { yPercent: distance, y: 0, opacity: 0 },
-        {
-          yPercent: 0,
-          y: 0,
-          opacity: 1,
-          duration,
-          delay,
-          stagger,
-          ease: "power3.out",
-          scrollTrigger: { trigger: el, start, once: true },
-        },
-      );
-    }, el);
-    return () => ctx.revert();
-  }, [text, reduced, stagger, duration, delay, distance, start]);
+    // Measured rather than observed for the first answer. An
+    // IntersectionObserver only delivers once the page is actually being
+    // painted, so a heading that is plainly on screen would sit at opacity 0
+    // for as long as the tab is not drawing — and a `getBoundingClientRect`
+    // read costs nothing here, because layout has just happened anyway.
+    // A viewport with no height is a page that is laid out but not being shown
+    // — there is no scroll position to wait for, so there is nothing to reveal
+    // on. Treat it as visible rather than leaving the text at opacity 0.
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const r = el.getBoundingClientRect();
+    if (!vh || (r.bottom > 0 && r.top < vh * 0.88)) {
+      setShown(true);
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: margin },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reduced, shown, margin]);
 
   // Reduced motion (and the server render) get the plain string — no wrapper
   // spans at all, so screen readers and text selection behave normally.
   if (reduced) return <Tag className={className}>{text}</Tag>;
 
   const units = splitBy === "words" ? text.split(/(\s+)/) : Array.from(text);
+  // Whitespace is not a unit, so it must not consume a stagger step — otherwise
+  // a word-split headline pauses in its own gaps and arrives unevenly.
+  let step = 0;
 
   return (
-    <Tag ref={ref} className={cn("inline-block", className)} aria-label={text}>
+    <Tag
+      ref={ref}
+      className={cn("inline-block", className)}
+      aria-label={text}
+      data-split-shown={shown ? "true" : undefined}
+      style={
+        {
+          "--split-distance": `${distance}%`,
+          "--split-duration": `${duration}s`,
+        } as CSSProperties
+      }
+    >
       {units.map((u, i) =>
         // Whitespace stays outside the clipping mask, otherwise `overflow-hidden`
         // on a space collapses the gap between words.
@@ -375,7 +395,10 @@ export function SplitText({
           </span>
         ) : (
           <span key={i} aria-hidden className="inline-block overflow-hidden align-bottom pb-[0.12em]">
-            <span data-split-unit className="inline-block" style={{ transform: `translateY(${distance}%)` }}>
+            <span
+              className="split-unit"
+              style={{ "--split-delay": `${delay + step++ * stagger}s` } as CSSProperties}
+            >
               {u}
             </span>
           </span>

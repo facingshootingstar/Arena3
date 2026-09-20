@@ -55,7 +55,13 @@ export function PassCard({
   return (
     <article className="group relative overflow-hidden rounded-[var(--radius-xl)] bg-pass p-6 text-pass-fg transition-transform duration-300 hover:-translate-y-0.5">
       <span className="sweep pointer-events-none absolute inset-0" aria-hidden />
-      <CourtBackdrop className="pointer-events-none absolute -right-10 -bottom-8 h-56 w-56 text-pass-fg opacity-[0.14]" />
+      {/* Masked from the bottom-right corner outwards. The court is taller than
+          the card, so without it the drawing is cropped top and bottom and its
+          two long vertical lines run the full height of the pass — reading as
+          a pair of stray rules through the card rather than as a watermark. */}
+      <CourtBackdrop
+        className="pointer-events-none absolute -right-10 -bottom-8 h-56 w-56 text-pass-fg opacity-[0.16] [mask-image:radial-gradient(120%_115%_at_100%_100%,#000_18%,transparent_70%)]"
+      />
       <div className="relative flex flex-col gap-6">
         <div className="flex items-start justify-between gap-3">
           <div>

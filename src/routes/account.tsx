@@ -339,15 +339,21 @@ function Support() {
             <StaggerItem key={t.id}>
               <Card className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 whitespace-pre-wrap text-sm">{t.body}</p>
-                  <Badge tone={t.reply ? "accent" : "hold"}>{t.reply ? "Answered" : "Waiting"}</Badge>
+                  {/* `break-words` is doing real work: this is text somebody
+                      typed, and a long run without a space — a pasted URL, or
+                      the "ticket:ticket:ticket:" that older rows still carry —
+                      has nothing to wrap on and pushes the badge off the card. */}
+                  <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{t.body}</p>
+                  <Badge tone={t.reply ? "accent" : "hold"} className="shrink-0">
+                    {t.reply ? "Answered" : "Waiting"}
+                  </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted">{when(t.created_at)}</p>
                 {t.reply ? (
                   /* Indented and on the wood tone so the reply reads as somebody
                      else speaking, not as more of the member's own message. */
                   <div className="mt-3 rounded-[var(--radius-md)] border-l-2 border-accent bg-wood/50 p-3">
-                    <p className="whitespace-pre-wrap text-sm">{t.reply}</p>
+                    <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{t.reply}</p>
                     <p className="mt-1 text-2xs text-muted">
                       {t.replied_by_name ?? "Reception"}
                       {t.replied_at ? ` · ${when(t.replied_at)}` : ""}

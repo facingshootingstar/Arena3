@@ -138,7 +138,9 @@ function Page() {
                 <div>
                   <p className="font-medium">{u.full_name}</p>
                   <p className="text-xs text-muted">{u.member_code}</p>
-                  {u.health_notes ? <p className="mt-1 text-sm text-danger">{u.health_notes}</p> : null}
+                  {u.health_notes ? (
+                    <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm text-danger">{u.health_notes}</p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {RESULTS.map((r) => (

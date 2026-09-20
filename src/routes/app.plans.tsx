@@ -107,20 +107,25 @@ function Page() {
                     {p.court_discount_pct}% off court rental
                   </li>
                 </ul>
-                <Button
-                  className="mt-5"
-                  disabled={busy !== null || ordered[p.id] !== undefined}
-                  onClick={() => void order(p)}
-                >
-                  {busy === p.id
-                    ? "Placing order…"
-                    : ordered[p.id]
-                      ? "Ordered — pay at the desk"
-                      : "Buy or renew"}
-                </Button>
-                {ordered[p.id] ? (
-                  <p className="mt-2 text-center text-xs text-muted">Valid through {ordered[p.id]}</p>
-                ) : null}
+                {/* Pinned to the bottom of the card: plans carry a different
+                    number of benefit lines each, so laying the buttons out
+                    under their own lists put them at three heights in a row. */}
+                <div className="mt-auto pt-5">
+                  <Button
+                    className="w-full"
+                    disabled={busy !== null || ordered[p.id] !== undefined}
+                    onClick={() => void order(p)}
+                  >
+                    {busy === p.id
+                      ? "Placing order…"
+                      : ordered[p.id]
+                        ? "Ordered — pay at the desk"
+                        : "Buy or renew"}
+                  </Button>
+                  {ordered[p.id] ? (
+                    <p className="mt-2 text-center text-xs text-muted">Valid through {ordered[p.id]}</p>
+                  ) : null}
+                </div>
               </div>
             </Card>
             </SpotlightCard>

@@ -136,7 +136,7 @@ function Page() {
             <p className={cn("text-2xs uppercase tracking-wider", m.role === "me" ? "text-accent-fg/70" : "text-muted")}>
               {m.role === "me" ? "You" : "Assistant"}
             </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{m.text}</p>
+            <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm leading-relaxed">{m.text}</p>
             {m.role === "bot" && sourceLabel(m.source) ? (
               <p className="mt-2 text-2xs uppercase tracking-wider text-muted">{sourceLabel(m.source)}</p>
             ) : null}

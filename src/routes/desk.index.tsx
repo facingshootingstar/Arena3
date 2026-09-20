@@ -436,7 +436,10 @@ function Page() {
               <Card className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm">{t.body}</p>
+                    {/* A member's own words, so they may contain a long run
+                        with nothing to wrap on — without this it pushes the
+                        Reply and Close buttons off the side of the card. */}
+                    <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{t.body}</p>
                     <p className="mt-1 text-xs text-muted">
                       {t.full_name} · {t.phone}
                     </p>

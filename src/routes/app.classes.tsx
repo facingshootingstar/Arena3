@@ -129,7 +129,14 @@ function Page() {
                     {c.coach_name} · {c.court_code} · {c.duration_min}′
                   </p>
                   <p className="text-sm">{rruleLabel(c.rrule)}</p>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-wood">
+                  {/* The bar on its own is a ratio nobody converts in their
+                      head. What decides whether you enrol now or later is the
+                      number of seats, so the bar gets a caption. */}
+                  <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs uppercase tracking-wider">
+                    <span className="text-muted">{full ? "Full" : `${c.capacity - c.enrolled_count} seats left`}</span>
+                    <span className="tabular-nums text-subtle">{pct}%</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
                     <motion.div
                       className={cn("h-full rounded-full", full ? "bg-hold" : "bg-accent")}
                       initial={{ width: 0 }}
@@ -137,9 +144,14 @@ function Page() {
                       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                     />
                   </div>
+                  {/* `mt-auto` pins the action to the bottom of the card. The
+                      cards in a row stretch to the tallest one, and without it
+                      each button sat directly under its own text — so a row of
+                      four classes showed four buttons at four heights. */}
+                  <div className="mt-auto pt-5">
                   {enr?.status === "confirmed" ? (
                     <Button
-                      className="mt-4"
+                      className="w-full"
                       variant="outline"
                       onClick={async () => {
                         try {
@@ -155,7 +167,7 @@ function Page() {
                     </Button>
                   ) : enr?.status === "waitlisted" ? (
                     <Button
-                      className="mt-4"
+                      className="w-full"
                       variant="outline"
                       onClick={async () => {
                         try {
@@ -171,7 +183,7 @@ function Page() {
                     </Button>
                   ) : (
                     <Button
-                      className="mt-4"
+                      className="w-full"
                       variant={full ? "outline" : "primary"}
                       onClick={async () => {
                         try {
@@ -186,6 +198,7 @@ function Page() {
                       {full ? "Join the waitlist" : "Enrol"}
                     </Button>
                   )}
+                  </div>
                 </div>
               </Card>
               </SpotlightCard>
