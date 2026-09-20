@@ -43,6 +43,9 @@ function Page() {
     Array<{ id: string; body: string; full_name: string | null; phone: string | null; created_at: string }>
   >([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  // Just the count — the queue itself lives one screen over, but a receptionist
+  // has to be able to see from here that somebody is owed attention.
+  const [waiting, setWaiting] = useState(0);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [newUser, setNewUser] = useState<{
     id: string;
@@ -69,6 +72,9 @@ function Page() {
       .catch(() => undefined);
     void apiGet<{ items: Plan[] }>("/plans")
       .then((r) => setPlans(r.items))
+      .catch(() => undefined);
+    void apiGet<{ waiting: number }>("/payments/pending?brief=1")
+      .then((r) => setWaiting(r.waiting))
       .catch(() => undefined);
   }, []);
 
@@ -137,7 +143,17 @@ function Page() {
             Close shift
           </Button>
         ) : null}
-        <Link to="/desk/courts" className="ml-auto">
+        <Link to="/desk/payments" className="ml-auto">
+          <Button variant="outline">
+            Payments
+            {waiting ? (
+              <span className="rounded-full bg-hold px-2 py-0.5 text-2xs font-semibold tabular-nums text-bg">
+                {waiting}
+              </span>
+            ) : null}
+          </Button>
+        </Link>
+        <Link to="/desk/courts">
           <Button variant="ink">Court map</Button>
         </Link>
       </Reveal>
@@ -340,10 +356,19 @@ function Page() {
                       true,
                     );
                     toast.success("Paid — receipt opened");
-                    if (res.invoice?.id) await openInvoice(res.invoice.id);
+                    // Clear the wizard before printing. The payment is already
+                    // posted; if the receipt fails to open, leaving step 3 on
+                    // screen would offer to take the same money again.
                     const uid = newUser.id;
                     resetWizard();
                     navigate({ to: "/desk/member/$id", params: { id: uid } });
+                    if (res.invoice?.id) {
+                      try {
+                        await openInvoice(res.invoice.id);
+                      } catch {
+                        toast.warning("Paid — but the receipt did not open. Reprint it from the profile.");
+                      }
+                    }
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Payment did not go through");
                   } finally {

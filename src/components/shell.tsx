@@ -47,6 +47,7 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
   receptionist: [
     { to: "/desk", label: "Desk", icon: Users },
     { to: "/desk/courts", label: "Courts", icon: Map },
+    { to: "/desk/payments", label: "Payments", icon: Wallet },
   ],
   coach: [{ to: "/coach", label: "Teaching", icon: ClipboardList }],
   manager: [

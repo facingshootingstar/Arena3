@@ -333,6 +333,8 @@ function inboxLabel(t: string) {
     {
       booking_confirmed: "Booking confirmed",
       booking_cancelled: "Booking cancelled",
+      transfer_requested: "Transfer noted — reception will confirm it",
+      transfer_rejected: "We could not find your transfer",
       hold_expiring: "Your hold is about to expire",
       class_changed: "Class schedule changed",
       sub_expiring: "Plan expiring soon",

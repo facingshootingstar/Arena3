@@ -157,8 +157,32 @@ export function renderInstallPageHtml(template, { host, url } = {}) {
     .replaceAll("{{APP_URL}}", escapeHtml(stripInstallParams(url)));
 }
 
-export function renderWebManifest(hostHeader) {
-  const name = appNameFromHost(hostHeader);
+/** A `#rrggbb` from site.json, or "" when the field is missing or malformed. */
+function siteHex(site, key) {
+  const raw = String(site?.[key] ?? "").trim();
+  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
+  return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex.toLowerCase()}` : "";
+}
+
+/**
+ * The installed-app identity.
+ *
+ * `site` is threaded in rather than read from disk because the deployed half
+ * of this runs as a Vercel function with no workspace to read — Nitro passes
+ * the copy baked at build time by `snapshotOgIdentity`.
+ *
+ * A published `*.grok.me` host still names the app, as it always has. Every
+ * other host — a custom domain, a `*.vercel.app` deploy — used to fall all the
+ * way through to "Grok App" on a black splash, so an app that says Arena3
+ * everywhere else introduced itself as somebody else's on the home screen.
+ */
+export function renderWebManifest(hostHeader, site = readOgSite()) {
+  const fromHost = appNameFromHost(hostHeader);
+  const name =
+    fromHost !== DEFAULT_APP_NAME
+      ? fromHost
+      : String(site?.title ?? "").trim() || DEFAULT_APP_NAME;
+  const theme = siteHex(site, "color") || "#000000";
   return JSON.stringify(
     {
       name,
@@ -167,8 +191,8 @@ export function renderWebManifest(hostHeader) {
       start_url: "/",
       scope: "/",
       display: "standalone",
-      background_color: "#000000",
-      theme_color: "#000000",
+      background_color: siteHex(site, "background") || theme,
+      theme_color: theme,
       icons: [
         {
           src: "/__grok/icon-180.png",

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Receipt as ReceiptIcon } from "lucide-react";
+import { Landmark, Receipt as ReceiptIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CourtGrid, DateStrip, type Court, type OccSlot } from "@/components/court-grid";
@@ -31,6 +31,8 @@ function Page() {
   // Sticks around after the toast has gone. A receipt people paid for should
   // not be something you have four seconds to notice.
   const [receipt, setReceipt] = useState<string | null>(null);
+  // A transfer the member has promised but reception has not yet found.
+  const [pending, setPending] = useState<{ amount: number; until: string } | null>(null);
 
   async function load(d = date) {
     const occ = await apiGet<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${d}`);
@@ -73,13 +75,23 @@ function Page() {
       // The endpoint issues an invoice and hands back its id. Dropping that on
       // the floor is why a member could pay and never see a receipt — nothing
       // in the UI ever mentioned one existed.
-      const res = await apiPost<{ invoice_id?: string }>(
-        `/bookings/${hold.booking.id}/confirm`,
-        { method },
-        true,
-      );
+      const res = await apiPost<{
+        invoice_id?: string;
+        awaiting_transfer?: boolean;
+        hold_until?: string;
+      }>(`/bookings/${hold.booking.id}/confirm`, { method }, true);
       setHold(null);
       await load();
+      // A transfer is not a booking yet. Saying "Booking confirmed" here would
+      // be the app telling a member their court is theirs while reception has
+      // not found a single dong of it in the bank.
+      if (res.awaiting_transfer) {
+        setPending({ amount: hold.price, until: res.hold_until ?? hold.hold_until });
+        toast.success("Transfer noted", {
+          description: "Your court is held while reception checks the bank.",
+        });
+        return;
+      }
       if (res.invoice_id) {
         setReceipt(res.invoice_id);
         toast.success(method === "quota" ? "One plan hour deducted" : "Booking confirmed", {
@@ -136,6 +148,33 @@ function Page() {
         </div>
       </div>
       <AnimatePresence>
+        {pending ? (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <Card className="mb-4 border border-hold/30 bg-hold/5">
+              <div className="flex flex-wrap items-center gap-3">
+                <Landmark className="size-5 shrink-0 text-hold" strokeWidth={1.75} />
+                <div className="min-w-[12rem] flex-1">
+                  <p className="text-sm font-medium">
+                    Transfer {money(pending.amount)} — your court is held meanwhile.
+                  </p>
+                  <p className="text-xs text-muted">
+                    Reception confirms it against the bank, usually the same day. We hold the slot
+                    for another <HoldTimer until={pending.until} onExpire={() => setPending(null)} />
+                    ; after that it goes back on the grid.
+                  </p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setPending(null)} aria-label="Dismiss">
+                  Got it
+                </Button>
+              </div>
+            </Card>
+          </motion.div>
+        ) : null}
         {receipt ? (
           <motion.div
             initial={{ opacity: 0, height: 0 }}

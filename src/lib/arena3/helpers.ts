@@ -11,6 +11,8 @@ export type Settings = {
   close_time: string;
   slot_minutes: number;
   hold_minutes: number;
+  /** How long a slot is held while the centre waits for a bank transfer. */
+  transfer_hold_minutes: number;
   book_ahead_days: number;
   max_slots_per_day: number;
   cancel_court_hours: number;
@@ -34,6 +36,7 @@ export async function getSettings(sql: Sql): Promise<Settings> {
   const row = await one<Settings>(
     sql,
     `select timezone, currency, open_time::text, close_time::text, slot_minutes, hold_minutes,
+            transfer_hold_minutes,
             book_ahead_days, max_slots_per_day, cancel_court_hours, cancel_class_hours,
             noshow_grace_minutes, checkin_before_minutes, debt_limit_vnd, refund_manager_vnd,
             freeze_max_days_year, minor_age, vat_rate, round_vnd, waitlist_offer_hours,

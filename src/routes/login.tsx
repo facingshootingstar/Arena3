@@ -12,6 +12,20 @@ import { roleLabel } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
+/**
+ * The seeded demo password.
+ *
+ * It only ever travels with a tap on one of the buttons below, and it is not
+ * written anywhere a visitor can read it. Printing it under the heading — next
+ * to a password box that came pre-filled with it — meant the credential for
+ * every seeded account, manager included, was published on the front page, and
+ * anyone registering a real account was handed it as their default.
+ *
+ * Set `VITE_DEMO_LOGINS=off` to ship this app with no demo accounts on show.
+ */
+const DEMO_PASSWORD = "ChangeMe!a3";
+const DEMO_LOGINS_ON = import.meta.env.VITE_DEMO_LOGINS !== "off";
+
 const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: string }[] = [
   { role: "manager", phone: "0900000001", name: "Arena3 Manager", note: "Pricing · classes · reports" },
   { role: "receptionist", phone: "0900000002", name: "Front Desk", note: "Search · take payment · walk-ins" },
@@ -23,18 +37,20 @@ const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: str
 
 function Login() {
   const navigate = useNavigate();
-  const [login, setLogin] = useState("0900000002");
-  const [password, setPassword] = useState("ChangeMe!a3");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e?: FormEvent, override?: string) {
+  async function submit(e?: FormEvent, demo?: { phone: string }) {
     e?.preventDefault();
     setBusy(true);
     try {
       const res = await apiPost<{ token: string; user: SessionUser }>("/auth/login", {
-        login: override ?? login,
-        password,
+        login: demo?.phone ?? login,
+        // The demo password rides along with the button that knows it rather
+        // than sitting in the form where a visitor can read it back.
+        password: demo ? DEMO_PASSWORD : password,
       });
       setSession(res.token, res.user);
       toast.success(`Welcome, ${res.user.full_name}`, { id: "login-hello" });
@@ -90,7 +106,11 @@ function Login() {
           <p className="text-2xs font-medium uppercase tracking-wider text-muted">Sports centre</p>
         </div>
         <h1 className="font-display text-4xl">Sign in</h1>
-        <p className="mt-1 text-sm text-muted">Phone or email · demo password ChangeMe!a3</p>
+        <p className="mt-1 text-sm text-muted">
+          {DEMO_LOGINS_ON
+            ? "Sign in with your phone or email — or tap a demo account below."
+            : "Sign in with your phone number or email."}
+        </p>
         <Reveal className="mt-6" from="up">
         <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
         <Card className="relative z-[2] p-5">
@@ -131,6 +151,8 @@ function Login() {
         </Card>
         </SpotlightCard>
         </Reveal>
+        {DEMO_LOGINS_ON ? (
+        <>
         <p className="mt-8 text-2xs font-semibold uppercase tracking-widest text-muted">Demo accounts</p>
         <Stagger className="mt-3 flex flex-wrap gap-2" gap={0.05}>
           {DEMOS.map((d) => (
@@ -140,7 +162,7 @@ function Login() {
               title={d.note}
               onClick={() => {
                 setLogin(d.phone);
-                void submit(undefined, d.phone);
+                void submit(undefined, d);
               }}
               className="rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_10px_24px_-18px_rgba(27,31,29,0.6)] active:scale-95"
             >
@@ -150,6 +172,8 @@ function Login() {
             </StaggerItem>
           ))}
         </Stagger>
+        </>
+        ) : null}
       </div>
     </main>
   );

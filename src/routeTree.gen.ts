@@ -26,6 +26,7 @@ import { Route as AppTrainRouteImport } from './routes/app.train'
 import { Route as DeskIndexRouteImport } from './routes/desk.index'
 import { Route as DeskCourtsRouteImport } from './routes/desk.courts'
 import { Route as DeskGearRouteImport } from './routes/desk.gear'
+import { Route as DeskPaymentsRouteImport } from './routes/desk.payments'
 import { Route as ManagerIndexRouteImport } from './routes/manager.index'
 import { Route as ManagerClassesRouteImport } from './routes/manager.classes'
 import { Route as ManagerPlansRouteImport } from './routes/manager.plans'
@@ -119,6 +120,11 @@ const DeskGearRoute = DeskGearRouteImport.update({
   path: '/gear',
   getParentRoute: () => DeskRoute,
 } as any)
+const DeskPaymentsRoute = DeskPaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => DeskRoute,
+} as any)
 const ManagerIndexRoute = ManagerIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/app/train': typeof AppTrainRoute
   '/desk/courts': typeof DeskCourtsRoute
   '/desk/gear': typeof DeskGearRoute
+  '/desk/payments': typeof DeskPaymentsRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/app/train': typeof AppTrainRoute
   '/desk/courts': typeof DeskCourtsRoute
   '/desk/gear': typeof DeskGearRoute
+  '/desk/payments': typeof DeskPaymentsRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/app/train': typeof AppTrainRoute
   '/desk/courts': typeof DeskCourtsRoute
   '/desk/gear': typeof DeskGearRoute
+  '/desk/payments': typeof DeskPaymentsRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/app/train'
     | '/desk/courts'
     | '/desk/gear'
+    | '/desk/payments'
     | '/manager/classes'
     | '/manager/plans'
     | '/manager/prices'
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
     | '/app/train'
     | '/desk/courts'
     | '/desk/gear'
+    | '/desk/payments'
     | '/manager/classes'
     | '/manager/plans'
     | '/manager/prices'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/app/train'
     | '/desk/courts'
     | '/desk/gear'
+    | '/desk/payments'
     | '/manager/classes'
     | '/manager/plans'
     | '/manager/prices'
@@ -442,6 +454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskGearRouteImport
       parentRoute: typeof DeskRoute
     }
+    '/desk/payments': {
+      id: '/desk/payments'
+      path: '/payments'
+      fullPath: '/desk/payments'
+      preLoaderRoute: typeof DeskPaymentsRouteImport
+      parentRoute: typeof DeskRoute
+    }
     '/manager/': {
       id: '/manager/'
       path: '/'
@@ -517,6 +536,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 interface DeskRouteChildren {
   DeskCourtsRoute: typeof DeskCourtsRoute
   DeskGearRoute: typeof DeskGearRoute
+  DeskPaymentsRoute: typeof DeskPaymentsRoute
   DeskIndexRoute: typeof DeskIndexRoute
   DeskMemberIdRoute: typeof DeskMemberIdRoute
 }
@@ -524,6 +544,7 @@ interface DeskRouteChildren {
 const DeskRouteChildren: DeskRouteChildren = {
   DeskCourtsRoute: DeskCourtsRoute,
   DeskGearRoute: DeskGearRoute,
+  DeskPaymentsRoute: DeskPaymentsRoute,
   DeskIndexRoute: DeskIndexRoute,
   DeskMemberIdRoute: DeskMemberIdRoute,
 }

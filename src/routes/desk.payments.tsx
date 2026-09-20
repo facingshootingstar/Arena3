@@ -1,0 +1,533 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { ArrowUpRight, Clock3, Landmark, Undo2 } from "lucide-react";
+import { HoldTimer } from "@/components/media";
+import { Shell, money, useSessionUser, when } from "@/components/shell";
+import { Badge, Button, Card, Empty, Seg, Select, Skeleton } from "@/components/ui";
+import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { GLBackground, SplitText, SpotlightCard, StarBorder } from "@/components/fx";
+import { api, apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
+import { sportLabel } from "@/lib/arena3/labels";
+
+export const Route = createFileRoute("/desk/payments")({
+  component: Page,
+});
+
+type Order = {
+  id: string;
+  sport_scope: string;
+  ordered_on: string;
+  end_on: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  member_code: string | null;
+  plan_name: string;
+  price_vnd: number;
+  paid_vnd: number;
+};
+
+type Refund = {
+  id: string;
+  code: string;
+  amount_vnd: number;
+  created_at: string;
+  ref_type: string;
+  ref_id: string;
+  member_name: string | null;
+  member_code: string | null;
+  raised_by: string | null;
+};
+
+type Transfer = {
+  id: string;
+  code: string;
+  method: string;
+  amount_vnd: number;
+  created_at: string;
+  ref_type: string;
+  member_name: string | null;
+  member_code: string | null;
+  invoice_id: string | null;
+};
+
+/** A court held open against a promise to transfer, with nothing posted yet. */
+type Awaiting = {
+  id: string;
+  code: string;
+  price_vnd: number;
+  start_at: string;
+  end_at: string;
+  transfer_requested_at: string;
+  hold_until: string;
+  court_code: string;
+  sport: string;
+  member_name: string | null;
+  member_code: string | null;
+  phone: string | null;
+};
+
+type Queue = {
+  awaiting: Awaiting[];
+  orders: Order[];
+  refunds: Refund[];
+  transfers: Transfer[];
+  days: number;
+  /** The transfer list hit its cap and there is more behind it. */
+  capped: boolean;
+};
+
+/** Whole days between an ICT date string and today, floored at zero. */
+function daysWaiting(dateOnly: string) {
+  const then = new Date(`${dateOnly}T00:00:00+07:00`).getTime();
+  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
+}
+
+function Page() {
+  const me = useSessionUser();
+  const isManager = me?.role === "manager";
+  const [data, setData] = useState<Queue | null>(null);
+  const [days, setDays] = useState("7");
+  const [shift, setShift] = useState<{ shift: { id: string } } | null>(null);
+  // Method and busy flag are per-order: the desk works one member at a time,
+  // but a slow network should never grey out the whole queue.
+  const [method, setMethod] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // `api` rather than `apiGet`: the de-duplicator hands back an identical GET
+  // that is already in flight, and every refresh here runs straight after a
+  // mutation. Two rows actioned in quick succession would otherwise let the
+  // second one adopt the first one's older answer and redraw a row that has
+  // just been paid for.
+  const load = useCallback(async () => {
+    setData(await api<Queue>(`/payments/pending?days=${days}`));
+  }, [days]);
+
+  useEffect(() => {
+    void load().catch((e) => toast.error(e instanceof Error ? e.message : "Could not load the queue"));
+  }, [load]);
+
+  useEffect(() => {
+    void apiGet<{ shift: { id: string } }>("/shifts/current")
+      .then(setShift)
+      .catch(() => setShift(null));
+  }, []);
+
+  const awaiting = data?.awaiting ?? [];
+  const orders = data?.orders ?? [];
+  const refunds = data?.refunds ?? [];
+  const transfers = data?.transfers ?? [];
+  // Per-row flooring, not a floor on the total: one over-paid order must not
+  // quietly cancel out what another member still owes.
+  const owed = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
+
+  // A receptionist without an open till cannot post anything; saying so once at
+  // the top beats a row of buttons that each fail the same way when pressed.
+  const canTake = isManager || !!shift;
+
+  /**
+   * Refresh after a mutation that has already succeeded.
+   *
+   * Never rethrows. Once the server has taken the money, a failed refresh is a
+   * stale screen, not a failed payment — letting it reach the caller's `catch`
+   * would put "Payment did not go through" on top of a payment that went
+   * through perfectly, which is the one lie this screen must not tell.
+   */
+  async function refresh() {
+    try {
+      await load();
+    } catch {
+      toast.warning("Done — but the queue could not be refreshed. Reload to see where it stands.");
+    }
+  }
+
+  async function takePayment(o: Order) {
+    setBusy(o.id);
+    try {
+      const res = await apiPost<{ invoice: { id: string } }>(
+        "/payments",
+        {
+          ref_type: "subscription",
+          ref_id: o.id,
+          method: method[o.id] ?? "cash",
+          amount_vnd: o.price_vnd - o.paid_vnd,
+        },
+        true,
+      );
+      toast.success(`Paid — ${o.full_name} is on ${o.plan_name}`);
+      // The money is taken the moment that POST returns, so the queue is
+      // refreshed before anything else is attempted. Printing is the step most
+      // likely to fail — a blocked popup is enough — and a failed print must
+      // not leave a paid row sitting here inviting somebody to charge it twice.
+      await refresh();
+      if (res.invoice?.id) {
+        try {
+          await openInvoice(res.invoice.id);
+        } catch {
+          toast.warning("Paid — but the receipt did not open. Reprint it from the member's profile.");
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Payment did not go through");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function decline(o: Order) {
+    setBusy(o.id);
+    try {
+      await apiPost(`/subscriptions/${o.id}/decline`);
+      toast.success("Order cleared from the queue");
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not clear that order");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Reconcile one awaited transfer.
+   *
+   * Confirming posts the money and prints the receipt; rejecting hands the
+   * court straight back to whoever wants it next. Both are staff judgements
+   * made against the bank statement, which is why neither is a member action.
+   */
+  async function settleTransfer(a: Awaiting, received: boolean) {
+    setBusy(a.id);
+    try {
+      const res = await apiPost<{ invoice_id?: string }>(
+        `/bookings/${a.id}/${received ? "transfer-confirm" : "transfer-reject"}`,
+      );
+      toast.success(
+        received ? `Confirmed — ${a.court_code} is booked` : "Slot released back to the grid",
+      );
+      await refresh();
+      if (received && res.invoice_id) {
+        try {
+          await openInvoice(res.invoice_id);
+        } catch {
+          toast.warning("Confirmed — but the receipt did not open. Reprint it from the profile.");
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not settle that transfer");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function settleRefund(r: Refund, approve: boolean) {
+    setBusy(r.id);
+    try {
+      await apiPost(`/payments/${r.id}/${approve ? "approve-refund" : "reject-refund"}`);
+      toast.success(approve ? "Refund approved" : "Refund rejected");
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Managers reach this screen for the refund sign-offs; handing them the desk
+  // nav afterwards would strand them a click away from their own reports.
+  return (
+    <Shell
+      role={isManager ? "manager" : "receptionist"}
+      title="Payments"
+      subtitle="Plans ordered in the app and waiting to be paid for, refunds waiting on a manager, and the transfers to read back against the bank."
+    >
+      <GLBackground
+        variant="dotgrid"
+        position="fixed"
+        className="-z-[1]"
+        color="#1f5c43"
+        gap={32}
+        dot={1.5}
+        radius={130}
+        opacity={0.12}
+      />
+
+      <Reveal
+        className="mb-6 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]"
+        from="down"
+      >
+        <Badge tone={orders.length ? "accent" : "muted"}>
+          {orders.length} waiting · {money(owed)} owed
+        </Badge>
+        {awaiting.length ? (
+          <Badge tone="hold">{awaiting.length} transfers to check</Badge>
+        ) : null}
+        {refunds.length ? <Badge tone="danger">{refunds.length} refunds to sign off</Badge> : null}
+        {!canTake ? (
+          <span className="text-sm text-muted">Open a shift at the desk before taking payment.</span>
+        ) : null}
+        <Link to="/desk" className="ml-auto">
+          <Button variant="ink">Back to the desk</Button>
+        </Link>
+      </Reveal>
+
+      {awaiting.length ? (
+        <div className="mb-10">
+          <SplitText as="h2" text="Transfers to check" className="font-display text-2xl" />
+          <p className="mt-1 text-sm text-muted">
+            A member said they would transfer and the court is being held open for them. Find the
+            money on the statement before you confirm — nothing has been posted yet.
+          </p>
+          <Stagger className="mt-3 grid gap-3" gap={0.05}>
+            {awaiting.map((a) => (
+              <StaggerItem key={a.id}>
+                <Lift>
+                  <SpotlightCard className="rounded-[var(--radius-xl)]" size={420} strength={0.1}>
+                    <Card className="relative z-[2] border border-hold/30 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Clock3 className="size-4 text-hold" />
+                            <h3 className="font-display text-xl">{a.member_name ?? "Walk-in"}</h3>
+                            <Badge tone="hold">
+                              <HoldTimer until={a.hold_until} onExpire={() => void refresh()} /> left
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs tabular-nums text-muted">
+                            {a.member_code ?? "No code yet"}
+                            {a.phone ? ` · ${a.phone}` : ""} · asked {when(a.transfer_requested_at)}
+                          </p>
+                          <p className="mt-2 text-sm">
+                            {a.code} · {a.court_code} · {sportLabel(a.sport)} ·{" "}
+                            {when(a.start_at)}
+                          </p>
+                        </div>
+                        <p className="font-display text-2xl tabular-nums">{money(a.price_vnd)}</p>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <StarBorder speed={4}>
+                          <Button disabled={busy === a.id} onClick={() => void settleTransfer(a, true)}>
+                            Money received — confirm
+                          </Button>
+                        </StarBorder>
+                        <Button
+                          variant="outline"
+                          disabled={busy === a.id}
+                          onClick={() => void settleTransfer(a, false)}
+                        >
+                          Not found — release
+                        </Button>
+                      </div>
+                    </Card>
+                  </SpotlightCard>
+                </Lift>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </div>
+      ) : null}
+
+      <SplitText as="h2" text="Waiting for payment" className="font-display text-2xl" />
+      <p className="mt-1 text-sm text-muted">
+        A member picked a plan in the app and still owes for it. Taking payment here activates the plan
+        and prints the receipt.
+      </p>
+      {!data ? (
+        <div className="mt-3 grid gap-3">
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+        </div>
+      ) : orders.length ? (
+        <Stagger className="mt-3 grid gap-3" gap={0.06}>
+          {orders.map((o) => {
+            // Floored at zero. An order can only reach this state through a
+            // part payment plus a price change, or a refund posted back against
+            // it — rare, but a negative balance would render "Take -200,000đ"
+            // and then ask the server to take a negative payment.
+            const due = Math.max(0, o.price_vnd - o.paid_vnd);
+            const settled = due === 0;
+            const waited = daysWaiting(o.ordered_on);
+            return (
+              <StaggerItem key={o.id}>
+                <Lift>
+                  <SpotlightCard className="rounded-[var(--radius-xl)]" size={420} strength={0.1}>
+                    <Card className="relative z-[2] p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-display text-xl">{o.full_name}</h3>
+                            <Badge tone="accent">{sportLabel(o.sport_scope)}</Badge>
+                            {waited >= 3 ? (
+                              <Badge tone="hold">Waiting {waited} days</Badge>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-xs tabular-nums text-muted">
+                            {o.member_code ?? "No code yet"} · {o.phone}
+                          </p>
+                          <p className="mt-2 text-sm">
+                            {o.plan_name} · runs to {o.end_on}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-display text-2xl tabular-nums">{money(due)}</p>
+                          {o.paid_vnd > 0 ? (
+                            <p className="text-xs tabular-nums text-muted">
+                              {money(o.paid_vnd)} of {money(o.price_vnd)} already taken
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted">Ordered {o.ordered_on}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <Select
+                          className="w-auto"
+                          value={method[o.id] ?? "cash"}
+                          onChange={(e) => setMethod((m) => ({ ...m, [o.id]: e.target.value }))}
+                          aria-label={`Payment method for ${o.full_name}`}
+                        >
+                          <option value="cash">Cash</option>
+                          <option value="transfer">Bank transfer</option>
+                          <option value="card">Card</option>
+                        </Select>
+                        <StarBorder speed={4}>
+                          <Button
+                            disabled={busy === o.id || !canTake || settled}
+                            onClick={() => void takePayment(o)}
+                          >
+                            {settled
+                              ? "Paid in full — ask a manager"
+                              : canTake
+                                ? `Take ${money(due)} & print`
+                                : "Open a shift first"}
+                          </Button>
+                        </StarBorder>
+                        <Link to="/desk/member/$id" params={{ id: o.user_id }}>
+                          <Button variant="outline">
+                            Profile <ArrowUpRight className="ml-1 size-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          className="ml-auto"
+                          disabled={busy === o.id || o.paid_vnd > 0}
+                          onClick={() => void decline(o)}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </Card>
+                  </SpotlightCard>
+                </Lift>
+              </StaggerItem>
+            );
+          })}
+        </Stagger>
+      ) : (
+        <div className="mt-3">
+          <Empty title="Nothing owed" hint="Every plan ordered in the app has been paid for." />
+        </div>
+      )}
+
+      {refunds.length ? (
+        <div className="mt-10">
+          <SplitText as="h2" text="Refunds waiting for a manager" className="font-display text-2xl" />
+          <p className="mt-1 text-sm text-muted">
+            Raised at the desk above the receptionist limit. {isManager ? "Sign them off here." : "A manager has to sign these off."}
+          </p>
+          <Stagger className="mt-3 grid gap-3" gap={0.05}>
+            {refunds.map((r) => (
+              <StaggerItem key={r.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Undo2 className="size-4 text-muted" />
+                      <span className="font-medium">{r.member_name ?? "Walk-in"}</span>
+                      <Badge tone="danger">{money(Math.abs(r.amount_vnd))}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs tabular-nums text-muted">
+                      {r.code} · {r.ref_type} · raised by {r.raised_by ?? "—"} · {when(r.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={!isManager || busy === r.id}
+                      onClick={() => void settleRefund(r, false)}
+                    >
+                      Reject
+                    </Button>
+                    <Button disabled={!isManager || busy === r.id} onClick={() => void settleRefund(r, true)}>
+                      Approve
+                    </Button>
+                  </div>
+                </Card>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </div>
+      ) : null}
+
+      <div className="mt-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SplitText as="h2" text="Bank transfers" className="font-display text-2xl" />
+          <Seg
+            value={days}
+            onChange={setDays}
+            options={[
+              { value: "7", label: "7 days" },
+              { value: "14", label: "14 days" },
+              { value: "30", label: "30 days" },
+            ]}
+          />
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          Money the books already count as taken. Read it back against the statement — the bank clears
+          on its own schedule, not ours.
+        </p>
+        {!data ? (
+          <Skeleton className="mt-3 h-24" />
+        ) : transfers.length ? (
+          <Stagger className="mt-3 grid gap-2" gap={0.04}>
+            {transfers.map((t) => (
+              <StaggerItem key={t.id}>
+                <motion.div
+                  className="flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3 shadow-[var(--shadow-border)]"
+                  whileHover={{ x: 2 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 26 }}
+                >
+                  <Landmark className="size-4 shrink-0 text-muted" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{t.member_name ?? "Walk-in"}</p>
+                    <p className="truncate text-xs tabular-nums text-muted">
+                      {t.code} · {t.ref_type} · {when(t.created_at)}
+                    </p>
+                  </div>
+                  <span className="ml-auto font-medium tabular-nums">{money(t.amount_vnd)}</span>
+                  {t.invoice_id ? (
+                    <Button size="sm" variant="ghost" onClick={() => void openInvoice(t.invoice_id!)}>
+                      Receipt
+                    </Button>
+                  ) : null}
+                </motion.div>
+              </StaggerItem>
+            ))}
+          </Stagger>
+        ) : (
+          <div className="mt-3">
+            <Empty
+              title="No transfers in this window"
+              hint="Widen the range, or the centre has simply been taking cash."
+            />
+          </div>
+        )}
+        {data?.capped ? (
+          <p className="mt-3 text-xs text-muted">
+            Showing the {transfers.length} most recent — there are older transfers in this window
+            that this list does not reach. Pull the full period from Reports to reconcile it.
+          </p>
+        ) : null}
+      </div>
+    </Shell>
+  );
+}

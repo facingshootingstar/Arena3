@@ -134,8 +134,41 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
             = (now() at time zone 'Asia/Ho_Chi_Minh')::date`,
     [id],
   );
+  /*
+   * What this member has paid, and how much of it is still the centre's to
+   * give back.
+   *
+   * `refundable_vnd` is computed here rather than left to the screen because
+   * the screen cannot see it: refunds are separate rows that carry no link to
+   * the payment they undo, so "how much of this is left" is a question about
+   * the whole ledger for that booking or subscription, not about one row. The
+   * same arithmetic guards the refund endpoint — this is the desk being shown
+   * the answer before it presses the button rather than after.
+   */
+  const payments = await sql.query(
+    `select p.id, p.code, p.method, p.amount_vnd, p.status, p.created_at,
+            p.ref_type, p.ref_id, i.id as invoice_id,
+            least(p.amount_vnd, greatest((
+              select coalesce(sum(q.amount_vnd) filter (where q.amount_vnd > 0 and q.status = 'posted'), 0)
+                   - coalesce(sum(-q.amount_vnd) filter (where q.amount_vnd < 0 and q.status in ('posted','refund_pending')), 0)
+                from payments q
+               where q.ref_type = p.ref_type and q.ref_id = p.ref_id
+            ), 0))::int as refundable_vnd
+       from payments p
+       left join invoices i on i.payment_id = p.id
+      where p.user_id = $1
+      order by p.created_at desc
+      limit 20`,
+    [id],
+  );
   return {
     status: 200,
-    body: { user: toPublic(m), subscriptions: subs, debt_vnd: debt, today: { bookings, classes } },
+    body: {
+      user: toPublic(m),
+      subscriptions: subs,
+      debt_vnd: debt,
+      payments,
+      today: { bookings, classes },
+    },
   };
 }

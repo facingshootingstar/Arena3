@@ -19,14 +19,18 @@ function Register() {
   const [otp, setOtp] = useState("");
   const [shown, setShown] = useState("");
   const [busy, setBusy] = useState(false);
+  // Nothing about the password is pre-filled. It used to arrive holding the
+  // demo password, which is printed in the README and was printed on the sign-in
+  // page — so every real member who registered and pressed straight on ended up
+  // with an account secured by a credential anyone could read.
   const [form, setForm] = useState({
     full_name: "",
     phone: "",
-    password: "ChangeMe!a3",
+    password: "",
     dob: "1998-01-15",
     pii_consent: true,
   });
-  const [confirm, setConfirm] = useState("ChangeMe!a3");
+  const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
 
   // Only complain once there is something to complain about — a red line under
@@ -179,7 +183,11 @@ function Register() {
                 I agree to the terms and to Decree 13/2023 on personal data protection.
               </label>
               <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
-                <Button type="submit" disabled={busy || mismatch || tooWeak} className="w-full">
+                <Button
+                  type="submit"
+                  disabled={busy || mismatch || tooWeak || !form.password}
+                  className="w-full"
+                >
                   {busy ? "Sending…" : "Send OTP"}
                 </Button>
               </Magnet>
