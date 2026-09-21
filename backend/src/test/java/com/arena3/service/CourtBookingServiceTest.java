@@ -225,4 +225,55 @@ public class CourtBookingServiceTest {
         Assert.assertNull(b.getOccupancyId());
         verify(occupancyRepository, times(1)).deleteById(occId);
     }
+
+    @Test(description = "Giữ chỗ thất bại thì không được làm mất lượt giữ chỗ cũ của khách")
+    public void testFailedHoldMustNotReleaseExistingHold() {
+        UUID busyCourtId = UUID.randomUUID();
+        OffsetDateTime startAt = OffsetDateTime.parse("2026-09-17T20:00:00+07:00");
+
+        UUID userId = UUID.randomUUID();
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+
+        CourtEntity busyCourt = new CourtEntity();
+        busyCourt.setId(busyCourtId);
+        busyCourt.setStatus("ready");
+        busyCourt.setSport("badminton");
+
+        // Khách đang giữ sẵn một sân khác
+        UUID oldOccId = UUID.randomUUID();
+        CourtBookingEntity oldHold = new CourtBookingEntity();
+        oldHold.setId(UUID.randomUUID());
+        oldHold.setUserId(userId);
+        oldHold.setStatus("hold");
+        oldHold.setOccupancyId(oldOccId);
+
+        when(courtRepository.findById(busyCourtId)).thenReturn(Optional.of(busyCourt));
+        when(courtBookingRepository.findByUserIdAndStatus(userId, "hold")).thenReturn(List.of(oldHold));
+
+        // Sân mới đã có người chiếm, nên yêu cầu này chắc chắn thất bại
+        OccupancyEntity taken = new OccupancyEntity();
+        taken.setCourtId(busyCourtId);
+        taken.setKind("booking");
+        when(occupancyRepository.findOverlapping(eq(busyCourtId), any(), any())).thenReturn(List.of(taken));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("court_id", busyCourtId.toString());
+        body.put("start_at", startAt.toString());
+
+        ApiException thrown = null;
+        try {
+            courtBookingService.holdBooking(body, user);
+        } catch (ApiException ex) {
+            thrown = ex;
+        }
+
+        Assert.assertNotNull(thrown, "Phải báo lỗi vì khung giờ đã bị chiếm");
+        Assert.assertEquals(thrown.getCode(), "CONFLICT_SLOT", "Mã lỗi phải là CONFLICT_SLOT");
+
+        // Yêu cầu mới đã thất bại, nên khách phải giữ nguyên sân cũ
+        Assert.assertEquals(oldHold.getStatus(), "hold",
+                "Yêu cầu giữ chỗ mới thất bại nhưng lượt giữ chỗ cũ đã bị huỷ mất");
+        verify(occupancyRepository, never()).deleteById(oldOccId);
+    }
 }
