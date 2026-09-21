@@ -15,3 +15,4 @@ screenshots/
 dist/
 .DS_Store
 .neon
+backend/target/
