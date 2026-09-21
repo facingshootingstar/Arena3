@@ -7,9 +7,11 @@ import com.arena3.repository.MembershipPlanRepository;
 import com.arena3.repository.PriceRuleRepository;
 import com.arena3.repository.SubscriptionRepository;
 import org.mockito.Mockito;
+import com.arena3.testsupport.ConsoleNarrator;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
+import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
@@ -29,6 +31,7 @@ import static org.mockito.Mockito.when;
  * Kiểm thử tính giá sân theo khung giờ cao điểm/thấp điểm, ngày thường/cuối tuần
  * và chiết khấu theo gói hội viên đang kích hoạt.
  */
+@Listeners(ConsoleNarrator.class)
 public class PricingServiceTest {
 
     private PriceRuleRepository priceRuleRepository;
