@@ -77,6 +77,67 @@ TestNG giải quyết đúng những chỗ đó:
 Một điểm riêng của TestNG mà JUnit không có: **khai báo suite bằng file XML**.
 Nhờ vậy ta chia bài cho hai người mà **không phải sửa một dòng code Java nào**.
 
+### Kiểm soát dữ liệu đầu vào (data control)
+
+Đây là nhóm ưu điểm dễ bị bỏ qua nhưng lại là thứ TestNG mạnh hơn hẳn. Có hai
+cơ chế, khác nhau ở chỗ **dữ liệu nằm ở đâu**:
+
+**Mục 1 — Dữ liệu nằm trong code: `@DataProvider`**
+
+```java
+@DataProvider(name = "timePriceProvider")
+public Object[][] timePriceProvider() {
+    return new Object[][]{
+            {"2026-09-16T09:00:00+07:00", "weekday", 540,  80000, false},
+            {"2026-09-16T18:00:00+07:00", "weekday", 1080, 140000, true},
+            ...
+    };
+}
+
+@Test(dataProvider = "timePriceProvider")
+public void testLookupPriceDynamic(String isoTime, String dayKind, int minutes,
+                                   int expectedPrice, boolean expectedPeak) { ... }
+```
+
+Một hàm test, bốn bộ dữ liệu, TestNG chạy **bốn lượt độc lập** — lượt này trượt
+không ảnh hưởng lượt kia, và báo cáo chỉ ra chính xác bộ dữ liệu nào hỏng.
+
+Giá trị thực tế: muốn phủ thêm ca "thứ 7 lúc 22:00" thì **thêm một dòng dữ
+liệu**, không viết thêm hàm test. Không có `@DataProvider`, bốn ca này hoặc phải
+viết bốn hàm gần như giống hệt nhau, hoặc nhét vào một hàm với vòng lặp — mà khi
+đó ca thứ hai trượt sẽ chặn luôn ca thứ ba, và báo cáo chỉ đếm được **một** test.
+
+**Mục 2 — Dữ liệu nằm ngoài code: `@Parameters` + XML**
+
+```xml
+<suite name="Arena3-Module1-Pricing">
+    <parameter name="basePrice" value="140000" />
+    <parameter name="roundTo"   value="1000" />
+    ...
+</suite>
+```
+
+```java
+@Test
+@Parameters({ "basePrice", "roundTo" })
+public void testApplyDiscount(int basePrice, int roundTo) { ... }
+```
+
+Dữ liệu được **tiêm từ file cấu hình vào tham số của hàm test**, nên đổi dữ liệu
+thì sửa XML là xong — **không biên dịch lại Java**. Cùng một bộ test có thể chạy
+với bảng giá khác nhau cho môi trường dev và môi trường thật.
+
+| | `@DataProvider` | `@Parameters` |
+|---|---|---|
+| Dữ liệu nằm ở | Code Java | File `testng.xml` |
+| Số lượt chạy | Nhiều lượt (1 lượt / 1 dòng) | Một lượt |
+| Kiểu dữ liệu | Bất kỳ object nào | Chuỗi, TestNG tự ép kiểu |
+| Đổi dữ liệu | Phải biên dịch lại | Sửa XML, chạy luôn |
+| Hợp với | Nhiều ca kiểm thử của cùng 1 logic | Cấu hình theo môi trường |
+
+Bài này dùng **mục 1**; mục 2 nêu ra để thấy TestNG kiểm soát dữ liệu ở cả hai
+tầng trong và ngoài code.
+
 ## A3. Những gì đã thêm vào dự án
 
 | File | Vai trò | Ghi chú |
@@ -177,7 +238,68 @@ JDK nào, bảng mã nào. Đổi khi **đổi máy hoặc đổi hệ điều h
 
 Đăng ký hai nơi **không bị in trùng**, vì TestNG loại trùng theo tên class listener.
 
-## A5. Các thành phần TestNG dùng trong bài
+## A5. Kiến trúc TestNG
+
+TestNG được thiết kế theo kiến trúc **module hoá**: mỗi phần lo một việc và
+giao tiếp với nhau qua giao diện rõ ràng, nên có thể **cấu hình linh hoạt và
+mở rộng** mà không đụng vào lõi.
+
+```
+                    ┌────────────────────────────┐
+                    │    XML Configuration       │
+                    │  suite / test / class /    │
+                    │  group / parameter         │
+                    └─────────────┬──────────────┘
+                                  │ nạp cấu hình
+                                  ▼
+  ┌────────────────┐   ┌────────────────────────────┐   ┌──────────────────┐
+  │   Annotation   │──▶│      TestNG Engine         │◀──│  Data Provider   │
+  │   Processor    │   │  lõi thực thi: dựng danh   │   │  bơm dữ liệu vào │
+  │  (reflection)  │   │  sách, xếp thứ tự, chạy    │   │  test method     │
+  └────────────────┘   └─────────────┬──────────────┘   └──────────────────┘
+                                     │ phát sự kiện vòng đời
+                                     ▼
+                    ┌────────────────────────────┐
+                    │    Listener & Reporter     │
+                    │  bắt sự kiện → báo cáo      │
+                    └────────────────────────────┘
+```
+
+### Năm thành phần, và chúng nằm ở đâu trong dự án này
+
+| Thành phần | Nhiệm vụ | Hiện diện trong dự án |
+|---|---|---|
+| **TestNG Engine** | Lõi thực thi: đọc cấu hình, dựng danh sách test, điều khiển quá trình chạy, thu kết quả | Được `maven-surefire-plugin` khởi động qua thư viện `surefire-testng` |
+| **XML Configuration** | File `testng.xml` định nghĩa suite, test, class, group, parameter | `testng.xml`, `testng-module1-pricing.xml`, `testng-module2-booking.xml` |
+| **Annotation Processor** | Dùng **reflection** quét class, đọc `@Test`, `@BeforeMethod`… rồi dựng vòng đời chạy | Xử lý `@Test`, `@BeforeMethod`, `@DataProvider`, `@Listeners` trong 2 class test |
+| **Data Provider** | Cung cấp dữ liệu cho test method từ `@DataProvider` | `timePriceProvider` — 4 bộ dữ liệu cho `testLookupPriceDynamic` |
+| **Listener & Reporter** | Bắt sự kiện test, sinh báo cáo HTML/XML | `ConsoleNarrator` (tự viết) + báo cáo Surefire trong `target/surefire-reports/` |
+
+### Vì sao "module hoá" không chỉ là chữ trên slide
+
+Bài này có **bằng chứng sống** cho cả hai tính chất:
+
+- **Cấu hình linh hoạt** — chia bài cho hai người chỉ bằng cách viết thêm hai
+  file XML. Engine, annotation, code test **không đổi một dòng**.
+- **Mở rộng được** — `ConsoleNarrator` là một Reporter **do nhóm tự viết**, cắm
+  vào bằng cách implement `ITestListener`:
+
+```java
+public class ConsoleNarrator implements ITestListener {
+    @Override public void onStart(ITestContext context)      { ... }  // mở đầu suite
+    @Override public void onTestStart(ITestResult result)    { ... }  // trước mỗi test
+    @Override public void onTestSuccess(ITestResult result)  { ... }  // test đạt
+    @Override public void onTestFailure(ITestResult result)  { ... }  // test trượt
+    @Override public void onTestSkipped(ITestResult result)  { ... }  // test bị bỏ qua
+    @Override public void onFinish(ITestContext context)     { ... }  // in bảng tổng kết
+}
+```
+
+Engine tự gọi các hàm này tại đúng thời điểm trong vòng đời. Ta **không sửa
+TestNG**, chỉ cắm thêm một mảnh vào chỗ nó chừa sẵn — đó chính là điều kiến trúc
+module hoá cho phép.
+
+### Các annotation và thành phần dùng trong bài
 
 | Thành phần | Dùng ở đâu | Tác dụng |
 |---|---|---|
