@@ -173,4 +173,51 @@ public class PricingServiceTest {
         // Trường hợp không giảm giá
         Assert.assertEquals(pricingService.applyDiscount(listPrice, 0, 1000), 140000);
     }
+
+    @Test(description = "Gói tập chưa tới ngày bắt đầu thì chưa được giảm giá")
+    public void testMemberDiscountNotStartedYet() {
+        UUID userId = UUID.randomUUID();
+        UUID planId = UUID.randomUUID();
+
+        SubscriptionEntity sub = new SubscriptionEntity();
+        sub.setId(UUID.randomUUID());
+        sub.setUserId(userId);
+        sub.setPlanId(planId);
+        sub.setSportScope("badminton");
+        sub.setStatus("active");
+        sub.setStartOn(LocalDate.now().plusDays(10)); // Còn 10 ngày nữa mới có hiệu lực
+        sub.setEndOn(LocalDate.now().plusDays(40));
+
+        MembershipPlanEntity plan = new MembershipPlanEntity();
+        plan.setId(planId);
+        plan.setCourtDiscountPct(20);
+
+        when(subscriptionRepository.findByUserIdAndStatus(userId, "active")).thenReturn(List.of(sub));
+        when(membershipPlanRepository.findById(planId)).thenReturn(Optional.of(plan));
+
+        PricingService.DiscountResult discount = pricingService.memberDiscount(userId, "badminton");
+
+        Assert.assertEquals(discount.getPct(), 0,
+                "Gói tập phải tới ngày " + sub.getStartOn() + " mới có hiệu lực, chưa được giảm giá hôm nay");
+    }
+
+    @Test(description = "Phần trăm giảm giá không được vượt quá 100%")
+    public void testDiscountPctCannotExceed100() {
+        // Người quản trị nhập nhầm 150% khi cấu hình gói hội viên
+        int netPrice = pricingService.applyDiscount(140000, 150, 1000);
+
+        Assert.assertTrue(netPrice >= 0,
+                "Giảm 150% cho ra giá " + netPrice + "đ - trung tâm phải trả tiền cho khách");
+    }
+
+    @Test(description = "Làm tròn không được khiến khách trả nhiều hơn giá đã chiết khấu")
+    public void testRoundingMustNotOverchargeCustomer() {
+        int listPrice = 140000;
+        int discountPct = 13; // 140.000 x 0,87 = 121.800đ
+
+        int netPrice = pricingService.applyDiscount(listPrice, discountPct, 1000);
+
+        Assert.assertTrue(netPrice <= 121800,
+                "Khách phải trả " + netPrice + "đ trong khi giá sau chiết khấu chỉ là 121.800đ");
+    }
 }

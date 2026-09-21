@@ -1,7 +1,10 @@
 # Hướng dẫn demo kiểm thử TestNG — Arena3 Backend
 
-Tài liệu dành cho buổi thuyết trình hai người. Phần A là nền tảng chung, cả hai
-cùng nắm. Phần B và C chia cho từng người, chạy độc lập, sinh báo cáo riêng.
+Tài liệu cho buổi thuyết trình hai người.
+
+- **Người 1** trình bày phần nền tảng chung (TestNG là gì, cấu trúc dự án, cách
+  chạy) rồi demo **module 1 — tính giá**, trong đó có **3 test trượt**.
+- **Người 2** chỉ trình bày **module 2 — giữ chỗ sân**, toàn bộ đều đạt.
 
 ---
 
@@ -10,17 +13,20 @@ cùng nắm. Phần B và C chia cho từng người, chạy độc lập, sinh 
 Mở terminal trong thư mục `backend/`:
 
 ```powershell
-.\run-tests.ps1 1      # Người 1 — tính giá & chiết khấu   (8 lượt, 8 đạt)
-.\run-tests.ps1 2      # Người 2 — giữ chỗ & trùng lịch    (6 lượt, 5 đạt, 1 trượt)
-.\run-tests.ps1        # cả hai, kiểm tra trước buổi nói   (14 lượt, 13 đạt, 1 trượt)
+.\run-tests.ps1 1      # Người 1 — tính giá & chiết khấu   (11 lượt, 8 đạt, 3 TRƯỢT)
+.\run-tests.ps1 2      # Người 2 — giữ chỗ & trùng lịch    (5 lượt, 5 đạt)
+.\run-tests.ps1        # cả hai, kiểm tra trước buổi nói   (16 lượt, 13 đạt, 3 trượt)
 ```
 
-Module 2 **cố ý có một test trượt**, và nó trượt vì phát hiện một lỗi thật trong
-code. Xem mục C4 — đây là phần đáng giá nhất của bài.
+Module 1 **cố ý có 3 test trượt** — cả ba đều phát hiện lỗi thật trong code, xem
+mục A7. Vì vậy người 1 chạy xong sẽ thấy `BUILD FAILURE` màu đỏ; đó là đúng
+thiết kế, không phải hỏng.
 
 ---
 
-# PHẦN A — NỀN TẢNG CHUNG
+# PHẦN A — NGƯỜI THUYẾT TRÌNH 1
+
+> Gồm phần nền tảng chung (A1–A5) và module 1 (A6–A7).
 
 ## A1. Code đang được kiểm thử
 
@@ -35,11 +41,10 @@ Hệ thống quản lý trung tâm thể thao, viết bằng Spring Boot. Hai l�
 Điểm kỹ thuật quan trọng: cả hai lớp đều nhận phụ thuộc qua **constructor**.
 
 ```java
-public CourtBookingService(CourtRepository courtRepository,
-                           OccupancyRepository occupancyRepository,
-                           CourtBookingRepository courtBookingRepository,
-                           PricingService pricingService, ...) {
-    this.courtRepository = courtRepository;
+public PricingService(PriceRuleRepository priceRuleRepository,
+                      SubscriptionRepository subscriptionRepository,
+                      MembershipPlanRepository membershipPlanRepository) {
+    this.priceRuleRepository = priceRuleRepository;
     ...
 }
 ```
@@ -76,9 +81,9 @@ Nhờ vậy ta chia bài cho hai người mà **không phải sửa một dòng 
 
 | File | Vai trò | Ghi chú |
 |---|---|---|
-| `pom.xml` | Khai báo thư viện `testng`, cấu hình plugin `surefire`, khai báo 2 profile | Thêm mới phần profile |
-| `src/test/java/.../PricingServiceTest.java` | 5 hàm test module 1 | Có sẵn từ đầu |
-| `src/test/java/.../CourtBookingServiceTest.java` | 6 hàm test module 2 | Thêm 1 test mới (mục C4) |
+| `pom.xml` | Khai báo thư viện `testng`, cấu hình plugin `surefire`, khai báo 2 profile | Thêm phần profile |
+| `src/test/java/.../PricingServiceTest.java` | 8 hàm test module 1 | Thêm 3 test mới (mục A7) |
+| `src/test/java/.../CourtBookingServiceTest.java` | 5 hàm test module 2 | Có sẵn từ đầu |
 | `src/test/java/.../testsupport/ConsoleNarrator.java` | In tường thuật ra màn hình | **Thêm mới** |
 | `src/test/resources/testng.xml` | Suite chạy cả hai module | Có sẵn |
 | `src/test/resources/testng-module1-pricing.xml` | Suite riêng người 1 | **Thêm mới** |
@@ -98,15 +103,15 @@ mvnw.cmd                         ← Maven Wrapper (tự tải Maven nếu chưa
    │
    ▼
 pom.xml                          ← profile module1/module2 quyết định dùng suite nào
-   │  testng.suiteXmlFile = src/test/resources/testng-module2-booking.xml
+   │  testng.suiteXmlFile = src/test/resources/testng-module1-pricing.xml
    ▼
 maven-surefire-plugin            ← plugin chạy test, sinh báo cáo
    │
    ▼
-testng-module2-booking.xml       ← liệt kê class nào được chạy + đăng ký listener
+testng-module1-pricing.xml       ← liệt kê class nào được chạy + đăng ký listener
    │
    ▼
-CourtBookingServiceTest.java     ← code test thật sự chạy ở đây
+PricingServiceTest.java          ← code test thật sự chạy ở đây
 ```
 
 Trình bày với thầy nên đi ngược chuỗi này: bắt đầu từ file test, rồi giải thích
@@ -120,10 +125,10 @@ Ba tầng này thay đổi vì ba lý do khác nhau, nên tách ra:
 
 ```java
 @Listeners(ConsoleNarrator.class)
-public class CourtBookingServiceTest {
+public class PricingServiceTest {
 
-    @Test(description = "Giữ chỗ sân thành công khi khung giờ còn trống")
-    public void testHoldBookingSuccess() { ... }
+    @Test(description = "Kiểm tra chiết khấu hội viên có gói tập hoạt động")
+    public void testMemberDiscountActiveSubscription() { ... }
 }
 ```
 
@@ -133,13 +138,13 @@ nó chính là dòng chữ hiện ra lúc chạy. Tầng này đổi khi **quy t
 **Tầng 2 — Suite XML (`testng-*.xml`): chạy NHỮNG TEST NÀO cùng nhau**
 
 ```xml
-<suite name="Arena3-Module2-Booking" verbose="1">
+<suite name="Arena3-Module1-Pricing" verbose="1">
     <listeners>
         <listener class-name="com.arena3.testsupport.ConsoleNarrator" />
     </listeners>
-    <test name="Court-Booking-And-Overlap-Rules">
+    <test name="Pricing-And-Discount-Rules">
         <classes>
-            <class name="com.arena3.service.CourtBookingServiceTest" />
+            <class name="com.arena3.service.PricingServiceTest" />
         </classes>
     </test>
 </suite>
@@ -154,7 +159,7 @@ Tầng này đổi khi **cách tổ chức buổi demo đổi**.
 chcp 65001 | Out-Null                        # console hiểu UTF-8
 $env:JAVA_HOME = <đường dẫn JDK 17>
 $env:MAVEN_OPTS = '-Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 ...'
-& .\mvnw.cmd -o -Pmodule2-booking test
+& .\mvnw.cmd -o -Pmodule1-pricing test
 ```
 
 Tầng này chẳng liên quan gì tới nghiệp vụ — nó chỉ lo chuyện **máy Windows**:
@@ -176,7 +181,7 @@ JDK nào, bảng mã nào. Đổi khi **đổi máy hoặc đổi hệ điều h
 
 | Thành phần | Dùng ở đâu | Tác dụng |
 |---|---|---|
-| `@Test` | 11 phương thức | Đánh dấu đây là một test |
+| `@Test` | 13 phương thức | Đánh dấu đây là một test |
 | `description` | mọi `@Test` | Câu mô tả tiếng Việt, hiện lúc chạy và trong báo cáo |
 | `@BeforeMethod` | `setUp()` | Dựng lại mock mới trước **từng** test → các test độc lập |
 | `@DataProvider` | `timePriceProvider` | 1 hàm × 4 bộ dữ liệu = 4 lượt chạy |
@@ -188,50 +193,47 @@ JDK nào, bảng mã nào. Đổi khi **đổi máy hoặc đổi hệ điều h
 ### Mockito — đồ giả thay cho database
 
 ```java
-courtRepository = Mockito.mock(CourtRepository.class);
-when(courtRepository.findById(courtId)).thenReturn(Optional.of(court));
+priceRuleRepository = Mockito.mock(PriceRuleRepository.class);
+when(priceRuleRepository.findMatchingRules(eq("badminton"), eq("weekday"), anyInt()))
+        .thenReturn(List.of(rule));
 ```
 
-Dịch ra tiếng Việt: *"tạo một CourtRepository giả; khi ai đó gọi `findById` với id
-này, trả về cái sân tôi vừa dựng sẵn"*. Nhờ vậy test chạy xong trong ~2 giây và
-chạy được ở mọi máy, không cần cài Postgres.
+Dịch ra tiếng Việt: *"tạo một PriceRuleRepository giả; khi ai đó hỏi luật giá cầu
+lông ngày thường, trả về luật giá tôi vừa dựng sẵn"*. Nhờ vậy test chạy xong
+trong ~2 giây và chạy được ở mọi máy, không cần cài Postgres.
 
 ### Hai kiểu kiểm tra — điểm dễ được hỏi
 
 ```java
-Assert.assertEquals(savedBooking.getStatus(), "hold");        // kiểm tra TRẠNG THÁI
+Assert.assertEquals(result.getPriceVnd(), 140000);            // kiểm tra TRẠNG THÁI
 verify(occupancyRepository, times(1)).deleteById(oldOccId);   // kiểm tra HÀNH VI
 ```
 
 - `Assert` kiểm tra **kết quả trả về** có đúng không.
 - `verify` kiểm tra **service có gọi đúng thao tác, đúng số lần** không.
 
-Cái thứ hai bắt được lỗi mà `Assert` bỏ sót — ví dụ xoá cùng một occupancy hai
-lần: trạng thái cuối vẫn đúng, nhưng hành vi thì sai.
+Cái thứ hai bắt được lỗi mà `Assert` bỏ sót — ví dụ xoá cùng một bản ghi hai
+lần: trạng thái cuối vẫn đúng, nhưng hành vi thì sai. Người 2 sẽ dùng kiểu này.
 
 ### Đọc con số tổng kết
 
 ```
-Tổng lượt chạy: 8   Đạt: 8   Thất bại: 0   Bỏ qua: 0
+Tổng lượt chạy: 11   Đạt: 8   Thất bại: 3   Bỏ qua: 0
 ```
 
-Module 1 chỉ có **5 phương thức** `@Test` nhưng báo **8 lượt chạy**. Không mâu
+Module 1 chỉ có **8 phương thức** `@Test` nhưng báo **11 lượt chạy**. Không mâu
 thuẫn: `testLookupPriceDynamic` dùng `@DataProvider` nên chạy 4 lần với 4 bộ dữ
 liệu. TestNG đếm theo **lượt chạy thực tế**, không đếm theo số hàm.
 
 ---
 
-# PHẦN B — NGƯỜI THUYẾT TRÌNH 1
-
-## Module 1: Tính giá sân và chiết khấu hội viên
+## A6. Module 1 — các test ĐẠT
 
 ```powershell
 .\run-tests.ps1 1
 ```
 
-Kết quả: **8 lượt chạy, 8 đạt, 0 trượt.**
-
-### B1. Bốn lượt kiểm tra bảng giá theo khung giờ
+### Bốn lượt kiểm tra bảng giá theo khung giờ
 
 Một hàm `testLookupPriceDynamic`, chạy 4 lần nhờ `@DataProvider`:
 
@@ -246,11 +248,11 @@ Quy tắc rút ra: giá phụ thuộc **cả hai** yếu tố — ngày thườn
 giờ cao điểm hay thấp điểm. Cuối tuần vào giờ cao điểm sớm hơn ngày thường
 (từ 08:00 thay vì 18:00), nên 10:00 sáng chủ nhật đã tính giá cao.
 
-> Lưu ý nếu thầy hỏi: tham số `minutes` (540, 1080, 420, 600 — số phút tính từ
-> 0 giờ) khai báo trong `@DataProvider` nhưng không dùng trong thân hàm, nó chỉ
-> đóng vai trò chú thích cho người đọc dễ đối chiếu với cột thời gian.
+> Nếu thầy hỏi: tham số `minutes` (540, 1080, 420, 600 — số phút tính từ 0 giờ)
+> khai báo trong `@DataProvider` nhưng không dùng trong thân hàm, nó chỉ đóng vai
+> trò chú thích cho người đọc dễ đối chiếu với cột thời gian.
 
-### B2. Ưu tiên bảng giá riêng của sân
+### Ưu tiên bảng giá riêng của sân
 
 `testCourtSpecificPriceRulePriority`
 
@@ -260,32 +262,140 @@ riêng cho sân VIP **200.000đ**. Kỳ vọng hệ thống chọn **200.000đ**
 Ý nghĩa: luật cụ thể phải đè lên luật tổng quát. Nếu chọn sai, sân VIP bị bán
 bằng giá sân thường — trung tâm mất tiền mà không ai phát hiện.
 
-### B3. Chiết khấu hội viên — cặp thuận và nghịch
+### Chiết khấu hội viên — cặp thuận và nghịch
 
 | Test | Tình huống | Kỳ vọng |
 |---|---|---|
-| `testMemberDiscountActiveSubscription` | Gói **cầu lông** còn hạn, giảm 20%, còn 10 giờ | Giảm **20%** |
-| `testMemberDiscountDifferentSport` | Gói **bóng rổ**, nhưng đang đặt sân **cầu lông** | Giảm **0%** |
+| `testMemberDiscountActiveSubscription` | Gói **cầu lông** còn hạn, giảm 20% | Giảm **20%** |
+| `testMemberDiscountDifferentSport` | Gói **bóng rổ**, đang đặt sân **cầu lông** | Giảm **0%** |
 
-Đây là cặp test quan trọng nhất về mặt phương pháp: một cái chứng minh tính năng
+Đây là cặp test quan trọng về mặt phương pháp: một cái chứng minh tính năng
 **chạy đúng khi được phép**, một cái chứng minh nó **không chạy khi không được
-phép**. Chỉ có test thứ nhất thì một lỗi "giảm giá cho mọi môn" sẽ lọt lưới.
+phép**. Chỉ có test thứ nhất thì lỗi "giảm giá cho mọi môn" sẽ lọt lưới.
 
-### B4. Công thức tính tiền cuối
+### Công thức tính tiền
 
 `testApplyDiscountRounding`
 
 ```
-140.000đ giảm 15%  →  140.000 × 0,85 = 119.000đ   (làm tròn bội số 1.000đ)
-140.000đ giảm  0%  →  140.000đ                     (giữ nguyên)
+140.000đ giảm 15%  →  140.000 × 0,85 = 119.000đ
+140.000đ giảm  0%  →  140.000đ (giữ nguyên)
 ```
-
-Kiểm tra cả phép nhân lẫn phép làm tròn, và cả trường hợp biên 0% — vì lỗi chia
-cho 0 hoặc làm tròn sai thường nấp ở đúng trường hợp biên này.
 
 ---
 
-# PHẦN C — NGƯỜI THUYẾT TRÌNH 2
+## A7. Module 1 — BA TEST TRƯỢT
+
+Đây là phần đáng giá nhất của bài. Cả ba test đều trượt vì **code có lỗi thật**,
+không phải vì viết sai kỳ vọng. Cả ba đều nằm trong `PricingService`.
+
+### Lỗi 1 — Gói tập chưa tới ngày bắt đầu đã được giảm giá
+
+```
+-> Gói tập chưa tới ngày bắt đầu thì chưa được giảm giá
+   FAIL: Gói tập phải tới ngày 2026-10-01 mới có hiệu lực, chưa được giảm giá hôm nay
+         expected [0] but found [20]
+```
+
+**Tình huống:** khách mua trước gói tập bắt đầu từ 10 ngày nữa. Hôm nay khách đặt
+sân → hệ thống đã giảm ngay 20%, dù gói chưa tới ngày hiệu lực.
+
+**Nguyên nhân** — `PricingService.memberDiscount()` chỉ kiểm tra **ngày kết thúc**:
+
+```java
+for (SubscriptionEntity s : subs) {
+    if (!s.getEndOn().isBefore(today)) {        // chỉ xét endOn
+        ...
+        res.setPct(p.getCourtDiscountPct());
+    }
+}
+```
+
+Trường `startOn` có trong dữ liệu nhưng **không hề được dùng**. Gói nào cũng coi
+như đã bắt đầu.
+
+**Cách sửa:** thêm điều kiện `!s.getStartOn().isAfter(today)`.
+
+### Lỗi 2 — Giảm giá trên 100% cho ra giá âm
+
+```
+-> Phần trăm giảm giá không được vượt quá 100%
+   FAIL: Giảm 150% cho ra giá -70000đ - trung tâm phải trả tiền cho khách
+```
+
+**Tình huống:** người quản trị nhập nhầm `150` thay vì `15` khi cấu hình gói hội
+viên. Giá sân 140.000đ trở thành **âm 70.000đ** — nghĩa là trung tâm phải trả
+tiền cho khách.
+
+**Nguyên nhân** — `applyDiscount()` chỉ chặn cận dưới, quên cận trên:
+
+```java
+public int applyDiscount(int list, int pct, int round) {
+    if (pct <= 0) return list;                        // chặn pct âm
+    double net = list * (1.0 - (double) pct / 100.0); // nhưng pct = 150 thì net âm
+    return (int) (Math.round(net / round) * round);
+}
+```
+
+**Cách sửa:** kẹp `pct` vào khoảng 0–100 trước khi tính, hoặc chặn kết quả không
+được nhỏ hơn 0.
+
+### Lỗi 3 — Làm tròn khiến khách trả nhiều hơn giá đã giảm
+
+```
+-> Làm tròn không được khiến khách trả nhiều hơn giá đã chiết khấu
+   FAIL: Khách phải trả 122000đ trong khi giá sau chiết khấu chỉ là 121.800đ
+```
+
+**Tình huống:** giá sân 140.000đ, giảm 13%.
+
+```
+Giá đúng sau chiết khấu:  140.000 × 0,87 = 121.800đ
+Hệ thống thu của khách:                    122.000đ
+                                          ─────────
+Khách trả dư:                                  200đ
+```
+
+**Nguyên nhân** — `Math.round` làm tròn về số gần nhất, nên `121,8` nghìn thành
+`122` nghìn, tức **làm tròn lên**:
+
+```java
+return (int) (Math.round(net / round) * round);   // 121.800 → 122.000
+```
+
+**Cách sửa:** dùng `Math.floor` để làm tròn xuống, nghiêng về phía có lợi cho
+khách — khách không bao giờ phải trả nhiều hơn giá đã niêm yết sau giảm.
+
+Lỗi này nhỏ (200đ) nhưng nhân với hàng nghìn lượt đặt sân thì thành con số thật,
+và về nguyên tắc là **thu sai so với giá đã công bố**.
+
+### Vì sao có test trượt lại là điều tốt
+
+Ý nên chốt bài:
+
+1. **Cả ba lỗi đều vô hình với kiểm thử thủ công.** Bấm tay trên giao diện, ai
+   cũng chỉ thử trường hợp bình thường: gói đang còn hạn, giảm 15%, giá tròn số.
+   Không ai nghĩ tới gói *chưa bắt đầu*, hay tới việc nhập nhầm *150%*.
+
+2. **Tám test đạt kia vẫn không cứu được.** Đã có sẵn test kiểm tra chiết khấu
+   (`testMemberDiscountActiveSubscription`) và test kiểm tra làm tròn
+   (`testApplyDiscountRounding`) — nhưng cả hai chỉ thử **trường hợp đẹp**. Lỗi
+   nằm ở **trường hợp biên**, chỗ chưa ai hỏi tới.
+
+3. **Ba lỗi thuộc ba loại khác nhau**, cho thấy test bắt được nhiều kiểu sai:
+   - Lỗi 1: **thiếu kiểm tra dữ liệu đầu vào** (quên trường `startOn`)
+   - Lỗi 2: **thiếu chặn giá trị biên** (không giới hạn trần phần trăm)
+   - Lỗi 3: **sai hướng làm tròn** trong công thức tính tiền
+
+4. **Một bộ test mà mọi thứ đều xanh chưa chắc là tin tốt** — nhiều khi chỉ có
+   nghĩa là ta chưa hỏi đủ khó. Giá trị của kiểm thử tự động nằm ở chỗ nó tìm ra
+   lỗi *trước khi* người dùng gặp, chứ không phải ở con số 100% đạt.
+
+---
+
+# PHẦN B — NGƯỜI THUYẾT TRÌNH 2
+
+> Chỉ trình bày module 2. Phần nền tảng chung người 1 đã nói rồi.
 
 ## Module 2: Giữ chỗ sân và chống trùng lịch
 
@@ -293,10 +403,13 @@ cho 0 hoặc làm tròn sai thường nấp ở đúng trường hợp biên nà
 .\run-tests.ps1 2
 ```
 
-Kết quả: **6 lượt chạy, 5 đạt, 1 trượt.** Test trượt là phần hay nhất, để dành
-nói cuối.
+Kết quả: **5 lượt chạy, 5 đạt, 0 trượt.**
 
-### C1. Giữ chỗ thành công
+`CourtBookingService.holdBooking()` là phương thức phức tạp nhất hệ thống: nó
+phải kiểm tra sân có tồn tại không, có đang bảo trì không, khung giờ có bị trùng
+không, tính giá, rồi mới tạo bản ghi giữ chỗ. Năm test dưới đây phủ từng nhánh.
+
+### B1. Giữ chỗ thành công
 
 `testHoldBookingSuccess`
 
@@ -310,9 +423,10 @@ verify(occupancyRepository, times(1)).save(argThat(occ ->
 ));
 ```
 
-`times(1)` quan trọng: ghi hai bản ghi chiếm dụng sẽ làm sân bị khoá vĩnh viễn.
+`times(1)` quan trọng: ghi hai bản ghi chiếm dụng sẽ làm sân bị khoá vĩnh viễn —
+đây là loại lỗi mà chỉ kiểm tra kết quả trả về sẽ không phát hiện được.
 
-### C2. Chống trùng lịch
+### B2. Chống trùng lịch
 
 `testHoldBookingOverlapConflict`
 
@@ -336,77 +450,59 @@ Mẫu này đáng giải thích: `expectedExceptions` bảo đảm **có** ném 
 `catch` bảo đảm ném **đúng loại lỗi**. Chỉ dùng `expectedExceptions` thì một lỗi
 sai hoàn toàn nhưng cùng class vẫn được coi là đạt.
 
-### C3. Hai quy tắc còn lại
+### B3. Từ chối sân đang bảo trì
 
-| Test | Tình huống | Kỳ vọng |
-|---|---|---|
-| `testHoldBookingCourtInMaintenance` | Sân đang `maintenance` | Ném lỗi vi phạm **BR-12** |
-| `testCancelBookingSuccess` | Huỷ lượt đang `hold` | `success = true`, trạng thái `cancelled`, `occupancyId` về null, occupancy bị xoá |
-| `testHoldBookingReplacesOldHold` | Khách đã giữ sân A, nay giữ sân B (B trống) | Lượt cũ chuyển `cancelled`, giải phóng đúng 1 lần |
+`testHoldBookingCourtInMaintenance`
 
-`testHoldBookingReplacesOldHold` thể hiện quy tắc **chống chiếm dụng sân**: một
-người không được giữ nhiều sân cùng lúc để "xí chỗ".
-
-### C4. Test trượt — và vì sao nó trượt
-
-`testFailedHoldMustNotReleaseExistingHold` — **FAIL**
-
-```
--> Giữ chỗ thất bại thì không được làm mất lượt giữ chỗ cũ của khách
-   FAIL  (13 ms): Yêu cầu giữ chỗ mới thất bại nhưng lượt giữ chỗ cũ đã bị huỷ mất
-                  expected [hold] but found [cancelled]
-```
-
-**Tình huống:** khách đang giữ sân A. Khách bấm giữ sân B, nhưng sân B vừa có
-người khác đặt mất.
-
-**Kỳ vọng đúng:** báo lỗi "sân B đã có người", và khách **vẫn còn sân A**.
-
-**Thực tế:** khách bị **mất luôn sân A** mà cũng **không có sân B**.
-
-**Nguyên nhân — thứ tự xử lý trong `CourtBookingService.holdBooking()` bị ngược:**
+Sân ở trạng thái `maintenance`. Kỳ vọng ném lỗi vi phạm quy tắc **BR-12**.
 
 ```java
-// Dòng 99-110: HUỶ lượt giữ chỗ cũ của khách      ← làm TRƯỚC
-if (user != null) {
-    List<CourtBookingEntity> oldHolds = courtBookingRepository.findByUserIdAndStatus(...);
-    for (CourtBookingEntity h : oldHolds) {
-        occupancyRepository.deleteById(h.getOccupancyId());
-        h.setStatus("cancelled");
-    }
-}
-
-// Dòng 113-116: KIỂM TRA khung giờ có trùng không  ← làm SAU
-List<OccupancyEntity> overlaps = occupancyRepository.findOverlapping(courtId, startAt, endAt);
-if (!overlaps.isEmpty()) {
-    throw ApiException.conflictSlot("Khung giờ đã có người đặt hoặc trùng lịch.");
-}
+Assert.assertEquals(ex.getBr(), "BR-12", "Phải báo vi phạm quy tắc BR-12");
 ```
 
-Code huỷ sân cũ **trước khi** biết sân mới có đặt được hay không. Đến lúc phát
-hiện trùng lịch và ném lỗi thì sân cũ đã bị xoá mất rồi.
+Mã quy tắc `BR-12` (Business Rule 12) được gắn vào lỗi để bộ phận vận hành biết
+chính xác quy tắc nào bị vi phạm, thay vì chỉ nhận một câu báo lỗi chung chung.
 
-**Cách sửa:** đảo thứ tự — kiểm tra trùng lịch trước, chỉ huỷ lượt cũ sau khi đã
-chắc chắn sân mới đặt được.
+### B4. Chống chiếm dụng sân
 
-### C5. Vì sao có một test trượt lại là điều tốt
+`testHoldBookingReplacesOldHold`
 
-Đây là ý nên chốt bài:
+**Tình huống:** khách đang giữ sân A, nay giữ thêm sân B (sân B còn trống).
 
-1. **Lỗi này vô hình với kiểm thử thủ công.** Bấm tay trên giao diện, ai cũng chỉ
-   thử đường đi thuận lợi — giữ một sân đang trống. Rất ít người nghĩ tới việc
-   "đang giữ sân A thì thử giữ sân B đã có người".
+**Kỳ vọng:** lượt giữ sân A tự động chuyển `cancelled` và bản ghi chiếm dụng của
+nó được giải phóng **đúng một lần**.
 
-2. **Bốn test kia đều đạt vẫn không cứu được.** `testHoldBookingReplacesOldHold`
-   có kiểm tra việc huỷ lượt giữ chỗ cũ, nhưng chỉ ở tình huống **thành công**.
-   Lỗi nằm đúng ở tình huống **thất bại** — chỗ chưa ai kiểm tra.
+```java
+Assert.assertEquals(oldHold.getStatus(), "cancelled");
+verify(occupancyRepository, times(1)).deleteById(oldOccId);
+```
 
-3. **Test trượt đúng chỗ cần trượt.** Thông báo chỉ thẳng ra trạng thái sai
-   (`expected [hold] but found [cancelled]`) và chỉ đúng dòng code gây ra.
+Ý nghĩa nghiệp vụ: một người **không được giữ nhiều sân cùng lúc** để "xí chỗ".
+Nếu thiếu quy tắc này, một khách có thể giữ hết sân trống rồi thong thả chọn.
 
-4. **Một bộ test mà mọi thứ đều xanh chưa chắc là tin tốt** — nhiều khi chỉ có
-   nghĩa là ta chưa hỏi đủ khó. Giá trị của kiểm thử tự động nằm ở chỗ nó tìm ra
-   lỗi *trước khi* người dùng gặp, chứ không phải ở con số 100% đạt.
+### B5. Huỷ lượt giữ chỗ
+
+`testCancelBookingSuccess`
+
+Huỷ một booking đang `hold`. Kỳ vọng: `success = true`, trạng thái đổi thành
+`cancelled`, `occupancyId` được xoá về `null`, và bản ghi chiếm dụng bị xoá.
+
+Điểm đáng nói: test kiểm tra **cả ba việc phải xảy ra cùng nhau**. Nếu code chỉ
+đổi trạng thái mà quên xoá bản ghi chiếm dụng, sân sẽ hiển thị là "đã đặt" mãi
+mãi dù booking đã huỷ — một lỗi rất khó phát hiện bằng mắt.
+
+### Tổng kết module 2
+
+| Test | Nhánh được phủ |
+|---|---|
+| `testHoldBookingSuccess` | Đường đi thuận lợi |
+| `testHoldBookingOverlapConflict` | Xung đột khung giờ → 409 |
+| `testHoldBookingCourtInMaintenance` | Sân không khả dụng → BR-12 |
+| `testHoldBookingReplacesOldHold` | Quy tắc chống chiếm dụng |
+| `testCancelBookingSuccess` | Nghiệp vụ huỷ đặt |
+
+Năm test phủ đủ các nhánh rẽ chính của `holdBooking()`, gồm cả **một nhánh thành
+công** và **hai nhánh từ chối** với hai mã lỗi khác nhau.
 
 ---
 
@@ -429,4 +525,4 @@ Mỗi người có thư mục báo cáo riêng, không ghi đè lên nhau, vì h
 | Chữ tiếng Việt thành `Ki?m tra c?ng th?c` | Console Windows ở code page 437, không có chữ Việt. JDK 17 khi ghi ra console thật sẽ mã hoá theo code page của console chứ không theo `file.encoding` | Chạy bằng `run-tests.ps1` (đã có `chcp 65001` + `-Dsun.stdout.encoding=UTF-8`) |
 | Tab Testing của VS Code báo "did not report any output" | Extension dùng bộ chạy TestNG riêng, không đọc `testng.xml` | Dùng terminal với `run-tests.ps1`; tab Testing chỉ dùng để xem dấu tích xanh/đỏ |
 | `mvn` báo lỗi phiên bản Java | Máy đang dùng JDK mặc định 1.8, Spring Boot 3.3.4 cần JDK 17 | `run-tests.ps1` tự tìm và đặt `JAVA_HOME` sang JDK 17 |
-| `BUILD FAILURE` sau khi chạy module 2 | **Đúng như thiết kế** — có 1 test trượt (mục C4) | Không phải hỏng, đó là nội dung cần trình bày |
+| `BUILD FAILURE` khi chạy module 1 | **Đúng như thiết kế** — có 3 test trượt (mục A7) | Không phải hỏng, đó là nội dung cần trình bày |
