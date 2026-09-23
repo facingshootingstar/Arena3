@@ -10,9 +10,11 @@ import com.arena3.repository.CourtRepository;
 import com.arena3.repository.InvoiceRepository;
 import com.arena3.repository.OccupancyRepository;
 import com.arena3.repository.PaymentRepository;
+import com.arena3.testsupport.ConsoleNarrator;
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
 import java.time.OffsetDateTime;
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.*;
  * Kiểm thử quy tắc giữ chỗ (Hold Booking), phát hiện trùng lịch (Overlap Conflict),
  * và tự động giải phóng lượt giữ chỗ cũ để chống chiếm dụng sân.
  */
+@Listeners(ConsoleNarrator.class)
 public class CourtBookingServiceTest {
 
     private CourtRepository courtRepository;

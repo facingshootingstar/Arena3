@@ -17,6 +17,11 @@
     <properties>
         <java.version>17</java.version>
         <bouncycastle.version>1.78.1</bouncycastle.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <!-- Overridden per-profile below so each presenter can run just
+             their own module. Default: both modules together. -->
+        <testng.suiteXmlFile>src/test/resources/testng.xml</testng.suiteXmlFile>
     </properties>
 
     <dependencies>
@@ -102,8 +107,13 @@
                 <version>3.2.5</version>
                 <configuration>
                     <suiteXmlFiles>
-                        <suiteXmlFile>src/test/resources/testng.xml</suiteXmlFile>
+                        <suiteXmlFile>${testng.suiteXmlFile}</suiteXmlFile>
                     </suiteXmlFiles>
+                    <!-- Without this, the forked JVM's default charset follows the
+                         Windows platform encoding (Cp1252), which cannot represent
+                         Vietnamese diacritics — every ể/ạ/ộ in a @Test description
+                         prints as a bare "?" on the console narrator's output. -->
+                    <argLine>-Dfile.encoding=UTF-8</argLine>
                 </configuration>
                 <dependencies>
                     <dependency>
@@ -115,4 +125,22 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- One profile per presenter, each isolated to their own module and
+         their own TestNG suite/report. Plain `mvn test` (no -P) still runs
+         both modules together via testng.xml, for a full check beforehand. -->
+    <profiles>
+        <profile>
+            <id>module1-pricing</id>
+            <properties>
+                <testng.suiteXmlFile>src/test/resources/testng-module1-pricing.xml</testng.suiteXmlFile>
+            </properties>
+        </profile>
+        <profile>
+            <id>module2-booking</id>
+            <properties>
+                <testng.suiteXmlFile>src/test/resources/testng-module2-booking.xml</testng.suiteXmlFile>
+            </properties>
+        </profile>
+    </profiles>
 </project>
