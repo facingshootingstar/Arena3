@@ -425,19 +425,24 @@ message }`, so any refusal in the UI can be traced to the line that made it.
 | BR-67 | A class must be open to enrol. |
 
 The table above is as-built: every code in it is emitted by a line of running
-code. Four rules added in A3-SRS-001 v1.3.2 are specified but **not yet
-implemented anywhere**, which is why they are listed separately rather than
-above:
+code. Rules added in A3-SRS-001 v1.3.2 and v1.4 (with A3-SDD-001 v0.4) are
+listed separately, because the running code does not emit them yet or only
+covers part of them:
 
 | Code | Rule | Status |
 | --- | --- | --- |
-| BR-19A | A plan grants benefits only while `start_on ≤ today ≤ end_on`. | Specified, not implemented |
-| BR-34A | Plan discount percentages are integers in `[0, 100]`. | Specified, not implemented |
-| BR-34B | No matching price rule ⇒ refuse to quote; never invent a default price. | Specified, not implemented |
-| BR-43A | Order of money operations; round once, half up, after the discount. | Specified, matches current behaviour |
+| BR-19A | A plan grants benefits only while `start_on ≤ today ≤ end_on`. | Specified, not implemented — `memberDiscount` checks `end_on` only |
+| BR-34A | Plan discount percentages are integers in `[0, 100]`. | Enforced by the `court_discount_pct` CHECK on plans; the API does not emit `BR-34A` |
+| BR-34B | No matching price rule ⇒ refuse to quote; never invent a default price. | Specified, not implemented — `lookupPrice` returns 0 |
+| BR-39H | Replacing a hold validates the new hold first; any failure keeps the old hold. | Implemented — `bookingsHold` runs every check before `booking_replace_hold` in one transaction |
+| BR-42A | One VAT display mode: prices include VAT (default) or exclude it. | Default mode only — no `prices_include_vat` setting yet |
+| BR-43A | Order of money operations; round once, half up, after the discount (and VAT when prices exclude it). | Matches current behaviour in the default VAT mode |
 
-The Java service under `backend/` violates the first three; the TestNG suite in
-`backend/src/test` pins them. See `backend/HUONG-DAN-DEMO.md`.
+The Java service under `backend/` violates BR-19A, BR-34A and BR-34B; the
+TestNG suite in `backend/src/test` pins those three. Its `CourtBookingService`
+also cancels the old hold before checking the new one — only the
+`@Transactional` rollback puts it back, and BR-39H forbids that order. See
+`backend/HUONG-DAN-DEMO.md`.
 
 ---
 

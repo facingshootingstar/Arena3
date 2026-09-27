@@ -432,7 +432,7 @@ không phải vì viết sai kỳ vọng. Cả ba đều nằm trong `PricingSer
 > BR nào** nói gói phải tới `start_on` mới có hiệu lực, **không có BR nào** giới
 > hạn phần trăm giảm trong `[0, 100]`, và **không có BR nào** nói phải làm gì khi
 > chưa cấu hình bảng giá. Lập trình viên không sai vì lười — họ không có câu nào
-> để đọc. Vì vậy SRS đã được vá lên **v1.3.2**, thêm **BR-19A, BR-34A, BR-34B,
+> để đọc. Vì vậy SRS đã được vá lên **v1.3.2** (nay là v1.4), thêm **BR-19A, BR-34A, BR-34B,
 > BR-43A** và **TC-41…TC-44**; mỗi test trượt dưới đây giờ dẫn được về một mã BR.
 > Đó là chiều ngược của truy vết: test không chỉ tìm lỗi code, nó còn tìm **lỗ
 > hổng trong đặc tả**.
@@ -554,7 +554,7 @@ nhiêu lượt ở giá sai.
    - Lỗi 3: **thất bại trong im lặng** (tự bịa giá thay vì báo lỗi) — BR-34B
 
 4. **Viết test còn sửa được cả đặc tả.** Ba lỗi này lộ ra ba chỗ SRS chưa nói
-   gì; SRS đã lên v1.3.2 với BR-19A, BR-34A, BR-34B, BR-43A. Ngược lại, một
+   gì; SRS đã lên v1.3.2 (nay là v1.4) với BR-19A, BR-34A, BR-34B, BR-43A. Ngược lại, một
    kỳ vọng ban đầu về hướng làm tròn bị chính SRS phủ nhận (BR-43) và đã bị loại
    — **đối chiếu đặc tả vừa thêm được luật, vừa loại được cáo buộc sai**.
 
@@ -638,7 +638,7 @@ kèm **mã quy tắc bị vi phạm**, để bộ phận vận hành tra thẳng
 ### ⚠️ Phát hiện khi đối chiếu với SRS — nên chủ động nêu
 
 Test này **cố tình giữ nguyên `BR-12`** để khớp với code hiện tại, nhưng khi tra
-[A3-SRS-001-v1.3.1.md](../attachments/A3-SRS-001-v1.3.1.md) thì **mã này sai**:
+[A3-SRS-001-v1.4.md](../attachments/A3-SRS-001-v1.4.md) thì **mã này sai**:
 
 | Mã | Nội dung thật trong SRS |
 |---|---|
