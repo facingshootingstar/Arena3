@@ -576,14 +576,47 @@ sai hoàn toàn nhưng cùng class vẫn được coi là đạt.
 
 `testHoldBookingCourtInMaintenance`
 
-Sân ở trạng thái `maintenance`. Kỳ vọng ném lỗi vi phạm quy tắc **BR-12**.
+Sân ở trạng thái `maintenance`. Test kiểm tra hệ thống có từ chối và có gắn
+**mã quy tắc nghiệp vụ** vào lỗi hay không:
 
 ```java
 Assert.assertEquals(ex.getBr(), "BR-12", "Phải báo vi phạm quy tắc BR-12");
 ```
 
-Mã quy tắc `BR-12` (Business Rule 12) được gắn vào lỗi để bộ phận vận hành biết
-chính xác quy tắc nào bị vi phạm, thay vì chỉ nhận một câu báo lỗi chung chung.
+Ý tưởng của mã `BR-xx` (Business Rule): lỗi trả về không chỉ là một câu chữ, mà
+kèm **mã quy tắc bị vi phạm**, để bộ phận vận hành tra thẳng vào SRS.
+
+### ⚠️ Phát hiện khi đối chiếu với SRS — nên chủ động nêu
+
+Test này **cố tình giữ nguyên `BR-12`** để khớp với code hiện tại, nhưng khi tra
+[A3-SRS-001-v1.3.1.md](../attachments/A3-SRS-001-v1.3.1.md) thì **mã này sai**:
+
+| Mã | Nội dung thật trong SRS |
+|---|---|
+| **BR-12** | *"Gói chưa thanh toán: Subscription pending/expired/frozen không mở quyền ghi danh lớp và thuê sân giá TV/quota"* → nói về **gói hội viên**, không liên quan sân bảo trì |
+| **BR-36** | *"Bảo trì / sự kiện chiếm slot: Lịch bảo trì và event block chiếm court+time như booking confirmed"* → **đây mới đúng** |
+| **BR-35** | Ngày trung tâm đóng vì bảo trì cả ngày |
+
+Code tại `CourtBookingService.java:96` ném `BR-12`:
+
+```java
+if (!"ready".equalsIgnoreCase(court.getStatus())) {
+    throw ApiException.br("BR-12", "Sân đang bảo trì.");   // lẽ ra phải là BR-36
+}
+```
+
+**Cách trình bày:** đây không phải lỗi logic — hệ thống **vẫn từ chối đúng**, sân
+bảo trì vẫn không đặt được. Nhưng **mã quy tắc trả về sai**, nên nhân viên vận
+hành tra SRS sẽ ra nhầm quy tắc về công nợ thay vì quy tắc bảo trì.
+
+Câu nên nói:
+
+> "Test này em để nguyên `BR-12` cho khớp code. Nhưng khi đối chiếu với SRS thì
+> BR-12 là quy tắc về **gói chưa thanh toán**, còn quy tắc bảo trì là **BR-36**.
+> Hệ thống chặn đúng, nhưng **báo sai mã quy tắc**. Đây là loại lỗi chỉ lộ ra khi
+> đọc test cùng với tài liệu đặc tả."
+
+🎯 *Nêu chủ động sẽ ăn điểm; để thầy mở SRS ra bắt được thì ngược lại.*
 
 ### B4. Chống chiếm dụng sân
 
@@ -601,6 +634,16 @@ verify(occupancyRepository, times(1)).deleteById(oldOccId);
 
 Ý nghĩa nghiệp vụ: một người **không được giữ nhiều sân cùng lúc** để "xí chỗ".
 Nếu thiếu quy tắc này, một khách có thể giữ hết sân trống rồi thong thả chọn.
+
+**Test này khớp đúng SRS** — nên trích ra khi trình bày:
+
+> **BR-39 [F7 · cứng] Một hold / user:** *"Tạo hold mới tự hủy hold cũ chưa
+> thanh toán của cùng user."*
+
+Liên quan: **BR-31** quy định hold mềm hết hạn sau 5 phút khi đang thanh toán.
+
+🎯 *Trích được đúng mã BR từ SRS cho thấy test bám đặc tả chứ không viết theo cảm
+tính — ngược hẳn với trường hợp `BR-12` ở B3.*
 
 ### B5. Huỷ lượt giữ chỗ
 
