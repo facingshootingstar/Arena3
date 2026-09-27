@@ -424,6 +424,21 @@ message }`, so any refusal in the UI can be traced to the line that made it.
 | BR-66 | No booking in the past; walk-in needs 20 minutes left. |
 | BR-67 | A class must be open to enrol. |
 
+The table above is as-built: every code in it is emitted by a line of running
+code. Four rules added in A3-SRS-001 v1.3.2 are specified but **not yet
+implemented anywhere**, which is why they are listed separately rather than
+above:
+
+| Code | Rule | Status |
+| --- | --- | --- |
+| BR-19A | A plan grants benefits only while `start_on ≤ today ≤ end_on`. | Specified, not implemented |
+| BR-34A | Plan discount percentages are integers in `[0, 100]`. | Specified, not implemented |
+| BR-34B | No matching price rule ⇒ refuse to quote; never invent a default price. | Specified, not implemented |
+| BR-43A | Order of money operations; round once, half up, after the discount. | Specified, matches current behaviour |
+
+The Java service under `backend/` violates the first three; the TestNG suite in
+`backend/src/test` pins them. See `backend/HUONG-DAN-DEMO.md`.
+
 ---
 
 ## 9. External interfaces
