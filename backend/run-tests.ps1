@@ -50,3 +50,4 @@ $profileArgs = switch ($Module) {
 $mvnArgs = @('-o') + $profileArgs + @('test')
 & .\mvnw.cmd $mvnArgs
 exit $LASTEXITCODE
+  
