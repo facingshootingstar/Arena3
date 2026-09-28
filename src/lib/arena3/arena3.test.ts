@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isValidVnPhone, normalizePhone, passwordOk, phoneLast9 } from "./phone.ts";
 import { rruleLabel } from "./labels.ts";
+import { numberToVietnamese, vndInWords } from "./money-words.ts";
 import { addDays, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd } from "./time.ts";
 import { discountPctOk, planActiveOn, slotPriceOk, ticketBody, validatePriceRules } from "./rules.ts";
 
@@ -129,5 +130,34 @@ describe("ticketBody / FR-S03", () => {
   it('an empty "ticket:" reduces to the empty string (caller returns 422)', () => {
     assert.equal(ticketBody("ticket:"), "");
     assert.equal(ticketBody("ticket: "), "");
+  });
+});
+
+describe("money in words", () => {
+  it("spells the digits a VN invoice trips over", () => {
+    assert.equal(numberToVietnamese(0), "không");
+    assert.equal(numberToVietnamese(5), "năm");
+    assert.equal(numberToVietnamese(10), "mười");
+    assert.equal(numberToVietnamese(15), "mười lăm");
+    assert.equal(numberToVietnamese(21), "hai mươi mốt");
+    assert.equal(numberToVietnamese(25), "hai mươi lăm");
+    assert.equal(numberToVietnamese(105), "một trăm linh năm");
+    assert.equal(numberToVietnamese(1000), "một nghìn");
+  });
+  it("keeps a zero hundreds column audible inside a group", () => {
+    // Drop the "không trăm" and this reads back as 1.050, not 1.005.
+    assert.equal(numberToVietnamese(1005), "một nghìn không trăm linh năm");
+    assert.equal(numberToVietnamese(1050), "một nghìn không trăm năm mươi");
+  });
+  it("skips empty groups without losing their scale", () => {
+    assert.equal(numberToVietnamese(1_000_000), "một triệu");
+    assert.equal(numberToVietnamese(900_000), "chín trăm nghìn");
+    assert.equal(numberToVietnamese(1_200_000), "một triệu hai trăm nghìn");
+    assert.equal(numberToVietnamese(2_000_000_000), "hai tỷ");
+  });
+  it("formats the invoice line", () => {
+    assert.equal(vndInWords(900_000), "Chín trăm nghìn đồng./.");
+    assert.equal(vndInWords(0), "Không đồng./.");
+    assert.equal(vndInWords(-50_000), "Âm năm mươi nghìn đồng./.");
   });
 });
