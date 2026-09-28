@@ -9,15 +9,31 @@ import { generateAssistantReply, type ChatTurn } from "../gemini";
 import { COACHES } from "../coaches";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
+import { payosConfigured } from "../payos";
 
 export async function flagsGet(sql: Sql) {
-  return { status: 200, body: { flags: await flagsMap(sql) } };
+  return {
+    status: 200,
+    body: {
+      flags: await flagsMap(sql),
+      /*
+       * Whether online payment can be offered at all.
+       *
+       * Not a feature flag a manager toggles — it is simply whether the centre
+       * has put payOS credentials in the environment. The screens need to know
+       * so they can leave the button out rather than offer one that fails, and
+       * only the answer crosses the wire; the keys themselves never leave the
+       * server.
+       */
+      capabilities: { online_payment: payosConfigured() },
+    },
+  };
 }
 
 export async function flagsPatch(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const b = await readJson(request);
-  for (const key of ["F4", "F5", "F6", "SMS"] as FlagKey[]) {
+  for (const key of ["F4", "F5", "F6"] as FlagKey[]) {
     if (typeof b[key] === "boolean") {
       await sql.query(`insert into feature_flags (key, enabled) values ($1,$2)
         on conflict (key) do update set enabled = excluded.enabled`, [key, b[key]]);
@@ -127,9 +143,6 @@ export async function inviteWaitlist(sql: Sql, classId: string) {
     [next.id, hours],
   );
   await enqueue(sql, "inapp", "waitlist_offer", next.user_id, { offer_id: offer!.id, class_id: classId }, `wl|${offer!.id}`);
-  if (await flagOn(sql, "SMS")) {
-    await enqueue(sql, "sms", "waitlist_offer", next.user_id, { offer_id: offer!.id }, `wl-sms|${offer!.id}`);
-  }
 }
 
 export async function convertSlot(sql: Sql, request: Request, user: PublicUser) {
