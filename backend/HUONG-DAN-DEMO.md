@@ -13,7 +13,7 @@ Tài liệu cho buổi thuyết trình hai người.
 Mở terminal trong thư mục `backend/`:
 
 ```powershell
-.\run-tests.ps1 1      # Người 1 — tính giá & chiết khấu   (11 lượt, 8 đạt, 3 TRƯỢT)
+.\run-tests.ps1 1      # Người 1 — tính giá & chiết khấu   (12 lượt, 9 đạt, 3 TRƯỢT)
 .\run-tests.ps1 2      # Người 2 — giữ chỗ & trùng lịch    (5 lượt, 5 đạt)
 .\run-tests.ps1        # cả hai, kiểm tra trước buổi nói   (16 lượt, 13 đạt, 3 trượt)
 ```
@@ -143,7 +143,7 @@ tầng trong và ngoài code.
 | File | Vai trò | Ghi chú |
 |---|---|---|
 | `pom.xml` | Khai báo thư viện `testng`, cấu hình plugin `surefire`, khai báo 2 profile | Thêm phần profile |
-| `src/test/java/.../PricingServiceTest.java` | 8 hàm test module 1 | Thêm 3 test mới (mục A7) |
+| `src/test/java/.../PricingServiceTest.java` | 9 hàm test module 1 | Thêm 3 test trượt (mục A7) |
 | `src/test/java/.../CourtBookingServiceTest.java` | 5 hàm test module 2 | Có sẵn từ đầu |
 | `src/test/java/.../testsupport/ConsoleNarrator.java` | In tường thuật ra màn hình | **Thêm mới** |
 | `src/test/resources/testng.xml` | Suite chạy cả hai module | Có sẵn |
@@ -340,10 +340,10 @@ lần: trạng thái cuối vẫn đúng, nhưng hành vi thì sai. Người 2 s
 ### Đọc con số tổng kết
 
 ```
-Tổng lượt chạy: 11   Đạt: 8   Thất bại: 3   Bỏ qua: 0
+Tổng lượt chạy: 12   Đạt: 9   Thất bại: 3   Bỏ qua: 0
 ```
 
-Module 1 chỉ có **8 phương thức** `@Test` nhưng báo **11 lượt chạy**. Không mâu
+Module 1 chỉ có **9 phương thức** `@Test` nhưng báo **12 lượt chạy**. Không mâu
 thuẫn: `testLookupPriceDynamic` dùng `@DataProvider` nên chạy 4 lần với 4 bộ dữ
 liệu. TestNG đếm theo **lượt chạy thực tế**, không đếm theo số hàm.
 
@@ -404,6 +404,22 @@ phép**. Chỉ có test thứ nhất thì lỗi "giảm giá cho mọi môn" s�
 140.000đ giảm  0%  →  140.000đ (giữ nguyên)
 ```
 
+### Làm tròn VND theo BR-43
+
+`testRoundingIsHalfUpPerBr43` — khóa đúng chữ trong đặc tả: làm tròn tới
+**1.000đ, làm tròn nửa lên** (BR-43), và chỉ làm tròn **một lần** sau chiết khấu
+(BR-43A).
+
+```
+140.000đ giảm 13%  →  121.800đ  →  thu 122.000đ   (nửa lên)
+140.000đ giảm 12%  →  123.200đ  →  thu 123.000đ   (nửa xuống)
+```
+
+Test này trông tầm thường về mặt số học, nhưng nó là chỗ **đặc tả thắng cảm
+tính**: trực giác nói "làm tròn xuống cho có lợi cho khách", BR-43 nói "nửa lên".
+Test viết theo BR, không viết theo trực giác — và chính chỗ này từng làm nhóm
+hiểu sai (xem ghi chú cuối mục A7).
+
 ---
 
 ## A7. Module 1 — BA TEST TRƯỢT
@@ -411,11 +427,21 @@ phép**. Chỉ có test thứ nhất thì lỗi "giảm giá cho mọi môn" s�
 Đây là phần đáng giá nhất của bài. Cả ba test đều trượt vì **code có lỗi thật**,
 không phải vì viết sai kỳ vọng. Cả ba đều nằm trong `PricingService`.
 
-### Lỗi 1 — Gói tập chưa tới ngày bắt đầu đã được giảm giá
+> **Gốc rễ chung: đặc tả thiếu quy tắc, không chỉ là code cẩu thả.**
+> Khi đối chiếu ba lỗi này với `attachments/A3-SRS-001` (bản 1.3.1) thì **không có
+> BR nào** nói gói phải tới `start_on` mới có hiệu lực, **không có BR nào** giới
+> hạn phần trăm giảm trong `[0, 100]`, và **không có BR nào** nói phải làm gì khi
+> chưa cấu hình bảng giá. Lập trình viên không sai vì lười — họ không có câu nào
+> để đọc. Vì vậy SRS đã được vá lên **v1.3.2**, thêm **BR-19A, BR-34A, BR-34B,
+> BR-43A** và **TC-41…TC-44**; mỗi test trượt dưới đây giờ dẫn được về một mã BR.
+> Đó là chiều ngược của truy vết: test không chỉ tìm lỗi code, nó còn tìm **lỗ
+> hổng trong đặc tả**.
+
+### Lỗi 1 — Gói tập chưa tới ngày bắt đầu đã được giảm giá (BR-19A)
 
 ```
--> Gói tập chưa tới ngày bắt đầu thì chưa được giảm giá
-   FAIL: Gói tập phải tới ngày 2026-10-01 mới có hiệu lực, chưa được giảm giá hôm nay
+-> BR-19A: gói chưa tới ngày bắt đầu thì chưa mở quyền lợi giảm giá
+   FAIL: BR-19A: gói chỉ có hiệu lực từ 2026-10-07, hôm nay chưa được giảm giá
          expected [0] but found [20]
 ```
 
@@ -436,13 +462,15 @@ for (SubscriptionEntity s : subs) {
 Trường `startOn` có trong dữ liệu nhưng **không hề được dùng**. Gói nào cũng coi
 như đã bắt đầu.
 
-**Cách sửa:** thêm điều kiện `!s.getStartOn().isAfter(today)`.
+**Cách sửa:** thêm điều kiện `!s.getStartOn().isAfter(today)` — đúng như BR-19A
+mới bổ sung, và trạng thái đó gọi là **Scheduled**, không phải Active.
 
-### Lỗi 2 — Giảm giá trên 100% cho ra giá âm
+### Lỗi 2 — Giảm giá trên 100% cho ra giá âm (BR-34A)
 
 ```
--> Phần trăm giảm giá không được vượt quá 100%
-   FAIL: Giảm 150% cho ra giá -70000đ - trung tâm phải trả tiền cho khách
+-> BR-34A: phần trăm giảm của gói phải nằm trong [0, 100]
+   FAIL: BR-34A: giảm 150% cho ra giá -70000đ - giá sau giảm phải nằm trong
+         [0, giá niêm yết]
 ```
 
 **Tình huống:** người quản trị nhập nhầm `150` thay vì `15` khi cấu hình gói hội
@@ -459,37 +487,53 @@ public int applyDiscount(int list, int pct, int round) {
 }
 ```
 
-**Cách sửa:** kẹp `pct` vào khoảng 0–100 trước khi tính, hoặc chặn kết quả không
-được nhỏ hơn 0.
+**Cách sửa:** theo BR-34A, **từ chối** giá trị ngoài `[0, 100]` ngay khi lưu cấu
+hình — không kẹp im lặng về 100, vì kẹp im lặng biến một lỗi nhập liệu thành một
+đơn miễn phí mà không ai biết.
 
-### Lỗi 3 — Làm tròn khiến khách trả nhiều hơn giá đã giảm
-
-```
--> Làm tròn không được khiến khách trả nhiều hơn giá đã chiết khấu
-   FAIL: Khách phải trả 122000đ trong khi giá sau chiết khấu chỉ là 121.800đ
-```
-
-**Tình huống:** giá sân 140.000đ, giảm 13%.
+### Lỗi 3 — Chưa cấu hình bảng giá, hệ thống tự bịa ra giá để bán (BR-34B)
 
 ```
-Giá đúng sau chiết khấu:  140.000 × 0,87 = 121.800đ
-Hệ thống thu của khách:                    122.000đ
-                                          ─────────
-Khách trả dư:                                  200đ
+-> BR-34B: chưa cấu hình bảng giá thì không được tự bịa ra giá để bán
+   FAIL: Không có luật giá nào khớp mà hệ thống vẫn báo 100000đ - BR-34B cấm giá
+         mặc định ngầm, phải từ chối báo giá
+         expected [0] but found [100000]
 ```
 
-**Nguyên nhân** — `Math.round` làm tròn về số gần nhất, nên `121,8` nghìn thành
-`122` nghìn, tức **làm tròn lên**:
+**Tình huống:** trung tâm mở thêm khung giờ 07:00 cho bóng rổ nhưng quản lý chưa
+kịp nhập bảng giá. Lễ tân bán sân bình thường, hệ thống báo **100.000đ** — một con
+số không có trong bất kỳ bảng giá nào.
+
+**Nguyên nhân** — `lookupPrice()` không tìm được luật giá nào thì **tự điền một giá
+mặc định** thay vì báo lỗi cấu hình:
 
 ```java
-return (int) (Math.round(net / round) * round);   // 121.800 → 122.000
+if (match != null) {
+    res.setPriceVnd(match.getPriceVnd());
+    res.setPeak(match.isPeak());
+} else {
+    res.setPriceVnd(100000);   // giá từ đâu ra? không ai cấu hình con số này
+    res.setPeak(false);
+}
 ```
 
-**Cách sửa:** dùng `Math.floor` để làm tròn xuống, nghiêng về phía có lợi cho
-khách — khách không bao giờ phải trả nhiều hơn giá đã niêm yết sau giảm.
+**Tại sao nguy hiểm hơn hai lỗi trên:** nó **thất bại trong im lặng**. Không có
+thông báo lỗi, không có dòng log, giao diện vẫn đẹp, phiếu thu vẫn in. Sai lệch
+doanh thu chỉ lộ ra khi đối soát cuối tháng, và lúc đó không còn biết đã bán bao
+nhiêu lượt ở giá sai.
 
-Lỗi này nhỏ (200đ) nhưng nhân với hàng nghìn lượt đặt sân thì thành con số thật,
-và về nguyên tắc là **thu sai so với giá đã công bố**.
+**Cách sửa:** theo BR-34B, từ chối báo giá và báo lỗi cấu hình cho quản lý.
+
+> **Ghi chú trung thực — chỗ này tài liệu đã từng viết sai.**
+> Bản trước của mục A7 nêu lỗi 3 là *"làm tròn khiến khách trả dư 200đ"*
+> (140.000 × 0,87 = 121.800 → thu 122.000). Đối chiếu SRS thì **đó không phải
+> lỗi**: **BR-43** ghi rõ *"làm tròn tới 1.000 đồng, làm tròn nửa lên"*, tức
+> `Math.round` đang làm **đúng đặc tả**. Test cũ đã bị thay bằng
+> `testRoundingIsHalfUpPerBr43` — nay là một test **đạt**, khóa đúng hành vi BR-43
+> — và BR-43A được thêm vào SRS để chốt thứ tự tính tiền và nói thẳng rằng chênh
+> lệch tối đa 499đ theo hướng lên là **đúng**, không phải thu vượt. Nếu ai hỏi
+> "sao không làm tròn xuống cho có lợi cho khách", câu trả lời là: **đặc tả quyết
+> định, không phải cảm tính** — muốn đổi thì sửa BR-43 trước, rồi mới sửa code.
 
 ### Vì sao có test trượt lại là điều tốt
 
@@ -499,17 +543,22 @@ và về nguyên tắc là **thu sai so với giá đã công bố**.
    cũng chỉ thử trường hợp bình thường: gói đang còn hạn, giảm 15%, giá tròn số.
    Không ai nghĩ tới gói *chưa bắt đầu*, hay tới việc nhập nhầm *150%*.
 
-2. **Tám test đạt kia vẫn không cứu được.** Đã có sẵn test kiểm tra chiết khấu
+2. **Chín test đạt kia vẫn không cứu được.** Đã có sẵn test kiểm tra chiết khấu
    (`testMemberDiscountActiveSubscription`) và test kiểm tra làm tròn
    (`testApplyDiscountRounding`) — nhưng cả hai chỉ thử **trường hợp đẹp**. Lỗi
    nằm ở **trường hợp biên**, chỗ chưa ai hỏi tới.
 
 3. **Ba lỗi thuộc ba loại khác nhau**, cho thấy test bắt được nhiều kiểu sai:
-   - Lỗi 1: **thiếu kiểm tra dữ liệu đầu vào** (quên trường `startOn`)
-   - Lỗi 2: **thiếu chặn giá trị biên** (không giới hạn trần phần trăm)
-   - Lỗi 3: **sai hướng làm tròn** trong công thức tính tiền
+   - Lỗi 1: **thiếu kiểm tra dữ liệu đầu vào** (quên trường `startOn`) — BR-19A
+   - Lỗi 2: **thiếu chặn giá trị biên** (không giới hạn trần phần trăm) — BR-34A
+   - Lỗi 3: **thất bại trong im lặng** (tự bịa giá thay vì báo lỗi) — BR-34B
 
-4. **Một bộ test mà mọi thứ đều xanh chưa chắc là tin tốt** — nhiều khi chỉ có
+4. **Viết test còn sửa được cả đặc tả.** Ba lỗi này lộ ra ba chỗ SRS chưa nói
+   gì; SRS đã lên v1.3.2 với BR-19A, BR-34A, BR-34B, BR-43A. Ngược lại, một
+   kỳ vọng ban đầu về hướng làm tròn bị chính SRS phủ nhận (BR-43) và đã bị loại
+   — **đối chiếu đặc tả vừa thêm được luật, vừa loại được cáo buộc sai**.
+
+5. **Một bộ test mà mọi thứ đều xanh chưa chắc là tin tốt** — nhiều khi chỉ có
    nghĩa là ta chưa hỏi đủ khó. Giá trị của kiểm thử tự động nằm ở chỗ nó tìm ra
    lỗi *trước khi* người dùng gặp, chứ không phải ở con số 100% đạt.
 
@@ -576,14 +625,47 @@ sai hoàn toàn nhưng cùng class vẫn được coi là đạt.
 
 `testHoldBookingCourtInMaintenance`
 
-Sân ở trạng thái `maintenance`. Kỳ vọng ném lỗi vi phạm quy tắc **BR-12**.
+Sân ở trạng thái `maintenance`. Test kiểm tra hệ thống có từ chối và có gắn
+**mã quy tắc nghiệp vụ** vào lỗi hay không:
 
 ```java
 Assert.assertEquals(ex.getBr(), "BR-12", "Phải báo vi phạm quy tắc BR-12");
 ```
 
-Mã quy tắc `BR-12` (Business Rule 12) được gắn vào lỗi để bộ phận vận hành biết
-chính xác quy tắc nào bị vi phạm, thay vì chỉ nhận một câu báo lỗi chung chung.
+Ý tưởng của mã `BR-xx` (Business Rule): lỗi trả về không chỉ là một câu chữ, mà
+kèm **mã quy tắc bị vi phạm**, để bộ phận vận hành tra thẳng vào SRS.
+
+### ⚠️ Phát hiện khi đối chiếu với SRS — nên chủ động nêu
+
+Test này **cố tình giữ nguyên `BR-12`** để khớp với code hiện tại, nhưng khi tra
+[A3-SRS-001-v1.3.1.md](../attachments/A3-SRS-001-v1.3.1.md) thì **mã này sai**:
+
+| Mã | Nội dung thật trong SRS |
+|---|---|
+| **BR-12** | *"Gói chưa thanh toán: Subscription pending/expired/frozen không mở quyền ghi danh lớp và thuê sân giá TV/quota"* → nói về **gói hội viên**, không liên quan sân bảo trì |
+| **BR-36** | *"Bảo trì / sự kiện chiếm slot: Lịch bảo trì và event block chiếm court+time như booking confirmed"* → **đây mới đúng** |
+| **BR-35** | Ngày trung tâm đóng vì bảo trì cả ngày |
+
+Code tại `CourtBookingService.java:96` ném `BR-12`:
+
+```java
+if (!"ready".equalsIgnoreCase(court.getStatus())) {
+    throw ApiException.br("BR-12", "Sân đang bảo trì.");   // lẽ ra phải là BR-36
+}
+```
+
+**Cách trình bày:** đây không phải lỗi logic — hệ thống **vẫn từ chối đúng**, sân
+bảo trì vẫn không đặt được. Nhưng **mã quy tắc trả về sai**, nên nhân viên vận
+hành tra SRS sẽ ra nhầm quy tắc về công nợ thay vì quy tắc bảo trì.
+
+Câu nên nói:
+
+> "Test này em để nguyên `BR-12` cho khớp code. Nhưng khi đối chiếu với SRS thì
+> BR-12 là quy tắc về **gói chưa thanh toán**, còn quy tắc bảo trì là **BR-36**.
+> Hệ thống chặn đúng, nhưng **báo sai mã quy tắc**. Đây là loại lỗi chỉ lộ ra khi
+> đọc test cùng với tài liệu đặc tả."
+
+🎯 *Nêu chủ động sẽ ăn điểm; để thầy mở SRS ra bắt được thì ngược lại.*
 
 ### B4. Chống chiếm dụng sân
 
@@ -601,6 +683,16 @@ verify(occupancyRepository, times(1)).deleteById(oldOccId);
 
 Ý nghĩa nghiệp vụ: một người **không được giữ nhiều sân cùng lúc** để "xí chỗ".
 Nếu thiếu quy tắc này, một khách có thể giữ hết sân trống rồi thong thả chọn.
+
+**Test này khớp đúng SRS** — nên trích ra khi trình bày:
+
+> **BR-39 [F7 · cứng] Một hold / user:** *"Tạo hold mới tự hủy hold cũ chưa
+> thanh toán của cùng user."*
+
+Liên quan: **BR-31** quy định hold mềm hết hạn sau 5 phút khi đang thanh toán.
+
+🎯 *Trích được đúng mã BR từ SRS cho thấy test bám đặc tả chứ không viết theo cảm
+tính — ngược hẳn với trường hợp `BR-12` ở B3.*
 
 ### B5. Huỷ lượt giữ chỗ
 

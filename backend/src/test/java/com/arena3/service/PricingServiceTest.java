@@ -174,7 +174,7 @@ public class PricingServiceTest {
         Assert.assertEquals(pricingService.applyDiscount(listPrice, 0, 1000), 140000);
     }
 
-    @Test(description = "Gói tập chưa tới ngày bắt đầu thì chưa được giảm giá")
+    @Test(description = "BR-19A: gói chưa tới ngày bắt đầu thì chưa mở quyền lợi giảm giá")
     public void testMemberDiscountNotStartedYet() {
         UUID userId = UUID.randomUUID();
         UUID planId = UUID.randomUUID();
@@ -198,26 +198,44 @@ public class PricingServiceTest {
         PricingService.DiscountResult discount = pricingService.memberDiscount(userId, "badminton");
 
         Assert.assertEquals(discount.getPct(), 0,
-                "Gói tập phải tới ngày " + sub.getStartOn() + " mới có hiệu lực, chưa được giảm giá hôm nay");
+                "BR-19A: gói chỉ có hiệu lực từ " + sub.getStartOn()
+                        + ", hôm nay chưa được giảm giá");
     }
 
-    @Test(description = "Phần trăm giảm giá không được vượt quá 100%")
+    @Test(description = "BR-34A: phần trăm giảm của gói phải nằm trong [0, 100]")
     public void testDiscountPctCannotExceed100() {
         // Người quản trị nhập nhầm 150% khi cấu hình gói hội viên
         int netPrice = pricingService.applyDiscount(140000, 150, 1000);
 
         Assert.assertTrue(netPrice >= 0,
-                "Giảm 150% cho ra giá " + netPrice + "đ - trung tâm phải trả tiền cho khách");
+                "BR-34A: giảm 150% cho ra giá " + netPrice
+                        + "đ - giá sau giảm phải nằm trong [0, giá niêm yết]");
     }
 
-    @Test(description = "Làm tròn không được khiến khách trả nhiều hơn giá đã chiết khấu")
-    public void testRoundingMustNotOverchargeCustomer() {
-        int listPrice = 140000;
-        int discountPct = 13; // 140.000 x 0,87 = 121.800đ
+    @Test(description = "BR-43/BR-43A: làm tròn nửa lên tới 1.000đ, làm tròn đúng một lần sau chiết khấu")
+    public void testRoundingIsHalfUpPerBr43() {
+        // 140.000 x 0,87 = 121.800đ -> làm tròn nửa lên -> 122.000đ
+        Assert.assertEquals(pricingService.applyDiscount(140000, 13, 1000), 122000,
+                "BR-43 quy định làm tròn nửa lên, nên 121.800đ phải thành 122.000đ");
 
-        int netPrice = pricingService.applyDiscount(listPrice, discountPct, 1000);
+        // 140.000 x 0,88 = 123.200đ -> làm tròn nửa xuống -> 123.000đ
+        Assert.assertEquals(pricingService.applyDiscount(140000, 12, 1000), 123000,
+                "123.200đ phải làm tròn xuống 123.000đ");
+    }
 
-        Assert.assertTrue(netPrice <= 121800,
-                "Khách phải trả " + netPrice + "đ trong khi giá sau chiết khấu chỉ là 121.800đ");
+    @Test(description = "BR-34B: chưa cấu hình bảng giá thì không được tự bịa ra giá để bán")
+    public void testMissingPriceRuleMustNotInventDefaultPrice() {
+        UUID courtId = UUID.randomUUID();
+        OffsetDateTime time = OffsetDateTime.parse("2026-09-16T07:00:00+07:00");
+
+        // Quản lý chưa cấu hình bảng giá bóng rổ cho khung giờ này
+        when(priceRuleRepository.findMatchingRules(anyString(), anyString(), anyInt()))
+                .thenReturn(List.of());
+
+        PricingService.PriceResult result = pricingService.lookupPrice("basketball", courtId, time);
+
+        Assert.assertEquals(result.getPriceVnd(), 0,
+                "Không có luật giá nào khớp mà hệ thống vẫn báo " + result.getPriceVnd()
+                        + "đ - BR-34B cấm giá mặc định ngầm, phải từ chối báo giá");
     }
 }

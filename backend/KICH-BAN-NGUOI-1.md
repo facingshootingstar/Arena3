@@ -182,11 +182,11 @@ PricingServiceTest.java          ← code test thật sự nằm ở đây
 
 ---
 
-## ⏱ 4:00 – 5:15 | 8 test ĐẠT nói lên điều gì
+## ⏱ 4:00 – 5:15 | 9 test ĐẠT nói lên điều gì
 
 **Chặn thắc mắc trước:**
 
-> "Em viết **8 hàm** test nhưng báo **11 lượt chạy** — không phải lỗi."
+> "Em viết **9 hàm** test nhưng báo **12 lượt chạy** — không phải lỗi."
 
 **Chiếu bảng dữ liệu:**
 
@@ -256,25 +256,31 @@ if (pct <= 0) return list;    // chặn cận DƯỚI, quên cận TRÊN
 > "Code có chặn phần trăm âm, nhưng quên chặn trần. Đây là kiểu lỗi kinh điển:
 > nghĩ tới một đầu mà quên đầu kia."
 
-### Lỗi 3 — Sai hướng làm tròn (60 giây) ⭐ kể kỹ nhất
+### Lỗi 3 — Thất bại trong im lặng (60 giây) ⭐ kể kỹ nhất
 
 **Chiếu to:**
 
 ```
-Giá sân:        140.000đ
-Giảm 13%:       140.000 × 0,87 = 121.800đ
-Hệ thống thu:                    122.000đ
-                               ──────────
-Khách trả dư:                        200đ
+Bảng giá bóng rổ khung 07:00:   CHƯA CẤU HÌNH
+Hệ thống báo giá:               100.000đ   ← con số này ở đâu ra?
 ```
 
-> "Nguyên nhân là `Math.round` — nó làm tròn về số **gần nhất**, nên 121,8
-> nghìn thành 122 nghìn, tức là làm tròn **lên**."
+```java
+} else {
+    res.setPriceVnd(100000);   // không ai cấu hình con số này
+}
+```
 
-> "200 đồng nghe rất nhỏ. Nhưng thứ nhất, nhân với hàng nghìn lượt đặt sân thì
-> thành tiền thật. Thứ hai, và quan trọng hơn: đây là **thu sai so với giá mà
-> trung tâm đã công bố**. Cách sửa là dùng `Math.floor` — làm tròn xuống,
-> nghiêng về phía có lợi cho khách."
+> "Trung tâm mở thêm khung giờ 7 giờ sáng cho bóng rổ, quản lý chưa kịp nhập bảng
+> giá. Lễ tân bán bình thường. Hệ thống báo **100 nghìn** — một con số **không có
+> trong bất kỳ bảng giá nào**. Code không tìm được luật giá thì **tự điền một giá
+> mặc định**."
+
+> "Hai lỗi trước còn có dấu hiệu — giá âm thì nhìn là biết. Lỗi này **thất bại
+> trong im lặng**: không thông báo lỗi, không dòng log, giao diện vẫn đẹp, phiếu
+> thu vẫn in ra. Đối soát cuối tháng mới lệch, và lúc đó **không còn biết đã bán
+> bao nhiêu lượt ở giá sai**. Đúng ra hệ thống phải **từ chối báo giá** và bảo
+> quản lý đi cấu hình."
 
 ### 🎤 CHỐT (40 giây) — học thuộc đoạn này
 
@@ -284,12 +290,19 @@ Khách trả dư:                        200đ
 > thì ai cũng chỉ thử trường hợp bình thường — gói đang còn hạn, giảm 15%, giá
 > tròn số. Không ai nghĩ tới gói *chưa bắt đầu*, hay gõ nhầm *150%*."
 
-> "**Hai**, và đây mới đáng sợ: **8 test đạt kia không cứu được**. Em đã có sẵn
+> "**Hai**, và đây mới đáng sợ: **9 test đạt kia không cứu được**. Em đã có sẵn
 > test kiểm tra chiết khấu, có sẵn test kiểm tra làm tròn. Nhưng cả hai chỉ thử
 > **trường hợp đẹp**. Lỗi nằm ở **trường hợp biên**, chỗ chưa ai hỏi tới."
 
 > "**Ba**, 3 lỗi thuộc 3 loại khác nhau: một cái **quên đọc dữ liệu**, một cái
-> **quên chặn biên**, một cái **sai hướng làm tròn**."
+> **quên chặn biên**, một cái **thất bại trong im lặng**."
+
+> "Và một ý cuối, em nghĩ là ý đáng giá nhất: em mang 3 lỗi này đi đối chiếu
+> **SRS** thì phát hiện SRS **không có luật nào** nói gói phải tới ngày bắt đầu
+> mới có hiệu lực, **không có luật nào** giới hạn phần trăm giảm, **không có luật
+> nào** nói phải làm gì khi chưa cấu hình bảng giá. Lập trình viên không có câu
+> nào để đọc. Nên nhóm em đã bổ sung **BR-19A, BR-34A, BR-34B** vào SRS — viết
+> test không chỉ tìm lỗi code, nó còn tìm **lỗ hổng trong đặc tả**."
 
 > "Nên nếu bài của em toàn màu xanh, em nghĩ nó còn **kém tin cậy hơn** bây giờ.
 > Một bộ test toàn xanh không chứng minh code đúng — nhiều khi nó chỉ chứng minh
@@ -335,7 +348,9 @@ Khách trả dư:                        200đ
 | **"Sao không sửa 3 lỗi cho xanh hết?"** ⭐ chắc chắn bị hỏi | "Sửa được ạ, mỗi lỗi vài dòng. Nhưng mục tiêu là trình bày **năng lực của bộ test**. Sửa code thì test xanh, và em mất luôn bằng chứng là test **đã bắt được** 3 lỗi đó." |
 | "Mock là gì, sao không dùng database thật?" | "Mock là đồ giả. Em bảo nó: ai hỏi luật giá cầu lông ngày thường thì trả về luật này. Dùng database thật thì test chậm, phụ thuộc mạng, dữ liệu đổi làm test lúc đạt lúc trượt → không ai tin nó nữa." |
 | "Sao build báo đỏ FAILURE?" | "Có test trượt thì Maven trả mã lỗi khác 0 — đúng thiết kế. Thực tế chính cái này chặn code lỗi không cho đẩy lên." |
-| "11 lượt nhưng 8 hàm?" | "`@DataProvider` 4 bộ dữ liệu nên 1 hàm chạy 4 lần." |
+| "12 lượt nhưng 9 hàm?" | "`@DataProvider` 4 bộ dữ liệu nên 1 hàm chạy 4 lần." |
+| **"Test của em dựa vào đâu mà nói code sai?"** ⭐ | "Dựa vào SRS ạ. Ba lỗi này ứng với **BR-19A, BR-34A, BR-34B** — nhưng ba luật đó do nhóm em **bổ sung vào SRS v1.3.2 sau khi viết test**, vì bản cũ chưa nói gì về mấy tình huống đó. Đó chính là giá trị: test lộ ra chỗ đặc tả thiếu." |
+| "Làm tròn thì làm tròn lên hay xuống?" | "**Nửa lên**, theo **BR-43**. Ban đầu em tưởng làm tròn lên là thu vượt của khách, nhưng đọc lại SRS thì đó là đúng luật. Em đã chuyển nó thành một test **đạt** để khóa hành vi này lại." |
 | "Tham số `minutes` khai báo mà không dùng?" | "Đúng ạ, nó chỉ là chú thích để người đọc dễ đối chiếu với cột thời gian." |
 | "Chạy máy khác được không?" | "Được, không cần database, script tự tìm JDK 17." |
 | "`@Listeners` với file XML khác gì nhau?" | "XML dùng khi chạy bằng Maven. `@Listeners` gắn vào class nên chạy đường nào cũng có. Em để cả hai; TestNG loại trùng theo tên class nên không in 2 lần — cái này em có thử." |
