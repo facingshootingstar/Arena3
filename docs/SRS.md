@@ -431,9 +431,9 @@ covers part of them:
 
 | Code | Rule | Status |
 | --- | --- | --- |
-| BR-19A | A plan grants benefits only while `start_on ≤ today ≤ end_on`. | Specified, not implemented — `memberDiscount` checks `end_on` only |
+| BR-19A | A plan grants benefits only while `start_on ≤ today ≤ end_on`. | Implemented — `memberDiscount` checks `start_on` and `end_on` |
 | BR-34A | Plan discount percentages are integers in `[0, 100]`. | Enforced by the `court_discount_pct` CHECK on plans; the API does not emit `BR-34A` |
-| BR-34B | No matching price rule ⇒ refuse to quote; never invent a default price. | Specified, not implemented — `lookupPrice` returns 0 |
+| BR-34B | No matching price rule ⇒ refuse to quote; never invent a default price. | Implemented — `lookupPrice` throws `BR-34B` when no rule matches or the matched price is outside `(0, 5,000,000]đ`; the same bound is enforced by `priceRulesPut` and a DB `CHECK` on `price_rules` |
 | BR-39H | Replacing a hold validates the new hold first; any failure keeps the old hold. | Implemented — `bookingsHold` runs every check before `booking_replace_hold` in one transaction |
 | BR-42A | One VAT display mode: prices include VAT (default) or exclude it. | Default mode only — no `prices_include_vat` setting yet |
 | BR-43A | Order of money operations; round once, half up, after the discount (and VAT when prices exclude it). | Matches current behaviour in the default VAT mode |

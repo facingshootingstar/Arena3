@@ -11,6 +11,7 @@ import {
   subscriptionDebt,
 } from "../helpers";
 import { invoicePdfLines, simplePdf } from "../pdf";
+import { validatePriceRules } from "../rules";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
@@ -689,23 +690,21 @@ export async function priceRulesPut(sql: Sql, request: Request, user: PublicUser
   const b = await readJson(request);
   const items = Array.isArray(b.items) ? b.items : Array.isArray(b) ? b : null;
   if (!items) throw err.validation("items[] is required.");
+  // The one thing standing between a fat-fingered (or malicious) PUT and a
+  // court quoted at 99,999,999đ. Validate the whole table before touching a
+  // row — `delete from price_rules` is not the place to discover row 9 was bad.
+  const checked = validatePriceRules(items);
+  if (!checked.ok) throw err.validation(checked.message, { index: checked.index });
+  const before = await priceRulesGet(sql);
   await sql.query(`delete from price_rules`);
-  for (const it of items as Record<string, unknown>[]) {
+  for (const it of checked.rules) {
     await sql.query(
       `insert into price_rules (sport, court_id, day_kind, start_local, end_local, price_vnd, is_peak)
        values ($1,$2,$3,$4,$5,$6,$7)`,
-      [
-        str(it.sport),
-        str(it.court_id) ?? null,
-        str(it.day_kind),
-        str(it.start_local),
-        str(it.end_local),
-        num(it.price_vnd),
-        Boolean(it.is_peak),
-      ],
+      [it.sport, it.court_id, it.day_kind, it.start_local, it.end_local, it.price_vnd, it.is_peak],
     );
   }
-  await audit(sql, user.id, "replace_prices", "price_rules", null);
+  await audit(sql, user.id, "replace_prices", "price_rules", null, before.body, { items: checked.rules });
   return priceRulesGet(sql);
 }
 
