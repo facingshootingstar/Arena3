@@ -27,10 +27,18 @@ ALTER TYPE pay_status ADD VALUE IF NOT EXISTS 'failed';
 -- may be negative — it does not need editing again the next time a status is
 -- added. Compared as text so no new enum label is referenced in this
 -- transaction.
+--
+-- 'posted' is left unconstrained on purpose: it is the terminal state for BOTH
+-- an ordinary charge (amount_vnd >= 0) and an approved refund
+-- (paymentsApproveRefund / the manager-direct path in paymentsRefund insert a
+-- negative amount_vnd straight into 'posted' — there is no separate "refunded"
+-- status). An earlier version of this constraint forced 'posted' to be >= 0,
+-- which rejects every completed refund row already in the table.
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS refund_amount_chk;
 ALTER TABLE payments ADD CONSTRAINT refund_amount_chk CHECK (
   CASE
     WHEN status::text IN ('refund_pending', 'refund_rejected') THEN amount_vnd < 0
+    WHEN status::text = 'posted' THEN true
     ELSE amount_vnd >= 0
   END
 );
