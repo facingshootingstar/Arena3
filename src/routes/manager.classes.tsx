@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Button, Card, DateField, Field, Input, Select, StatusBadge } from "@/components/ui";
+import { Button, Card, DateField, Empty, Field, Input, Select, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { ClassDetailModal } from "@/components/class-detail";
@@ -39,6 +39,8 @@ function Page() {
     }>
   >([]);
   const [courts, setCourts] = useState<Array<{ id: string; court_code: string; sport: string }>>([]);
+  const [coaches, setCoaches] = useState<Array<{ id: string; full_name: string; sports: string[] | null }>>([]);
+  const [loaded, setLoaded] = useState(false);
   // The class whose sessions and roster are open (B-08).
   const [detail, setDetail] = useState<string | null>(null);
   const [days, setDays] = useState<string[]>(["TU", "TH"]);
@@ -46,8 +48,8 @@ function Page() {
   const [form, setForm] = useState({
     sport: "badminton",
     level: "beginner",
-    coach_id: "00000000-0000-0000-0000-000000000003",
-    court_id: "10000000-0000-0000-0000-000000000007",
+    coach_id: "",
+    court_id: "",
     capacity: 12,
     duration_min: 90,
     start_on: todayISO(),
@@ -57,10 +59,35 @@ function Page() {
   const load = useCallback(async () => {
     setItems((await apiGet<{ items: typeof items }>("/classes")).items);
     setCourts((await apiGet<{ items: typeof courts }>("/courts")).items);
+    setCoaches((await apiGet<{ items: typeof coaches }>("/staff?role=coach&status=active")).items);
+    setLoaded(true);
   }, []);
   useEffect(() => {
     void load().catch((e) => toast.error(e.message));
   }, [load]);
+
+  // The people and courts a class of this sport can actually use. Nothing is
+  // assumed about which accounts exist: a centre that issued its own coach
+  // logins has none of the seed ids.
+  const sportCourts = useMemo(() => courts.filter((c) => c.sport === form.sport), [courts, form.sport]);
+  const sportCoaches = useMemo(
+    () => coaches.filter((c) => (c.sports ?? []).some((s) => s === form.sport || s === "all")),
+    [coaches, form.sport],
+  );
+  useEffect(() => {
+    setForm((f) => {
+      const court_id = sportCourts.some((c) => c.id === f.court_id) ? f.court_id : (sportCourts[0]?.id ?? "");
+      const coach_id = sportCoaches.some((c) => c.id === f.coach_id) ? f.coach_id : (sportCoaches[0]?.id ?? "");
+      return court_id === f.court_id && coach_id === f.coach_id ? f : { ...f, court_id, coach_id };
+    });
+  }, [sportCourts, sportCoaches]);
+  const missing = !loaded
+    ? null
+    : !sportCoaches.length
+      ? "No active coach teaches this sport yet."
+      : !sportCourts.length
+        ? "There is no court for this sport."
+        : null;
 
   function toggleDay(k: string) {
     setDays((prev) => (prev.includes(k) ? prev.filter((d) => d !== k) : [...prev, k]));
@@ -87,9 +114,18 @@ function Page() {
         </Field>
         <Field label="Court">
           <Select value={form.court_id} onChange={(e) => setForm({ ...form, court_id: e.target.value })}>
-            {courts.map((c) => (
+            {sportCourts.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.court_code} · {sportLabel(c.sport)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Coach">
+          <Select value={form.coach_id} onChange={(e) => setForm({ ...form, coach_id: e.target.value })}>
+            {sportCoaches.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.full_name}
               </option>
             ))}
           </Select>
@@ -137,9 +173,20 @@ function Page() {
             onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
           />
         </Field>
-        <div className="flex items-end">
+        <div className="flex flex-col justify-end gap-1">
+          {missing ? (
+            <p className="text-xs text-danger">
+              {missing}{" "}
+              {!sportCoaches.length ? (
+                <Link to="/manager/staff" className="underline">
+                  Add a coach
+                </Link>
+              ) : null}
+            </p>
+          ) : null}
           <Button
             className="w-full"
+            disabled={!!missing || !form.coach_id || !form.court_id}
             onClick={async () => {
               try {
                 const row = await apiPost<{ id: string }>("/classes", {
@@ -202,8 +249,11 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
-      {!items.length ? (
-        <p className="text-sm text-muted">No classes yet. Fill in the form above and press Create &amp; publish.</p>
+      {loaded && !items.length ? (
+        <Empty
+          title="No classes yet"
+          hint="Pick a sport, a coach and the days above, then press Create & publish. Members can book as soon as it is published."
+        />
       ) : null}
       <ClassDetailModal classId={detail} onClose={() => setDetail(null)} />
     </Shell>

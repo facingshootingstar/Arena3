@@ -346,10 +346,16 @@ function Page() {
         </Stagger>
       ) : null}
 
-      <SplitText as="h2" text="Notifications" className="mt-8 font-display text-2xl" />
+      <div className="mt-8 flex items-end justify-between gap-3">
+        <SplitText as="h2" text="Notifications" className="font-display text-2xl" />
+        <Link to="/app/notifications" className="text-sm underline">
+          Open inbox
+        </Link>
+      </div>
       {me && me.inbox.length ? (
         <NotificationList
           items={me.inbox}
+          limit={4}
           onRead={(ids) =>
             setMe((m) =>
               m

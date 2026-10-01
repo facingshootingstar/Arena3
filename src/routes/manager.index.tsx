@@ -14,7 +14,7 @@ import {
 import { toast } from "sonner";
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
 import { Cover, MediaCaption, media } from "@/components/media";
-import { Shell, money } from "@/components/shell";
+import { Shell, money, when } from "@/components/shell";
 import { Button, Card, DateField, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
@@ -30,6 +30,16 @@ type Rev = {
   to: string;
   totals: { revenue_vnd: number; gross_vnd?: number; refund_vnd: number; quota_hours: number };
   by_source: Record<string, number>;
+  refunds_by_source?: Record<string, number>;
+  by_shift?: Array<{
+    shift_id: string | null;
+    cashier: string | null;
+    opened_at: string | null;
+    closed_at: string | null;
+    takings_vnd: number;
+    refunds_vnd: number;
+    count: number;
+  }>;
   by_method: Record<string, number>;
   /** One row per ICT day in the window, including days with no takings. */
   by_day?: Array<{ day: string; revenue_vnd: number }>;
@@ -405,6 +415,78 @@ function Page() {
         </Card>
         </SpotlightCard>
       </Reveal>
+
+      {rev ? (
+        <Reveal className="mt-6 grid gap-3 md:grid-cols-2">
+          <Card>
+            <p className="text-2xs font-medium uppercase tracking-wider text-muted">Where the money came from</p>
+            {Object.keys(rev.by_source).length || Object.keys(rev.refunds_by_source ?? {}).length ? (
+              <table className="mt-3 w-full text-sm">
+                <thead className="text-left text-2xs uppercase tracking-wider text-muted">
+                  <tr>
+                    <th className="pb-1 font-medium">Source</th>
+                    <th className="pb-1 text-right font-medium">Taken</th>
+                    <th className="pb-1 text-right font-medium">Refunded</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...new Set([...Object.keys(rev.by_source), ...Object.keys(rev.refunds_by_source ?? {})])].map((k) => (
+                    <tr key={k} className="border-t border-line/60">
+                      <td className="py-1.5">{sourceLabel(k)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{money(rev.by_source[k] ?? 0)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{money(rev.refunds_by_source?.[k] ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="mt-3 text-sm text-muted">
+                Nothing taken in this period yet. Takings appear here once reception records a payment.
+              </p>
+            )}
+            <p className="mt-3 text-xs text-muted">
+              Class places come out of a plan and gear hire is not charged as a payment, so neither has a line of its own.
+            </p>
+          </Card>
+          <Card>
+            <p className="text-2xs font-medium uppercase tracking-wider text-muted">By cashier shift</p>
+            {rev.by_shift?.length ? (
+              <table className="mt-3 w-full text-sm">
+                <thead className="text-left text-2xs uppercase tracking-wider text-muted">
+                  <tr>
+                    <th className="pb-1 font-medium">Shift</th>
+                    <th className="pb-1 text-right font-medium">Taken</th>
+                    <th className="pb-1 text-right font-medium">Refunded</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rev.by_shift.map((s) => (
+                    <tr key={s.shift_id ?? "none"} className="border-t border-line/60">
+                      <td className="py-1.5">
+                        {s.shift_id ? (
+                          <>
+                            <span className="font-medium">{s.cashier ?? "Reception"}</span>
+                            <span className="block text-xs text-muted">
+                              {s.opened_at ? when(s.opened_at) : ""}
+                              {s.closed_at ? ` – ${when(s.closed_at)}` : " – still open"}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-muted">Not taken at the desk (online)</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">{money(s.takings_vnd)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{money(s.refunds_vnd)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="mt-3 text-sm text-muted">No payments in this period, so there are no shifts to show.</p>
+            )}
+          </Card>
+        </Reveal>
+      ) : null}
 
       <SplitText
         as="h2"

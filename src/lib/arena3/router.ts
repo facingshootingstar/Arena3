@@ -12,6 +12,7 @@ import * as classH from "./handlers/classes";
 import * as deskH from "./handlers/desk";
 import * as onlineH from "./handlers/online";
 import * as opsH from "./handlers/ops";
+import * as staffH from "./handlers/staff";
 
 type Result = { status: number; body: unknown };
 
@@ -114,6 +115,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "PATCH" && p0 === "me" && !p1) {
     return authed((sql, user) => authH.mePatch(sql, request, user));
   }
+  if (method === "GET" && p0 === "me" && p1 === "notifications" && !p2) {
+    return authedRead((sql, user) => authH.meNotifications(sql, user));
+  }
   if (method === "POST" && p0 === "me" && p1 === "notifications" && p2 === "read") {
     return authed((sql, user) => authH.meNotificationsRead(sql, request, user));
   }
@@ -128,6 +132,23 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "PATCH" && p0 === "courts" && p1 && !p2) {
     return authed((sql, user) => bookH.courtsPatch(sql, p1, request, user));
+  }
+
+  // Staff accounts — the manager is the only one who issues them (R-01…R-03).
+  if (method === "GET" && p0 === "staff" && !p1) {
+    return authedRead((sql, user) => staffH.staffList(sql, request, user));
+  }
+  if (method === "POST" && p0 === "staff" && !p1) {
+    return authed((sql, user) => staffH.staffCreate(sql, request, user));
+  }
+  if (method === "PATCH" && p0 === "staff" && p1 && !p2) {
+    return authed((sql, user) => staffH.staffPatch(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "staff" && p1 && p2 === "reset-password") {
+    return authed((sql, user) => staffH.staffResetPassword(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "staff" && p1 && p2 === "revoke-sessions") {
+    return authed((sql, user) => staffH.staffRevokeSessions(sql, p1, user));
   }
 
   if (method === "GET" && p0 === "members" && !p1) {
@@ -145,6 +166,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
 
   if (method === "POST" && p0 === "plans" && !p1) {
     return authed((sql, user) => planH.plansCreate(sql, request, user));
+  }
+  if (method === "GET" && p0 === "plans" && p1 && !p2) {
+    return authedRead((sql, user) => planH.plansGet(sql, p1, user));
   }
   if (method === "PATCH" && p0 === "plans" && p1 && !p2) {
     return authed((sql, user) => planH.plansPatch(sql, p1, request, user));

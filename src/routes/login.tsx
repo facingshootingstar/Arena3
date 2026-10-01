@@ -24,7 +24,9 @@ export const Route = createFileRoute("/login")({ component: Login });
  * Set `VITE_DEMO_LOGINS=off` to ship this app with no demo accounts on show.
  */
 const DEMO_PASSWORD = "ChangeMe!a3";
-const DEMO_LOGINS_ON = import.meta.env.VITE_DEMO_LOGINS !== "off";
+const DEMO_LOGINS_ON = import.meta.env.PROD
+  ? import.meta.env.VITE_DEMO_LOGINS === "on"
+  : import.meta.env.VITE_DEMO_LOGINS !== "off";
 
 const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: string }[] = [
   { role: "manager", phone: "0900000001", name: "Arena3 Manager", note: "Pricing · classes · reports" },

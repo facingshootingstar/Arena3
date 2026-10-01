@@ -197,4 +197,29 @@ Cập nhật theo từng pha. Mỗi ID là **ĐÓNG**, **KHÔNG TÁI HIỆN** ho
 | B-04 | ĐÓNG | Không có quick action theo môn (chỉ 4 ô). Phần tử đúng là các thẻ gói phụ trên Schedule trông như bấm được nhưng không đi đâu; nay mỗi thẻ mở màn Book hoặc Classes đã lọc đúng môn (`?sport=`). |
 | B-16 | ĐÓNG | Server đúng (`memberDiscount` lọc môn). Thẻ gói chỉ hiện quyền lợi gói thật sự có (court hours, session, % giảm); gói session không còn "0 court hours". |
 | B-05 | KHÔNG TÁI HIỆN | Chạy hold → confirm bằng transfer, hai member cùng slot (`CONFLICT_SLOT` 409), cash bị từ chối (403), confirm lần hai (409): đều trả mã rõ ràng, không có 500. Chỉ sửa câu BR-32 để dùng đúng `max_slots_per_day` thay vì cứng "2". |
-| D-01 | DEFERRED sang Pha 2 | Cùng nhóm với "chặn kích hoạt gói trước khi thu tiền" (làm ở Pha 2). |
+| D-01 | Chuyển sang Pha 2 | Xem bảng Pha 2. |
+
+### Pha 2 — nhân sự, tiền, báo cáo, audit (P1/P2)
+
+Kiểm bằng `node scripts/arena3-phase2-check.mjs` (44 kiểm tra, PGLite trong bộ nhớ). Không thêm migration nào trong pha này.
+
+| ID | Trạng thái | Ghi chú |
+|----|------------|---------|
+| R-01, R-02, R-03 | ĐÓNG | Không có role admin: Manager cấp tài khoản lễ tân/HLV (`POST /staff`), khóa/mở khóa, đổi role giữa receptionist và coach, reset mật khẩu (mật khẩu tạm, bắt buộc đổi khi đăng nhập lần đầu), thu hồi phiên (`/staff/:id/...`). Màn Manager → Staff. Mọi thao tác ghi audit gồm người cấp và thời điểm. Không có form đăng ký công khai cho staff; `register` vẫn chỉ tạo member; không tự khóa/hạ role chính mình. |
+| R-04 | ĐÓNG | Production không có đăng nhập demo trừ khi đặt tường minh `VITE_DEMO_LOGINS=on`; OTP chỉ echo ra UI ở dev (`OTP_ECHO` / `NODE_ENV`), `.env.example` ghi rõ. Không thêm mật khẩu demo mới. |
+| D-01 | ĐÓNG (đã tái hiện trước khi sửa) | Gói `pending` kích hoạt được mà chưa thu tiền. Nay `paymentsCreate` kiểm số tiền đúng giá gói, chỉ nhận cho gói `pending`, và chỉ khi có payment posted gói mới `active`; gói frozen/active bị từ chối bằng mã 409. Link thanh toán online chỉ cho gói pending. |
+| D-04 | ĐÓNG | Biên lai đã truy cập được từ danh sách thu tiền; bổ sung tìm theo tên/SĐT/mã, và tab Receipts cho member ở Account. |
+| G-03 | ĐÓNG | Pricing chia block: giá sân theo môn/ngày/giờ (nhãn Peak/Off-peak, quy tắc riêng một sân ghi rõ sân), gói đang bán (link sang Plans), VAT (đọc từ Settings). Hợp đồng `PUT /price-rules` giữ nguyên; lỗi tô đúng dòng (`index`). |
+| G-04 | ĐÓNG | Không có xóa cứng. Nút "Stop selling" / "Sell again", nhãn "Not for sale", ghi chú BR-65; audit `withdraw_plan_from_sale` / `put_plan_on_sale`. |
+| G-05 | ĐÓNG | Chi tiết gói (`GET /plans/:id`): giá, hạn, court hours/session, % giảm, môn áp dụng, trạng thái bán, số người đang giữ (active/pending/frozen/từng mua). Chỉ hiện trường thật sự có. |
+| G-06, G-09 | ĐÓNG | Audit lọc theo actor, action, entity, khoảng ngày; mặc định gọn, "Show more"; "Hide" chỉ ẩn ở UI, không có thao tác xóa audit. Thông báo member có "Show all/fewer", "Hide read ones". |
+| G-07 | ĐÓNG một phần / DEFERRED phần còn lại | Doanh thu tách sân / gói, hoàn tiền (trừ riêng) và theo ca thu (`by_shift`). **Lớp học và thuê đồ không có dòng payment** nên không có số để tách: UI ghi chú rõ, không bịa. Cần quyết định product để tạo dòng thu cho lớp/gear. |
+| G-08 | ĐÓNG (chuông) / KHÔNG TÁI HIỆN (icon) | Member có chuông thông báo riêng (chấm số chưa đọc, trang `/app/notifications`), tách khỏi menu tài khoản. "Icon AI sai": `AssistantMark` giống nhau ở header, Quick actions và trang Assistant, không tìm ra chỗ sai; chờ chỉ rõ icon nào. |
+| G-10 | ĐÓNG | Empty state có bước tiếp theo ở Prices, Plans, Classes (Classes cũng lấy HLV/sân từ dữ liệu thật thay vì gán cứng, báo thiếu tài nguyên). Không có tutorial. |
+| Timezone / currency (B-01) | DEFERRED | Ghi `timezone`/`currency` ở Settings vẫn bị từ chối có chủ đích (đụng id = 1/đa vùng); chưa có yêu cầu SRS để mở. |
+
+### Chưa làm có chủ đích
+
+- **CHỜ-PRODUCT:** C-03, C-04, M-01, M-02, M-06, M-07 — chờ product chốt, không viết code/schema.
+- **OPS-CUỐI:** A-01…A-09 — việc vận hành cuối đợt, không phải code.
+- **Không được làm:** C-02 (cột nhận xét buổi học là đổi schema ngoài danh sách cho phép).

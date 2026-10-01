@@ -128,14 +128,20 @@ export function NotificationList({
   items,
   onRead,
   limit = 8,
+  hideRead = false,
 }: {
   items: Notification[];
   /** Called with the ids just marked read, so the owner can update its copy. */
   onRead: (ids: string[]) => void;
   limit?: number;
+  /** Tuck read notifications out of the list. Nothing is deleted. */
+  hideRead?: boolean;
 }) {
   const [open, setOpen] = useState<Notification | null>(null);
+  const [all, setAll] = useState(false);
   const unread = items.filter((n) => !n.read_at);
+  const visible = hideRead ? unread : items;
+  const shown = all ? visible : visible.slice(0, limit);
 
   async function openOne(n: Notification) {
     setOpen(n);
@@ -173,7 +179,7 @@ export function NotificationList({
         </div>
       ) : null}
       <div className="mt-3 grid gap-2">
-        {items.slice(0, limit).map((n) => {
+        {shown.map((n) => {
           const row = notificationContent(n);
           return (
             <button key={n.id} type="button" className="block w-full text-left" onClick={() => void openOne(n)}>
@@ -191,6 +197,13 @@ export function NotificationList({
           );
         })}
       </div>
+      {visible.length > limit ? (
+        <div className="mt-2 flex justify-center">
+          <Button size="sm" variant="ghost" onClick={() => setAll((v) => !v)}>
+            {all ? "Show fewer" : `Show all ${visible.length}`}
+          </Button>
+        </div>
+      ) : null}
       <Modal
         open={!!open}
         onClose={() => setOpen(null)}

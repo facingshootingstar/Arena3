@@ -1,5 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Bell,
   CalendarDays,
   ChevronDown,
   ClipboardList,
@@ -68,6 +69,7 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
     // Refund sign-off lives on the payments screen, which has always taken a
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: "Payments", icon: Wallet },
+    { to: "/manager/staff", label: "Staff", icon: UserCog },
     { to: "/manager/prices", label: "Pricing", icon: Settings },
     { to: "/manager/audit", label: "Audit", icon: ScrollText },
     { to: "/manager/settings", label: "Settings", icon: Settings },
@@ -89,6 +91,45 @@ function initials(name: string | undefined) {
   const first = parts[0]![0] ?? "";
   const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? "") : "";
   return (first + last).toUpperCase();
+}
+
+/**
+ * The member's notifications, on their own button beside the account menu
+ * (G-08): what is new is not an account setting, and an unread count on the
+ * avatar menu is somewhere nobody looks. The count is re-read on every page
+ * change, which is cheap and keeps it honest after a notification is opened.
+ */
+function NotificationBell({ active }: { active: boolean }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void apiGet<{ unread: number }>("/me/notifications")
+      .then((r) => live && setUnread(r.unread))
+      .catch(() => {
+        // The bell is a convenience; a failed count must not break the header.
+      });
+    return () => {
+      live = false;
+    };
+  }, [pathname]);
+  return (
+    <Link
+      to="/app/notifications"
+      aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+      className={cn(
+        "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
+        active ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-fg hover:bg-wood",
+      )}
+    >
+      <Bell className="size-4" strokeWidth={1.9} />
+      {unread ? (
+        <span className="absolute right-1 top-1 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[0.625rem] font-bold leading-4 text-white tabular-nums">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      ) : null}
+    </Link>
+  );
 }
 
 /** Avatar button that opens the account menu. */
@@ -246,6 +287,7 @@ export function Shell({
             })}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            {role === "member" ? <NotificationBell active={pathname.startsWith("/app/notifications")} /> : null}
             {role === "member" ? (
               <Link
                 to="/app/assistant"

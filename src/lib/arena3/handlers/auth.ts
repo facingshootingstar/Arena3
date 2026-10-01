@@ -359,6 +359,21 @@ export async function meGet(sql: Sql, user: PublicUser) {
  * Mark notifications read. One id, or every unread one when none is named.
  * Scoped to the caller: someone else's id simply matches nothing.
  */
+/** The member's in-app notifications and how many are unread, for the header bell. */
+export async function meNotifications(sql: Sql, user: PublicUser) {
+  const items = await sql.query(
+    `select id, template, payload, sent_at, read_at from inbox
+      where user_id = $1 order by sent_at desc limit 100`,
+    [user.id],
+  );
+  const unread = await one<{ n: number }>(
+    sql,
+    `select count(*)::int as n from inbox where user_id = $1 and read_at is null`,
+    [user.id],
+  );
+  return { status: 200, body: { items, unread: unread?.n ?? 0 } };
+}
+
 export async function meNotificationsRead(sql: Sql, request: Request, user: PublicUser) {
   const body = await readJson(request).catch(() => ({}) as Record<string, unknown>);
   const id = str(body.id);

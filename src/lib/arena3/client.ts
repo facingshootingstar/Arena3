@@ -66,6 +66,8 @@ export type ApiErrorBody = {
   br?: string;
   /** Set on a 400: the form input the message is about. */
   field?: string;
+  /** Set when a bulk save names the row that was refused. */
+  index?: number;
   requires_confirm?: boolean;
 };
 

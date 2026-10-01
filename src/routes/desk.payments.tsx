@@ -5,7 +5,7 @@ import { ArrowUpRight, Banknote, Clock3, CreditCard, Landmark, Ticket, Undo2 } f
 import { HoldTimer } from "@/components/media";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
-import { Badge, Button, Card, Empty, Seg, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, Empty, Input, Seg, Select, Skeleton } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SplitText, SpotlightCard, StarBorder } from "@/components/fx";
 import { api, apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
@@ -128,6 +128,7 @@ function Page() {
   const [data, setData] = useState<Queue | null>(null);
   const [days, setDays] = useState("7");
   const [payMethod, setPayMethod] = useState("all");
+  const [receiptQuery, setReceiptQuery] = useState("");
   // Whether this centre has payOS set up at all. Read once: the button must be
   // absent rather than present-and-broken when it has not been configured.
   const [onlineOn, setOnlineOn] = useState(false);
@@ -167,7 +168,13 @@ function Page() {
   // Filtered here rather than at the server: the cap is applied before the
   // filter either way, and narrowing a list already on screen should not cost a
   // round trip while somebody is reading down a statement.
-  const receipts = (data?.receipts ?? []).filter((r) => payMethod === "all" || r.method === payMethod);
+  const needle = receiptQuery.trim().toLowerCase();
+  const receipts = (data?.receipts ?? []).filter(
+    (r) =>
+      (payMethod === "all" || r.method === payMethod) &&
+      (!needle ||
+        [r.member_name, r.member_code, r.buyer_phone, r.code].some((v) => v?.toLowerCase().includes(needle))),
+  );
   // Per-row flooring, not a floor on the total: one over-paid order must not
   // quietly cancel out what another member still owes.
   const owed = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
