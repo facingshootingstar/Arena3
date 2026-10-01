@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClassDetailModal } from "@/components/class-detail";
 import { Shell } from "@/components/shell";
-import { Button, Card, Empty, Skeleton, StatusBadge } from "@/components/ui";
+import { Button, Card, EmptyState, Skeleton, StatusBadge } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { apiGet } from "@/lib/arena3/client";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
@@ -41,7 +41,7 @@ function Page() {
       {!items ? (
         <Skeleton className="h-36" />
       ) : !items.length ? (
-        <Empty title="No classes are open" hint="The manager publishes classes from the Classes screen." />
+        <EmptyState title="No classes are open" hint="The manager publishes classes from the Classes screen." />
       ) : (
         <Stagger className="grid gap-3 md:grid-cols-2" gap={0.06}>
           {items.map((c) => (

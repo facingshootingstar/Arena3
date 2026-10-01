@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { sessionDay } from "@/components/class-detail";
 import { Shell, hhmm } from "@/components/shell";
-import { Button, Card, Empty, Field, Select, Skeleton } from "@/components/ui";
+import { Button, Card, EmptyState, Field, Select, Skeleton } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SplitText } from "@/components/fx";
 import { apiGet, apiPost } from "@/lib/arena3/client";
@@ -91,7 +91,7 @@ function Page() {
       {!items ? (
         <Skeleton className="h-24" />
       ) : !items.length ? (
-        <Empty title="No sessions to take a register for" hint="Sessions appear here once a class you teach is published." />
+        <EmptyState title="No sessions to take a register for" hint="Sessions appear here once a class you teach is published." />
       ) : (
         <Card className="grid gap-3 md:grid-cols-2">
           <Field label="Session">

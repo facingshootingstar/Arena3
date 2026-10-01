@@ -3,7 +3,7 @@ import { Download, Eye, EyeOff, KeyRound, Receipt, UserRound } from "lucide-reac
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Guard, Shell, money, useSessionUser, when } from "@/components/shell";
-import { Badge, Button, Card, Empty, Field, Input, Label, Seg, Skeleton, Textarea } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Label, Seg, Skeleton, Textarea } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard, StarBorder } from "@/components/fx";
 import {
@@ -348,7 +348,7 @@ function Support() {
       {!items ? (
         <Skeleton className="h-24" />
       ) : items.length === 0 ? (
-        <Empty title="Nothing asked yet" hint="Anything you send the desk will be kept here with its reply." />
+        <EmptyState title="Nothing asked yet" hint="Anything you send the desk will be kept here with its reply." />
       ) : (
         <Stagger className="grid gap-2.5" gap={0.05}>
           {items.map((t) => (
@@ -407,7 +407,7 @@ function Receipts() {
 
   if (items.length === 0) {
     return (
-      <Empty
+      <EmptyState
         title="No receipts yet"
         hint="Every payment you make — court, class or membership — lands here as a PDF you can download."
       />

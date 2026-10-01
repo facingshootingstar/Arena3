@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NotificationList, type Notification } from "@/components/notifications";
 import { Shell } from "@/components/shell";
-import { Button, Empty, Skeleton } from "@/components/ui";
+import { Button, EmptyState, Skeleton } from "@/components/ui";
 import { apiGet } from "@/lib/arena3/client";
 
 export const Route = createFileRoute("/app/notifications")({
@@ -35,7 +35,7 @@ function Page() {
       {!items ? (
         <Skeleton className="h-32" />
       ) : !items.length ? (
-        <Empty title="Nothing here yet" hint="Receipts and booking updates will show up here as they happen." />
+        <EmptyState title="Nothing here yet" hint="Receipts and booking updates will show up here as they happen." />
       ) : (
         <>
           {hasRead ? (

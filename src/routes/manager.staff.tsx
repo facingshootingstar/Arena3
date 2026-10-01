@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, when } from "@/components/shell";
-import { Badge, Button, Card, Empty, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPost, apiPatch } from "@/lib/arena3/client";
 import { roleLabel, sportLabel } from "@/lib/arena3/labels";
 
@@ -98,12 +98,12 @@ function Page() {
       {!items ? (
         <Skeleton className="h-40" />
       ) : !items.length ? (
-        <Empty
+        <EmptyState
           title={role || status || q ? "Nobody matches those filters" : "No staff accounts yet"}
           hint={role || status || q ? "Clear a filter to see everyone." : "Add the first receptionist or coach to give them a login."}
         >
           {!(role || status || q) ? <Button onClick={() => setCreating(true)}>Add staff</Button> : null}
-        </Empty>
+        </EmptyState>
       ) : (
         <div className="grid gap-2">
           {items.map((s) => {

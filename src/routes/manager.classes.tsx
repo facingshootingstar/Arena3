@@ -2,7 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Button, Card, DateField, Empty, Field, Input, Select, StatusBadge } from "@/components/ui";
+import { Button, Card, DateField, EmptyState, Field, Input, Select, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { ClassDetailModal } from "@/components/class-detail";
@@ -250,7 +250,7 @@ function Page() {
         ))}
       </Stagger>
       {loaded && !items.length ? (
-        <Empty
+        <EmptyState
           title="No classes yet"
           hint="Pick a sport, a coach and the days above, then press Create & publish. Members can book as soon as it is published."
         />

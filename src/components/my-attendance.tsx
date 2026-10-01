@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { when } from "@/components/shell";
-import { Badge, Card, Empty, Skeleton } from "@/components/ui";
+import { Badge, Card, EmptyState, Skeleton } from "@/components/ui";
 import { apiGet } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 
@@ -45,7 +45,7 @@ export function MyAttendance() {
       ) : !data ? (
         <Skeleton className="h-24" />
       ) : !data.items.length ? (
-        <Empty
+        <EmptyState
           title="No finished sessions yet"
           hint="After each class your coach marks you present, late, absent or excused — the marks show up here."
         />

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, Empty, Seg, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Seg, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
@@ -211,7 +211,7 @@ function Page() {
             );
           })}
           {!shown.length ? (
-            <Empty title="No open classes" hint="The manager publishes the weekly timetable." />
+            <EmptyState title="No open classes" hint="The manager publishes the weekly timetable." />
           ) : null}
         </Stagger>
       )}

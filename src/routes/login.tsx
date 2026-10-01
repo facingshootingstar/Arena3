@@ -65,7 +65,7 @@ function Login() {
   }
 
   return (
-    <main className="min-h-dvh lg:grid lg:grid-cols-2">
+    <main id="main-content" tabIndex={-1} className="min-h-dvh lg:grid lg:grid-cols-2">
       <div className="grain relative hidden min-h-dvh overflow-hidden lg:block">
         <HeroVideo src={media.receptionVideo} poster={media.reception} />
         <div className="hero-scrim absolute inset-0" />
@@ -146,7 +146,7 @@ function Login() {
             </Magnet>
           </form>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
-            <Link to="/register" className="text-accent-2 hover:underline">
+            <Link to="/register" className="text-accent-2 underline underline-offset-2">
               Create an account
             </Link>
             {/*

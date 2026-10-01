@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { sessionDay } from "@/components/class-detail";
 import { Shell, hhmm } from "@/components/shell";
-import { Badge, Card, Empty, Skeleton, StatusBadge } from "@/components/ui";
+import { Badge, Card, EmptyState, Skeleton, StatusBadge } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { apiGet } from "@/lib/arena3/client";
@@ -58,7 +58,7 @@ function Page() {
           <Skeleton className="h-36" />
         </div>
       ) : !items.length ? (
-        <Empty title="No sessions coming up" hint="When the manager publishes a class with you as coach, its sessions appear here." />
+        <EmptyState title="No sessions coming up" hint="When the manager publishes a class with you as coach, its sessions appear here." />
       ) : (
         [...days.entries()].map(([k, list]) => (
           <section key={k} className="mb-8">

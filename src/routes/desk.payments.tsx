@@ -5,7 +5,7 @@ import { ArrowUpRight, Banknote, Clock3, CreditCard, Landmark, Ticket, Undo2 } f
 import { HoldTimer } from "@/components/media";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
-import { Badge, Button, Card, Empty, Input, Seg, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Input, Seg, Select, Skeleton } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SplitText, SpotlightCard, StarBorder } from "@/components/fx";
 import { api, apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
@@ -505,7 +505,7 @@ function Page() {
         </Stagger>
       ) : (
         <div className="mt-3">
-          <Empty title="Nothing owed" hint="Every plan ordered in the app has been paid for." />
+          <EmptyState title="Nothing owed" hint="Every plan ordered in the app has been paid for." />
         </div>
       )}
 
@@ -611,7 +611,7 @@ function Page() {
           </Stagger>
         ) : (
           <div className="mt-3">
-            <Empty
+            <EmptyState
               title={payMethod === "all" ? "Nothing taken in this window" : `No ${methodLabel(payMethod).toLowerCase()} in this window`}
               hint="Widen the range, or try another method."
             />

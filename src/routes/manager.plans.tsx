@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
-import { Badge, Button, Card, Empty, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
@@ -119,9 +119,9 @@ function Page() {
       {!items ? (
         <Skeleton className="h-48" />
       ) : !items.length ? (
-        <Empty title="No plans yet" hint="Create the first plan so members can buy court hours and class sessions in the app.">
+        <EmptyState title="No plans yet" hint="Create the first plan so members can buy court hours and class sessions in the app.">
           <Button onClick={() => setOpen(true)}>New plan</Button>
-        </Empty>
+        </EmptyState>
       ) : null}
       <Stagger className="grid gap-3 md:grid-cols-3" gap={0.07}>
         {(items ?? []).map((p) => (

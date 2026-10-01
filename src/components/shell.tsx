@@ -308,6 +308,8 @@ export function Shell({
       </header>
       <main
         className={cn(
+        id="main-content"
+        tabIndex={-1}
           "mx-auto max-w-6xl px-4 py-6 md:pb-10",
           // Only reserve room for the dock when there is a dock.
           showNav ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-10",

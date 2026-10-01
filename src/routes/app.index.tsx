@@ -7,7 +7,7 @@ import { PassCard } from "@/components/media";
 import { NotificationList, type Notification } from "@/components/notifications";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, hhmm, money, when } from "@/components/shell";
-import { Button, Card, Empty, Skeleton, StatusBadge } from "@/components/ui";
+import { Button, Card, EmptyState, Skeleton, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
@@ -196,11 +196,11 @@ function Page() {
                 />
               </GlareHover>
             ) : (
-              <Empty title="No active plan" hint="Buy a plan to enrol in classes and book courts.">
+              <EmptyState title="No active plan" hint="Buy a plan to enrol in classes and book courts.">
                 <Link to="/app/plans">
                   <Button>Browse plans</Button>
                 </Link>
-              </Empty>
+              </EmptyState>
             )}
           </Reveal>
 

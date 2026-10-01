@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Card, Empty, Skeleton } from "@/components/ui";
+import { Card, EmptyState, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { apiGet } from "@/lib/arena3/client";
@@ -63,7 +63,7 @@ function Page() {
           ))}
         </Stagger>
       ) : (
-        <Empty title="No session plans yet" hint="Your coach assigns these after a class." />
+        <EmptyState title="No session plans yet" hint="Your coach assigns these after a class." />
       )}
     </Shell>
   );

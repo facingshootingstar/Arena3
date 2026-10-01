@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, Empty, Input, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Input, Skeleton } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { SplitText } from "@/components/fx";
 import { ApiClientError, apiGet } from "@/lib/arena3/client";
@@ -357,7 +357,7 @@ function Page() {
           })}
         </Stagger>
       ) : (
-        <Empty
+        <EmptyState
           title={filtered ? "Nothing matches that" : "Nothing recorded yet"}
           hint={
             filtered

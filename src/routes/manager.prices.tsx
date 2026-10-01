@@ -2,7 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
-import { Badge, Button, Card, Empty, Input, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Input, Skeleton } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { StarBorder } from "@/components/fx";
 import { ApiClientError, apiGet, apiPut } from "@/lib/arena3/client";
@@ -124,7 +124,7 @@ function Page() {
         {!items ? (
           <Skeleton className="h-40" />
         ) : !items.length ? (
-          <Empty title="No court rates yet" hint="Without a rate a court cannot be quoted, so no booking can be made." />
+          <EmptyState title="No court rates yet" hint="Without a rate a court cannot be quoted, so no booking can be made." />
         ) : (
           <div className="grid gap-5">
             {groups.map(([sport, rows]) => (
@@ -192,11 +192,11 @@ function Page() {
         {!plans ? (
           <Skeleton className="h-24" />
         ) : !onSale.length ? (
-          <Empty title="No plan is on sale" hint="Members cannot buy a plan until you put one on sale.">
+          <EmptyState title="No plan is on sale" hint="Members cannot buy a plan until you put one on sale.">
             <Link to="/manager/plans" className="text-sm underline">
               Go to plans
             </Link>
-          </Empty>
+          </EmptyState>
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {onSale.map((p) => (

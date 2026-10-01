@@ -88,7 +88,7 @@ const STATE_CLASS: Record<SlotState, string> = {
   maintenance: "stripes bg-wood text-muted",
   merged: "bg-line-strong/30 text-subtle",
   closed: "stripes bg-line-strong/45 text-subtle",
-  past: "bg-wood/30 text-subtle/60 line-through decoration-subtle/40",
+  past: "bg-wood/30 text-subtle/80 line-through decoration-subtle/40",
 };
 
 /**
@@ -580,7 +580,7 @@ function HourRow({
       <div
         className={cn(
           "sticky left-0 z-10 flex items-center gap-1 border-t border-line/70 bg-surface px-2 py-1 text-xs tabular-nums",
-          past ? "text-subtle/60 line-through" : live ? "font-medium text-accent-2" : "text-muted",
+          past ? "text-subtle/80 line-through" : live ? "font-medium text-accent-2" : "text-muted",
         )}
       >
         {live ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" /> : null}
