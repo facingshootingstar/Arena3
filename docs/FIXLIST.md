@@ -256,6 +256,26 @@ Kiểm bằng `node scripts/arena3-phase4b-check.mjs` (59 kiểm tra, PGLite tro
 
 Giới hạn đã biết: tỉ lệ gia hạn coi gói mới bắt đầu trong vòng 30 ngày sau khi gói cũ hết là gia hạn (SRS không định nghĩa ngưỡng). Học phí lớp hiện bằng 0 trong doanh thu vì lớp dùng quota gói, không có dòng payment (xem G-07).
 
+### Pha 4C — module huấn luyện F4 (BR-52…BR-62)
+
+Kiểm bằng `node scripts/arena3-phase4c-check.mjs` (115 kiểm tra, chạy **một lần** trên server PGLite mới, `DATABASE_URL=` rỗng). Migration `0021_phase4c_training.sql` (cần `npm run db:migrate` trên Neon, cùng với `0020`). Luật thuần (khóa điểm danh, chuỗi vắng, chỉ số, bài tập) nằm ở `rules.ts` và có unit test.
+
+| ID | Trạng thái | Ghi chú |
+|----|------------|---------|
+| Khóa điểm danh (BR-53) | ĐÓNG | `GET/PUT /sessions/:id/attendance`. Khóa sau 2 giờ kể từ `end_at` hoặc khi buổi đã `done`. Sau khóa chỉ manager sửa, bắt buộc `reason` (≥ 3 ký tự), có audit; coach nhận 422 `BR-53`. Phần khóa theo thời gian chỉ kiểm bằng unit test vì toàn bộ buổi seed nằm ở tương lai. |
+| Kết quả buổi tập (BR-55, BR-56) | ĐÓNG | `GET/PUT /sessions/:id/results`: % hoàn thành giáo án, chỉ số theo môn (smash, ném phạt, giao bóng), ghi chú. Cho phép sửa với mọi buổi chưa hủy; không có luật "đã bắt đầu" trong SRS nên không bịa thêm. |
+| Giáo án (BR-59, BR-60) | ĐÓNG | `POST/PATCH /training-plans`, khối giáo án theo giai đoạn, xuất bản/ẩn. `POST /classes/:id/plans/duplicate-week` sao chép tuần trước, bản sao ở trạng thái **nháp** để coach xem lại trước khi học viên thấy. |
+| Bài tập về nhà (BR-61) | ĐÓNG | `POST/GET /homework`; học viên tick từng mục (`PUT /me/homework/:id`), hoàn thành khi đủ mục. |
+| Chuỗi vắng (BR-58) | ĐÓNG | 3 buổi vắng liên tiếp báo `absent_streak` cho coach và manager. Có phép (Excused) **cắt** chuỗi; BR-58 chỉ cảnh báo, không bao giờ tự hủy ghi danh. Trước đây staff không có chỗ xem thông báo này, nên thêm trang `/alerts` và chuông cho mọi role. |
+| Cổng vào (BR-54) | ĐÓNG | `POST /desk/gate-checkin` (SĐT hoặc mã member), `GET /desk/gate-checkins` (hôm nay). Idempotent trong 5 phút; chỉ ghi "đã vào cổng", **không** điền điểm danh buổi lớp, vì tick của coach mới là chuẩn cho Present/Late (BR-57). |
+| Hồ sơ học viên | ĐÓNG | `GET /students/:id/profile`, `PUT /students/:id/level`, `POST /students/:id/reviews` (không sửa được sau khi lưu, học viên được báo), ghi chú của coach **chỉ staff** thấy. |
+| Tiến độ của member | ĐÓNG | `GET /me/training`, `PUT /me/training-goal`; tab "Progress" thay màn Train cũ. |
+| Cờ F4 tắt (BR-62) | ĐÓNG | `requireFlag` trả **403** `br: "BR-62"` (trước đây 422); UI ẩn các khối F4 khi cờ tắt. |
+
+UI: Attendance của coach có khóa/lý do sửa, kết quả buổi, giáo án và bài tập; tên học viên mở `/coach/student/$id`; desk có tab Gate; member có tab Progress.
+
+Việc cần làm ngoài code: chạy `npm run db:migrate` để `0020` và `0021` lên Neon; dọn dữ liệu thử còn sót trên Neon (lớp "Lifecycle …", "Directory Bare …").
+
 ### Chưa làm có chủ đích
 
 - **CHỜ-PRODUCT:** C-03, C-04, M-01, M-02, M-06, M-07 — chờ product chốt, không viết code/schema.

@@ -14,6 +14,7 @@ import * as reportH from "./handlers/reports";
 import * as onlineH from "./handlers/online";
 import * as opsH from "./handlers/ops";
 import * as staffH from "./handlers/staff";
+import * as trainH from "./handlers/training";
 
 type Result = { status: number; body: unknown };
 
@@ -378,10 +379,59 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authedRead((sql, user) => opsH.trainingList(sql, request, user));
   }
   if (method === "POST" && p0 === "training-plans" && !p1) {
-    return authed((sql, user) => opsH.trainingCreate(sql, request, user));
+    return authed((sql, user) => trainH.trainingCreate(sql, request, user));
   }
+  // Before the /:id routes, or "suggest" is read as a plan id.
   if (method === "POST" && p0 === "training-plans" && p1 === "suggest") {
     return authed((sql, user) => opsH.trainingSuggest(sql, request, user));
+  }
+  if (method === "PATCH" && p0 === "training-plans" && p1 && !p2) {
+    return authed((sql, user) => trainH.trainingPatch(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "classes" && p1 && p2 === "plans" && parts[3] === "duplicate-week") {
+    return authed((sql, user) => trainH.plansDuplicateWeek(sql, p1, request, user));
+  }
+  if (method === "GET" && p0 === "sessions" && p1 && p2 === "results") {
+    return authedRead((sql, user) => trainH.sessionResultsGet(sql, p1, user));
+  }
+  if (method === "PUT" && p0 === "sessions" && p1 && p2 === "results") {
+    return authed((sql, user) => trainH.sessionResultsPut(sql, p1, request, user));
+  }
+  if (method === "GET" && p0 === "students" && p1 && p2 === "profile") {
+    return authedRead((sql, user) => trainH.studentProfile(sql, p1, user));
+  }
+  if (method === "PUT" && p0 === "students" && p1 && p2 === "level") {
+    return authed((sql, user) => trainH.studentLevelPut(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "students" && p1 && p2 === "notes") {
+    return authed((sql, user) => trainH.studentNotePost(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "students" && p1 && p2 === "reviews") {
+    return authed((sql, user) => trainH.studentReviewPost(sql, p1, request, user));
+  }
+  if (method === "GET" && p0 === "homework" && !p1) {
+    return authedRead((sql, user) => trainH.homeworkList(sql, request, user));
+  }
+  if (method === "POST" && p0 === "homework" && !p1) {
+    return authed((sql, user) => trainH.homeworkCreate(sql, request, user));
+  }
+  if (method === "GET" && p0 === "me" && p1 === "training" && !p2) {
+    return authedRead((sql, user) => trainH.meTraining(sql, user));
+  }
+  if (method === "PUT" && p0 === "me" && p1 === "training-goal") {
+    return authed((sql, user) => trainH.meTrainingGoal(sql, request, user));
+  }
+  if (method === "GET" && p0 === "me" && p1 === "homework" && !p2) {
+    return authedRead((sql, user) => trainH.meHomework(sql, user));
+  }
+  if (method === "PUT" && p0 === "me" && p1 === "homework" && p2) {
+    return authed((sql, user) => trainH.meHomeworkPut(sql, p2, request, user));
+  }
+  if (method === "POST" && p0 === "desk" && p1 === "gate-checkin") {
+    return authed((sql, user) => trainH.gateCheckin(sql, request, user));
+  }
+  if (method === "GET" && p0 === "desk" && p1 === "gate-checkins") {
+    return authedRead((sql, user) => trainH.gateCheckins(sql, user));
   }
   if (method === "POST" && p0 === "assistant") {
     return authed((sql, user) => opsH.assistantChat(sql, request, user));

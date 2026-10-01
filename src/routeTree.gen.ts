@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -30,6 +31,7 @@ import { Route as CoachAttendanceRouteImport } from './routes/coach.attendance'
 import { Route as DeskIndexRouteImport } from './routes/desk.index'
 import { Route as DeskClassesRouteImport } from './routes/desk.classes'
 import { Route as DeskCourtsRouteImport } from './routes/desk.courts'
+import { Route as DeskGateRouteImport } from './routes/desk.gate'
 import { Route as DeskGearRouteImport } from './routes/desk.gear'
 import { Route as DeskPaymentsRouteImport } from './routes/desk.payments'
 import { Route as ManagerIndexRouteImport } from './routes/manager.index'
@@ -42,6 +44,7 @@ import { Route as ManagerSettingsRouteImport } from './routes/manager.settings'
 import { Route as ManagerStaffRouteImport } from './routes/manager.staff'
 import { Route as PayReturnRouteImport } from './routes/pay.return'
 import { Route as V1SplatRouteImport } from './routes/v1.$'
+import { Route as CoachStudentIdRouteImport } from './routes/coach.student.$id'
 import { Route as DeskMemberIdRouteImport } from './routes/desk.member.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +55,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -149,6 +157,11 @@ const DeskCourtsRoute = DeskCourtsRouteImport.update({
   path: '/courts',
   getParentRoute: () => DeskRoute,
 } as any)
+const DeskGateRoute = DeskGateRouteImport.update({
+  id: '/gate',
+  path: '/gate',
+  getParentRoute: () => DeskRoute,
+} as any)
 const DeskGearRoute = DeskGearRouteImport.update({
   id: '/gear',
   path: '/gear',
@@ -209,6 +222,11 @@ const V1SplatRoute = V1SplatRouteImport.update({
   path: '/v1/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CoachStudentIdRoute = CoachStudentIdRouteImport.update({
+  id: '/student/$id',
+  path: '/student/$id',
+  getParentRoute: () => CoachRoute,
+} as any)
 const DeskMemberIdRoute = DeskMemberIdRouteImport.update({
   id: '/member/$id',
   path: '/member/$id',
@@ -218,6 +236,7 @@ const DeskMemberIdRoute = DeskMemberIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/alerts': typeof AlertsRoute
   '/app': typeof AppRouteWithChildren
   '/coach': typeof CoachRouteWithChildren
   '/desk': typeof DeskRouteWithChildren
@@ -234,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/coach/attendance': typeof CoachAttendanceRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
+  '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/payments': typeof DeskPaymentsRoute
   '/manager/audit': typeof ManagerAuditRoute
@@ -249,11 +269,13 @@ export interface FileRoutesByFullPath {
   '/coach/': typeof CoachIndexRoute
   '/desk/': typeof DeskIndexRoute
   '/manager/': typeof ManagerIndexRoute
+  '/coach/student/$id': typeof CoachStudentIdRoute
   '/desk/member/$id': typeof DeskMemberIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/alerts': typeof AlertsRoute
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -266,6 +288,7 @@ export interface FileRoutesByTo {
   '/coach/attendance': typeof CoachAttendanceRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
+  '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/payments': typeof DeskPaymentsRoute
   '/manager/audit': typeof ManagerAuditRoute
@@ -281,12 +304,14 @@ export interface FileRoutesByTo {
   '/coach': typeof CoachIndexRoute
   '/desk': typeof DeskIndexRoute
   '/manager': typeof ManagerIndexRoute
+  '/coach/student/$id': typeof CoachStudentIdRoute
   '/desk/member/$id': typeof DeskMemberIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/alerts': typeof AlertsRoute
   '/app': typeof AppRouteWithChildren
   '/coach': typeof CoachRouteWithChildren
   '/desk': typeof DeskRouteWithChildren
@@ -303,6 +328,7 @@ export interface FileRoutesById {
   '/coach/attendance': typeof CoachAttendanceRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
+  '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/payments': typeof DeskPaymentsRoute
   '/manager/audit': typeof ManagerAuditRoute
@@ -318,6 +344,7 @@ export interface FileRoutesById {
   '/coach/': typeof CoachIndexRoute
   '/desk/': typeof DeskIndexRoute
   '/manager/': typeof ManagerIndexRoute
+  '/coach/student/$id': typeof CoachStudentIdRoute
   '/desk/member/$id': typeof DeskMemberIdRoute
 }
 export interface FileRouteTypes {
@@ -325,6 +352,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/alerts'
     | '/app'
     | '/coach'
     | '/desk'
@@ -341,6 +369,7 @@ export interface FileRouteTypes {
     | '/coach/attendance'
     | '/desk/classes'
     | '/desk/courts'
+    | '/desk/gate'
     | '/desk/gear'
     | '/desk/payments'
     | '/manager/audit'
@@ -356,11 +385,13 @@ export interface FileRouteTypes {
     | '/coach/'
     | '/desk/'
     | '/manager/'
+    | '/coach/student/$id'
     | '/desk/member/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
+    | '/alerts'
     | '/forgot'
     | '/login'
     | '/register'
@@ -373,6 +404,7 @@ export interface FileRouteTypes {
     | '/coach/attendance'
     | '/desk/classes'
     | '/desk/courts'
+    | '/desk/gate'
     | '/desk/gear'
     | '/desk/payments'
     | '/manager/audit'
@@ -388,11 +420,13 @@ export interface FileRouteTypes {
     | '/coach'
     | '/desk'
     | '/manager'
+    | '/coach/student/$id'
     | '/desk/member/$id'
   id:
     | '__root__'
     | '/'
     | '/account'
+    | '/alerts'
     | '/app'
     | '/coach'
     | '/desk'
@@ -409,6 +443,7 @@ export interface FileRouteTypes {
     | '/coach/attendance'
     | '/desk/classes'
     | '/desk/courts'
+    | '/desk/gate'
     | '/desk/gear'
     | '/desk/payments'
     | '/manager/audit'
@@ -424,12 +459,14 @@ export interface FileRouteTypes {
     | '/coach/'
     | '/desk/'
     | '/manager/'
+    | '/coach/student/$id'
     | '/desk/member/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  AlertsRoute: typeof AlertsRoute
   AppRoute: typeof AppRouteWithChildren
   CoachRoute: typeof CoachRouteWithChildren
   DeskRoute: typeof DeskRouteWithChildren
@@ -455,6 +492,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -590,6 +634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskCourtsRouteImport
       parentRoute: typeof DeskRoute
     }
+    '/desk/gate': {
+      id: '/desk/gate'
+      path: '/gate'
+      fullPath: '/desk/gate'
+      preLoaderRoute: typeof DeskGateRouteImport
+      parentRoute: typeof DeskRoute
+    }
     '/desk/gear': {
       id: '/desk/gear'
       path: '/gear'
@@ -674,6 +725,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof V1SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/coach/student/$id': {
+      id: '/coach/student/$id'
+      path: '/student/$id'
+      fullPath: '/coach/student/$id'
+      preLoaderRoute: typeof CoachStudentIdRouteImport
+      parentRoute: typeof CoachRoute
+    }
     '/desk/member/$id': {
       id: '/desk/member/$id'
       path: '/member/$id'
@@ -709,11 +767,13 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 interface CoachRouteChildren {
   CoachAttendanceRoute: typeof CoachAttendanceRoute
   CoachIndexRoute: typeof CoachIndexRoute
+  CoachStudentIdRoute: typeof CoachStudentIdRoute
 }
 
 const CoachRouteChildren: CoachRouteChildren = {
   CoachAttendanceRoute: CoachAttendanceRoute,
   CoachIndexRoute: CoachIndexRoute,
+  CoachStudentIdRoute: CoachStudentIdRoute,
 }
 
 const CoachRouteWithChildren = CoachRoute._addFileChildren(CoachRouteChildren)
@@ -721,6 +781,7 @@ const CoachRouteWithChildren = CoachRoute._addFileChildren(CoachRouteChildren)
 interface DeskRouteChildren {
   DeskClassesRoute: typeof DeskClassesRoute
   DeskCourtsRoute: typeof DeskCourtsRoute
+  DeskGateRoute: typeof DeskGateRoute
   DeskGearRoute: typeof DeskGearRoute
   DeskPaymentsRoute: typeof DeskPaymentsRoute
   DeskIndexRoute: typeof DeskIndexRoute
@@ -730,6 +791,7 @@ interface DeskRouteChildren {
 const DeskRouteChildren: DeskRouteChildren = {
   DeskClassesRoute: DeskClassesRoute,
   DeskCourtsRoute: DeskCourtsRoute,
+  DeskGateRoute: DeskGateRoute,
   DeskGearRoute: DeskGearRoute,
   DeskPaymentsRoute: DeskPaymentsRoute,
   DeskIndexRoute: DeskIndexRoute,
@@ -766,6 +828,7 @@ const ManagerRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  AlertsRoute: AlertsRoute,
   AppRoute: AppRouteWithChildren,
   CoachRoute: CoachRouteWithChildren,
   DeskRoute: DeskRouteWithChildren,

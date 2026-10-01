@@ -7,7 +7,8 @@ import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
 import { generateAssistantReply, type ChatTurn } from "../gemini";
 import { COACHES } from "../coaches";
-import { ticketBody } from "../rules";
+import { ATTENDANCE_LOCK_HOURS, attendanceLocked, isAttResult, ticketBody } from "../rules";
+import { checkAbsentStreaks, sessionScope } from "./training";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
 import { payosConfigured } from "../payos";
@@ -267,12 +268,17 @@ export async function loansOpen(sql: Sql, user: PublicUser) {
 export async function sessionAttendanceGet(sql: Sql, sessionId: string, user: PublicUser) {
   requireRole(user, ["coach", "manager"]);
   await requireFlag(sql, "F4");
-  const session = await one<{ id: string; class_id: string; status: string }>(
-    sql,
-    `select id, class_id, status from sessions where id = $1`,
-    [sessionId],
-  );
-  if (!session) throw err.notFound();
+  // BR-59: a coach reads the register of their own classes only.
+  const scope = await sessionScope(sql, sessionId, user);
+  const session = {
+    id: scope.id,
+    class_id: scope.class_id,
+    status: scope.status,
+    start_at: scope.start_at,
+    end_at: scope.end_at,
+    locked: attendanceLocked(new Date(scope.end_at).getTime(), Date.now(), scope.status),
+    lock_at: new Date(new Date(scope.end_at).getTime() + ATTENDANCE_LOCK_HOURS * 3_600_000).toISOString(),
+  };
   const roster = await sql.query(
     `select u.id, u.full_name, u.member_code, u.health_notes,
             a.result, a.at
@@ -327,31 +333,67 @@ export async function meAttendance(sql: Sql, user: PublicUser) {
 export async function sessionAttendancePost(sql: Sql, sessionId: string, request: Request, user: PublicUser) {
   requireRole(user, ["coach", "manager"]);
   await requireFlag(sql, "F4");
-  const session = await one<{ id: string; status: string; end_at: string }>(
-    sql,
-    `select id, status, end_at from sessions where id = $1`,
-    [sessionId],
-  );
-  if (!session) throw err.notFound();
-  if (session.status === "done") throw err.br("BR-27", "Attendance for this session is locked.");
+  const session = await sessionScope(sql, sessionId, user);
+  if (session.status === "cancelled") throw err.conflictState("That session was cancelled.");
   const b = await readJson(request);
-  const items = Array.isArray(b.items) ? b.items : [];
-  for (const it of items) {
+  const raw = Array.isArray(b.items) ? (b.items as Record<string, unknown>[]) : [];
+  if (raw.length === 0) throw err.field("items", "Nothing to save.");
+
+  // BR-53: the register closes two hours after the session. Past that only a
+  // manager may correct it, and must say why — the reason is kept in the audit.
+  let reason: string | null = null;
+  if (attendanceLocked(new Date(session.end_at).getTime(), Date.now(), session.status)) {
+    if (user.role !== "manager") {
+      throw err.br("BR-53", "This register closed 2 hours after the session. Ask a manager to correct it.");
+    }
+    reason = (str(b.reason) ?? "").trim();
+    if (reason.length < 3) throw err.field("reason", "Say why this closed register is being changed.");
+  }
+
+  const marks = new Map<string, string>();
+  for (const [i, it] of raw.entries()) {
     const uid = str(it.user_id);
+    if (!uid || !/^[0-9a-f-]{36}$/i.test(uid)) throw err.field("user_id", `Row ${i + 1}: missing student.`, { index: i });
     const result = str(it.result) ?? "present";
-    if (!uid) continue;
-    await sql.query(
-      `delete from attendance where session_id = $1 and user_id = $2 and kind = 'session'`,
-      [sessionId, uid],
+    if (!isAttResult(result)) {
+      throw err.field("result", `Row ${i + 1}: result must be present, late, absent or excused.`, { index: i });
+    }
+    const enrolled = await one(
+      sql,
+      `select 1 as ok from enrollments where class_id = $1 and user_id = $2 and status = 'confirmed'`,
+      [session.class_id, uid],
     );
+    if (!enrolled) throw err.field("user_id", `Row ${i + 1}: that student is not in this class.`, { index: i });
+    marks.set(uid, result);
+  }
+
+  const before: Record<string, string | null> = {};
+  for (const [uid, result] of marks) {
+    const prev = await one<{ result: string | null }>(
+      sql,
+      `select result::text as result from attendance where session_id = $1 and user_id = $2 and kind = 'session' limit 1`,
+      [session.id, uid],
+    );
+    before[uid] = prev?.result ?? null;
+    await sql.query(`delete from attendance where session_id = $1 and user_id = $2 and kind = 'session'`, [session.id, uid]);
     await sql.query(
-      `insert into attendance (kind, user_id, session_id, result)
-       values ('session', $1, $2, $3::att_result)`,
-      [uid, sessionId, result],
+      `insert into attendance (kind, user_id, session_id, result) values ('session', $1, $2, $3::att_result)`,
+      [uid, session.id, result],
     );
   }
-  await audit(sql, user.id, "attendance", "session", sessionId);
-  return sessionAttendanceGet(sql, sessionId, user);
+  await audit(
+    sql,
+    user.id,
+    reason ? "attendance_correct" : "attendance",
+    "session",
+    session.id,
+    before,
+    { marks: Object.fromEntries(marks), ...(reason ? { reason } : {}) },
+  );
+  // BR-58: only a fresh absence can start or extend a streak.
+  const absent = [...marks].filter(([, r]) => r === "absent").map(([uid]) => uid);
+  await checkAbsentStreaks(sql, session.class_id, absent);
+  return sessionAttendanceGet(sql, session.id, user);
 }
 
 export async function trainingList(sql: Sql, request: Request, user: PublicUser) {
@@ -360,44 +402,29 @@ export async function trainingList(sql: Sql, request: Request, user: PublicUser)
   const classId = url.searchParams.get("class_id");
   const mine = url.searchParams.get("mine") === "1";
   const items = await sql.query(
-    `select * from training_plans
-      where published = true
-        and ($1::uuid is null or class_id = $1)
+    `select p.*, s.start_at as session_start
+       from training_plans p
+       left join sessions s on s.id = p.session_id
+      where ($1::uuid is null or p.class_id = $1)
         and (
-          $2::boolean is false
-          or user_id = $3
-          or (user_id is null and class_id is null)
-          or (user_id is null and class_id in (
-                select class_id from enrollments where user_id = $3 and status = 'confirmed'
-              ))
+          case
+            when $2::boolean then
+              p.published = true
+              and (p.user_id = $3
+                   or (p.user_id is null and p.class_id is null)
+                   or (p.user_id is null and p.class_id in (
+                         select class_id from enrollments where user_id = $3 and status = 'confirmed')))
+            when $4::text = 'coach' then
+              p.created_by = $3
+              or p.class_id in (select id from classes where coach_id = $3 or assistant_id = $3)
+            else true
+          end
         )
-      order by id desc
-      limit 40`,
-    [classId, mine || user.role === "member", user.id],
+      order by coalesce(s.start_at, p.created_at) desc, p.id
+      limit 60`,
+    [classId && /^[0-9a-f-]{36}$/i.test(classId) ? classId : null, mine || user.role === "member", user.id, user.role],
   );
   return { status: 200, body: { items } };
-}
-
-export async function trainingCreate(sql: Sql, request: Request, user: PublicUser) {
-  requireRole(user, ["coach", "manager"]);
-  await requireFlag(sql, "F4");
-  const b = await readJson(request);
-  const payload = b.payload ?? {};
-  const row = await one(
-    sql,
-    `insert into training_plans (scope, class_id, user_id, source, published, payload)
-     values ($1,$2,$3,$4, coalesce($5,true), $6::jsonb)
-     returning *`,
-    [
-      str(b.scope) ?? "class",
-      str(b.class_id) ?? null,
-      str(b.user_id) ?? null,
-      str(b.source) ?? "coach",
-      b.published !== false,
-      JSON.stringify(payload),
-    ],
-  );
-  return { status: 201, body: row };
 }
 
 export async function trainingSuggest(sql: Sql, request: Request, user: PublicUser) {

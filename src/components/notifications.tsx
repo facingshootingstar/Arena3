@@ -148,6 +148,24 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
         title: "Refund declined",
         body: `Your refund request${code ? ` ${code}` : ""} was declined.${typeof p.note === "string" ? ` Reason: ${p.note}` : " Ask reception if you want to know why."}`,
       };
+    case "homework_assigned":
+      return {
+        title: "New homework",
+        body: `${typeof p.coach_name === "string" ? p.coach_name : "Your coach"} set “${typeof p.title === "string" ? p.title : "homework"}”${typeof p.due_on === "string" ? `, due ${p.due_on}` : ""}.`,
+        link: { to: "/app/train", label: "Open my progress" },
+      };
+    case "review_added":
+      return {
+        title: "Your coach wrote a review",
+        body: `${typeof p.coach_name === "string" ? p.coach_name : "Your coach"} reviewed your last ${typeof p.period_weeks === "number" ? p.period_weeks : ""} weeks${typeof p.sport === "string" ? ` of ${p.sport}` : ""}.`,
+        link: { to: "/app/train", label: "Read it" },
+      };
+    case "absent_streak":
+      return {
+        title: "Three absences in a row",
+        body: `${typeof p.member_name === "string" ? p.member_name : "A student"} has missed ${typeof p.streak === "number" ? p.streak : "several"} sessions in a row${typeof p.sport === "string" ? ` of ${p.sport}` : ""}. Worth a check-in.`,
+        link: typeof p.user_id === "string" ? { to: `/coach/student/${p.user_id}`, label: "Open their profile" } : undefined,
+      };
     case "ticket_replied":
       return {
         title: "Reception replied",

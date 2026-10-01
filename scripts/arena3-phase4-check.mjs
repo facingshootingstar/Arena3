@@ -282,7 +282,7 @@ ok(upcoming.length >= 4, "a published class has sessions to work with", upcoming
       // A server that has run this script before may hold the next hour already;
       // a busy slot is not what this check is about, so try the following ones.
       let reasoned;
-      for (const hours of [1, 2, 3]) {
+      for (const hours of [1, 2, 3, 4, 5, 6]) {
         reasoned = await req(`/sessions/${soon.id}/reschedule`, {
           method: "POST",
           token: mgr.token,

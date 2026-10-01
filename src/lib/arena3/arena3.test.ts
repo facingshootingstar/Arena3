@@ -6,7 +6,20 @@ import { numberToVietnamese, vndInWords } from "./money-words.ts";
 import { addDays, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
 import { ApiError, mapDbError } from "./errors.ts";
 import { checkOpeningHours, parseSettingsPatch } from "./validate.ts";
-import { discountPctOk, planActiveOn, slotPriceOk, ticketBody, validatePriceRules } from "./rules.ts";
+import {
+  absentStreak,
+  attendanceLocked,
+  discountPctOk,
+  homeworkComplete,
+  isAttResult,
+  normalizeChecklist,
+  normalizeDone,
+  planActiveOn,
+  slotPriceOk,
+  ticketBody,
+  validateMetrics,
+  validatePriceRules,
+} from "./rules.ts";
 
 describe("phone", () => {
   it("normalizes VN mobiles to +84", () => {
@@ -246,5 +259,67 @@ describe("class court time (B-03)", () => {
     const held = slotSpan(start, new Date(start.getTime() + 60 * 60_000), 60);
     assert.equal(hhmm(held.start), "17:00");
     assert.equal(hhmm(held.end), "19:00");
+  });
+});
+
+describe("F4 attendance lock (BR-53)", () => {
+  const end = ictDateTime("2026-09-14", "19:30").getTime();
+  it("stays open for two hours after the session ends", () => {
+    assert.equal(attendanceLocked(end, end + 119 * 60_000, "scheduled"), false);
+    assert.equal(attendanceLocked(end, end + 2 * 3_600_000, "scheduled"), false);
+  });
+  it("closes once the window has passed, even before the job marks it done", () => {
+    assert.equal(attendanceLocked(end, end + 2 * 3_600_000 + 1, "scheduled"), true);
+  });
+  it("is closed for a session already marked done", () => {
+    assert.equal(attendanceLocked(end, end - 60_000, "done"), true);
+  });
+});
+
+describe("F4 absent streak (BR-58)", () => {
+  it("counts only the run at the end", () => {
+    assert.equal(absentStreak(["absent", "present", "absent", "absent"]), 2);
+    assert.equal(absentStreak(["absent", "absent", "absent"]), 3);
+    assert.equal(absentStreak([]), 0);
+  });
+  it("is broken by present, late or excused", () => {
+    assert.equal(absentStreak(["absent", "absent", "excused", "absent"]), 1);
+    assert.equal(absentStreak(["absent", "absent", "absent", "late"]), 0);
+  });
+  it("accepts only the four register values", () => {
+    assert.equal(isAttResult("late"), true);
+    assert.equal(isAttResult("sick"), false);
+    assert.equal(isAttResult(undefined), false);
+  });
+});
+
+describe("F4 session metrics (FR-TRN-05)", () => {
+  it("accepts whole numbers in range and ignores blanks", () => {
+    const r = validateMetrics({ smash_count: 24, freethrow_pct: "80", serve_pct: "" });
+    assert.deepEqual(r, { ok: true, metrics: { smash_count: 24, freethrow_pct: 80 } });
+  });
+  it("rejects percentages above 100, fractions and unknown keys", () => {
+    assert.equal(validateMetrics({ serve_pct: 101 }).ok, false);
+    assert.equal(validateMetrics({ smash_count: 2.5 }).ok, false);
+    assert.equal(validateMetrics({ speed: 3 }).ok, false);
+    assert.equal(validateMetrics([1]).ok, false);
+  });
+});
+
+describe("F4 homework checklist (FR-TRN-07)", () => {
+  it("trims, drops blanks and refuses a wrong shape", () => {
+    assert.deepEqual(normalizeChecklist([" a ", "", "b"]), ["a", "b"]);
+    assert.equal(normalizeChecklist("a"), null);
+    assert.equal(normalizeChecklist([1]), null);
+    assert.equal(normalizeChecklist(Array.from({ length: 21 }, () => "x")), null);
+  });
+  it("keeps only ticks that point at a real row", () => {
+    assert.deepEqual(normalizeDone(3, [2, 2, 0, 5, -1, "1"]), [0, 2]);
+  });
+  it("is complete when every row is ticked, or on explicit done for an empty list", () => {
+    assert.equal(homeworkComplete(3, [0, 1], false), false);
+    assert.equal(homeworkComplete(3, [0, 1, 2], false), true);
+    assert.equal(homeworkComplete(0, [], false), false);
+    assert.equal(homeworkComplete(0, [], true), true);
   });
 });

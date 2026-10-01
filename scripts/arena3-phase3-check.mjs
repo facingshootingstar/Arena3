@@ -96,13 +96,26 @@ async function newMember(prefix, name) {
 {
   const m = await newMember("098", "Move Check");
   const rival = await newMember("099", "Move Rival");
-  const date = ict(3);
+  // A weekday: weekend badminton turns peak-priced at 08:00, which would reprice every move below.
+  let ahead = 3;
+  while ([0, 6].includes(new Date(`${ict(ahead)}T12:00:00Z`).getUTCDay())) ahead += 1;
+  const date = ict(ahead);
   const occ = await req(`/occupancy?date=${date}`, { token: m.token });
-  const court = occ.data.courts.find((c) => c.sport === "badminton" && c.status === "ready");
-  const busy = new Set(occ.data.slots.filter((s) => s.court_id === court.id).map((s) => new Date(s.start).getTime()));
-  const isFree = (h) => !busy.has(new Date(at(date, h)).getTime());
-  let hour = 7;
-  while (!(isFree(hour) && isFree(hour + 1) && isFree(hour + 2))) hour += 1;
+  // The demo diary differs on every start, so look across the courts for three free hours in a row
+  // that start early enough to share one off-peak price (a move across a price band is refused before the clash is looked at).
+  let court;
+  let hour;
+  for (const c of occ.data.courts.filter((x) => x.sport === "badminton" && x.status === "ready")) {
+    const busy = new Set(occ.data.slots.filter((s) => s.court_id === c.id).map((s) => new Date(s.start).getTime()));
+    const free = (h) => !busy.has(new Date(at(date, h)).getTime());
+    const h = [7, 8, 9].find((x) => free(x) && free(x + 1) && free(x + 2));
+    if (h != null) {
+      court = c;
+      hour = h;
+      break;
+    }
+  }
+  if (!court) fail("M-04 found three free hours in a row on some badminton court", occ.data);
 
   const h = await req("/bookings", { method: "POST", token: m.token, body: { court_id: court.id, start_at: at(date, hour) }, idem: true });
   ok(h.status === 201, "M-04 hold a slot", h);

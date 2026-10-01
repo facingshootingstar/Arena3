@@ -1,9 +1,11 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Activity,
   Bell,
   CalendarDays,
   ChevronDown,
   ClipboardList,
+  DoorOpen,
   Dumbbell,
   LayoutGrid,
   LogOut,
@@ -44,10 +46,12 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
     { to: "/app", label: "Schedule", icon: CalendarDays },
     { to: "/app/book", label: "Book", icon: Map },
     { to: "/app/classes", label: "Classes", icon: Ticket },
+    { to: "/app/train", label: "Progress", icon: Activity },
     { to: "/app/plans", label: "Plans", icon: Wallet },
   ],
   receptionist: [
     { to: "/desk", label: "Desk", icon: Users },
+    { to: "/desk/gate", label: "Gate", icon: DoorOpen },
     { to: "/desk/courts", label: "Courts", icon: Map },
     { to: "/desk/classes", label: "Classes", icon: Ticket },
     { to: "/desk/payments", label: "Payments", icon: Wallet },
@@ -79,6 +83,8 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
 
 function navActive(pathname: string, to: string, items: { to: string }[]) {
   const list = Array.isArray(items) ? items : [];
+  // A student's profile is reached from the register, so that is the tab it belongs to.
+  if (pathname.startsWith("/coach/student/")) pathname = "/coach/attendance";
   const matches = list.filter((it) => pathname === it.to || pathname.startsWith(`${it.to}/`));
   const best = [...matches].sort((a, b) => b.to.length - a.to.length)[0];
   return best?.to === to;
@@ -100,7 +106,7 @@ function initials(name: string | undefined) {
  * avatar menu is somewhere nobody looks. The count is re-read on every page
  * change, which is cheap and keeps it honest after a notification is opened.
  */
-function NotificationBell({ active }: { active: boolean }) {
+function NotificationBell({ active, to }: { active: boolean; to: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [unread, setUnread] = useState(0);
   useEffect(() => {
@@ -116,7 +122,7 @@ function NotificationBell({ active }: { active: boolean }) {
   }, [pathname]);
   return (
     <Link
-      to="/app/notifications"
+      to={to}
       aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
       className={cn(
         "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
@@ -288,7 +294,10 @@ export function Shell({
             })}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {role === "member" ? <NotificationBell active={pathname.startsWith("/app/notifications")} /> : null}
+            <NotificationBell
+              to={role === "member" ? "/app/notifications" : "/alerts"}
+              active={pathname.startsWith("/app/notifications") || pathname.startsWith("/alerts")}
+            />
             {role === "member" ? (
               <Link
                 to="/app/assistant"
