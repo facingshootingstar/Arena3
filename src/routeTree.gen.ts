@@ -35,6 +35,7 @@ import { Route as DeskPaymentsRouteImport } from './routes/desk.payments'
 import { Route as ManagerIndexRouteImport } from './routes/manager.index'
 import { Route as ManagerAuditRouteImport } from './routes/manager.audit'
 import { Route as ManagerClassesRouteImport } from './routes/manager.classes'
+import { Route as ManagerMembersRouteImport } from './routes/manager.members'
 import { Route as ManagerPlansRouteImport } from './routes/manager.plans'
 import { Route as ManagerPricesRouteImport } from './routes/manager.prices'
 import { Route as ManagerSettingsRouteImport } from './routes/manager.settings'
@@ -173,6 +174,11 @@ const ManagerClassesRoute = ManagerClassesRouteImport.update({
   path: '/classes',
   getParentRoute: () => ManagerRoute,
 } as any)
+const ManagerMembersRoute = ManagerMembersRouteImport.update({
+  id: '/members',
+  path: '/members',
+  getParentRoute: () => ManagerRoute,
+} as any)
 const ManagerPlansRoute = ManagerPlansRouteImport.update({
   id: '/plans',
   path: '/plans',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/desk/payments': typeof DeskPaymentsRoute
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
+  '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
   '/manager/settings': typeof ManagerSettingsRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/desk/payments': typeof DeskPaymentsRoute
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
+  '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
   '/manager/settings': typeof ManagerSettingsRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/desk/payments': typeof DeskPaymentsRoute
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
+  '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
   '/manager/settings': typeof ManagerSettingsRoute
@@ -336,6 +345,7 @@ export interface FileRouteTypes {
     | '/desk/payments'
     | '/manager/audit'
     | '/manager/classes'
+    | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
     | '/manager/settings'
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/desk/payments'
     | '/manager/audit'
     | '/manager/classes'
+    | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
     | '/manager/settings'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/desk/payments'
     | '/manager/audit'
     | '/manager/classes'
+    | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
     | '/manager/settings'
@@ -613,6 +625,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManagerClassesRouteImport
       parentRoute: typeof ManagerRoute
     }
+    '/manager/members': {
+      id: '/manager/members'
+      path: '/members'
+      fullPath: '/manager/members'
+      preLoaderRoute: typeof ManagerMembersRouteImport
+      parentRoute: typeof ManagerRoute
+    }
     '/manager/plans': {
       id: '/manager/plans'
       path: '/plans'
@@ -722,6 +741,7 @@ const DeskRouteWithChildren = DeskRoute._addFileChildren(DeskRouteChildren)
 interface ManagerRouteChildren {
   ManagerAuditRoute: typeof ManagerAuditRoute
   ManagerClassesRoute: typeof ManagerClassesRoute
+  ManagerMembersRoute: typeof ManagerMembersRoute
   ManagerPlansRoute: typeof ManagerPlansRoute
   ManagerPricesRoute: typeof ManagerPricesRoute
   ManagerSettingsRoute: typeof ManagerSettingsRoute
@@ -732,6 +752,7 @@ interface ManagerRouteChildren {
 const ManagerRouteChildren: ManagerRouteChildren = {
   ManagerAuditRoute: ManagerAuditRoute,
   ManagerClassesRoute: ManagerClassesRoute,
+  ManagerMembersRoute: ManagerMembersRoute,
   ManagerPlansRoute: ManagerPlansRoute,
   ManagerPricesRoute: ManagerPricesRoute,
   ManagerSettingsRoute: ManagerSettingsRoute,

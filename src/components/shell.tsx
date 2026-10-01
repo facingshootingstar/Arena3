@@ -65,6 +65,7 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
   manager: [
     { to: "/manager", label: "Reports", icon: LayoutGrid },
     { to: "/manager/classes", label: "Classes", icon: Ticket },
+    { to: "/manager/members", label: "Members", icon: Users },
     { to: "/manager/plans", label: "Plans", icon: Wallet },
     // Refund sign-off lives on the payments screen, which has always taken a
     // manager — nothing in this menu pointed at it (B-02).
@@ -307,9 +308,9 @@ export function Shell({
         </div>
       </header>
       <main
-        className={cn(
         id="main-content"
         tabIndex={-1}
+        className={cn(
           "mx-auto max-w-6xl px-4 py-6 md:pb-10",
           // Only reserve room for the dock when there is a dock.
           showNav ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-10",

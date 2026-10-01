@@ -87,12 +87,45 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
             : "Pay before the hold ends or the court goes back on sale.",
         link: { to: "/app/book", label: "Open bookings" },
       };
-    case "class_changed":
-      return {
-        title: "Class schedule changed",
-        body: "A class you are in has changed. Open your classes to see the new time and court.",
-        link: { to: "/app/classes", label: "Open my classes" },
-      };
+    case "class_changed": {
+      const reason = typeof p.reason === "string" && p.reason !== "conflict" ? ` Reason: ${p.reason}.` : "";
+      const link = { to: "/app/classes", label: "Open my classes" };
+      switch (p.kind) {
+        case "session_cancelled":
+          return {
+            title: "A class session was cancelled",
+            body: `${typeof p.start === "string" ? `The session on ${new Date(p.start).toLocaleString("en-GB", { timeZone: "Asia/Ho_Chi_Minh", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} will not run.` : "A session will not run."}${reason}`,
+            link,
+          };
+        case "session_moved":
+          return {
+            title: "A class session moved",
+            body: `${typeof p.start === "string" ? `It now starts ${new Date(p.start).toLocaleString("en-GB", { timeZone: "Asia/Ho_Chi_Minh", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.` : "It has a new time."}${reason}`,
+            link,
+          };
+        case "coach_changed":
+          return {
+            title: "Your class has a new coach",
+            body: `${typeof p.coach_name === "string" ? `${p.coach_name} takes the sessions still to come.` : "A new coach takes the sessions still to come."}${reason}`,
+            link,
+          };
+        case "class_cancelled":
+          return {
+            title: "A class was cancelled",
+            body: `The class has been cancelled and any session you had in it is given back.${reason}`,
+            link,
+          };
+        default:
+          return {
+            title: "Class schedule changed",
+            body:
+              p.reason === "conflict"
+                ? "A class could not be scheduled for one date because the court or coach was busy."
+                : "A class you are in has changed. Open your classes to see the new time and court.",
+            link,
+          };
+      }
+    }
     case "sub_expiring":
       return {
         title: "Plan expiring soon",

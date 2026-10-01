@@ -228,6 +228,20 @@ Kiểm bằng `node scripts/arena3-phase3-check.mjs` (32 kiểm tra, PGLite tron
 | M-04 | ĐÓNG | `POST /bookings/:id/reschedule` (chỉ member chủ booking). Chỉ đổi booking `confirmed`, **ngoài** cửa sổ hủy `cancel_court_hours` của Settings (trong cửa sổ trả 409 `CONFLICT_STATE` kèm `window_hours`). Cùng môn, sân phải `ready` (BR-35), trong `book_ahead_days`, không ở quá khứ (BR-66), giữ giới hạn slot/ngày (BR-32) và xác nhận chồng giờ (BR-39C). Việc đổi occupancy (`court_id`, `start_at`, `end_at`) và `court_bookings` nằm **cùng một transaction**; trigger chống chồng giờ vẫn là chốt cuối: tranh slot trả 409 `CONFLICT_SLOT` và booking giữ nguyên chỗ cũ (đã kiểm). **Khác giá bị từ chối** (409, kèm `paid_vnd` và `new_price_vnd`, gợi ý hủy rồi đặt lại) vì SRS không có công thức chênh lệch; booking dùng quota gói thì không có chênh lệch tiền. Có thông báo `booking_rescheduled` và audit. UI: danh sách "Your upcoming courts" với nút "Change time", banner đang đổi, lưới sân nhận lần bấm kế tiếp. |
 | M-05 | ĐÓNG (đường có dữ liệu chỉ kiểm cấu trúc) | `GET /me/attendance` chỉ trả dòng của chính `user.id` (staff nhận 403, member không có lớp thấy rỗng), đủ 4 trạng thái hiện có Present / Late / Absent / Excused kèm tổng; buổi chưa điểm danh hiện "Not marked yet". Hiển thị ở cuối màn Classes ("My attendance"). Không thể tạo buổi quá khứ trên dev để thử dữ liệu thật nên phần có dòng chỉ được kiểm bằng hình dạng phản hồi. Nhận xét theo học viên (C-02) **không** làm. |
 
+### Pha 4A — vòng đời lớp học và danh sách member (theo SRS v1.4)
+
+Kiểm bằng `node scripts/arena3-phase4-check.mjs` (65–67 kiểm tra, chạy **một lần** trên server PGLite mới; đặt `DATABASE_URL=` rỗng vì dev server đọc `.env.local` trỏ tới DB thật). Migration `0020_phase4_sessions.sql`: `sessions.original_start_at`, `sessions.change_reason`, `classes.cancel_reason`.
+
+| ID | Trạng thái | Ghi chú |
+|----|------------|---------|
+| Hủy buổi (BR-26) | ĐÓNG | `POST /sessions/:id/cancel`, chỉ manager, bắt buộc `reason`. Nhả sân + lịch HLV, cộng +1 buổi cho gói tính theo buổi (đúng một lần, hủy lại trả 409), báo từng học viên, audit `cancel_session`. |
+| Dời buổi (BR-21, BR-28) | ĐÓNG | `POST /sessions/:id/reschedule`. Trùng sân/HLV trả 409 `CONFLICT_SLOT` và buổi giữ nguyên chỗ; dưới 12 giờ phải có lý do (422 `BR-28`). Giữ nguyên thời lượng; `original_start_at` để bộ sinh buổi không tạo lại giờ cũ. |
+| Đổi HLV (BR-23, BR-27) | ĐÓNG | `POST /classes/:id/coach`: HLV phải dạy môn đó, không trùng lịch; chuyển các buổi sắp tới, báo HLV cũ/mới và học viên, audit `change_coach`. |
+| Sửa / đóng / hủy lớp (BR-22, BR-67) | ĐÓNG | `PATCH /classes/:id`: sức chứa (không thấp hơn số đã ghi danh), level, `open`/`closed`/`cancelled`. Tăng sức chứa mời người trong waitlist. Hủy lớp: hoàn +1 mỗi học viên một lần, hủy mọi buổi sắp tới, hết hạn lời mời waitlist. |
+| FR-MEM-04 | ĐÓNG | `GET /directory/members` (manager): tìm theo tên/SĐT/mã, lọc theo trạng thái tài khoản, môn, tình trạng gói (active/expiring/expired/none), phân trang, kèm nợ và số lớp. Màn `/manager/members` (mục Members trong menu), dòng mở hồ sơ member. |
+
+UI: modal lớp ở Manager có nút Move/Cancel trên từng buổi sắp tới, và mục "Manage this class" (đổi HLV, sửa sức chứa, hủy lớp). Thông báo member có nội dung riêng cho từng loại thay đổi.
+
 ### Chưa làm có chủ đích
 
 - **CHỜ-PRODUCT:** C-03, C-04, M-01, M-02, M-06, M-07 — chờ product chốt, không viết code/schema.

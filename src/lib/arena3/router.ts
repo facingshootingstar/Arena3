@@ -160,6 +160,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => staffH.staffRevokeSessions(sql, p1, user));
   }
 
+  if (method === "GET" && p0 === "directory" && p1 === "members") {
+    return authedRead((sql, user) => memberH.membersDirectory(sql, request, user));
+  }
   if (method === "GET" && p0 === "members" && !p1) {
     return authedRead((sql, user) => memberH.membersSearch(sql, request, user));
   }
@@ -244,6 +247,18 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "GET" && p0 === "classes" && p1 && p2 === "roster") {
     return authedRead((sql, user) => classH.classRoster(sql, p1, user));
+  }
+  if (method === "PATCH" && p0 === "classes" && p1 && !p2) {
+    return authed((sql, user) => classH.classesPatch(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "classes" && p1 && p2 === "coach") {
+    return authed((sql, user) => classH.classesAssignCoach(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "sessions" && p1 && p2 === "cancel") {
+    return authed((sql, user) => classH.sessionCancel(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "sessions" && p1 && p2 === "reschedule") {
+    return authed((sql, user) => classH.sessionReschedule(sql, p1, request, user));
   }
   if (method === "GET" && p0 === "coach" && p1 === "schedule") {
     return authedRead((sql, user) => classH.coachSchedule(sql, user));

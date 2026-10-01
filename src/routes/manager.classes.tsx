@@ -255,7 +255,7 @@ function Page() {
           hint="Pick a sport, a coach and the days above, then press Create & publish. Members can book as soon as it is published."
         />
       ) : null}
-      <ClassDetailModal classId={detail} onClose={() => setDetail(null)} />
+      <ClassDetailModal classId={detail} onClose={() => setDetail(null)} manage onChanged={() => void load()} />
     </Shell>
   );
 }

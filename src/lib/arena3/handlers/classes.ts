@@ -104,7 +104,8 @@ export async function materializeClassSessions(
   for (const o of occs) {
     const exists = await one(
       sql,
-      `select id from sessions where class_id = $1 and start_at = $2`,
+      `select id from sessions
+        where class_id = $1 and (start_at = $2 or original_start_at = $2)`,
       [id, o.start.toISOString()],
     );
     if (exists) continue;
@@ -438,6 +439,363 @@ export async function classRoster(sql: Sql, classId: string, user: PublicUser) {
     [classId],
   );
   return { status: 200, body: { items } };
+}
+
+/* ------------------------------------------------------------------ *
+ * Phase 4A — class lifecycle (FR-CLS: cancel / move a session, change *
+ * the coach, close or cancel a class).                                *
+ * ------------------------------------------------------------------ */
+
+/** BR-28: a session may be moved freely only this long before its old time. */
+const MOVE_FREE_HOURS = 12;
+
+type SessionRow = {
+  id: string;
+  class_id: string;
+  court_id: string;
+  start_at: string;
+  end_at: string;
+  status: string;
+  occupancy_id: string | null;
+  original_start_at: string | null;
+  sport: string;
+  level: string;
+  coach_id: string;
+  assistant_id: string | null;
+};
+
+async function lockSession(sql: Sql, sessionId: string): Promise<SessionRow> {
+  const s = await one<SessionRow>(
+    sql,
+    `select s.id, s.class_id, s.court_id, s.start_at, s.end_at, s.status::text as status, s.occupancy_id,
+            s.original_start_at, cl.sport::text as sport, cl.level, cl.coach_id, cl.assistant_id
+       from sessions s join classes cl on cl.id = s.class_id
+      where s.id = $1
+      for update of s`,
+    [sessionId],
+  );
+  if (!s) throw err.notFound("No such session.");
+  return s;
+}
+
+async function confirmedMembers(sql: Sql, classId: string): Promise<string[]> {
+  const rows = await sql.query(
+    `select user_id from enrollments where class_id = $1 and status = 'confirmed'`,
+    [classId],
+  );
+  return rows.map((r) => String(r.user_id));
+}
+
+/** Everyone a class change touches: the roster plus the coaches on it. */
+async function notifyClass(
+  sql: Sql,
+  classId: string,
+  people: string[],
+  payload: Record<string, unknown>,
+  key: string,
+) {
+  for (const uid of new Set(people)) {
+    await enqueue(sql, "inapp", "class_changed", uid, { class_id: classId, ...payload }, `${key}|${uid}`);
+  }
+}
+
+/** BR-26: a per-session plan gets the session back; a time-based plan has nothing to give back. */
+async function giveSessionBack(sql: Sql, userId: string, sport: string): Promise<boolean> {
+  const sub = await classSubscription(sql, userId, sport);
+  if (sub?.session_left == null) return false;
+  await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [sub.id]);
+  return true;
+}
+
+function reasonOf(b: Record<string, unknown>): string | undefined {
+  const r = str(b.reason);
+  return r ? r.slice(0, 300) : undefined;
+}
+
+/** Cancel one session of a class (FR-CLS-04, BR-26). */
+export async function sessionCancel(sql: Sql, sessionId: string, request: Request, user: PublicUser) {
+  requireRole(user, ["manager"]);
+  const b = await readJson(request);
+  const reason = reasonOf(b);
+  if (!reason) throw err.field("reason", "Give a reason for cancelling this session.");
+  const s = await lockSession(sql, sessionId);
+  if (s.status !== "scheduled") throw err.conflictState("Only a scheduled session can be cancelled.");
+  if (new Date(s.end_at).getTime() <= Date.now()) throw err.conflictState("That session has already finished.");
+
+  await sql.query(`select occupancy_release_session($1::uuid, 'cancelled'::session_status)`, [sessionId]);
+  await sql.query(`update sessions set change_reason = $2 where id = $1`, [sessionId, reason]);
+
+  const members = await confirmedMembers(sql, s.class_id);
+  let refunded = 0;
+  for (const uid of members) {
+    if (await giveSessionBack(sql, uid, s.sport)) refunded += 1;
+  }
+  await notifyClass(
+    sql,
+    s.class_id,
+    [...members, s.coach_id, ...(s.assistant_id ? [s.assistant_id] : [])],
+    { kind: "session_cancelled", session_id: sessionId, start: s.start_at, reason },
+    `session_cancel|${sessionId}`,
+  );
+  await audit(sql, user.id, "cancel_session", "session", sessionId, { status: "scheduled", start_at: s.start_at }, { status: "cancelled", reason });
+  return { status: 200, body: { ok: true, notified: members.length, refunded } };
+}
+
+/** Move one session to another time (FR-CLS-05, BR-21, BR-28). Same court, same coach. */
+export async function sessionReschedule(sql: Sql, sessionId: string, request: Request, user: PublicUser) {
+  requireRole(user, ["manager"]);
+  const b = await readJson(request);
+  const startRaw = str(b.start_at);
+  const newStart = startRaw ? new Date(startRaw) : null;
+  if (!newStart || Number.isNaN(newStart.getTime())) throw err.field("start_at", "Pick the new start time.");
+  if (newStart.getTime() <= Date.now()) throw err.field("start_at", "The new time must be in the future.");
+  const s = await lockSession(sql, sessionId);
+  if (s.status !== "scheduled") throw err.conflictState("Only a scheduled session can be moved.");
+  const oldStart = new Date(s.start_at);
+  const length = new Date(s.end_at).getTime() - oldStart.getTime();
+  if (oldStart.getTime() <= Date.now()) throw err.conflictState("That session has already started.");
+  if (newStart.getTime() === oldStart.getTime()) throw err.field("start_at", "That is the time it already has.");
+
+  const reason = reasonOf(b);
+  const hoursAhead = (oldStart.getTime() - Date.now()) / 3600000;
+  if (hoursAhead < MOVE_FREE_HOURS && !reason) {
+    throw err.br(
+      "BR-28",
+      `This session starts in under ${MOVE_FREE_HOURS} hours — give a reason to move it.`,
+      { field: "reason" },
+    );
+  }
+
+  const newEnd = new Date(newStart.getTime() + length);
+  const { slot_minutes } = await getSettings(sql);
+  const held = slotSpan(newStart, newEnd, slot_minutes);
+  try {
+    // Moved in place, so the session's own old slot never counts as a clash.
+    await sql.query(`update occupancies set start_at = $2, end_at = $3 where id = $1`, [
+      s.occupancy_id,
+      held.start.toISOString(),
+      held.end.toISOString(),
+    ]);
+    await sql.query(`update coach_occupancies set start_at = $2, end_at = $3 where session_id = $1`, [
+      sessionId,
+      newStart.toISOString(),
+      newEnd.toISOString(),
+    ]);
+    await sql.query(
+      `update sessions
+          set start_at = $2, end_at = $3,
+              original_start_at = coalesce(original_start_at, start_at),
+              change_reason = $4
+        where id = $1`,
+      [sessionId, newStart.toISOString(), newEnd.toISOString(), reason ?? null],
+    );
+  } catch (e) {
+    if (isConflictSlot(e)) throw err.conflictSlot("The court or the coach is busy at that time.");
+    throw e;
+  }
+
+  const members = await confirmedMembers(sql, s.class_id);
+  await notifyClass(
+    sql,
+    s.class_id,
+    [...members, s.coach_id, ...(s.assistant_id ? [s.assistant_id] : [])],
+    {
+      kind: "session_moved",
+      session_id: sessionId,
+      from: s.start_at,
+      start: newStart.toISOString(),
+      ...(reason ? { reason } : {}),
+    },
+    `session_move|${sessionId}|${newStart.toISOString()}`,
+  );
+  await audit(
+    sql,
+    user.id,
+    "reschedule_session",
+    "session",
+    sessionId,
+    { start_at: s.start_at, end_at: s.end_at },
+    { start_at: newStart.toISOString(), end_at: newEnd.toISOString(), reason: reason ?? null },
+  );
+  return { status: 200, body: { ok: true, start_at: newStart.toISOString(), end_at: newEnd.toISOString() } };
+}
+
+/** Put another coach on a class from now on (FR-CLS-06, BR-23, BR-27). */
+export async function classesAssignCoach(sql: Sql, classId: string, request: Request, user: PublicUser) {
+  requireRole(user, ["manager"]);
+  const b = await readJson(request);
+  const coachId = str(b.coach_id);
+  if (!coachId) throw err.field("coach_id", "Choose the new coach.");
+  const cl = await one<{
+    id: string;
+    sport: string;
+    status: string;
+    coach_id: string;
+    assistant_id: string | null;
+  }>(sql, `select id, sport::text as sport, status::text as status, coach_id, assistant_id from classes where id = $1 for update`, [classId]);
+  if (!cl) throw err.notFound("No such class.");
+  if (cl.status === "cancelled") throw err.conflictState("That class is cancelled.");
+  if (coachId === cl.coach_id) throw err.field("coach_id", "That coach already teaches this class.");
+  if (coachId === cl.assistant_id) throw err.field("coach_id", "That coach is already the assistant.");
+  const coach = await one<{ role: string; full_name: string }>(
+    sql,
+    `select role::text as role, full_name from users where id = $1`,
+    [coachId],
+  );
+  if (!coach || coach.role !== "coach") throw err.br("BR-23", "That coach is not valid.");
+  const sportOk = await one(
+    sql,
+    `select 1 from coach_sports where user_id = $1 and (sport::text = $2 or sport::text = 'all')`,
+    [coachId, cl.sport],
+  );
+  if (!sportOk) throw err.br("BR-23", "That coach is not assigned to this sport.");
+
+  const upcoming = await sql.query(
+    `select s.id, s.start_at from sessions s
+      where s.class_id = $1 and s.status = 'scheduled' and s.start_at > now()
+      order by s.start_at`,
+    [classId],
+  );
+  const clashes: string[] = [];
+  for (const s of upcoming) {
+    try {
+      await sql.query("savepoint sp_coach");
+      await sql.query(`update coach_occupancies set coach_id = $2 where session_id = $1 and coach_id = $3`, [
+        s.id,
+        coachId,
+        cl.coach_id,
+      ]);
+      await sql.query("release savepoint sp_coach");
+    } catch (e) {
+      await sql.query("rollback to savepoint sp_coach").catch(() => undefined);
+      if (!isConflictSlot(e)) throw e;
+      clashes.push(String(s.start_at));
+    }
+  }
+  if (clashes.length) {
+    throw err.conflictSlot("That coach is already teaching at some of this class's times (BR-21).", {
+      sessions: clashes,
+    });
+  }
+  await sql.query(`update classes set coach_id = $2 where id = $1`, [classId, coachId]);
+
+  const members = await confirmedMembers(sql, classId);
+  await notifyClass(
+    sql,
+    classId,
+    [...members, cl.coach_id, coachId],
+    { kind: "coach_changed", coach_name: coach.full_name, ...(reasonOf(b) ? { reason: reasonOf(b) } : {}) },
+    `coach_change|${classId}|${coachId}|${upcoming.length}`,
+  );
+  await audit(sql, user.id, "change_coach", "class", classId, { coach_id: cl.coach_id }, { coach_id: coachId, sessions: upcoming.length });
+  return { status: 200, body: { ok: true, sessions_moved: upcoming.length } };
+}
+
+/** Edit a class's capacity or level, close or reopen enrolment, or cancel it (FR-CLS-03/07). */
+export async function classesPatch(sql: Sql, classId: string, request: Request, user: PublicUser) {
+  requireRole(user, ["manager"]);
+  const b = await readJson(request);
+  const cl = await one<{
+    id: string;
+    sport: string;
+    level: string;
+    status: string;
+    capacity: number;
+    enrolled_count: number;
+    coach_id: string;
+    assistant_id: string | null;
+  }>(
+    sql,
+    `select id, sport::text as sport, level, status::text as status, capacity, enrolled_count, coach_id, assistant_id
+       from classes where id = $1 for update`,
+    [classId],
+  );
+  if (!cl) throw err.notFound("No such class.");
+  if (cl.status === "cancelled") throw err.conflictState("That class is cancelled.");
+
+  const status = str(b.status);
+  if (status === "cancelled") return cancelClass(sql, cl, reasonOf(b), user);
+  if (status !== undefined && !["open", "closed"].includes(status)) {
+    throw err.field("status", "Status can be open, closed or cancelled.");
+  }
+  if (status && cl.status === "draft") throw err.conflictState("Publish the class before opening or closing it.");
+
+  const capacity = b.capacity === undefined ? cl.capacity : num(b.capacity);
+  if (capacity === undefined || !Number.isInteger(capacity) || capacity < 1 || capacity > 200) {
+    throw err.field("capacity", "Capacity must be a whole number from 1 to 200.");
+  }
+  if (capacity < cl.enrolled_count) {
+    throw err.br("BR-22", `${cl.enrolled_count} members are already enrolled — capacity cannot go below that.`, {
+      field: "capacity",
+    });
+  }
+  const level = b.level === undefined ? cl.level : str(b.level);
+  if (!level || level.length > 24) throw err.field("level", "Level is required (24 characters at most).");
+
+  await sql.query(
+    `update classes set capacity = $2, level = $3, status = coalesce($4::class_status, status) where id = $1`,
+    [classId, capacity, level, status ?? null],
+  );
+  if (capacity > cl.capacity && (status ?? cl.status) === "open") await inviteWaitlist(sql, classId);
+  const after = { capacity, level, status: status ?? cl.status };
+  await audit(sql, user.id, "edit_class", "class", classId, { capacity: cl.capacity, level: cl.level, status: cl.status }, after);
+  return { status: 200, body: { ok: true, class: { id: classId, ...after } } };
+}
+
+async function cancelClass(
+  sql: Sql,
+  cl: { id: string; sport: string; status: string; coach_id: string; assistant_id: string | null },
+  reason: string | undefined,
+  user: PublicUser,
+) {
+  if (!reason) throw err.field("reason", "Give a reason for cancelling this class.");
+  const upcoming = await sql.query(
+    `select id, start_at from sessions where class_id = $1 and status = 'scheduled' and end_at > now()`,
+    [cl.id],
+  );
+  for (const s of upcoming) {
+    await sql.query(`select occupancy_release_session($1::uuid, 'cancelled'::session_status)`, [s.id]);
+    await sql.query(`update sessions set change_reason = $2 where id = $1`, [s.id, reason]);
+  }
+  const members = await confirmedMembers(sql, cl.id);
+  const waiting = (
+    await sql.query(`select user_id from enrollments where class_id = $1 and status = 'waitlisted'`, [cl.id])
+  ).map((r) => String(r.user_id));
+  // One refund each: enrolling is what spent the session, not each date.
+  let refunded = 0;
+  for (const uid of members) {
+    if (await giveSessionBack(sql, uid, cl.sport)) refunded += 1;
+  }
+  await sql.query(
+    `update waitlist_offers set status = 'expired'
+      where status = 'pending' and enrollment_id in (select id from enrollments where class_id = $1)`,
+    [cl.id],
+  );
+  await sql.query(
+    `update enrollments set status = 'cancelled', waitlist_pos = null
+      where class_id = $1 and status in ('confirmed','waitlisted')`,
+    [cl.id],
+  );
+  await sql.query(`update classes set status = 'cancelled', enrolled_count = 0, cancel_reason = $2 where id = $1`, [
+    cl.id,
+    reason,
+  ]);
+  await notifyClass(
+    sql,
+    cl.id,
+    [...members, ...waiting, cl.coach_id, ...(cl.assistant_id ? [cl.assistant_id] : [])],
+    { kind: "class_cancelled", reason },
+    `class_cancel|${cl.id}`,
+  );
+  await audit(sql, user.id, "cancel_class", "class", cl.id, { status: cl.status }, {
+    status: "cancelled",
+    reason,
+    sessions: upcoming.length,
+  });
+  return {
+    status: 200,
+    body: { ok: true, sessions_cancelled: upcoming.length, notified: members.length + waiting.length, refunded },
+  };
 }
 
 void addDays;

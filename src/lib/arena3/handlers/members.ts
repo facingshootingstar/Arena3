@@ -298,3 +298,91 @@ export async function membersUpdate(sql: Sql, id: string, request: Request, user
   }
   return { status: 200, body: { ok: true, changed } };
 }
+
+const PLAN_STATES = ["active", "expiring", "expired", "none"] as const;
+
+/**
+ * The manager's member list (FR-MEM-04): everyone with an account, filtered by
+ * status, sport and plan state, in name order and paged.
+ *
+ * `plan_state` comes from the member's latest plan: live and ending within a
+ * week is `expiring`, live is `active`, lapsed is `expired`, and nobody who has
+ * never bought one is `none`. Filtering by `active` includes `expiring` — a plan
+ * that ends next Tuesday is still a live plan.
+ */
+export async function membersDirectory(sql: Sql, request: Request, user: PublicUser) {
+  requireRole(user, ["manager"]);
+  const sp = new URL(request.url).searchParams;
+  const q = (sp.get("q") ?? "").trim();
+  const status = sp.get("status");
+  if (status && !["active", "locked", "disabled"].includes(status)) throw err.field("status", "Unknown status.");
+  const sport = sp.get("sport");
+  if (sport && !["badminton", "basketball", "volleyball"].includes(sport)) throw err.field("sport", "Unknown sport.");
+  const plan = sp.get("plan");
+  if (plan && !(PLAN_STATES as readonly string[]).includes(plan)) throw err.field("plan", "Unknown plan state.");
+  const intParam = (name: string, fallback: number, min: number, max: number) => {
+    const raw = sp.get(name);
+    if (raw === null) return fallback;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < min || n > max) throw err.field(name, `${name} must be a whole number from ${min} to ${max}.`);
+    return n;
+  };
+  const limit = intParam("limit", 25, 1, 100);
+  const offset = intParam("offset", 0, 0, 100000);
+  const nq = q ? unaccentVi(q) : null;
+
+  const rows = await sql.query(
+    `with base as (
+       select u.id, u.member_code, u.full_name, u.phone, u.status::text as status, u.created_at,
+              u.name_normalized, latest.plan_name, latest.sport_scope, latest.end_on, latest.sub_status,
+              coalesce(debt.debt_vnd, 0)::int as debt_vnd,
+              (select count(*) from enrollments e where e.user_id = u.id and e.status = 'confirmed')::int as classes,
+              case
+                when latest.id is null then 'none'
+                when latest.sub_status in ('active','frozen') and latest.end_on >= today.d then
+                  case when latest.end_on <= today.d + 7 then 'expiring' else 'active' end
+                else 'expired'
+              end as plan_state
+         from users u
+        cross join (select (now() at time zone 'Asia/Ho_Chi_Minh')::date as d) today
+         left join lateral (
+           select s.id, mp.name as plan_name, s.sport_scope::text as sport_scope, s.end_on,
+                  s.status::text as sub_status
+             from subscriptions s join membership_plans mp on mp.id = s.plan_id
+            where s.user_id = u.id and s.status in ('active','frozen','expired')
+            order by (s.status in ('active','frozen')) desc, s.end_on desc
+            limit 1
+         ) latest on true
+         left join lateral (
+           select sum(d.debt_vnd) filter (where d.debt_vnd > 0) as debt_vnd
+             from v_subscription_debt d join subscriptions s on s.id = d.subscription_id
+            where s.user_id = u.id
+         ) debt on true
+        where u.role = 'member'
+          and ($1::text is null or u.status::text = $1)
+          and ($2::text is null
+               or u.name_normalized like '%' || $2 || '%'
+               or u.phone like '%' || $3 || '%'
+               or coalesce(u.member_code,'') ilike '%' || $4 || '%')
+     )
+     select *, count(*) over ()::int as total
+       from base
+      where ($5::text is null or sport_scope = $5 or sport_scope = 'all')
+        and ($6::text is null
+             or plan_state = $6
+             or ($6 = 'active' and plan_state = 'expiring'))
+      order by name_normalized, id
+      limit $7 offset $8`,
+    [status, nq, q.replace(/[\s-]/g, ""), q, sport, plan, limit, offset],
+  );
+  const total = rows.length ? Number(rows[0]!.total) : 0;
+  return {
+    status: 200,
+    body: {
+      total,
+      limit,
+      offset,
+      items: rows.map(({ total: _t, name_normalized: _n, ...r }) => r),
+    },
+  };
+}
