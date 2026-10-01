@@ -15,7 +15,8 @@ import { toast } from "sonner";
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
 import { Cover, MediaCaption, media } from "@/components/media";
 import { Shell, money, when } from "@/components/shell";
-import { Button, Card, DateField, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
+import { CapacityPanel, ExportButtons, MembersPanel } from "@/components/report-panels";
+import { Button, Card, DateField, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet } from "@/lib/arena3/client";
@@ -43,15 +44,11 @@ type Rev = {
   by_method: Record<string, number>;
   /** One row per ICT day in the window, including days with no takings. */
   by_day?: Array<{ day: string; revenue_vnd: number }>;
+  /** The window just before this one, same length and same method filter. */
+  prev?: Pick<Rev, "from" | "to" | "totals" | "by_source">;
 };
 
 type Occ = { date: string; items: Array<{ court_code: string; minutes: number; pct: number }> };
-
-function daysInclusive(from: string, to: string) {
-  const a = Date.parse(`${from}T00:00:00Z`);
-  const b = Date.parse(`${to}T00:00:00Z`);
-  return Math.round((b - a) / 86400000) + 1;
-}
 
 function monthStart(iso: string) {
   return `${iso.slice(0, 7)}-01`;
@@ -121,7 +118,8 @@ function Page() {
   const [to, setTo] = useState(today);
   const [period, setPeriod] = useState("today");
   const [rev, setRev] = useState<Rev | null>(null);
-  const [prev, setPrev] = useState<Rev | null>(null);
+  const [prev, setPrev] = useState<Pick<Rev, "from" | "to" | "totals" | "by_source"> | null>(null);
+  const [method, setMethod] = useState("");
   const [occ, setOcc] = useState<Occ | null>(null);
   const [map, setMap] = useState<{ courts: Court[]; slots: OccSlot[] } | null>(null);
   const [chartReady, setChartReady] = useState(false);
@@ -142,24 +140,23 @@ function Page() {
   }
 
   async function load() {
-    const n = daysInclusive(from, to);
-    const prevTo = addDaysISO(from, -1);
-    const prevFrom = addDaysISO(prevTo, -(n - 1));
-    const [r, p, o, m] = await Promise.all([
-      apiGet<Rev>(`/reports/revenue?from=${from}&to=${to}`),
-      apiGet<Rev>(`/reports/revenue?from=${prevFrom}&to=${prevTo}`),
+    const methodQ = method ? `&method=${method}` : "";
+    // The server returns the previous window of the same length alongside, with
+    // the same method filter, so the comparison is always like for like.
+    const [r, o, m] = await Promise.all([
+      apiGet<Rev>(`/reports/revenue?from=${from}&to=${to}${methodQ}`),
       apiGet<Occ>(`/reports/occupancy?date=${to}`),
       apiGet<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${to}`),
     ]);
     setRev(r);
-    setPrev(p);
+    setPrev(r.prev ?? null);
     setOcc(o);
     setMap(m);
   }
   useEffect(() => {
     void load().catch((e) => toast.error(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to]);
+  }, [from, to, method]);
 
   const chartData = Object.entries(rev?.by_method ?? {}).map(([k, v]) => ({
     name: methodLabel(k),
@@ -229,8 +226,20 @@ function Page() {
           }}
           aria-label="To date"
         />
+        <div className="w-40">
+          <Select aria-label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)}>
+            <option value="">All methods</option>
+            {["cash", "transfer", "card", "gateway", "quota"].map((m) => (
+              <option key={m} value={m}>
+                {methodLabel(m)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <ExportButtons kind="revenue" from={from} to={to} extra={{ method }} />
         <Button
           variant="outline"
+          size="sm"
           onClick={() => {
             if (!rev || !occ) return;
             downloadCsv(`arena3-report-${from}_${to}.csv`, [
@@ -487,6 +496,9 @@ function Page() {
           </Card>
         </Reveal>
       ) : null}
+
+      <CapacityPanel from={from} to={to} />
+      <MembersPanel from={from} to={to} />
 
       <SplitText
         as="h2"

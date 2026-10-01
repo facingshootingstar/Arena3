@@ -160,6 +160,27 @@ async function apiBlob(path: string): Promise<{ blob: Blob; filename: string | n
 }
 
 /**
+ * Save a server-built report (xlsx / pdf) to Downloads.
+ *
+ * A plain link cannot carry the bearer token, so the file is fetched with it and
+ * handed to the browser as a blob.
+ */
+export async function downloadReport(path: string, fallbackName: string): Promise<string> {
+  const { blob, filename } = await apiBlob(path);
+  const name = filename ?? fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.append(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return name;
+}
+
+/**
  * Show a receipt, and actually show it.
  *
  * `window.open` after an `await` is no longer inside the click that caused it,

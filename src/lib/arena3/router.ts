@@ -10,6 +10,7 @@ import * as planH from "./handlers/plans";
 import * as bookH from "./handlers/bookings";
 import * as classH from "./handlers/classes";
 import * as deskH from "./handlers/desk";
+import * as reportH from "./handlers/reports";
 import * as onlineH from "./handlers/online";
 import * as opsH from "./handlers/ops";
 import * as staffH from "./handlers/staff";
@@ -304,11 +305,20 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authedRead((sql, user) => deskH.invoicePdf(sql, id, request, user));
   }
 
+  if (method === "GET" && p0 === "reports" && p1 && p2 === "export") {
+    return authedRead((sql, user) => reportH.reportsExport(sql, request, user, p1));
+  }
   if (method === "GET" && p0 === "reports" && p1 === "revenue") {
     return authedRead((sql, user) => {
       requireRole(user, ["manager"]);
       return deskH.reportsRevenue(sql, request, user);
     });
+  }
+  if (method === "GET" && p0 === "reports" && p1 === "capacity") {
+    return authedRead((sql, user) => reportH.reportsCapacity(sql, request, user));
+  }
+  if (method === "GET" && p0 === "reports" && p1 === "members") {
+    return authedRead((sql, user) => reportH.reportsMembers(sql, request, user));
   }
   if (method === "GET" && p0 === "reports" && p1 === "occupancy") {
     return authedRead((sql, user) => deskH.reportsOccupancy(sql, request, user));

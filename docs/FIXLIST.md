@@ -242,6 +242,20 @@ Kiểm bằng `node scripts/arena3-phase4-check.mjs` (65–67 kiểm tra, chạy
 
 UI: modal lớp ở Manager có nút Move/Cancel trên từng buổi sắp tới, và mục "Manage this class" (đổi HLV, sửa sức chứa, hủy lớp). Thông báo member có nội dung riêng cho từng loại thay đổi.
 
+### Pha 4B — báo cáo (FR-PAY-06, FR-PAY-07, FR-CRT-09)
+
+Kiểm bằng `node scripts/arena3-phase4b-check.mjs` (59 kiểm tra, PGLite trong bộ nhớ). Không thêm migration. Thêm thư viện `fflate` (nén zip cho xlsx).
+
+| ID | Trạng thái | Ghi chú |
+|----|------------|---------|
+| Xuất Excel / PDF | ĐÓNG | `GET /reports/{revenue,capacity,members}/export?format=xlsx\|pdf` (chỉ manager; `format` sai trả 400 `field: format`, loại báo cáo lạ trả 404). Xuất đúng bộ lọc đang xem, bộ lọc ghi ở đầu mỗi sheet/trang. Ô tiền là ô số (không phải chữ). PDF dùng font Roboto nhúng nên đủ tiếng Việt. Tải qua fetch có token (link thường không mang token). |
+| So sánh kỳ trước | ĐÓNG | `GET /reports/revenue` trả thêm `prev` (cùng độ dài, cùng bộ lọc method) thay vì client gọi hai lần; Reports hiện xu hướng và file xuất có cột kỳ trước. |
+| Lọc phương thức thanh toán | ĐÓNG | `method` = cash/transfer/card/gateway/quota, kiểm `from <= to`, sai trả 400 có `field`. |
+| Heatmap công suất sân (FR-CRT-09) | ĐÓNG | `GET /reports/capacity`: % giờ đã bán theo sân × giờ mở cửa (booking + buổi lớp; hold và bảo trì không tính), theo môn có tách giờ cao điểm / thấp điểm (từ `price_rules.is_peak`), doanh thu sân tách khỏi học phí lớp. Tối đa 93 ngày. |
+| Báo cáo member và lớp (FR-PAY-06) | ĐÓNG | `GET /reports/members`: member mới, gói đang chạy, sắp hết hạn chưa gia hạn, tỉ lệ gia hạn, xu hướng 12 tháng, từng lớp với sĩ số/waitlist/% đầy. % điểm danh ẩn khi chưa có dữ liệu điểm danh (BR-62), không in 0%. |
+
+Giới hạn đã biết: tỉ lệ gia hạn coi gói mới bắt đầu trong vòng 30 ngày sau khi gói cũ hết là gia hạn (SRS không định nghĩa ngưỡng). Học phí lớp hiện bằng 0 trong doanh thu vì lớp dùng quota gói, không có dòng payment (xem G-07).
+
 ### Chưa làm có chủ đích
 
 - **CHỜ-PRODUCT:** C-03, C-04, M-01, M-02, M-06, M-07 — chờ product chốt, không viết code/schema.

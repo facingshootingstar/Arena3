@@ -9,7 +9,6 @@
  * Set DATABASE_URL empty: the dev server picks up .env.local, which points at the
  * real database.
  *
-
  *   DATABASE_URL= DATABASE_URL_UNPOOLED= PGLITE_DATA_DIR=memory npm run dev -- --port 8090
  *   BASE=http://127.0.0.1:8090 node scripts/arena3-phase4-check.mjs
  */

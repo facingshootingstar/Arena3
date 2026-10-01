@@ -727,11 +727,50 @@ export async function invoicePdf(sql: Sql, id: string, request: Request, user: P
   });
 }
 
+/** A report day, checked. Anything else used to reach the SQL cast and come back as a 500. */
+export function reportDay(sp: URLSearchParams, field: string, fallback: string): string {
+  const v = sp.get(field);
+  if (v === null || v === "") return fallback;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v))) {
+    throw err.field(field, "Use a date like 2026-03-31.");
+  }
+  return v;
+}
+
+const REPORT_METHODS = ["cash", "transfer", "card", "gateway", "quota"];
+
+export function revenueParams(request: Request) {
+  const sp = new URL(request.url).searchParams;
+  const from = reportDay(sp, "from", ictDateString());
+  const to = reportDay(sp, "to", from);
+  if (from > to) throw err.field("to", "The end date is before the start date.");
+  const method = sp.get("method") || null;
+  if (method && !REPORT_METHODS.includes(method)) throw err.field("method", "Unknown payment method.");
+  return { from, to, method };
+}
+
+/** The window of the same length that ends the day before `from`. */
+export function previousWindow(from: string, to: string) {
+  const days = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+  const prevTo = addDays(from, -1);
+  return { from: addDays(prevTo, -(days - 1)), to: prevTo };
+}
+
 export async function reportsRevenue(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
-  const sp = new URL(request.url).searchParams;
-  const from = sp.get("from") ?? ictDateString();
-  const to = sp.get("to") ?? from;
+  const { from, to, method } = revenueParams(request);
+  const body = await revenueBody(sql, from, to, method);
+  // FR-PAY-05: the period against the one before it, from the same query, so the
+  // screen and the exported file can never disagree about the comparison.
+  const win = previousWindow(from, to);
+  const prev = await revenueBody(sql, win.from, win.to, method);
+  return {
+    status: 200,
+    body: { ...body.body, method, prev: { from: win.from, to: win.to, totals: prev.body.totals, by_source: prev.body.by_source } },
+  };
+}
+
+export async function revenueBody(sql: Sql, from: string, to: string, method: string | null) {
   const rows = await sql.query<{
     method: string;
     ref_type: string;
@@ -746,8 +785,9 @@ export async function reportsRevenue(sql: Sql, request: Request, user: PublicUse
        from payments
       where status = 'posted'
         and (created_at at time zone 'Asia/Ho_Chi_Minh')::date between $1::date and $2::date
+        and ($3::text is null or method::text = $3)
       group by method, ref_type`,
-    [from, to],
+    [from, to, method],
   );
   const money = rows.filter((r) => r.method !== "quota");
   const quota = rows.filter((r) => r.method === "quota");
@@ -791,9 +831,10 @@ export async function reportsRevenue(sql: Sql, request: Request, user: PublicUse
        left join users u on u.id = s.receptionist_id
       where p.status = 'posted' and p.method <> 'quota'
         and (p.created_at at time zone 'Asia/Ho_Chi_Minh')::date between $1::date and $2::date
+        and ($3::text is null or p.method::text = $3)
       group by p.shift_id, u.full_name, s.opened_at, s.closed_at
       order by s.opened_at nulls last`,
-    [from, to],
+    [from, to, method],
   );
   // Revenue per ICT day, gapless across the whole window.
   //
@@ -809,9 +850,10 @@ export async function reportsRevenue(sql: Sql, request: Request, user: PublicUse
        left join payments p
               on p.status = 'posted'
              and (p.created_at at time zone 'Asia/Ho_Chi_Minh')::date = d.day::date
+             and ($3::text is null or p.method::text = $3)
       group by d.day
       order by d.day`,
-    [from, to],
+    [from, to, method],
   );
   return {
     status: 200,
