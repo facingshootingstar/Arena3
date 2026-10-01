@@ -218,6 +218,16 @@ Kiểm bằng `node scripts/arena3-phase2-check.mjs` (44 kiểm tra, PGLite tron
 | G-10 | ĐÓNG | Empty state có bước tiếp theo ở Prices, Plans, Classes (Classes cũng lấy HLV/sân từ dữ liệu thật thay vì gán cứng, báo thiếu tài nguyên). Không có tutorial. |
 | Timezone / currency (B-01) | DEFERRED | Ghi `timezone`/`currency` ở Settings vẫn bị từ chối có chủ đích (đụng id = 1/đa vùng); chưa có yêu cầu SRS để mở. |
 
+### Pha 3 — tính năng member trong rule hiện có (M-03, M-04, M-05)
+
+Kiểm bằng `node scripts/arena3-phase3-check.mjs` (32 kiểm tra, PGLite trong bộ nhớ). Không thêm migration, không đụng công thức tiền.
+
+| ID | Trạng thái | Ghi chú |
+|----|------------|---------|
+| M-03 | ĐÓNG | `GET /availability?from&days&sport` trả số slot còn trống của từng ngày trong **một** lần đọc (tối đa 62 ngày, `days`/`sport` sai trả 400 kèm `field`), tính từ cùng nguồn với lưới sân nên một hold làm ngày đó giảm đúng 1. Màn Book có dải tuần hiện "N free" và chế độ Month (lưới tháng, thứ Hai đầu tuần). Ngày quá khứ hoặc xa hơn `book_ahead_days` hiện mờ, không bấm được (mặc định 7 ngày nên phần lớn tháng chưa mở đặt). |
+| M-04 | ĐÓNG | `POST /bookings/:id/reschedule` (chỉ member chủ booking). Chỉ đổi booking `confirmed`, **ngoài** cửa sổ hủy `cancel_court_hours` của Settings (trong cửa sổ trả 409 `CONFLICT_STATE` kèm `window_hours`). Cùng môn, sân phải `ready` (BR-35), trong `book_ahead_days`, không ở quá khứ (BR-66), giữ giới hạn slot/ngày (BR-32) và xác nhận chồng giờ (BR-39C). Việc đổi occupancy (`court_id`, `start_at`, `end_at`) và `court_bookings` nằm **cùng một transaction**; trigger chống chồng giờ vẫn là chốt cuối: tranh slot trả 409 `CONFLICT_SLOT` và booking giữ nguyên chỗ cũ (đã kiểm). **Khác giá bị từ chối** (409, kèm `paid_vnd` và `new_price_vnd`, gợi ý hủy rồi đặt lại) vì SRS không có công thức chênh lệch; booking dùng quota gói thì không có chênh lệch tiền. Có thông báo `booking_rescheduled` và audit. UI: danh sách "Your upcoming courts" với nút "Change time", banner đang đổi, lưới sân nhận lần bấm kế tiếp. |
+| M-05 | ĐÓNG (đường có dữ liệu chỉ kiểm cấu trúc) | `GET /me/attendance` chỉ trả dòng của chính `user.id` (staff nhận 403, member không có lớp thấy rỗng), đủ 4 trạng thái hiện có Present / Late / Absent / Excused kèm tổng; buổi chưa điểm danh hiện "Not marked yet". Hiển thị ở cuối màn Classes ("My attendance"). Không thể tạo buổi quá khứ trên dev để thử dữ liệu thật nên phần có dòng chỉ được kiểm bằng hình dạng phản hồi. Nhận xét theo học viên (C-02) **không** làm. |
+
 ### Chưa làm có chủ đích
 
 - **CHỜ-PRODUCT:** C-03, C-04, M-01, M-02, M-06, M-07 — chờ product chốt, không viết code/schema.

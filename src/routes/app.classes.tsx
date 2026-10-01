@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
+import { MyAttendance } from "@/components/my-attendance";
 import { Shell } from "@/components/shell";
 import { Badge, Button, Card, Empty, Seg, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
@@ -214,6 +215,7 @@ function Page() {
           ) : null}
         </Stagger>
       )}
+      <MyAttendance />
     </Shell>
   );
 }

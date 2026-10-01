@@ -112,6 +112,12 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "me" && !p1) {
     return authedRead((sql, user) => authH.meGet(sql, user));
   }
+  if (method === "GET" && p0 === "me" && p1 === "bookings" && !p2) {
+    return authedRead((sql, user) => bookH.meBookings(sql, user));
+  }
+  if (method === "GET" && p0 === "me" && p1 === "attendance" && !p2) {
+    return authedRead((sql, user) => opsH.meAttendance(sql, user));
+  }
   if (method === "PATCH" && p0 === "me" && !p1) {
     return authed((sql, user) => authH.mePatch(sql, request, user));
   }
@@ -126,6 +132,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "GET" && p0 === "occupancy" && p1 === "detail") {
     return authedRead((sql, user) => bookH.occupancyDetail(sql, request, user));
+  }
+  if (method === "GET" && p0 === "availability" && !p1) {
+    return authedRead((sql) => bookH.availabilityGet(sql, request));
   }
   if (method === "GET" && p0 === "occupancy" && !p1) {
     return authedRead((sql) => bookH.occupancyGet(sql, request));
@@ -195,6 +204,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "POST" && p0 === "bookings" && p1 && p2 === "cancel") {
     return authed((sql, user) => bookH.bookingsCancel(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "bookings" && p1 && p2 === "reschedule") {
+    return authed((sql, user) => bookH.bookingsReschedule(sql, p1, request, user));
   }
   if (method === "POST" && p0 === "bookings" && p1 && p2 === "check-in") {
     return authed((sql, user) => bookH.bookingsCheckIn(sql, p1, user));

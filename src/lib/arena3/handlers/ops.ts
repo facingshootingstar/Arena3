@@ -286,6 +286,44 @@ export async function sessionAttendanceGet(sql: Sql, sessionId: string, user: Pu
   return { status: 200, body: { session, items: roster } };
 }
 
+/**
+ * A member's own attendance (M-05): one line per session of the classes they
+ * are in that has already run, with the mark the coach gave — present, late,
+ * absent or excused — or null when none has been recorded. Only the caller's
+ * own rows; there is no id parameter to point it at somebody else.
+ */
+export async function meAttendance(sql: Sql, user: PublicUser) {
+  requireRole(user, ["member"]);
+  await requireFlag(sql, "F4");
+  const items = await sql.query<{
+    session_id: string;
+    start_at: string;
+    end_at: string;
+    sport: string;
+    level: string;
+    court_code: string;
+    result: string | null;
+  }>(
+    `select s.id as session_id, s.start_at, s.end_at, cl.sport::text as sport, cl.level,
+            c.court_code, a.result::text as result
+       from sessions s
+       join classes cl on cl.id = s.class_id
+       join courts c on c.id = s.court_id
+       left join attendance a on a.session_id = s.id and a.user_id = $1 and a.kind = 'session'
+      where s.start_at < now()
+        and s.status <> 'cancelled'
+        and (a.id is not null
+             or exists (select 1 from enrollments e
+                         where e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'))
+      order by s.start_at desc
+      limit 60`,
+    [user.id],
+  );
+  const counts = { present: 0, late: 0, absent: 0, excused: 0 } as Record<string, number>;
+  for (const r of items) if (r.result && r.result in counts) counts[r.result]++;
+  return { status: 200, body: { items, counts } };
+}
+
 export async function sessionAttendancePost(sql: Sql, sessionId: string, request: Request, user: PublicUser) {
   requireRole(user, ["coach", "manager"]);
   await requireFlag(sql, "F4");

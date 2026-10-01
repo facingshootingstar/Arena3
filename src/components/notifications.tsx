@@ -59,6 +59,12 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
         body: "That booking was cancelled and the court is free again. Any refund follows the cancellation rules.",
         link: { to: "/app/book", label: "Book another court" },
       };
+    case "booking_rescheduled":
+      return {
+        title: "Booking moved",
+        body: `${code ? `Booking ${code} now` : "Your booking now"} has the new court time you picked. The old slot is free again.`,
+        link: { to: "/app/book", label: "See my bookings" },
+      };
     case "transfer_requested":
       return {
         title: "Transfer noted",

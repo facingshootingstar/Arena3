@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { availLabel, type AvailMap } from "@/components/availability-calendar";
 import { cn } from "@/lib/cn";
 import {
   addDaysISO,
@@ -203,10 +204,13 @@ export function DateStrip({
   value,
   onChange,
   days = 7,
+  avail,
 }: {
   value: string;
   onChange: (v: string) => void;
   days?: number;
+  /** Free-slot counts per day; a day with none left says so before it is opened. */
+  avail?: AvailMap | null;
 }) {
   const today = todayISO();
   const items = Array.from({ length: days }, (_, i) => {
@@ -233,6 +237,7 @@ export function DateStrip({
               {it.isToday ? "Today" : it.wd}
             </span>
             <span className="font-display text-xl tabular-nums leading-none">{it.day}</span>
+            {avail ? <span className="mt-0.5 text-2xs leading-none opacity-80">{availLabel(avail[it.iso])}</span> : null}
           </button>
         );
       })}
