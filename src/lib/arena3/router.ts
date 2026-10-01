@@ -114,8 +114,14 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "PATCH" && p0 === "me" && !p1) {
     return authed((sql, user) => authH.mePatch(sql, request, user));
   }
+  if (method === "POST" && p0 === "me" && p1 === "notifications" && p2 === "read") {
+    return authed((sql, user) => authH.meNotificationsRead(sql, request, user));
+  }
   if (method === "POST" && p0 === "me" && p1 === "password") {
     return authed((sql, user) => authH.mePassword(sql, request, user));
+  }
+  if (method === "GET" && p0 === "occupancy" && p1 === "detail") {
+    return authedRead((sql, user) => bookH.occupancyDetail(sql, request, user));
   }
   if (method === "GET" && p0 === "occupancy" && !p1) {
     return authedRead((sql) => bookH.occupancyGet(sql, request));
@@ -132,6 +138,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "GET" && p0 === "members" && p1 && !p2) {
     return authedRead((sql, user) => memberH.memberGet(sql, p1, user));
+  }
+  if (method === "PATCH" && p0 === "members" && p1 && !p2) {
+    return authed((sql, user) => memberH.membersUpdate(sql, p1, request, user));
   }
 
   if (method === "POST" && p0 === "plans" && !p1) {
@@ -194,6 +203,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "POST" && p0 === "classes" && p1 && p2 === "enroll") {
     return authed((sql, user) => classH.classesEnroll(sql, p1, request, user));
   }
+  if (method === "GET" && p0 === "classes" && p1 && !p2) {
+    return authedRead((sql, user) => classH.classDetail(sql, p1, user));
+  }
   if (method === "GET" && p0 === "classes" && p1 && p2 === "roster") {
     return authedRead((sql, user) => classH.classRoster(sql, p1, user));
   }
@@ -227,10 +239,10 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => deskH.paymentsRefund(sql, p1, request, user));
   }
   if (method === "POST" && p0 === "payments" && p1 && p2 === "approve-refund") {
-    return authed((sql, user) => deskH.paymentsApproveRefund(sql, p1, user));
+    return authed((sql, user) => deskH.paymentsApproveRefund(sql, p1, request, user));
   }
   if (method === "POST" && p0 === "payments" && p1 && p2 === "reject-refund") {
-    return authed((sql, user) => deskH.paymentsRejectRefund(sql, p1, user));
+    return authed((sql, user) => deskH.paymentsRejectRefund(sql, p1, request, user));
   }
   // Ordered before the `.pdf` case only for readability — the two cannot collide.
   if (method === "GET" && p0 === "invoices" && !p1) {

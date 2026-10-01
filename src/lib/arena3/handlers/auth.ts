@@ -287,7 +287,8 @@ export async function meGet(sql: Sql, user: PublicUser) {
   const [subs, inbox, today, classesToday, enrollments, offers, flags] = await Promise.all([
     sql.query(
       `select s.id, s.plan_id, s.sport_scope, s.start_on::text, s.end_on::text, s.status,
-              s.court_hours_left, s.session_left, p.name as plan_name, p.court_discount_pct
+              s.court_hours_left, s.session_left, p.name as plan_name, p.court_discount_pct,
+              p.court_hours as plan_court_hours, p.session_quota as plan_session_quota
          from subscriptions s
          join membership_plans p on p.id = s.plan_id
         where s.user_id = $1
@@ -295,7 +296,7 @@ export async function meGet(sql: Sql, user: PublicUser) {
       [user.id],
     ),
     sql.query(
-      `select id, template, payload, sent_at from inbox
+      `select id, template, payload, sent_at, read_at from inbox
         where user_id = $1 order by sent_at desc limit 30`,
       [user.id],
     ),
@@ -352,6 +353,24 @@ export async function meGet(sql: Sql, user: PublicUser) {
       today: { bookings: today, classes: classesToday },
     },
   };
+}
+
+/**
+ * Mark notifications read. One id, or every unread one when none is named.
+ * Scoped to the caller: someone else's id simply matches nothing.
+ */
+export async function meNotificationsRead(sql: Sql, request: Request, user: PublicUser) {
+  const body = await readJson(request).catch(() => ({}) as Record<string, unknown>);
+  const id = str(body.id);
+  if (id && !/^[0-9a-f-]{36}$/i.test(id)) throw err.field("id", "That notification id is not valid.");
+  const rows = await sql.query(
+    `update outbox set read_at = now()
+      where user_id = $1 and channel = 'inapp' and sent_at is not null and read_at is null
+        and ($2::uuid is null or id = $2::uuid)
+      returning id`,
+    [user.id, id ?? null],
+  );
+  return { status: 200, body: { marked: rows.length } };
 }
 
 export async function mePatch(sql: Sql, request: Request, user: PublicUser) {

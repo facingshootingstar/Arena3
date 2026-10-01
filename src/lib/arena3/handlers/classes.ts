@@ -1,9 +1,10 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
 import { audit, classSubscription, enqueue, getSettings, num, readJson, str } from "../helpers";
+import { classCode } from "../labels";
 import { expandWeekly } from "../rrule";
 import { requireRole, type PublicUser } from "../session";
-import { addDays, ictDateString } from "../time";
+import { addDays, ictDateString, slotSpan } from "../time";
 import { one } from "../tx";
 import { inviteWaitlist } from "./ops";
 
@@ -22,7 +23,10 @@ export async function classesList(sql: Sql, request: Request, user: PublicUser |
       order by cl.start_on, cl.level`,
     [manager, sport],
   );
-  return { status: 200, body: { items } };
+  return {
+    status: 200,
+    body: { items: items.map((c) => ({ ...c, code: classCode(String(c.sport), String(c.level), String(c.id)) })) },
+  };
 }
 
 export async function classesCreate(sql: Sql, request: Request, user: PublicUser) {
@@ -94,6 +98,7 @@ export async function materializeClassSessions(
   const windowStart = cl.start_on > ictDateString(from) ? new Date(cl.start_on + "T00:00:00+07:00") : from;
   const windowEnd = cl.end_on < ictDateString(until) ? new Date(cl.end_on + "T23:59:00+07:00") : until;
   const occs = expandWeekly(cl.rrule, cl.duration_min, windowStart, windowEnd);
+  const { slot_minutes } = await getSettings(sql);
   const created: unknown[] = [];
   const skipped: unknown[] = [];
   for (const o of occs) {
@@ -104,13 +109,15 @@ export async function materializeClassSessions(
     );
     if (exists) continue;
     const sid = (await one<{ id: string }>(sql, `select gen_random_uuid() as id`))!.id;
+    // The court is held for whole slots; the session keeps its declared times.
+    const held = slotSpan(o.start, o.end, slot_minutes);
     const courtBusy = await one(
       sql,
       `select 1 from occupancies
         where court_id = $1
           and tstzrange(start_at, end_at, '[)') && tstzrange($2::timestamptz, $3::timestamptz, '[)')
         limit 1`,
-      [cl.court_id, o.start.toISOString(), o.end.toISOString()],
+      [cl.court_id, held.start.toISOString(), held.end.toISOString()],
     );
     const coaches = [cl.coach_id, cl.assistant_id].filter(Boolean);
     let coachBusy = false;
@@ -147,7 +154,7 @@ export async function materializeClassSessions(
       const occ = await one<{ occupancy_attach: string }>(
         sql,
         `select occupancy_attach($1::uuid, $2::timestamptz, $3::timestamptz, 'session'::occ_kind, $4::uuid, null) as occupancy_attach`,
-        [cl.court_id, o.start.toISOString(), o.end.toISOString(), sid],
+        [cl.court_id, held.start.toISOString(), held.end.toISOString(), sid],
       );
       await sql.query(
         `insert into sessions (id, class_id, court_id, start_at, end_at, status, occupancy_id)
@@ -331,7 +338,84 @@ export async function coachSchedule(sql: Sql, user: PublicUser) {
       limit 80`,
     [user.id, user.role === "manager"],
   );
-  return { status: 200, body: { items } };
+  return {
+    status: 200,
+    body: { items: items.map((s) => ({ ...s, class_code: classCode(String(s.sport), String(s.level), String(s.class_id)) })) },
+  };
+}
+
+/**
+ * One class, opened (B-08 / D-07).
+ *
+ * The manager list showed a card and nothing behind it. This is what is behind
+ * it: the class itself, every session with its date, time, court and headcount,
+ * and who is on the roster. Reception sees the same thing the manager does; a
+ * coach sees only a class they teach.
+ */
+export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
+  requireRole(user, ["manager", "receptionist", "coach"]);
+  const cl = await one<{
+    id: string;
+    sport: string;
+    level: string;
+    status: string;
+    capacity: number;
+    enrolled_count: number;
+    rrule: string;
+    duration_min: number;
+    start_on: string;
+    end_on: string;
+    court_id: string;
+    court_code: string;
+    coach_id: string;
+    assistant_id: string | null;
+    coach_name: string;
+    assistant_name: string | null;
+  }>(
+    sql,
+    `select cl.id, cl.sport::text as sport, cl.level, cl.status::text as status, cl.capacity, cl.enrolled_count,
+            cl.rrule, cl.duration_min, cl.start_on::text as start_on, cl.end_on::text as end_on,
+            cl.court_id, c.court_code, cl.coach_id, cl.assistant_id,
+            co.full_name as coach_name, asst.full_name as assistant_name
+       from classes cl
+       join courts c on c.id = cl.court_id
+       join users co on co.id = cl.coach_id
+       left join users asst on asst.id = cl.assistant_id
+      where cl.id = $1`,
+    [classId],
+  );
+  if (!cl) throw err.notFound("No such class.");
+  if (user.role === "coach" && cl.coach_id !== user.id && cl.assistant_id !== user.id) throw err.forbidden();
+
+  // `headcount` is who is expected for a session still to come, and who turned
+  // up (present or late) for one already taken.
+  const sessions = await sql.query(
+    `select s.id, s.start_at, s.end_at, s.status::text as status, ct.court_code,
+            case when s.status = 'done'
+                 then (select count(*) from attendance a
+                        where a.session_id = s.id and a.result in ('present','late'))::int
+                 else $2::int end as headcount
+       from sessions s
+       join courts ct on ct.id = s.court_id
+      where s.class_id = $1
+      order by s.start_at`,
+    [classId, cl.enrolled_count],
+  );
+  const roster = await sql.query(
+    `select u.id, u.full_name, u.member_code, u.phone, e.status::text as status
+       from enrollments e join users u on u.id = e.user_id
+      where e.class_id = $1 and e.status in ('confirmed','waitlisted')
+      order by e.status, e.waitlist_pos nulls first, u.full_name`,
+    [classId],
+  );
+  return {
+    status: 200,
+    body: {
+      class: { ...cl, code: classCode(cl.sport, cl.level, cl.id) },
+      sessions,
+      roster,
+    },
+  };
 }
 
 export async function classRoster(sql: Sql, classId: string, user: PublicUser) {

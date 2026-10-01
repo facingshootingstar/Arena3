@@ -42,7 +42,6 @@ import {
   CardSwap,
   GLBackground,
   GlareHover,
-  Magnet,
   ScrollReveal,
   ScrollVelocity,
   ShinyText,
@@ -521,8 +520,7 @@ function Landing() {
                   stranger to buy a subscription before they have seen the
                   place. The order is the funnel: see a free hour, take it,
                   come back — membership is what you buy on the third visit. */}
-              <Magnet radius={150} pull={0.28}>
-                <a href="#schedule">
+                              <a href="#schedule">
                   <Button
                     size="lg"
                     className="group bg-on-media text-fg shadow-[var(--shadow-soft)] hover:bg-surface hover:shadow-[var(--shadow-soft)]"
@@ -531,8 +529,7 @@ function Landing() {
                     <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Button>
                 </a>
-              </Magnet>
-              <a href="#courts">
+                            <a href="#courts">
                 <Button
                   variant="outline"
                   size="lg"
@@ -1345,15 +1342,13 @@ function Landing() {
                   Reception is staffed the whole time we are open. Walk-ins never need an account.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Magnet radius={150} pull={0.28}>
-                    <Link to="/register">
+                                      <Link to="/register">
                       <Button size="lg" className="group bg-on-media text-fg hover:bg-surface">
                         Create an account
                         <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                       </Button>
                     </Link>
-                  </Magnet>
-                  <Link to="/login">
+                                    <Link to="/login">
                     <Button
                       size="lg"
                       variant="outline"

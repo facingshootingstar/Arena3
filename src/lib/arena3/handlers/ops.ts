@@ -11,6 +11,7 @@ import { ticketBody } from "../rules";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
 import { payosConfigured } from "../payos";
+import { parseInteger } from "../validate";
 
 export async function flagsGet(sql: Sql) {
   return {
@@ -186,16 +187,37 @@ export async function equipmentLoan(sql: Sql, request: Request, user: PublicUser
   requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
   const item_id = str(b.item_id);
-  const phone = normalizePhone(str(b.phone) ?? "");
-  const qty = num(b.qty) ?? 1;
-  if (!item_id || !isValidVnPhone(phone) || qty < 1) throw err.validation("Gear, phone or quantity is missing.");
+  if (!item_id) throw err.field("item_id", "Choose the gear to rent out.");
+  const qty = parseInteger("qty", "Quantity", b.qty ?? 1, 1, 99);
+
+  // A member rents against their account — the phone on the loan is theirs, so
+  // the loan list can name them. A guest has only the number they give.
+  const memberId = str(b.user_id);
+  let phone: string;
+  if (memberId) {
+    const m = await one<{ phone: string; status: string }>(
+      sql,
+      `select phone, status from users where id = $1 and role = 'member'`,
+      [memberId],
+    );
+    if (!m) throw err.field("user_id", "That member account was not found.");
+    if (m.status !== "active") throw err.field("user_id", "That member account is not active.");
+    phone = m.phone;
+  } else {
+    phone = normalizePhone(str(b.phone) ?? "");
+    if (!phone) throw err.field("phone", "Enter the guest's phone number, or pick a member.");
+    if (!isValidVnPhone(phone)) throw err.field("phone", "That phone number is not valid.");
+  }
+
   const item = await one<{ stock: number; rent_vnd: number; name: string }>(
     sql,
     `select stock, rent_vnd, name from equipment_items where id = $1 for update`,
     [item_id],
   );
   if (!item) throw err.notFound();
-  if (item.stock < qty) throw err.br("BR-38", "That gear is out of stock.");
+  if (item.stock < qty) {
+    throw err.br("BR-38", `Only ${item.stock} ${item.name} left — you asked for ${qty}.`, { available: item.stock });
+  }
   await sql.query(`update equipment_items set stock = stock - $2 where id = $1`, [item_id, qty]);
   const loan = await one(
     sql,
@@ -217,19 +239,25 @@ export async function equipmentReturn(sql: Sql, id: string, user: PublicUser) {
   );
   if (!loan) throw err.notFound();
   if (loan.status !== "out") throw err.conflictState();
+  // Lock the item row so a return and a rental cannot interleave on the count.
+  await sql.query(`select 1 from equipment_items where id = $1 for update`, [loan.item_id]);
   await sql.query(
     `update equipment_loans set status = 'returned', returned_at = now() where id = $1`,
     [id],
   );
   await sql.query(`update equipment_items set stock = stock + $2 where id = $1`, [loan.item_id, loan.qty]);
+  await audit(sql, user.id, "loan_return", "equipment", loan.item_id, null, { loan_id: id, qty: loan.qty });
   return { status: 200, body: { ok: true } };
 }
 
 export async function loansOpen(sql: Sql, user: PublicUser) {
   requireRole(user, ["receptionist", "manager"]);
   const items = await sql.query(
-    `select l.*, i.name, i.sku from equipment_loans l
+    `select l.*, i.name, i.sku,
+            m.full_name as member_name, m.member_code
+       from equipment_loans l
        join equipment_items i on i.id = l.item_id
+       left join users m on m.phone = l.phone and m.role = 'member'
       where l.status = 'out'
       order by l.due_at`,
   );

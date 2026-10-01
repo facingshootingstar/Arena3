@@ -5,6 +5,7 @@ import { Shell } from "@/components/shell";
 import { Button, Card, DateField, Field, Input, Select, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
+import { ClassDetailModal } from "@/components/class-detail";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 
@@ -26,6 +27,7 @@ function Page() {
   const [items, setItems] = useState<
     Array<{
       id: string;
+      code: string;
       sport: string;
       level: string;
       status: string;
@@ -37,6 +39,8 @@ function Page() {
     }>
   >([]);
   const [courts, setCourts] = useState<Array<{ id: string; court_code: string; sport: string }>>([]);
+  // The class whose sessions and roster are open (B-08).
+  const [detail, setDetail] = useState<string | null>(null);
   const [days, setDays] = useState<string[]>(["TU", "TH"]);
   const [hour, setHour] = useState(19);
   const [form, setForm] = useState({
@@ -162,7 +166,10 @@ function Page() {
           <Lift className="h-full">
           <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
           <Card interactive className="relative z-[2] h-full">
-            <StatusBadge status={c.status} />
+            <div className="flex items-center justify-between gap-2">
+              <StatusBadge status={c.status} />
+              <span className="text-2xs tabular-nums text-muted">{c.code}</span>
+            </div>
             <h2 className="mt-2 font-display text-2xl">
               {sportLabel(c.sport)} · {levelLabel(c.level)}
             </h2>
@@ -170,9 +177,12 @@ function Page() {
               {c.coach_name} · {c.court_code} · {c.enrolled_count}/{c.capacity}
             </p>
             {c.rrule ? <p className="text-sm">{rruleLabel(c.rrule)}</p> : null}
+            <Button className="mt-3" variant="outline" onClick={() => setDetail(c.id)}>
+              Sessions &amp; students
+            </Button>
             {c.status === "draft" ? (
               <Button
-                className="mt-3"
+                className="mt-3 ml-2"
                 onClick={async () => {
                   try {
                     await apiPost(`/classes/${c.id}/publish`);
@@ -192,6 +202,10 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
+      {!items.length ? (
+        <p className="text-sm text-muted">No classes yet. Fill in the form above and press Create &amp; publish.</p>
+      ) : null}
+      <ClassDetailModal classId={detail} onClose={() => setDetail(null)} />
     </Shell>
   );
 }

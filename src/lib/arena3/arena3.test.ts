@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import { isValidVnPhone, normalizePhone, passwordOk, phoneLast9 } from "./phone.ts";
 import { rruleLabel } from "./labels.ts";
 import { numberToVietnamese, vndInWords } from "./money-words.ts";
-import { addDays, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd } from "./time.ts";
+import { addDays, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
+import { ApiError, mapDbError } from "./errors.ts";
+import { checkOpeningHours, parseSettingsPatch } from "./validate.ts";
 import { discountPctOk, planActiveOn, slotPriceOk, ticketBody, validatePriceRules } from "./rules.ts";
 
 describe("phone", () => {
@@ -159,5 +161,90 @@ describe("money in words", () => {
     assert.equal(vndInWords(900_000), "Chín trăm nghìn đồng./.");
     assert.equal(vndInWords(0), "Không đồng./.");
     assert.equal(vndInWords(-50_000), "Âm năm mươi nghìn đồng./.");
+  });
+});
+
+describe("settings validation (B-01)", () => {
+  const fieldOf = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (e) {
+      assert.ok(e instanceof ApiError);
+      assert.equal(e.status, 400);
+      return String(e.extra.field);
+    }
+    assert.fail("expected a 400");
+  };
+  it("takes numbers typed as strings", () => {
+    const p = parseSettingsPatch({ hold_minutes: "15", debt_limit_vnd: 500000, open_time: "6:00", tax_code: " 0312 " });
+    assert.deepEqual(p, { hold_minutes: 15, debt_limit_vnd: 500000, open_time: "06:00", tax_code: "0312" });
+  });
+  it("never turns a blank number into null", () => {
+    assert.equal(fieldOf(() => parseSettingsPatch({ hold_minutes: "" })), "hold_minutes");
+    assert.equal(fieldOf(() => parseSettingsPatch({ debt_limit_vnd: null })), "debt_limit_vnd");
+    assert.equal(fieldOf(() => parseSettingsPatch({ book_ahead_days: Number.NaN })), "book_ahead_days");
+  });
+  it("rejects text, fractions and out-of-range integers", () => {
+    assert.equal(fieldOf(() => parseSettingsPatch({ hold_minutes: "abc" })), "hold_minutes");
+    assert.equal(fieldOf(() => parseSettingsPatch({ hold_minutes: "1.5" })), "hold_minutes");
+    assert.equal(fieldOf(() => parseSettingsPatch({ debt_limit_vnd: 2_147_483_648 })), "debt_limit_vnd");
+    assert.equal(fieldOf(() => parseSettingsPatch({ debt_limit_vnd: -1 })), "debt_limit_vnd");
+  });
+  it("rejects text longer than its column", () => {
+    assert.equal(fieldOf(() => parseSettingsPatch({ tax_code: "1".repeat(21) })), "tax_code");
+    assert.equal(fieldOf(() => parseSettingsPatch({ legal_name: "x".repeat(191) })), "legal_name");
+    assert.equal(parseSettingsPatch({ tax_code: "1".repeat(20) }).tax_code, "1".repeat(20));
+  });
+  it("clears optional text on a blank, ignores unknown keys", () => {
+    assert.deepEqual(parseSettingsPatch({ address: "  ", nope: 1 }), { address: null });
+  });
+  it("checks opening hours as a pair", () => {
+    checkOpeningHours("06:00", "22:00");
+    assert.equal(fieldOf(() => checkOpeningHours("22:00", "06:00:00")), "close_time");
+    assert.equal(fieldOf(() => parseSettingsPatch({ open_time: "25:00" })), "open_time");
+  });
+});
+
+describe("database errors keep their meaning", () => {
+  it("maps value errors to a 400 naming the column", () => {
+    assert.deepEqual(mapDbError({ code: "22001", column: "tax_code" })?.body, {
+      code: "VALIDATION",
+      message: "That value is too long.",
+      field: "tax_code",
+    });
+    assert.equal(mapDbError({ code: "22003" })?.status, 400);
+    assert.equal(mapDbError({ code: "23502", column: "hold_minutes" })?.status, 400);
+  });
+  it("keeps rule errors as rule codes", () => {
+    assert.equal(mapDbError({ code: "23P01" })?.body.code, "CONFLICT_SLOT");
+    assert.equal(mapDbError({ message: "CLASS_FULL" })?.body.br, "BR-22");
+    assert.equal(mapDbError({ message: "ALREADY_ENROLLED" })?.body.br, "BR-24");
+    assert.equal(mapDbError({ code: "23505", constraint: "u" })?.status, 409);
+  });
+  it("leaves the unknown to be a 500", () => {
+    assert.equal(mapDbError(new Error("boom")), null);
+    assert.equal(mapDbError({ code: "XX000" }), null);
+  });
+});
+
+describe("class court time (B-03)", () => {
+  const hhmm = (d: Date) => `${pad2(ictHour(d))}:${pad2(ictMinutes(d) % 60)}`;
+  it("rounds a 90-minute class out to whole slots", () => {
+    const start = ictDateTime("2026-09-14", "17:00");
+    const held = slotSpan(start, new Date(start.getTime() + 90 * 60_000), 60);
+    assert.equal(hhmm(held.start), "17:00");
+    assert.equal(hhmm(held.end), "19:00");
+  });
+  it("leaves a class that already fits the grid alone", () => {
+    const start = ictDateTime("2026-09-14", "18:00");
+    const held = slotSpan(start, new Date(start.getTime() + 120 * 60_000), 60);
+    assert.equal(held.start.getTime(), start.getTime());
+    assert.equal(held.end.getTime(), start.getTime() + 120 * 60_000);
+  });
+  it("also rounds a start that is off the grid down", () => {
+    const start = ictDateTime("2026-09-14", "17:30");
+    const held = slotSpan(start, new Date(start.getTime() + 60 * 60_000), 60);
+    assert.equal(hhmm(held.start), "17:00");
+    assert.equal(hhmm(held.end), "19:00");
   });
 });

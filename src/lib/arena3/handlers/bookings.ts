@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
 import {
   audit,
+  bookingBuyer,
   enqueue,
   enqueueReceipt,
   getSettings,
@@ -121,6 +122,133 @@ export async function occupancyGet(sql: Sql, request: Request) {
   };
 }
 
+/**
+ * What is behind a taken cell on the court map (B-07).
+ *
+ * The grid only knows that an hour is occupied. At the counter the next
+ * question is always "whose is it, what did they pay, and is it confirmed?", so
+ * this answers it for the occupancy the desk clicked: a booking or hold (member
+ * or walk-in, code, time, amount, status), a class session, or the reason a
+ * court was taken out of service. Reception and the manager only — members see
+ * that an hour is taken, never by whom.
+ */
+export async function occupancyDetail(sql: Sql, request: Request, user: PublicUser) {
+  requireRole(user, ["receptionist", "manager"]);
+  const params = new URL(request.url).searchParams;
+  const kind = params.get("kind") ?? "";
+  const ref = params.get("ref") ?? "";
+  if (!/^[0-9a-f-]{36}$/i.test(ref)) throw err.field("ref", "ref must be an id.");
+
+  if (kind === "booking" || kind === "hold") {
+    const b = await one<{
+      id: string;
+      code: string;
+      status: string;
+      channel: string;
+      start_at: string;
+      end_at: string;
+      price_vnd: number;
+      discount_pct: number;
+      hold_until: string | null;
+      transfer_requested_at: string | null;
+      court_code: string;
+      sport: string;
+      user_id: string | null;
+      member_name: string | null;
+      member_code: string | null;
+      member_phone: string | null;
+      guest_name: string | null;
+      guest_phone: string | null;
+    }>(
+      sql,
+      `select b.id, b.code, b.status::text as status, b.channel, b.start_at, b.end_at, b.price_vnd,
+              b.discount_pct, b.hold_until, b.transfer_requested_at,
+              c.court_code, c.sport::text as sport,
+              b.user_id, u.full_name as member_name, u.member_code, u.phone as member_phone,
+              b.guest_name, b.guest_phone
+         from court_bookings b
+         join courts c on c.id = b.court_id
+         left join users u on u.id = b.user_id
+        where b.id = $1`,
+      [ref],
+    );
+    if (!b) throw err.notFound("No such booking.");
+    const paid = await one<{ paid_vnd: number }>(
+      sql,
+      `select coalesce(sum(amount_vnd) filter (where status in ('posted','refund_pending')), 0)::int as paid_vnd
+         from payments where ref_type = 'booking' and ref_id = $1`,
+      [b.id],
+    );
+    return {
+      status: 200,
+      body: {
+        kind: "booking",
+        booking: {
+          id: b.id,
+          code: b.code,
+          status: b.status,
+          channel: b.channel,
+          start_at: b.start_at,
+          end_at: b.end_at,
+          price_vnd: b.price_vnd,
+          discount_pct: b.discount_pct,
+          paid_vnd: paid?.paid_vnd ?? 0,
+          hold_until: b.hold_until,
+          awaiting_transfer: Boolean(b.transfer_requested_at) && b.status === "hold",
+          court_code: b.court_code,
+          sport: b.sport,
+        },
+        customer: b.user_id
+          ? { type: "member", id: b.user_id, name: b.member_name, phone: b.member_phone, member_code: b.member_code }
+          : { type: "guest", id: null, name: b.guest_name, phone: b.guest_phone, member_code: null },
+      },
+    };
+  }
+
+  if (kind === "session") {
+    const s = await one<{
+      id: string;
+      class_id: string;
+      start_at: string;
+      end_at: string;
+      status: string;
+      court_code: string;
+      sport: string;
+      level: string;
+      capacity: number;
+      enrolled_count: number;
+      coach_name: string;
+    }>(
+      sql,
+      `select s.id, s.class_id, s.start_at, s.end_at, s.status::text as status,
+              c.court_code, cl.sport::text as sport, cl.level, cl.capacity, cl.enrolled_count,
+              co.full_name as coach_name
+         from sessions s
+         join classes cl on cl.id = s.class_id
+         join courts c on c.id = s.court_id
+         join users co on co.id = cl.coach_id
+        where s.id = $1`,
+      [ref],
+    );
+    if (!s) throw err.notFound("No such session.");
+    return { status: 200, body: { kind: "session", session: s } };
+  }
+
+  if (kind === "maintenance") {
+    const o = await one<{ reason: string | null; court_code: string; start_at: string; end_at: string }>(
+      sql,
+      `select o.reason, c.court_code, o.start_at, o.end_at
+         from occupancies o join courts c on c.id = o.court_id
+        where o.kind = 'maintenance' and o.ref_id = $1 limit 1`,
+      [ref],
+    );
+    if (!o) throw err.notFound();
+    return { status: 200, body: { kind: "maintenance", maintenance: o } };
+  }
+
+  throw err.field("kind", "kind must be booking, hold, session or maintenance.");
+}
+
 export async function courtsList(sql: Sql) {
   const items = await sql.query(`select id, court_code, sport, status, convertible, pair_court_id from courts order by court_code`);
   return { status: 200, body: { items } };
@@ -177,7 +305,7 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
   const debt = await userDebt(sql, user.id);
   if (debt > settings.debt_limit_vnd) throw err.br("BR-44", "Your balance is over the limit — settle it at the desk.");
   const n = await countSlotsToday(sql, user.id, start);
-  if (n >= settings.max_slots_per_day) throw err.br("BR-32", "You can hold at most 2 slots a day.");
+  if (n >= settings.max_slots_per_day) throw err.br("BR-32", `You can hold at most ${settings.max_slots_per_day} slots a day.`);
   const overlap = await overlapClass(sql, user.id, start, end);
   if (overlap && b.confirm_overlap !== true) {
     throw err.br("BR-39C", "This slot clashes with a class you are in. Confirm to hold it anyway.", {
@@ -265,6 +393,8 @@ export async function settleHeldBooking(
     quotaHours: number;
     /** Whose name goes on the receipt. */
     buyerName: string;
+    /** A guest booking's phone; null when the buyer is a member. */
+    buyerPhone?: string | null;
     /** Who pressed the button — the member, or the receptionist. */
     actorId: string;
     /**
@@ -310,6 +440,7 @@ export async function settleHeldBooking(
   const invoiceId = await issueInvoice(sql, {
     paymentId: pay!.id,
     buyerName: opts.buyerName,
+    buyerPhone: opts.buyerPhone ?? null,
     amountVnd: opts.payAmount,
     vatRate: Number(booking.vat_rate ?? 0),
     description:
@@ -467,14 +598,13 @@ export async function bookingsTransferConfirm(sql: Sql, id: string, user: Public
     throw err.holdExpired();
   }
   const court = await courtById(sql, booking.court_id);
-  const buyer = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [
-    booking.user_id,
-  ]);
+  const buyer = await bookingBuyer(sql, booking.id);
   const settled = await settleHeldBooking(sql, booking, court, {
     method: "transfer",
     payAmount: booking.price_vnd,
     quotaHours: 0,
-    buyerName: buyer?.full_name ?? "Khach le",
+    buyerName: buyer.name,
+    buyerPhone: buyer.phone,
     actorId: user.id,
   });
   await audit(sql, user.id, "transfer_confirm", "booking", booking.id);
@@ -689,6 +819,7 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
   const invoiceId = await issueInvoice(sql, {
     paymentId: pay!.id,
     buyerName: guest_name,
+    buyerPhone: guest_phone,
     amountVnd: price,
     vatRate: Number(settings.vat_rate ?? 0),
     description: `Khách vãng lai — sân ${court.court_code} ${ictStamp(start)}`,

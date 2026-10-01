@@ -13,6 +13,9 @@ import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/clien
 import { todayISO, sportLabel } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/app/book")({
+  validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
+    sport: s.sport === "badminton" || s.sport === "basketball" || s.sport === "volleyball" ? s.sport : undefined,
+  }),
   component: Page,
 });
 
@@ -53,7 +56,7 @@ type Taken = {
 
 function Page() {
   const [date, setDate] = useState(todayISO);
-  const [sport, setSport] = useState("badminton");
+  const [sport, setSport] = useState(Route.useSearch().sport ?? "badminton");
   const [data, setData] = useState<{ courts: Court[]; slots: OccSlot[] } | null>(null);
   const [hold, setHold] = useState<Hold | null>(null);
   const [overlap, setOverlap] = useState<{ court: Court; hour: number; message: string } | null>(null);

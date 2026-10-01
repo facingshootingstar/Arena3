@@ -51,6 +51,7 @@ type Receipt = {
   ref_type: string;
   member_name: string | null;
   member_code: string | null;
+  buyer_phone: string | null;
   taken_by: string | null;
   invoice_id: string | null;
   /** 'manual' — a person asserted it. 'auto' — the gateway confirmed it. */
@@ -321,8 +322,10 @@ function Page() {
             <Badge tone="hold">No shift open — open one to take payment</Badge>
           </Link>
         ) : null}
-        <Link to="/desk" className="ml-auto">
-          <Button variant="ink">Back to the desk</Button>
+        {/* A manager came here from the manager menu, so "back" is their own
+            home — `/desk` is the receptionist's counter, with a till they do not run. */}
+        <Link to={isManager ? "/manager" : "/desk"} className="ml-auto">
+          <Button variant="ink">{isManager ? "Back to reports" : "Back to the desk"}</Button>
         </Link>
       </Reveal>
 
@@ -574,6 +577,7 @@ function Page() {
                     <p className="truncate text-sm font-medium">{t.member_name ?? "Walk-in"}</p>
                     <p className="truncate text-xs tabular-nums text-muted">
                       {t.code} · {methodLabel(t.method)} · {t.ref_type} · {when(t.created_at)}
+                      {t.buyer_phone && !t.member_code ? ` · ${t.buyer_phone}` : ""}
                       {t.taken_by ? ` · ${t.taken_by}` : ""}
                     </p>
                   </div>

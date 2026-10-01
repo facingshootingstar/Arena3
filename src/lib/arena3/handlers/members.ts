@@ -114,6 +114,13 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
     [id],
   );
   const debt = await userDebt(sql, id);
+  // Guardian details are not part of the public user shape, but the desk needs
+  // them to correct a profile that was filled in wrongly.
+  const guardian = await one<{ guardian_name: string | null; guardian_phone: string | null }>(
+    sql,
+    `select guardian_name, guardian_phone from users where id = $1`,
+    [id],
+  );
   const bookings = await sql.query(
     `select b.id, b.code, b.start_at, b.end_at, b.status, c.court_code
        from court_bookings b join courts c on c.id = b.court_id
@@ -165,10 +172,129 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
     status: 200,
     body: {
       user: toPublic(m),
+      guardian: { name: guardian?.guardian_name ?? null, phone: guardian?.guardian_phone ?? null },
       subscriptions: subs,
       debt_vnd: debt,
       payments,
       today: { bookings, classes },
     },
   };
+}
+
+/**
+ * Correct a member's profile (B-11 / D-06).
+ *
+ * Members get their name, phone or date of birth wrong at sign-up and the desk
+ * had no way to put it right. Reception and the manager may edit those four
+ * things plus the guardian; anything else on the account is left alone.
+ *
+ * - A phone that already belongs to another account is refused with BR-01, the
+ *   same rule registration enforces — never silently merged.
+ * - A date of birth that makes the member a minor needs guardian details
+ *   (BR-07), checked against the values the row will hold after the edit.
+ * - The audit entry keeps the before and after of only what changed.
+ */
+export async function membersUpdate(sql: Sql, id: string, request: Request, user: PublicUser) {
+  requireRole(user, ["receptionist", "manager"]);
+  const body = await readJson(request);
+  const cur = await one<{
+    id: string;
+    full_name: string;
+    phone: string;
+    date_of_birth: string | null;
+    guardian_name: string | null;
+    guardian_phone: string | null;
+    role: string;
+  }>(
+    sql,
+    `select id, full_name, phone, date_of_birth::text as date_of_birth, guardian_name, guardian_phone, role::text as role
+       from users where id = $1 for update`,
+    [id],
+  );
+  if (!cur || cur.role !== "member") throw err.notFound("No such member.");
+
+  const next = {
+    full_name: cur.full_name,
+    phone: cur.phone,
+    date_of_birth: cur.date_of_birth,
+    guardian_name: cur.guardian_name,
+    guardian_phone: cur.guardian_phone,
+  };
+
+  if (body.full_name !== undefined) {
+    const name = typeof body.full_name === "string" ? body.full_name.trim() : "";
+    if (!name) throw err.field("full_name", "Full name is required.");
+    if (name.length > 120) throw err.field("full_name", "Full name must be at most 120 characters.");
+    next.full_name = name;
+  }
+  if (body.phone !== undefined) {
+    const raw = typeof body.phone === "string" ? body.phone : "";
+    if (!isValidVnPhone(raw)) throw err.field("phone", "That phone number is not valid.");
+    next.phone = normalizePhone(raw);
+  }
+  const dobIn = body.date_of_birth !== undefined ? body.date_of_birth : body.dob;
+  if (dobIn !== undefined) {
+    if (dobIn === null || dobIn === "") {
+      next.date_of_birth = null;
+    } else {
+      const d = typeof dobIn === "string" ? dobIn.trim() : "";
+      const ok = /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`));
+      if (!ok) throw err.field("date_of_birth", "Date of birth must be a real date (YYYY-MM-DD).");
+      if (new Date(`${d}T00:00:00+07:00`).getTime() > Date.now()) {
+        throw err.field("date_of_birth", "Date of birth cannot be in the future.");
+      }
+      next.date_of_birth = d;
+    }
+  }
+  if (body.guardian_name !== undefined) {
+    const g = typeof body.guardian_name === "string" ? body.guardian_name.trim() : "";
+    if (g.length > 120) throw err.field("guardian_name", "Guardian name must be at most 120 characters.");
+    next.guardian_name = g || null;
+  }
+  if (body.guardian_phone !== undefined) {
+    const raw = typeof body.guardian_phone === "string" ? body.guardian_phone.trim() : "";
+    if (raw && !isValidVnPhone(raw)) throw err.field("guardian_phone", "That guardian phone number is not valid.");
+    next.guardian_phone = raw ? normalizePhone(raw) : null;
+  }
+
+  if (next.phone !== cur.phone) {
+    const taken = await one(sql, `select 1 as x from users where phone = $1 and id <> $2`, [next.phone, id]);
+    if (taken) throw err.br("BR-01", "That phone number already has an account.", { field: "phone" });
+  }
+  const settings = await getSettings(sql);
+  if (next.date_of_birth && ageYears(next.date_of_birth) < settings.minor_age) {
+    if (!next.guardian_name || !next.guardian_phone) {
+      throw err.br("BR-07", "A minor needs guardian details.", { field: "guardian_name" });
+    }
+  }
+
+  const keys = Object.keys(next) as Array<keyof typeof next>;
+  const changed = keys.filter((k) => next[k] !== cur[k]);
+  if (changed.length) {
+    await sql.query(
+      `update users
+          set full_name = $2, name_normalized = $3, phone = $4,
+              date_of_birth = $5, guardian_name = $6, guardian_phone = $7
+        where id = $1`,
+      [
+        id,
+        next.full_name,
+        unaccentVi(next.full_name),
+        next.phone,
+        next.date_of_birth,
+        next.guardian_name,
+        next.guardian_phone,
+      ],
+    );
+    await audit(
+      sql,
+      user.id,
+      "update_member",
+      "user",
+      id,
+      Object.fromEntries(changed.map((k) => [k, cur[k]])),
+      Object.fromEntries(changed.map((k) => [k, next[k]])),
+    );
+  }
+  return { status: 200, body: { ok: true, changed } };
 }

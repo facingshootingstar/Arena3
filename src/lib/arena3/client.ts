@@ -64,6 +64,8 @@ export type ApiErrorBody = {
   code: string;
   message: string;
   br?: string;
+  /** Set on a 400: the form input the message is about. */
+  field?: string;
   requires_confirm?: boolean;
 };
 

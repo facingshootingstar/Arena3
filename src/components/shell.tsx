@@ -48,16 +48,26 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
   receptionist: [
     { to: "/desk", label: "Desk", icon: Users },
     { to: "/desk/courts", label: "Courts", icon: Map },
+    { to: "/desk/classes", label: "Classes", icon: Ticket },
     { to: "/desk/payments", label: "Payments", icon: Wallet },
     // `/desk/gear` is a complete equipment-hire screen that nothing linked to,
     // so reception could only reach it by typing the URL.
     { to: "/desk/gear", label: "Gear", icon: Dumbbell },
   ],
-  coach: [{ to: "/coach", label: "Teaching", icon: ClipboardList }],
+  // The coach had one tab, which `showNav` hides, so the screen had no menu at
+  // all (B-10). Schedule, register and profile are three different jobs.
+  coach: [
+    { to: "/coach", label: "Schedule", icon: CalendarDays },
+    { to: "/coach/attendance", label: "Attendance", icon: ClipboardList },
+    { to: "/account", label: "Profile", icon: UserCog },
+  ],
   manager: [
     { to: "/manager", label: "Reports", icon: LayoutGrid },
     { to: "/manager/classes", label: "Classes", icon: Ticket },
     { to: "/manager/plans", label: "Plans", icon: Wallet },
+    // Refund sign-off lives on the payments screen, which has always taken a
+    // manager — nothing in this menu pointed at it (B-02).
+    { to: "/desk/payments", label: "Payments", icon: Wallet },
     { to: "/manager/prices", label: "Pricing", icon: Settings },
     { to: "/manager/audit", label: "Audit", icon: ScrollText },
     { to: "/manager/settings", label: "Settings", icon: Settings },

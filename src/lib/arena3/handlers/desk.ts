@@ -2,6 +2,8 @@ import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import {
   audit,
+  bookingBuyer,
+  enqueue,
   enqueueReceipt,
   getSettings,
   issueInvoice,
@@ -17,6 +19,7 @@ import { validatePriceRules } from "../rules";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
+import { checkOpeningHours, parseSettingsPatch } from "../validate";
 
 export async function shiftOpen(sql: Sql, user: PublicUser) {
   requireRole(user, ["receptionist"]);
@@ -194,8 +197,16 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
     shiftId = sh.id;
   }
   let buyer = user.full_name;
+  let buyerPhone: string | null = null;
   let userId: string | null = null;
-  if (ref_type === "subscription") {
+  if (ref_type === "booking") {
+    // The receipt is made out to whoever the booking is for — the member, or
+    // the walk-in's typed name and phone — never to the receptionist taking it.
+    const who = await bookingBuyer(sql, ref_id);
+    buyer = who.name;
+    buyerPhone = who.phone;
+    userId = who.userId;
+  } else if (ref_type === "subscription") {
     const sub = await one<{ user_id: string; plan_id: string }>(
       sql,
       `select user_id, plan_id from subscriptions where id = $1`,
@@ -231,6 +242,7 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
   const invoiceId = await issueInvoice(sql, {
     paymentId: pay!.id,
     buyerName: buyer,
+    buyerPhone,
     amountVnd: amount,
     vatRate: Number(settings.vat_rate ?? 0),
     description: item.description,
@@ -322,30 +334,89 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
   return { status: 201, body: { payment: row } };
 }
 
-export async function paymentsApproveRefund(sql: Sql, id: string, user: PublicUser) {
+type PendingRefund = {
+  id: string;
+  code: string;
+  user_id: string | null;
+  amount_vnd: number;
+  status: string;
+  created_by: string | null;
+};
+
+/**
+ * Lock a refund that is waiting for a decision and check the decider may take it.
+ *
+ * Shared by approve and reject so the two cannot drift: both need the row
+ * locked (two managers pressing at once must not both win), both refuse a row
+ * that is not a pending refund, and both refuse the person who raised it.
+ */
+async function lockPendingRefund(sql: Sql, id: string, user: PublicUser): Promise<PendingRefund> {
   requireRole(user, ["manager"]);
-  const p = await one<{ id: string; status: string }>(
+  const p = await one<PendingRefund>(
     sql,
-    `select * from payments where id = $1 for update`,
+    `select id, code, user_id, amount_vnd, status, created_by from payments where id = $1 for update`,
     [id],
   );
-  if (!p) throw err.notFound();
-  if (p.status !== "refund_pending") throw err.conflictState();
-  await sql.query(`update payments set status = 'posted' where id = $1`, [id]);
-  return { status: 200, body: { status: "posted" } };
+  if (!p) throw err.notFound("That refund does not exist.");
+  if (p.status !== "refund_pending" || p.amount_vnd >= 0) {
+    throw err.conflictState("That refund is no longer waiting for a decision.");
+  }
+  // A role can change after the refund was raised, so "managers only" is not
+  // enough on its own: whoever asked for the money back does not also release it.
+  if (p.created_by && p.created_by === user.id) {
+    throw err.forbidden("You raised this refund, so someone else has to sign it off.");
+  }
+  return p;
 }
 
-export async function paymentsRejectRefund(sql: Sql, id: string, user: PublicUser) {
-  requireRole(user, ["manager"]);
-  const p = await one<{ id: string; status: string }>(
+/**
+ * Approve or reject, then tell the member.
+ *
+ * The status flip, the audit row and the notification all run inside the one
+ * request transaction (`authed`): a refund that is decided but unaudited, or
+ * decided with the member never told, cannot be committed.
+ */
+async function decideRefund(
+  sql: Sql,
+  id: string,
+  user: PublicUser,
+  request: Request | null,
+  approve: boolean,
+) {
+  const p = await lockPendingRefund(sql, id, user);
+  const b = request ? await readJson(request) : {};
+  const note = str(b.reason);
+  if (note && note.length > 500) throw err.field("reason", "The note must be at most 500 characters.");
+  const next = approve ? "posted" : "refund_rejected";
+  await sql.query(`update payments set status = $2 where id = $1`, [id, next]);
+  await audit(
     sql,
-    `select * from payments where id = $1 for update`,
-    [id],
+    user.id,
+    approve ? "refund_approved" : "refund_rejected",
+    "payment",
+    id,
+    { status: "refund_pending", amount_vnd: p.amount_vnd },
+    { status: next, ...(note ? { note } : {}) },
   );
-  if (!p) throw err.notFound();
-  if (p.status !== "refund_pending") throw err.conflictState();
-  await sql.query(`update payments set status = 'refund_rejected' where id = $1`, [id]);
-  return { status: 200, body: { status: "refund_rejected" } };
+  if (p.user_id) {
+    await enqueue(
+      sql,
+      "inapp",
+      approve ? "refund_approved" : "refund_rejected",
+      p.user_id,
+      { payment_id: p.id, code: p.code, amount_vnd: Math.abs(p.amount_vnd), ...(note ? { note } : {}) },
+      `refund_${approve ? "approved" : "rejected"}|${p.id}`,
+    );
+  }
+  return { status: 200, body: { status: next } };
+}
+
+export async function paymentsApproveRefund(sql: Sql, id: string, request: Request, user: PublicUser) {
+  return decideRefund(sql, id, user, request, true);
+}
+
+export async function paymentsRejectRefund(sql: Sql, id: string, request: Request, user: PublicUser) {
+  return decideRefund(sql, id, user, request, false);
 }
 
 /** How many receipts the reconciliation list will show at once. */
@@ -454,7 +525,8 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
   const receipts = await sql.query(
     `select p.id, p.code, p.method, p.amount_vnd, p.created_at, p.ref_type, p.ref_id,
             p.capture_mode, p.provider,
-            u.full_name as member_name, u.member_code,
+            coalesce(u.full_name, i.buyer_name) as member_name, u.member_code,
+            i.buyer_phone,
             s.full_name as taken_by,
             i.id as invoice_id
        from payments p
@@ -543,6 +615,7 @@ export async function invoicePdf(sql: Sql, id: string, request: Request, user: P
     code: string;
     payment_id: string;
     buyer_name: string;
+    buyer_phone: string | null;
     buyer_tax_code: string | null;
     buyer_address: string | null;
     form_no: string | null;
@@ -557,7 +630,7 @@ export async function invoicePdf(sql: Sql, id: string, request: Request, user: P
     issued_at: string;
   }>(
     sql,
-    `select id, code, payment_id, buyer_name, buyer_tax_code, buyer_address,
+    `select id, code, payment_id, buyer_name, buyer_phone, buyer_tax_code, buyer_address,
             form_no, serial_no, seller_legal_name, seller_tax_code, seller_address,
             subtotal_vnd, vat_rate, vat_vnd, total_vnd, issued_at::text
        from invoices where id = $1`,
@@ -600,7 +673,7 @@ export async function invoicePdf(sql: Sql, id: string, request: Request, user: P
         tax_code: inv.seller_tax_code ?? settings.tax_code,
         address: inv.seller_address ?? settings.address,
       },
-      buyer: { name: inv.buyer_name, tax_code: inv.buyer_tax_code, address: inv.buyer_address },
+      buyer: { name: inv.buyer_name, phone: inv.buyer_phone, tax_code: inv.buyer_tax_code, address: inv.buyer_address },
       pay_code: pay?.code ?? "",
       method_label: methodLabelVi(pay?.method ?? ""),
       lines,
@@ -733,39 +806,35 @@ export async function settingsGet(sql: Sql, user: PublicUser) {
 export async function settingsPatch(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const b = await readJson(request);
-  const allowed = [
-    "open_time",
-    "close_time",
-    "hold_minutes",
-    "book_ahead_days",
-    "max_slots_per_day",
-    "cancel_court_hours",
-    "cancel_class_hours",
-    "noshow_grace_minutes",
-    "checkin_before_minutes",
-    "debt_limit_vnd",
-    "refund_manager_vnd",
-    "minor_age",
-    "vat_rate",
-    "legal_name",
-    "tax_code",
-    "address",
-    "freeze_max_days_year",
-    "waitlist_offer_hours",
-  ];
-  const sets: string[] = [];
-  const vals: unknown[] = [];
-  let i = 1;
-  for (const k of allowed) {
-    if (b[k] !== undefined) {
-      sets.push(`${k} = $${i}`);
-      vals.push(b[k]);
-      i += 1;
-    }
-  }
-  if (!sets.length) return { status: 200, body: await one(sql, `select * from center_settings where id = 1`) };
-  await sql.query(`update center_settings set ${sets.join(", ")} where id = 1`, vals);
-  await audit(sql, user.id, "patch_settings", "settings", "1", null, b);
+  const patch = parseSettingsPatch(b);
+  const keys = Object.keys(patch);
+  const current = await one<Record<string, string>>(
+    sql,
+    `select open_time::text, close_time::text, hold_minutes, book_ahead_days, max_slots_per_day,
+            cancel_court_hours, cancel_class_hours, noshow_grace_minutes, checkin_before_minutes,
+            debt_limit_vnd, refund_manager_vnd, minor_age, vat_rate, legal_name, tax_code, address,
+            freeze_max_days_year, waitlist_offer_hours
+       from center_settings where id = 1`,
+  );
+  if (keys.length === 0) return { status: 200, body: await one(sql, `select * from center_settings where id = 1`) };
+  // Opening hours are judged as a pair, so changing only one is still checked.
+  checkOpeningHours(
+    (patch.open_time as string | undefined) ?? current!.open_time,
+    (patch.close_time as string | undefined) ?? current!.close_time,
+  );
+  const sets = keys.map((k, i) => `${k} = $${i + 1}`);
+  await sql.query(`update center_settings set ${sets.join(", ")} where id = 1`, keys.map((k) => patch[k]));
+  await audit(
+    sql,
+    user.id,
+    "patch_settings",
+    "settings",
+    // The row is `id = 1`, which is not a UUID: passing "1" here is what made
+    // every save fail with "invalid input syntax for type uuid" (B-01).
+    null,
+    Object.fromEntries(keys.map((k) => [k, current![k]])),
+    patch,
+  );
   return { status: 200, body: await one(sql, `select * from center_settings where id = 1`) };
 }
 

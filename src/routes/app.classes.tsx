@@ -11,6 +11,9 @@ import { apiDelete, apiGet, apiPost } from "@/lib/arena3/client";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/app/classes")({
+  validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
+    sport: s.sport === "badminton" || s.sport === "basketball" || s.sport === "volleyball" ? s.sport : undefined,
+  }),
   component: Page,
 });
 
@@ -34,7 +37,7 @@ function Page() {
   const [items, setItems] = useState<Cl[] | null>(null);
   const [mine, setMine] = useState<Enr[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [sport, setSport] = useState("");
+  const [sport, setSport] = useState(Route.useSearch().sport ?? "");
   async function load() {
     const [cls, me] = await Promise.all([
       apiGet<{ items: Cl[] }>("/classes"),
