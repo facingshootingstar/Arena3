@@ -438,12 +438,6 @@ covers part of them:
 | BR-42A | One VAT display mode: prices include VAT (default) or exclude it. | Default mode only — no `prices_include_vat` setting yet |
 | BR-43A | Order of money operations; round once, half up, after the discount (and VAT when prices exclude it). | Matches current behaviour in the default VAT mode |
 
-The Java service under `backend/` violates BR-19A, BR-34A and BR-34B; the
-TestNG suite in `backend/src/test` pins those three. Its `CourtBookingService`
-also cancels the old hold before checking the new one — only the
-`@Transactional` rollback puts it back, and BR-39H forbids that order. See
-`backend/HUONG-DAN-DEMO.md`.
-
 ---
 
 ## 9. External interfaces
