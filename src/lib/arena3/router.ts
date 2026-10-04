@@ -174,6 +174,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "members" && p1 && !p2) {
     return authedRead((sql, user) => memberH.memberGet(sql, p1, user));
   }
+  if (method === "POST" && p0 === "members" && p1 && p2 === "reset-password") {
+    return authed((sql, user) => memberH.memberResetPassword(sql, p1, user));
+  }
   if (method === "PATCH" && p0 === "members" && p1 && !p2) {
     return authed((sql, user) => memberH.membersUpdate(sql, p1, request, user));
   }

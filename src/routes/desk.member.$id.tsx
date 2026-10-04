@@ -76,6 +76,26 @@ function Page() {
   const [editBusy, setEditBusy] = useState(false);
   const [editErr, setEditErr] = useState<{ field?: string; message: string } | null>(null);
 
+  // Front-desk password reset: confirm first, then show the temporary password
+  // once — it is not stored anywhere the desk can look it up again.
+  const [resetStep, setResetStep] = useState<"closed" | "confirm" | "issued">("closed");
+  const [resetBusy, setResetBusy] = useState(false);
+  const [tempPassword, setTempPassword] = useState("");
+
+  async function resetPassword() {
+    setResetBusy(true);
+    try {
+      const r = await apiPost<{ temp_password: string }>(`/members/${id}/reset-password`);
+      setTempPassword(r.temp_password);
+      setResetStep("issued");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not reset the password");
+      setResetStep("closed");
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   async function load() {
     setData(await apiGet(`/members/${id}`));
   }
@@ -181,6 +201,9 @@ function Page() {
         </p>
         <Button size="sm" variant="outline" onClick={openEdit}>
           Edit profile
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setResetStep("confirm")}>
+          Reset password
         </Button>
       </div>
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
@@ -477,6 +500,59 @@ function Page() {
           <p className="text-sm text-muted">No bookings today.</p>
         ) : null}
       </Stagger>
+      <Modal
+        open={resetStep !== "closed"}
+        onClose={() => {
+          setResetStep("closed");
+          setTempPassword("");
+        }}
+        title={resetStep === "issued" ? "Hand this over now" : "Reset this member's password?"}
+        footer={
+          resetStep === "issued" ? (
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setResetStep("closed");
+                  setTempPassword("");
+                }}
+              >
+                Done
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setResetStep("closed")}>
+                Cancel
+              </Button>
+              <Button disabled={resetBusy} onClick={() => void resetPassword()}>
+                {resetBusy ? "Working…" : "Reset password"}
+              </Button>
+            </div>
+          )
+        }
+      >
+        {resetStep === "issued" ? (
+          <div className="grid gap-3 text-sm">
+            <p>
+              Password reset. Every open session for this member was signed out, and they must choose a new
+              password when they next sign in. This is shown once.
+            </p>
+            <dl className="grid grid-cols-[6rem_1fr] gap-y-1">
+              <dt className="text-muted">Account</dt>
+              <dd className="font-medium">{data.user.full_name}</dd>
+              <dt className="text-muted">Sign in with</dt>
+              <dd className="tabular-nums">{data.user.phone}</dd>
+              <dt className="text-muted">Temporary password</dt>
+              <dd className="select-all font-mono text-base">{tempPassword}</dd>
+            </dl>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">
+            Check the member's identity first. This replaces their password with a temporary one and signs them
+            out everywhere.
+          </p>
+        )}
+      </Modal>
     </Shell>
   );
 }

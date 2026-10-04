@@ -139,6 +139,10 @@ function Forgot() {
                   </>
                 )}
               </p>
+              <p className="text-sm text-muted">
+                No email on your account, or can't open it? Ask the front desk to reset your password — they
+                will give you a temporary one.
+              </p>
               {demoOtp ? (
                 <p className="rounded-[var(--radius-md)] border border-hold/40 px-3 py-2 text-sm text-hold">
                   Demo build — the code is <span className="font-medium tabular-nums">{demoOtp}</span>.
