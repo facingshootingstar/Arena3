@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
-import { Button, Card, EmptyState, Skeleton } from "@/components/ui";
+import { Button, Card, EmptyState, Input, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost } from "@/lib/arena3/client";
@@ -35,6 +35,7 @@ function Page() {
   // pressing the button again does nothing useful — say so instead of firing a
   // request the rate limiter will reject.
   const [ordered, setOrdered] = useState<Record<string, string>>({});
+  const [promoCode, setPromoCode] = useState("");
 
   useEffect(() => {
     void apiGet<{ items: Plan[] }>("/plans")
@@ -46,14 +47,25 @@ function Page() {
     if (busy) return;
     setBusy(p.id);
     try {
-      const res = await apiPost<{ preview_end: string; renewal?: boolean }>("/subscriptions", {
+      const res = await apiPost<{
+        preview_end: string;
+        renewal?: boolean;
+        amount_due_vnd: number;
+        promo?: { code: string; discount_vnd: number } | null;
+      }>("/subscriptions", {
         plan_id: p.id,
+        ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
       });
       setOrdered((o) => ({ ...o, [p.id]: res.preview_end }));
       toast.success(
         res.renewal
           ? `Renewed through ${res.preview_end} — pay at the desk`
           : `Order placed, valid through ${res.preview_end} — pay at the desk`,
+        {
+          description: res.promo
+            ? `${res.promo.code} takes ${money(res.promo.discount_vnd)} off — you pay ${money(res.amount_due_vnd)}.`
+            : `You pay ${money(res.amount_due_vnd)}.`,
+        },
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
@@ -71,6 +83,17 @@ function Page() {
           <Skeleton className="h-56" />
         </div>
       ) : (
+        <>
+        <div className="mb-4 flex max-w-sm items-center gap-2">
+          <Input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            placeholder="Promo code (optional)"
+            aria-label="Promo code"
+            autoCapitalize="characters"
+            maxLength={32}
+          />
+        </div>
         <Stagger className="grid gap-3 md:grid-cols-3" gap={0.08}>
           {items.map((p) => (
             <StaggerItem key={p.id} className="h-full">
@@ -134,6 +157,7 @@ function Page() {
           ))}
           {!items.length ? <EmptyState title="No plans on sale right now" /> : null}
         </Stagger>
+        </>
       )}
     </Shell>
   );

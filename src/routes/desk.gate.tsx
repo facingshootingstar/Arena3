@@ -1,17 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { toast } from "sonner";
 import { Shell, hhmm, useSessionUser } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Select, Seg } from "@/components/ui";
 import { SplitText } from "@/components/fx";
-import { apiGet, apiPost } from "@/lib/arena3/client";
+import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
 export const Route = createFileRoute("/desk/gate")({ component: Page });
 
 type Result = {
   member: { id: string; full_name: string; member_code: string | null };
-  checked_in_at: string;
+  allowed: boolean;
+  needs_override: boolean;
+  flagged?: boolean;
+  checked_in_at: string | null;
   duplicate: boolean;
   plans: Array<{ id: string; name: string; end_on: string; session_left: number | null; status: string }>;
   warnings: Array<{ kind: string; message: string }>;
@@ -21,13 +25,49 @@ type Result = {
   };
 };
 
-type Entry = { id: string; at: string; user_id: string; full_name: string; member_code: string | null };
+type Entry = {
+  id: string;
+  at: string;
+  user_id: string;
+  full_name: string;
+  member_code: string | null;
+  method: string | null;
+  flagged: boolean;
+  reason: string | null;
+};
+
+/** What reception picks from when the code could not be used (BR-72). */
+const MANUAL_REASONS = [
+  { value: "no_phone", label: "Member has no phone with them" },
+  { value: "dead_battery", label: "Phone battery is dead" },
+  { value: "qr_failed", label: "Code would not scan" },
+  { value: "forgot", label: "Forgot to open the app" },
+  { value: "other", label: "Other" },
+];
+
+/** Why someone with no plan or booking may still come in. */
+const OVERRIDE_REASONS = [
+  { value: "renewing", label: "Renewing right now" },
+  { value: "guest_pass", label: "Guest pass" },
+  { value: "manager_ok", label: "Manager approved" },
+  { value: "expired_ok", label: "Just expired — grace" },
+  { value: "other", label: "Other" },
+];
+
+const METHOD_LABEL: Record<string, string> = { qr: "QR", manual: "Manual", self: "Self" };
+
+type Pending = { kind: "qr"; token: string } | { kind: "manual"; body: Record<string, unknown> };
 
 function Page() {
   const user = useSessionUser();
+  const [mode, setMode] = useState("qr");
+  const [scan, setScan] = useState("");
   const [q, setQ] = useState("");
+  const [reason, setReason] = useState("no_phone");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [overrideReason, setOverrideReason] = useState("renewing");
   const [error, setError] = useState<string | null>(null);
   const [today, setToday] = useState<Entry[] | null>(null);
 
@@ -43,100 +83,216 @@ function Page() {
     void loadToday();
   }, [loadToday]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const v = q.trim();
-    if (!v) return;
+  const refocus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 0);
+
+  async function send(p: Pending, override?: string) {
     setBusy(true);
     setError(null);
     try {
-      // A phone number starts with a digit or +; a member code is letters first.
-      const body = /^[+0-9][0-9 .-]{7,}$/.test(v) ? { phone: v.replace(/[ .-]/g, "") } : { code: v };
-      setResult(await apiPost<Result>("/desk/gate-checkin", body));
-      setQ("");
-      await loadToday();
+      const extra = override ? { override: true, override_reason: override } : {};
+      const res =
+        p.kind === "qr"
+          ? await apiPost<Result>("/desk/scan", { token: p.token, ...extra })
+          : await apiPost<Result>("/desk/gate-checkin", { ...p.body, ...extra });
+      setResult(res);
+      if (res.needs_override) {
+        setPending(p);
+      } else {
+        setPending(null);
+        setScan("");
+        setQ("");
+        await loadToday();
+      }
     } catch (err) {
       setResult(null);
+      setPending(null);
       setError(err instanceof Error ? err.message : "Check-in failed");
       toast.error("That check-in didn't go through");
+      if (err instanceof ApiClientError && err.body.field === "reason") setMode("manual");
     } finally {
       setBusy(false);
-      // A scanner types into whatever has focus, so hand focus back for the next member.
-      setTimeout(() => document.getElementById("gate-q")?.focus(), 0);
+      refocus(p.kind === "qr" ? "gate-scan" : "gate-q");
     }
   }
 
-  return (
-    <Shell role={user?.role === "manager" ? "manager" : "receptionist"} title="Gate" subtitle="Scan a member code or type a phone number to let someone in.">
-      <Card className="max-w-xl">
-        <form onSubmit={submit} className="grid gap-3">
-          <Field label="Member code or phone">
-            <Input id="gate-q" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="A3-000123 or 0900 000 000" />
-          </Field>
-          <div>
-            <Button type="submit" disabled={busy || !q.trim()}>
-              {busy ? "Checking…" : "Check in"}
-            </Button>
-          </div>
-        </form>
-        <p className="mt-3 text-xs text-muted">
-          This only records that they walked in. A class register is still the coach's call.
-        </p>
-      </Card>
+  function submitScan(e: React.FormEvent) {
+    e.preventDefault();
+    const v = scan.trim();
+    if (v) void send({ kind: "qr", token: v });
+  }
 
-      <div aria-live="polite">
-        {error ? (
-          <Card className="mt-4 max-w-xl border border-danger/30">
-            <p className="text-sm text-danger">{error}</p>
-          </Card>
-        ) : null}
-        {result ? (
-          <Card className="mt-4 grid max-w-xl gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-display text-2xl">{result.member.full_name}</p>
-                <p className="text-xs text-muted">{result.member.member_code}</p>
-              </div>
-              <Badge tone={result.duplicate ? "hold" : "accent"}>
-                {result.duplicate ? `Already in at ${hhmm(result.checked_in_at)}` : `In at ${hhmm(result.checked_in_at)}`}
-              </Badge>
-            </div>
-            {result.warnings.map((w) => (
-              <p key={w.kind + w.message} className="rounded-[var(--radius-sm)] bg-hold/12 px-3 py-2 text-sm text-hold">
-                {w.message}
-              </p>
-            ))}
-            {result.plans.map((p) => (
-              <p key={p.id} className="text-sm">
-                {p.name}
-                <span className="text-muted">
-                  {" "}
-                  · until {p.end_on}
-                  {p.session_left != null ? ` · ${p.session_left} sessions left` : ""}
-                </span>
-              </p>
-            ))}
-            {result.today.sessions.length || result.today.bookings.length ? (
-              <div className="text-sm">
-                <p className="kicker text-2xs text-muted">Today</p>
-                <ul className="mt-1 grid gap-1">
-                  {result.today.sessions.map((s) => (
-                    <li key={s.id}>
-                      {hhmm(s.start_at)} · {sportLabel(s.sport)} class · {s.court_code}
-                    </li>
-                  ))}
-                  {result.today.bookings.map((b) => (
-                    <li key={b.id}>
-                      {hhmm(b.start_at)} · court {b.court_code} <span className="text-muted">({b.code})</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+  function submitManual(e: React.FormEvent) {
+    e.preventDefault();
+    const v = q.trim();
+    if (!v) return;
+    // A phone number starts with a digit or +; a member code is letters first.
+    const who = /^[+0-9][0-9 .-]{7,}$/.test(v) ? { phone: v.replace(/[ .-]/g, "") } : { code: v };
+    void send({ kind: "manual", body: { ...who, reason } });
+  }
+
+  return (
+    <Shell
+      role={user?.role === "manager" ? "manager" : "receptionist"}
+      title="Gate"
+      subtitle="Scan a member's code to let them in. Type a phone number only when the code can't be used."
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
+        <div className="grid content-start gap-4">
+          <Card className="grid gap-3">
+            <Seg
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "qr", label: "Scan code" },
+                { value: "manual", label: "Without a code" },
+              ]}
+            />
+            {mode === "qr" ? (
+              <form onSubmit={submitScan} className="grid gap-3">
+                <CameraScanner onCode={(c) => void send({ kind: "qr", token: c })} />
+                <Field tone="muted" label="Scanner input" hint="A handheld scanner types here. Focus stays on this box.">
+                  <Input
+                    id="gate-scan"
+                    autoFocus
+                    value={scan}
+                    onChange={(e) => setScan(e.target.value)}
+                    placeholder="Point the scanner at the member's phone"
+                    autoComplete="off"
+                  />
+                </Field>
+                <div>
+                  <Button type="submit" disabled={busy || !scan.trim()}>
+                    {busy ? "Checking…" : "Check in"}
+                  </Button>
+                </div>
+              </form>
             ) : (
-              <p className="text-sm text-muted">Nothing booked for today.</p>
+              <form onSubmit={submitManual} className="grid gap-3">
+                <Field label="Member code or phone">
+                  <Input
+                    id="gate-q"
+                    autoFocus
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="A3-000123 or 0900 000 000"
+                  />
+                </Field>
+                <Field tone="muted" label="Why not the code?" hint="Recorded with the visit so a manager can review it.">
+                  <Select value={reason} onChange={(e) => setReason(e.target.value)}>
+                    {MANUAL_REASONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <div>
+                  <Button type="submit" disabled={busy || !q.trim()}>
+                    {busy ? "Checking…" : "Check in"}
+                  </Button>
+                </div>
+              </form>
             )}
+            <p className="text-xs text-muted">
+              This only records that they walked in. It never uses up a session or changes a plan.
+            </p>
           </Card>
-        ) : null}
+
+          <SelfCheckinCode />
+        </div>
+
+        <div aria-live="polite" className="grid content-start gap-4">
+          {error ? (
+            <Card className="border border-danger/30">
+              <p className="text-sm text-danger">{error}</p>
+            </Card>
+          ) : null}
+          {result ? (
+            <Card className="grid gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-display text-2xl">{result.member.full_name}</p>
+                  <p className="text-xs text-muted">{result.member.member_code}</p>
+                </div>
+                {result.needs_override ? (
+                  <Badge tone="danger">Nothing to enter on</Badge>
+                ) : (
+                  <Badge tone={result.duplicate ? "hold" : "accent"}>
+                    {result.duplicate
+                      ? `Already in at ${hhmm(result.checked_in_at!)}`
+                      : `In at ${hhmm(result.checked_in_at!)}`}
+                  </Badge>
+                )}
+              </div>
+              {result.flagged ? <Badge tone="hold">Flagged for the manager</Badge> : null}
+              {result.warnings.map((w) => (
+                <p key={w.kind + w.message} className="rounded-[var(--radius-sm)] bg-hold/12 px-3 py-2 text-sm text-hold">
+                  {w.message}
+                </p>
+              ))}
+              {result.plans.map((p) => (
+                <p key={p.id} className="text-sm">
+                  {p.name}
+                  <span className="text-muted">
+                    {" "}
+                    · until {p.end_on}
+                    {p.session_left != null ? ` · ${p.session_left} sessions left` : ""}
+                  </span>
+                </p>
+              ))}
+              {result.today.sessions.length || result.today.bookings.length ? (
+                <div className="text-sm">
+                  <p className="kicker text-2xs text-muted">Today</p>
+                  <ul className="mt-1 grid gap-1">
+                    {result.today.sessions.map((s) => (
+                      <li key={s.id}>
+                        {hhmm(s.start_at)} · {sportLabel(s.sport)} class · {s.court_code}
+                      </li>
+                    ))}
+                    {result.today.bookings.map((b) => (
+                      <li key={b.id}>
+                        {hhmm(b.start_at)} · court {b.court_code} <span className="text-muted">({b.code})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">Nothing booked for today.</p>
+              )}
+              {result.needs_override && pending ? (
+                <div className="grid gap-3 rounded-[var(--radius-md)] border border-line p-3">
+                  <p className="text-sm">
+                    There is no live plan, booking or class for them today. Let them in anyway only with a reason — it is
+                    recorded and the manager sees it.
+                  </p>
+                  <Field label="Reason">
+                    <Select value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}>
+                      {OVERRIDE_REASONS.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <div className="flex gap-2">
+                    <Button disabled={busy} onClick={() => void send(pending, overrideReason)}>
+                      Let them in
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setPending(null);
+                        setResult(null);
+                      }}
+                    >
+                      Send to the desk
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-10">
@@ -146,16 +302,136 @@ function Page() {
             <EmptyState title="Nobody yet today" hint="Check-ins appear here as they happen." />
           ) : (
             today.map((t) => (
-              <Card key={t.id} className="flex items-center justify-between p-4">
+              <Card key={t.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
                 <p className="font-medium">
                   {t.full_name} <span className="text-xs text-muted">{t.member_code}</span>
                 </p>
-                <span className="text-sm tabular-nums text-muted">{hhmm(t.at)}</span>
+                <div className="flex items-center gap-2">
+                  {t.flagged ? <Badge tone="hold">Flagged</Badge> : null}
+                  {t.method ? <Badge tone="muted">{METHOD_LABEL[t.method] ?? t.method}</Badge> : null}
+                  <span className="text-sm tabular-nums text-muted">{hhmm(t.at)}</span>
+                </div>
+                {t.reason ? <p className="w-full text-xs text-muted">Reason: {t.reason.replace(/_/g, " ")}</p> : null}
               </Card>
             ))
           )}
         </div>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * Reads the member's phone with the device camera where the browser can
+ * (BarcodeDetector); everywhere else the scanner-input box above is the way in.
+ */
+function CameraScanner({ onCode }: { onCode: (code: string) => void }) {
+  const [on, setOn] = useState(false);
+  const video = useRef<HTMLVideoElement>(null);
+  const supported = typeof window !== "undefined" && "BarcodeDetector" in window;
+
+  useEffect(() => {
+    if (!on) return;
+    let stop = false;
+    let stream: MediaStream | null = null;
+    let last = "";
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (!video.current) return;
+        video.current.srcObject = stream;
+        await video.current.play();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
+        const loop = async () => {
+          if (stop || !video.current) return;
+          try {
+            const found = await detector.detect(video.current);
+            const raw: string | undefined = found[0]?.rawValue;
+            if (raw && raw !== last) {
+              last = raw;
+              onCode(raw);
+              setTimeout(() => (last = ""), 4000);
+            }
+          } catch {
+            /* a frame that cannot be read is skipped */
+          }
+          setTimeout(() => void loop(), 250);
+        };
+        void loop();
+      } catch {
+        toast.error("The camera is not available — use the scanner box instead.");
+        setOn(false);
+      }
+    })();
+    return () => {
+      stop = true;
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [on, onCode]);
+
+  if (!supported) return null;
+  return (
+    <div className="grid gap-2">
+      {on ? <video ref={video} muted playsInline className="aspect-video w-full rounded-[var(--radius-md)] bg-black object-cover" /> : null}
+      <div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setOn((v) => !v)}>
+          {on ? "Turn camera off" : "Use the camera"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** The 30-second code members scan to check themselves in, when the centre allows it. */
+function SelfCheckinCode() {
+  const [open, setOpen] = useState(false);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [img, setImg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const draw = async () => {
+      try {
+        const t = await apiGet<{ enabled: boolean; token: string; expires_at: string }>("/desk/checkin-qr");
+        if (stop) return;
+        setEnabled(t.enabled);
+        if (t.enabled) {
+          const url = `${window.location.origin}/app/pass?d=${encodeURIComponent(t.token)}`;
+          setImg(await QRCode.toDataURL(url, { margin: 1, width: 280, errorCorrectionLevel: "M" }));
+        }
+        const wait = Math.max(5000, new Date(t.expires_at).getTime() - Date.now() - 4000);
+        timer = setTimeout(() => void draw(), wait);
+      } catch {
+        timer = setTimeout(() => void draw(), 10000);
+      }
+    };
+    void draw();
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+  }, [open]);
+
+  return (
+    <Card className="grid gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">Self check-in code</p>
+          <p className="text-xs text-muted">Members scan this screen with their own phone. Changes every 30 seconds.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      </div>
+      {open && enabled === false ? (
+        <p className="text-sm text-muted">Self check-in is switched off. A manager can turn it on in Settings.</p>
+      ) : null}
+      {open && enabled && img ? (
+        <img src={img} alt="Self check-in code" className="mx-auto size-56 rounded-[var(--radius-md)] bg-white p-2" />
+      ) : null}
+    </Card>
   );
 }

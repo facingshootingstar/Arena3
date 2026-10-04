@@ -6,7 +6,7 @@ import { Badge, Button, Card, EmptyState, Select, Skeleton, Stat } from "@/compo
 import { apiGet, downloadReport } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
-type Kind = "revenue" | "capacity" | "members";
+type Kind = "revenue" | "capacity" | "members" | "attendance" | "at-risk";
 
 /** Excel and PDF of the report on screen, with the same filters it is showing. */
 export function ExportButtons({

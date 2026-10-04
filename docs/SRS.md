@@ -1,6 +1,6 @@
 # Arena3 — Software Requirements Specification
 
-**Version 1.0 · 2026-09-20 · Status: as-built**
+**Version 1.1 · 2026-10-04 · Status: as-built (through Phase 4C)**
 
 This document describes what the Arena3 system does, for whom, and under which
 rules. It is written *as-built*: every requirement below is implemented in this
@@ -8,6 +8,15 @@ repository, and each one names the endpoint, rule code or table that carries it
 so the claim can be checked rather than believed. Where the system deliberately
 does *not* do something, that is recorded too — a requirements document that
 only lists the pleasant parts is a sales brochure.
+
+**Changes from v1.0.** Version 1.1 adds what Phases 1–4C delivered: staff
+accounts (§6.2), court-time rescheduling and the month calendar (§4.2),
+payOS online payment (§5.7), class lifecycle and the manager member list
+(§6.2), Excel/PDF report export, the capacity heatmap and the members and
+enrolment report (§6.2), and the training module (§6.3, §4.8). Corrections:
+the attendance lock is BR-53 and closes 2 hours after the session (FR-K03);
+a switched-off module answers `403` with BR-62; SMS is no longer a feature
+flag; online payment is no longer listed as out of scope.
 
 The companion document [SDD.md](SDD.md) explains *how* these requirements are
 implemented. This one stops at *what*.
@@ -30,10 +39,16 @@ Arena3 is one schedule and one ledger for all four.
 ### 1.2 In scope
 
 - Court availability, holds, bookings, check-in and cancellation.
-- Classes: timetable generation, enrolment, waitlists, attendance.
+- Classes: timetable generation, enrolment, waitlists, attendance, and the
+  class lifecycle (cancel or move a session, change coach, close or cancel a
+  class).
+- Training (feature flag F4): session results, training plans, homework,
+  student levels and reviews, absence-streak alerts, gate check-in.
 - Memberships: plans, orders, activation, freezing, quota consumption.
-- The front desk: till shifts, payments, refunds, receipts, walk-ins, equipment.
-- Management: pricing, opening rules, revenue and occupancy reporting, audit.
+- The front desk: till shifts, payments (including payOS QR), refunds,
+  receipts, walk-ins, equipment.
+- Management: pricing, opening rules, staff accounts, the member list, revenue,
+  capacity and members reports with Excel/PDF export, audit.
 - Customer care: a member can ask the desk something and read the answer.
 - An in-app assistant that answers from the centre's own data.
 
@@ -43,12 +58,14 @@ Deliberately, and recorded so nobody plans around them:
 
 - **Multi-site.** One centre per deployment. `center_settings` is a single row
   with a `CHECK (id = 1)`.
-- **Real payment processing.** No card acquirer, no bank API, no payment
-  gateway. `method` on a payment records how money was taken at the counter;
-  a bank transfer is reconciled by a human reading a statement (§5.4).
-- **Outbound SMS/email.** The `outbox` table and its dispatcher exist and are
-  exercised; the SMS transport is a logging stub. In-app notification is the
-  channel that actually reaches members today.
+- **Card acquiring and bank APIs.** The one online channel is payOS (§5.7): a
+  QR/transfer link whose result Arena3 confirms by polling payOS or verifying a
+  webhook signature. There is no card acquirer and no other bank integration.
+  `method` on a payment records how money was taken; a manual bank transfer is
+  still reconciled by a human reading a statement (§5.4).
+- **Outbound SMS/email.** SMS was removed (migration `0016`). The `outbox`
+  table and its dispatcher exist and are exercised; the email transport is a
+  stub. In-app notification is the channel that actually reaches members today.
 - **Accounting integration.** Invoices are issued and printable; they are not
   exported to any accounting package.
 - **Medical or fitness advice.** The assistant refuses this explicitly.
@@ -71,10 +88,10 @@ Deliberately, and recorded so nobody plans around them:
 
 | Actor | Who they are | Where they work |
 | --- | --- | --- |
-| **Member** | A customer of the centre, with or without a membership. | `/app/*`, `/account` |
-| **Receptionist** | Front-desk staff. Takes money, opens tills, reconciles transfers, answers requests. | `/desk/*` |
-| **Coach** | Teaches classes. Sees their own timetable and marks attendance. | `/coach` |
-| **Manager** | Runs the centre. Everything a receptionist can do, plus pricing, plans, settings, reports, and refund sign-off. | `/manager/*`, `/desk/*` |
+| **Member** | A customer of the centre, with or without a membership. | `/app/*`, `/account`, `/alerts`, `/pay/return` |
+| **Receptionist** | Front-desk staff. Takes money, opens tills, reconciles transfers, checks members in at the gate, answers requests. | `/desk/*`, `/account`, `/alerts` |
+| **Coach** | Teaches classes. Sees their own timetable, marks attendance, records results, writes training plans and homework, reviews students. | `/coach/*`, `/account`, `/alerts` |
+| **Manager** | Runs the centre. Everything a receptionist can do, plus pricing, plans, settings, staff accounts, the member list, class lifecycle, reports and exports, and refund sign-off. Also reaches the coach screens. | `/manager/*`, `/desk/*`, `/coach/*` |
 | **Guest / walk-in** | Not signed in, or has no account. Served entirely by a receptionist. | — |
 | **Scheduler** | Not a person: the job loop that expires holds, marks no-shows, generates sessions and sends reminders. | — |
 
@@ -98,7 +115,7 @@ convenience, not the control.
 - **A5.** PostgreSQL 16 or compatible. The schema relies on `btree_gist`
   exclusion constraints, `jsonb`, and PL/pgSQL. This is not portable to MySQL.
 - **A6.** The assistant requires a Gemini API key. Without one it falls back to
-  in-house rule-based answers rather than failing (§9.2).
+  in-house rule-based answers rather than failing (§9.3).
 
 ---
 
@@ -116,12 +133,16 @@ convenience, not the control.
 | FR-M06 | Registration is confirmed by an OTP. | `POST /v1/auth/otp/verify` |
 | FR-M07 | A member may edit their own name and health notes, and change their own password. Neither can be done for another user. | `PATCH /v1/me`, `POST /v1/me/password` |
 | FR-M08 | A member session lasts 7 days; a staff session lasts 12 hours. | `issueSession` |
+| FR-M09 | A member who forgot their password can reset it with an OTP. | `POST /v1/auth/password/forgot` |
+| FR-M10 | A member reads their notifications, opens one to see its content, and marks one or all as read. The bell shows the unread count. | `GET /v1/me/notifications`, `POST /v1/me/notifications/read`, `outbox.read_at` |
+| FR-M11 | A staff account created by a manager signs in with a temporary password and must change it on first sign-in. | `POST /v1/staff`, `POST /v1/staff/:id/reset-password` |
 
-> **Known deviation.** The registration OTP is displayed on screen rather than
-> sent, because there is no SMS transport (§1.3). This is acceptable for a
-> demonstration deployment and is *not* acceptable for one holding real
-> customer accounts. It is the single most important thing to replace before
-> the system handles real members.
+> **Known deviation.** The registration and password-reset OTP is displayed on
+> screen rather than sent, because there is no SMS transport (§1.3). The echo
+> is on by default in development and off in production (`OTP_ECHO`,
+> `NODE_ENV`); the one-tap demo sign-in is off in production unless
+> `VITE_DEMO_LOGINS=on` (NFR-22). A deployment holding real customer accounts
+> must still replace the OTP channel with a real transport.
 
 ### 4.2 Booking a court
 
@@ -143,6 +164,10 @@ convenience, not the control.
 | FR-B14 | A member may cancel their own court up to `cancel_court_hours` (default 2) before it starts. | `POST /v1/bookings/:id/cancel` |
 | FR-B15 | A member may check in from `checkin_before_minutes` (default 15) before the start. | `POST /v1/bookings/:id/check-in` |
 | FR-B16 | A booking nobody checks into is marked a no-show after `noshow_grace_minutes`, and is not refunded. | `markNoshow` job |
+| FR-B17 | A member sees, for up to 62 days at once, how many slots are free each day, in a week strip and a month grid. Days in the past or beyond `book_ahead_days` are shown but cannot be chosen. | `GET /v1/availability?from&days&sport` (one read; `400` with `field` on bad input) |
+| FR-B18 | A member may move a confirmed court booking to another slot, but only **outside** the cancellation window. The move and the occupancy change are one transaction; a lost race returns `409 CONFLICT_SLOT` and the booking stays where it was. | `POST /v1/bookings/:id/reschedule`, **BR-32**, **BR-35**, **BR-66** |
+| FR-B19 | A reschedule that would change the price is refused (`409`, with `paid_vnd` and `new_price_vnd`); the member cancels and books again. A booking paid with quota has no price difference. | `POST /v1/bookings/:id/reschedule` |
+| FR-B20 | Staff can click any booked, held, class or maintenance cell on the court grid and see who holds it (member or walk-in, name and phone), the code, the time, the amount and the status. A member never sees this. | `GET /v1/occupancy/detail` (staff only) |
 
 ### 4.3 Classes
 
@@ -159,6 +184,9 @@ convenience, not the control.
 | FR-C09 | An expired offer cannot be accepted. | **BR-25** |
 | FR-C10 | A class that filled between the offer and the acceptance refuses the acceptance rather than overfilling. | **BR-22** |
 | FR-C11 | A member may leave a class up to `cancel_class_hours` (default 4) before the next session. | **BR-20** |
+| FR-C12 | A member sees their own attendance per session — Present, Late, Absent, Excused — with totals; a session not yet marked reads "Not marked yet". Nobody else's attendance is readable. | `GET /v1/me/attendance` (own rows only; staff `403`) |
+| FR-C13 | When the centre cancels a session or a whole class, a member on a per-session plan gets the session back, once; a time-based plan has nothing to give back. Members are notified. | `POST /v1/sessions/:id/cancel`, `PATCH /v1/classes/:id`, **BR-26** |
+| FR-C14 | When a session is moved, members are told the new time. | `POST /v1/sessions/:id/reschedule`, **BR-28** |
 
 ### 4.4 Membership
 
@@ -180,6 +208,7 @@ convenience, not the control.
 | FR-R02 | A member can see every receipt Arena3 has ever issued them and open each as a PDF. | `GET /v1/invoices`, `/account` › Receipts |
 | FR-R03 | **Every payment, by any method, notifies the payer with the amount and a link to the receipt.** | `enqueueReceipt` |
 | FR-R04 | A refunded payment is shown as refunded wherever it appears. | `payments.status` |
+| FR-R05 | A member may pay their own held court online: Arena3 raises a payOS link with a QR code, and the booking is confirmed only when payOS reports the money moved (§5.7). Landing on the return page proves nothing. A plan order is paid through the desk, which may raise the same link. | `POST /v1/payments/online`, `POST /v1/payments/online/:id/verify`, `/pay/return` |
 
 ### 4.6 Customer care
 
@@ -202,6 +231,21 @@ convenience, not the control.
 | FR-A05 | With no model key configured, the assistant answers from rules rather than failing. The answer is labelled with its source. | `generateAssistantReply` |
 | FR-A06 | The assistant can open a support request but can never take money, book, cancel or change anything. | No mutating tools are exposed to it |
 
+### 4.8 Training (member side, feature flag F4)
+
+When F4 is off every endpoint in this section answers `403 FORBIDDEN` with
+`br: "BR-62"`, and the Progress tab is not shown. Nothing here takes money or
+touches a membership balance (**BR-56**).
+
+| ID | Requirement | Enforced by |
+| --- | --- | --- |
+| FR-TRN-M01 | The **Progress** tab shows the member's training goal, level per sport, their next 3 sessions with the published plan for each, results of the last 10 sessions (plan %, metrics, coach's note), the coach's last 10 reviews (technique, fitness, attitude, 1–5) and homework still open. | `GET /v1/me/training` |
+| FR-TRN-M02 | A member sets one training goal: weight, technique, compete or fun. | `PUT /v1/me/training-goal`, `training_profiles` |
+| FR-TRN-M03 | A member sees homework set for their class or for them personally, ticks the checklist items, and the homework is complete when every item is ticked. | `GET /v1/me/homework`, `PUT /v1/me/homework/:id`, `homework_recipients` |
+| FR-TRN-M04 | A member is notified when a coach adds a review (`review_added`) or assigns homework (`homework_assigned`). | `studentReviewPost`, `homeworkCreate` |
+| FR-TRN-M05 | Internal coach notes about a student are never returned to the member. | `coach_notes` read only in `GET /v1/students/:id/profile` (staff) |
+| FR-TRN-M06 | Every role reads its notifications on `/alerts`, reached from the bell in the header. | `GET /v1/me/notifications` |
+
 ---
 
 ## 5. Functional requirements — Front desk
@@ -223,7 +267,10 @@ convenience, not the control.
 | FR-D06 | A receptionist can create a member at the counter and sell them a plan in one flow. | `POST /v1/members` |
 | FR-D07 | A receptionist can sell a court to a walk-in with no account, taking name and phone only. | `POST /v1/walk-in` |
 | FR-D08 | A walk-in may be sold into a slot already under way, provided at least 20 minutes remain. | **BR-66** |
-| FR-D09 | A receptionist can lend and take back equipment, and stock is enforced. | **BR-38** |
+| FR-D09 | A receptionist can lend and take back equipment, and stock is enforced. A loan goes to a member found by search, or to a guest by phone number; returning restores exactly the quantity on that loan and cannot be done twice (`409`). Rental fees do not create a payment row (see G-07 in §6.2). | **BR-38**, `POST /v1/equipment/loans`, `POST /v1/equipment/loans/:id/return` |
+| FR-D28 | Reception or a manager can correct a member's name, phone, date of birth and guardian. A phone already held by another account is refused; the new number is normalised; the change is audited. | `PATCH /v1/members/:id`, **BR-01**, **BR-07** |
+| FR-D29 | Reception sees every class with its sessions, court, coach, enrolment and roster (waitlist included). | `GET /v1/classes/:id`, `GET /v1/classes/:id/roster` |
+| FR-D30 | Reception checks a member in at the gate by phone number or member code. The check-in is recorded once per 5 minutes, listed for today, and does **not** mark class attendance — the coach's register is the record of Present or Late. Requires F4. | `POST /v1/desk/gate-checkin`, `GET /v1/desk/gate-checkins`, **BR-54**, **BR-62** |
 
 ### 5.3 Taking money
 
@@ -265,6 +312,22 @@ The rule behind this section: *a bank transfer is a promise, not a payment.*
 | FR-D26 | A request can still be closed without a reply (duplicate, or handled in person). | `POST /v1/tickets/:id/close` |
 | FR-D27 | Replies are attributed to the member of staff who wrote them. | `tickets.replied_by` |
 
+### 5.7 Online payment (payOS)
+
+The rule behind this section: *money is posted when payOS says it moved, and at
+no other moment.* The return URL can be opened by anybody in any order.
+
+| ID | Requirement | Enforced by |
+| --- | --- | --- |
+| FR-D31 | Online payment is available only when payOS is configured; otherwise the request is refused with a message to take payment at the desk. | `onlineCreate` → `BR_VIOLATION` (`C-08`) |
+| FR-D32 | Reception raises a payOS link for a held court or a `pending` plan order and shows the QR to the customer at the counter. A member may raise one only for their own held court. A held court whose clock has run out, or a plan not `pending`, is refused. | `POST /v1/payments/online` |
+| FR-D33 | One live link exists per thing being paid for; pressing the button twice returns the same link. | `onlineCreate` (`reused: true`) |
+| FR-D34 | The link outlives neither the court hold nor `transfer_hold_minutes`. | `expiresInSeconds` |
+| FR-D35 | A payment becomes `posted` only after Arena3 has polled payOS (`verify`) or verified a signed webhook, and only if the amount paid is at least the amount due. A partial confirmation posts nothing. | `settleOnline`, `POST /v1/payments/online/:id/verify`, `POST /v1/payments/online/webhook` |
+| FR-D36 | An online payment goes through the same settle path as cash: booking confirmed or plan activated, invoice issued, payer notified. It is marked `capture_mode = 'auto'` so the till can tell it from money taken by hand. Poll and webhook cannot post it twice. | `settleHeldBooking`, `activateSubscription` |
+| FR-D37 | A cancelled or expired link marks the payment `failed` or `expired`; the slot follows the normal hold rules. | `onlineVerify` |
+| FR-D38 | Issuing a link is audited (`online_link`). | `audit` |
+
 ---
 
 ## 6. Functional requirements — Coach and Manager
@@ -273,11 +336,12 @@ The rule behind this section: *a bank transfer is a promise, not a payment.*
 
 | ID | Requirement | Enforced by |
 | --- | --- | --- |
-| FR-K01 | A coach sees their own schedule and nobody else's. | `GET /v1/coach/schedule` |
-| FR-K02 | A coach marks attendance for a session they teach. | `POST /v1/sessions/:id/attendance` |
-| FR-K03 | Attendance for a finished session locks and cannot be rewritten. | **BR-27** |
+| FR-K01 | A coach sees their own schedule and nobody else's, grouped by day, each session with its date, time, court, class code (for example `BAD-BEG-XXXX`), enrolment and level. Opening a session opens its register. | `GET /v1/coach/schedule` |
+| FR-K02 | A coach marks attendance for a session they teach: Present, Late, Absent or Excused. A coach can read and write the register of their own classes only. | `GET/PUT /v1/sessions/:id/attendance`, **BR-59** |
+| FR-K03 | The register closes 2 hours after the session ends, or when the session is marked done. After that a coach is refused (`422`, BR-53); only a manager can correct it, and must give a reason of at least 3 characters, which is audited. | **BR-53** |
 | FR-K04 | A coach can only be assigned to a class in a sport they teach. | **BR-23** |
-| FR-K05 | A coach cannot be scheduled into two places at once. | `coach_occupancies` overlap trigger |
+| FR-K05 | A coach cannot be scheduled into two places at once. | `coach_occupancies` overlap trigger, **BR-21** |
+| FR-K06 | The coach screens share the same menu and header as every other role: Schedule, Attendance, Training, Profile. | `src/components/shell.tsx` |
 
 ### 6.2 Manager
 
@@ -287,12 +351,48 @@ The rule behind this section: *a bank transfer is a promise, not a payment.*
 | FR-G02 | A manager sets price rules per sport, court class, day type and hour band. | `PUT /v1/price-rules` |
 | FR-G03 | A manager edits centre settings: opening hours, slot and hold length, cancellation windows, debt and refund limits, VAT and rounding. | `PATCH /v1/settings` |
 | FR-G04 | A manager changes a court's status — ready, maintenance, closed. A court out of service cannot be booked. | `PATCH /v1/courts/:id` |
-| FR-G05 | A manager reads revenue for any period, broken down, **with the change against the preceding period of equal length shown in green when it is good news and red when it is not.** | `GET /v1/reports/revenue` |
+| FR-G05 | A manager reads revenue for any period, broken down by source (court, plan, refunds) and by till shift, filterable by payment method (cash, transfer, card, gateway, quota; `from` ≤ `to`), **with the change against the preceding period of equal length shown in green when it is good news and red when it is not.** The response carries `prev`. | `GET /v1/reports/revenue` |
 | FR-G06 | The direction of a change is not assumed to be good: revenue up is green, refunds up is red. | `delta(cur, prev, upIsGood)` |
 | FR-G07 | A manager reads court occupancy for a period. | `GET /v1/reports/occupancy` |
-| FR-G08 | A manager reads the audit log. | `GET /v1/audit` |
-| FR-G09 | A manager creates classes, assigns coaches and publishes timetables. | `POST /v1/classes`, `:id/publish` |
-| FR-G10 | A manager toggles feature flags (F4, F5, F6, SMS) without a deploy. | `PATCH /v1/flags` |
+| FR-G08 | A manager reads the audit log, filtered by actor, action, entity and date range. The default view is short with "Show more"; hiding a row is a UI choice and nothing deletes audit rows. | `GET /v1/audit` |
+| FR-G09 | A manager creates classes (coach and court chosen from real data), assigns coaches and publishes timetables. | `POST /v1/classes`, `:id/publish` |
+| FR-G10 | A manager toggles feature flags F4 (training), F5 and F6 without a deploy. | `PATCH /v1/flags` |
+| FR-G11 | A manager opens a class: sessions, court, coach, enrolment, roster and waitlist. | `GET /v1/classes/:id`, `GET /v1/classes/:id/roster` |
+| FR-G12 | A manager cancels a single session with a reason. Each enrolled member on a per-session plan gets one session back, once; a second cancel is refused (`409`). Members are notified and the action is audited. | `POST /v1/sessions/:id/cancel`, **BR-26** |
+| FR-G13 | A manager moves a session to another time on the same court with the same coach. A clash is refused (`409 CONFLICT_SLOT`). A move less than 12 hours before the old time needs a reason (`422`). The original time is kept. | `POST /v1/sessions/:id/reschedule`, **BR-21**, **BR-28** |
+| FR-G14 | A manager puts another coach on a class from now on. The coach must teach that sport and be free at every upcoming time. | `POST /v1/classes/:id/coach`, **BR-23**, **BR-21**, **BR-27** |
+| FR-G15 | A manager edits a class — capacity, open/closed status — or cancels it. Capacity cannot go below the number already enrolled. Cancelling refunds one session per enrolled member once, cancels upcoming sessions and notifies members and the waitlist. | `PATCH /v1/classes/:id`, **BR-22**, **BR-67**, **BR-26** |
+| FR-G16 | A manager issues staff accounts (receptionist or coach), locks and unlocks them, changes role between those two, resets a password (temporary, change forced at next sign-in) and revokes sessions. There is no public staff sign-up, no admin role, and a manager cannot lock or demote themselves. Every action is audited with who and when. | `GET/POST /v1/staff`, `PATCH /v1/staff/:id`, `POST /v1/staff/:id/reset-password`, `POST /v1/staff/:id/revoke-sessions` |
+| FR-G17 | A manager approves or rejects pending refunds from a queue on the manager side (not only from the desk). | `approve-refund`, `reject-refund` |
+| FR-G18 | A manager sees every member with filters, paging, plan, debt and class count, and opens one. | `GET /v1/directory/members`, `/manager/members` |
+| FR-G19 | A manager opens a plan to see price, duration, court hours or sessions, discount, sport scope, whether it is on sale, and how many members hold it. A plan cannot be hard-deleted; "Stop selling" withdraws it and members who hold it keep using it. | `GET /v1/plans/:id`, `PATCH /v1/plans/:id`, **BR-65** |
+| FR-G20 | A manager reads a **capacity report** for up to 93 days: occupancy by court and by hour as a heatmap, peak against off-peak (from `price_rules.is_peak`), with court revenue kept apart from class fees. | `GET /v1/reports/capacity` (**FR-CRT-09**) |
+| FR-G21 | A manager reads a **members and enrolment report**: new and renewing members (a renewal is a new plan within 30 days of the previous one ending), enrolment per class, and attendance %. Attendance % is hidden when F4 is off or nothing has been marked, rather than printed as 0%. | `GET /v1/reports/members` (**FR-PAY-06**), **BR-62** |
+| FR-G22 | A manager exports the revenue, capacity and members reports as Excel (`xlsx`) or PDF. Money cells in the spreadsheet are numbers, not text. An unknown `format` is `400` with `field: "format"`; an unknown report is `404`; the PDF uses an embedded font so Vietnamese diacritics render. Receptionists and coaches are refused. | `GET /v1/reports/{revenue,capacity,members}/export?format=xlsx\|pdf` (manager only) |
+| FR-G23 | Settings reject bad input rather than failing: each key is validated, a wrong field is `400 VALIDATION` with its `field`, the form marks that field, and closing time must be after opening time. `timezone` and `currency` are fixed by design (A1). | `PATCH /v1/settings` |
+
+> **Known limit.** Class fees and equipment rental create no payment row, so
+> they are zero in the revenue report; the screen says so rather than inventing
+> a number. Splitting them out needs a product decision to record that income.
+
+### 6.3 Training (coach and manager, feature flag F4)
+
+When F4 is off these endpoints answer `403 FORBIDDEN` with `br: "BR-62"`. A coach
+reaches only classes they lead or assist (**BR-59**); a manager reaches all. A
+student's health notes leave this module only inside that scope (**BR-55**).
+Nothing here charges money or changes a membership balance (**BR-56**).
+
+| ID | Requirement | Enforced by |
+| --- | --- | --- |
+| FR-TRN-01 | Attendance results are Present, Late, Absent, Excused. Late is the coach's call, not derived from the gate (**BR-54**, **BR-57**). Saving a register checks each student's absence streak. | `PUT /v1/sessions/:id/attendance` |
+| FR-TRN-02 | **Absence streak.** Three consecutive Absent marks in a class raise an `absent_streak` alert to the head coach, the assistant coach and every active manager. An Excused mark breaks the streak. The system never drops the enrolment by itself. | `checkAbsentStreaks`, **BR-58**, `ABSENT_STREAK_LIMIT = 3` |
+| FR-TRN-03 | A coach opens a student's profile: goal, level per sport, attendance totals (present, late, absent, excused), session results, reviews, staff notes and homework, with the student's details limited to what the coach's scope allows. | `GET /v1/students/:id/profile`, **BR-55**, **BR-59** |
+| FR-TRN-04 | **Session results.** For each student in the session a coach records a plan-completion % (0–100) and optional metrics — `smash_count` (≤ 1000), `freethrow_pct` (≤ 100), `serve_pct` (≤ 100) — and a note. Out-of-range values are `400` with the field. | `GET/PUT /v1/sessions/:id/results` |
+| FR-TRN-05 | **Training plans.** A plan is up to 12 blocks (title ≤ 120 characters, 1–180 minutes, phase warm-up / technique / fitness / match / cool-down), attached to a class, a session or one student. A plan can be published or hidden. "Suggest" drafts one from sport, level and focus. A coach can copy last week's plans into the current week; the copies are **drafts** the coach must publish. | `GET/POST/PATCH /v1/training-plans`, `POST /v1/training-plans/suggest`, `POST /v1/classes/:id/plans/duplicate-week` |
+| FR-TRN-06 | **Level and reviews.** A coach sets a student's level per sport (beginner, intermediate, advanced) and writes reviews for a 2- or 4-week period with technique, fitness and attitude scored 1–5. A review is append-only — it cannot be edited or deleted — and notifies the student. | `PUT /v1/students/:id/level`, `POST /v1/students/:id/reviews` (`progress_reviews` append-only trigger) |
+| FR-TRN-07 | **Homework.** A coach assigns homework to a class or to one student (not both), with a checklist of at most 20 items of at most 120 characters and an optional due date. Recipients are notified. | `GET/POST /v1/homework`, `homework_recipients` |
+| FR-TRN-08 | **Staff notes.** A coach records a note about a student visible to staff only. | `POST /v1/students/:id/notes`, `coach_notes` |
+| FR-TRN-09 | Only a manager can correct a closed register, and must give a reason; the correction is audited. A coach asking gets `422`. | `PUT /v1/sessions/:id/attendance`, **BR-53** |
 
 ---
 
@@ -363,8 +463,10 @@ discoverable by animating.
 ### 7.5 Auditability
 
 **NFR-15.** Every state change a member cannot make themselves — refunds,
-transfer reconciliation, shift closes, settings edits, ticket replies — writes
-an audit row naming the actor, the action, the entity and the time.
+transfer reconciliation, shift closes, settings edits, ticket replies, session
+cancel and move, coach change, class edit or cancel, staff account actions,
+attendance corrections, online payment links — writes an audit row naming the
+actor, the action, the entity and the time. No endpoint deletes an audit row.
 
 **NFR-16.** Document codes (member, payment, invoice) are allocated from a
 counter table and are gapless per kind.
@@ -388,7 +490,20 @@ member and to staff who need them, and are never sent to the assistant's
 upstream model.
 
 **NFR-22.** The demo password must not be printed on the sign-in page of a
-deployment. `VITE_DEMO_LOGINS=off` removes the one-tap demo entirely.
+deployment. In production the one-tap demo is off unless `VITE_DEMO_LOGINS=on`
+is set explicitly, and the OTP is not echoed to the screen (`OTP_ECHO`).
+
+**NFR-23.** A module behind a feature flag (F4 training) that is switched off
+answers `403 FORBIDDEN` with `br: "BR-62"` on every route, so a screen can tell
+"switched off" from "not allowed for you".
+
+**NFR-24.** Report exports are generated on request from the same queries as
+the screens, so a file and a screen for the same period always agree. Files are
+not stored.
+
+**NFR-25.** Online payment confirmations are trusted only when read from payOS
+or carried by a verified webhook signature; an amount from outside is never
+trusted without comparison to the amount due.
 
 ---
 
@@ -409,25 +524,43 @@ message }`, so any refusal in the UI can be traced to the line that made it.
 | BR-17 | Quota payment needs court hours left. |
 | BR-18 | Session quota must not be exhausted. |
 | BR-20 | Class cancellation window. |
-| BR-22 | Cannot overfill a class. |
+| BR-21 | No court or coach clash: moving a session or changing coach is refused when the court or coach is busy. |
+| BR-22 | Cannot overfill a class; capacity cannot be set below the number enrolled. |
 | BR-23 | Coach must teach that sport. |
 | BR-24 | No clashing or duplicate enrolment. |
 | BR-25 | A waitlist offer expires. |
-| BR-27 | Attendance locks when a session is done. |
+| BR-26 | When the centre cancels a session or class, a per-session plan gets the session back once; a time-based plan has nothing to return. |
+| BR-27 | Substitute coach: a class can be handed to another coach from now on. |
+| BR-28 | A session moved less than 12 hours before its old time needs a reason. |
 | BR-32 | Booking horizon and daily slot cap. |
 | BR-35 | Opening hours; court must be ready. |
 | BR-38 | Equipment stock. |
 | BR-39 | Occupancy integrity. |
 | BR-44 | Debt limit blocks new bookings. |
 | BR-49 | An open till shift is required to take money. |
+| BR-53 | The register closes 2 hours after the session ends or when it is done; only a manager, with a reason, can correct it. |
+| BR-54 | The gate is not the class: gate check-in never fills class attendance. |
+| BR-55 | A student's health notes are visible only within the viewer's scope. |
+| BR-56 | Training (homework, results, reviews) never charges money or changes a plan's balance. |
+| BR-57 | Late is the coach's mark in the register. |
+| BR-58 | Three consecutive Absent marks raise an alert to the coach and managers; Excused breaks the streak; enrolment is never dropped automatically. |
+| BR-59 | A coach works only the classes they lead or assist. |
+| BR-62 | A switched-off feature flag (F4) answers `403 FORBIDDEN` with `br: "BR-62"`. |
 | BR-65 | A withdrawn plan cannot be ordered. |
 | BR-66 | No booking in the past; walk-in needs 20 minutes left. |
 | BR-67 | A class must be open to enrol. |
 
-The table above is as-built: every code in it is emitted by a line of running
-code. Rules added in A3-SRS-001 v1.3.2 and v1.4 (with A3-SDD-001 v0.4) are
-listed separately, because the running code does not emit them yet or only
-covers part of them:
+The table above is as-built. Most codes are returned in the error body
+(`br: "BR-nn"`). The Phase 4 rules differ in how they show up: BR-28, BR-53 and
+BR-62 are returned as `br` codes; BR-21 appears in the text of the `409`
+clash message; BR-26 and BR-27 are enforced in the class-lifecycle handlers
+(session credit once, coach validation) and cited in their comments; BR-54 to
+BR-59 are enforced by the training handlers' queries and scope checks. A
+refusal under those rules is still a named, explained response; it just does
+not always carry a `br` field.
+
+Rules added in A3-SRS-001 v1.3.2 and v1.4 (with A3-SDD-001 v0.4) that the
+running code does not emit yet, or only covers in part, are listed separately:
 
 | Code | Rule | Status |
 | --- | --- | --- |
@@ -450,23 +583,37 @@ A single JSON API under `/v1`. Bearer token in `authorization`. Errors are
 | HTTP | Code | Meaning |
 | --- | --- | --- |
 | 401 | `UNAUTHENTICATED` | No session, or it expired. |
-| 403 | `FORBIDDEN` | Wrong role, or somebody else's data. |
+| 400 | `VALIDATION` | A form value was malformed. Carries `field` (and `index` for a row in a list) so the screen marks the right input. |
+| 403 | `FORBIDDEN` | Wrong role, or somebody else's data. With `br: "BR-62"` and `flag`: the module is switched off. |
 | 404 | `NOT_FOUND` | No such thing. |
 | 409 | `CONFLICT_SLOT` | Somebody else got that court-time first. |
 | 409 | `HOLD_EXPIRED` | The clock ran out. |
 | 409 | `CONFLICT_STATE` | Right thing, wrong state. |
 | 422 | `BR_VIOLATION` | A named business rule refused it. Carries `br`. |
-| 422 | `VALIDATION` | The request was malformed. |
+| 422 | `VALIDATION` | The request was well-formed but not acceptable in the current state. |
 | 429 | `RATE_LIMITED` | Too fast. |
 
-### 9.2 Gemini
+The API is served inside the web application (`src/routes/v1.$.ts`, dispatch
+in `src/lib/arena3/router.ts`); there is no separate backend service. Report
+exports return a file (`xlsx` or `pdf`) rather than JSON.
+
+### 9.2 payOS
+
+Online payment uses payOS to create a payment link and QR, to read a link's
+state, and to deliver a signed webhook. Credentials are server-side
+environment variables; none reach the browser. Order codes come from the clock
+and a recorded high-water mark (`provider_sequences`), so a code is never
+reused. `GET /v1/payments/online/sequence` returns that counter and a note,
+readable without signing in, and exposes no money or member data.
+
+### 9.3 Gemini
 
 The assistant calls Google Gemini with a system prompt and a context block
 assembled from the centre's own settings, plans, classes and coaches. No
 personal data of any member is included. Absence of a key, a network failure,
 or a refusal all fall back to rule-based answers.
 
-### 9.3 Storage
+### 9.4 Storage
 
 PostgreSQL 16 (Neon in production) or embedded PGLite in development. Schema
 changes are forward-only numbered migrations in `migrations/`, applied in one
@@ -488,4 +635,33 @@ produces a receipt (FR-D18), and that the same payment cannot be refunded twice
 npm run check:api
 ```
 
+Each later phase has its own harness, run against an in-memory PGLite
+database (set `DATABASE_URL=` empty so a dev server's `.env.local` does not
+point it at a real database):
+
+| Phase | Harness | Covers |
+| --- | --- | --- |
+| 1 | `scripts/arena3-fixes-check.mjs` | Settings validation, refund queue, walk-in invoices, occupancy detail, class detail, staff menu, member edit, gear, notifications |
+| 2 | `scripts/arena3-phase2-check.mjs` | Staff accounts, plan payment rule, audit filters, revenue split |
+| 3 | `scripts/arena3-phase3-check.mjs` | Availability calendar, booking reschedule, own attendance |
+| 4A | `scripts/arena3-phase4-check.mjs` | Cancel and move session, change coach, edit and cancel class, member list |
+| 4B | `scripts/arena3-phase4b-check.mjs` | Excel and PDF export, previous-period comparison, capacity, members report |
+| 4C | `scripts/arena3-phase4c-check.mjs` | Attendance lock, results, plans, homework, absence streak, gate check-in, student profile |
+
 Unit-level rules are covered by `src/lib/arena3/arena3.test.ts` via `npm test`.
+
+### 10.1 Known limits at v1.1
+
+- Class fees and equipment rental produce no payment row, so they show as zero
+  in the revenue report (§6.2).
+- A renewal is counted when a new plan starts within 30 days of the previous
+  one ending; this threshold is a reporting convention, not a business rule.
+- The 2-hour attendance lock is unit-tested for the time arithmetic; a
+  register for a genuinely past session cannot be created on a dev database,
+  so the full path is exercised with seeded times only.
+- Own-attendance (FR-C12) with real rows is verified by response shape only,
+  for the same reason.
+- `timezone` and `currency` are deliberately not editable (A1).
+- Product decisions still open: mid-term plan upgrade, member-initiated plan
+  cancellation with refund rule, assessment tests and teaching documents,
+  and the outbound channel for email.

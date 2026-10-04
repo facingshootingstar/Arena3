@@ -52,7 +52,6 @@ export const KIND_LABEL: Record<string, string> = {
   booking: "Booking",
   session: "Class",
   maintenance: "Maintenance",
-  convert: "Merged court",
 };
 
 /**
@@ -71,7 +70,6 @@ export const SLOT_STATE_LABEL: Record<string, string> = {
   in_use: "In use",
   class: "Class",
   maintenance: "Maintenance",
-  merged: "Merged court",
   closed: "Closed",
   past: "Already passed",
 };

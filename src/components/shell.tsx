@@ -10,10 +10,13 @@ import {
   LayoutGrid,
   LogOut,
   Map,
+  QrCode,
   ScrollText,
   Settings,
+  Tag,
   Ticket,
   UserCog,
+  UserMinus,
   Users,
   Wallet,
 } from "lucide-react";
@@ -48,6 +51,7 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
     { to: "/app/classes", label: "Classes", icon: Ticket },
     { to: "/app/train", label: "Progress", icon: Activity },
     { to: "/app/plans", label: "Plans", icon: Wallet },
+    { to: "/app/pass", label: "Pass", icon: QrCode },
   ],
   receptionist: [
     { to: "/desk", label: "Desk", icon: Users },
@@ -55,6 +59,7 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
     { to: "/desk/courts", label: "Courts", icon: Map },
     { to: "/desk/classes", label: "Classes", icon: Ticket },
     { to: "/desk/payments", label: "Payments", icon: Wallet },
+    { to: "/desk/at-risk", label: "At risk", icon: UserMinus },
     // `/desk/gear` is a complete equipment-hire screen that nothing linked to,
     // so reception could only reach it by typing the URL.
     { to: "/desk/gear", label: "Gear", icon: Dumbbell },
@@ -71,6 +76,8 @@ const NAV: Record<string, { to: string; label: string; icon: typeof Map }[]> = {
     { to: "/manager/classes", label: "Classes", icon: Ticket },
     { to: "/manager/members", label: "Members", icon: Users },
     { to: "/manager/plans", label: "Plans", icon: Wallet },
+    { to: "/manager/promos", label: "Promos", icon: Tag },
+    { to: "/manager/attendance", label: "Attendance", icon: ClipboardList },
     // Refund sign-off lives on the payments screen, which has always taken a
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: "Payments", icon: Wallet },

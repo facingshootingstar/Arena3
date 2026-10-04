@@ -23,8 +23,6 @@ export type Court = {
   court_code: string;
   sport: string;
   status: string;
-  convertible?: boolean;
-  pair_court_id?: string | null;
 };
 export type OccSlot = {
   court_id: string;
@@ -39,7 +37,6 @@ export type OccSlot = {
    * has no business knowing.
    */
   ref?: string;
-  convert_group_id?: string | null;
 };
 
 export const HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
@@ -63,7 +60,6 @@ export type SlotState =
   | "in_use"
   | "class"
   | "maintenance"
-  | "merged"
   | "closed"
   | "past";
 
@@ -86,7 +82,6 @@ const STATE_CLASS: Record<SlotState, string> = {
   in_use: "bg-accent-2 text-accent-fg ring-2 ring-accent-2/40",
   class: "bg-fg text-bg",
   maintenance: "stripes bg-wood text-muted",
-  merged: "bg-line-strong/30 text-subtle",
   closed: "stripes bg-line-strong/45 text-subtle",
   past: "bg-wood/30 text-subtle/80 line-through decoration-subtle/40",
 };
@@ -157,7 +152,6 @@ export function slotState(
   if (!occ) return "free";
   if (occ.kind === "hold") return "hold";
   if (occ.kind === "maintenance") return "maintenance";
-  if (occ.kind === "convert") return "merged";
   if (occ.kind === "session") return "class";
   return isNow(date, hour, now) ? "in_use" : "booked";
 }
@@ -248,14 +242,14 @@ export function DateStrip({
 /**
  * The key to the grid.
  *
- * `compact` drops the two states a member never has to reason about — a merged
- * court and a closed one are the centre's business, not theirs — so the public
+ * `compact` drops the two states a member never has to reason about — a closed
+ * court is the centre's business, not theirs — so the public
  * schedule reads in one line instead of two.
  */
 export function CourtLegend({ compact = false }: { compact?: boolean }) {
   const order: SlotState[] = compact
     ? ["free", "hold", "booked", "in_use", "class", "past"]
-    : ["free", "hold", "booked", "in_use", "class", "maintenance", "merged", "closed", "past"];
+    : ["free", "hold", "booked", "in_use", "class", "maintenance", "closed", "past"];
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted">
       {order.map((s) => (
@@ -346,7 +340,6 @@ export function CourtGrid({
   onInspect,
   onPickSport,
   onPickDate,
-  canRelease = true,
   legendCompact = false,
   selected,
 }: {
@@ -361,13 +354,6 @@ export function CourtGrid({
   onPickSport?: (sport: string) => void;
   /** Offered when the whole day is sold out. */
   onPickDate?: (date: string) => void;
-  /**
-   * Whether tapping a merged cell hands the paired court back.
-   *
-   * That is a staff action — on the public schedule a visitor would be
-   * clicking a button that unmerges a basketball court.
-   */
-  canRelease?: boolean;
   legendCompact?: boolean;
   /** The hour the caller is currently asking about, marked on the grid. */
   selected?: { courtId: string; hour: number } | null;
@@ -439,7 +425,7 @@ export function CourtGrid({
                 const title = cellTitle(state, occ);
                 // Past hours are shown, never offered — seeing the whole day is
                 // the point of the grid, but nothing can be sold backwards.
-                const clickable = onPick && (isBookable(state) || (canRelease && state === "merged"));
+                const clickable = onPick && (isBookable(state));
                 const inspect = !clickable && onInspect && canInspect(occ) ? occ : null;
                 const cls = cn(
                   "grid min-h-11 place-items-center rounded-[var(--radius-xs)] text-2xs font-medium tabular-nums",
@@ -474,7 +460,7 @@ export function CourtGrid({
                   <button
                     key={h}
                     type="button"
-                    title={state === "merged" ? "Tap to release the paired court" : title}
+                    title={title}
                     aria-label={`${slotStateLabel(state)} · ${c.court_code} at ${label}:00`}
                     onClick={() => onPick(c, h)}
                     className={cn(
@@ -514,7 +500,6 @@ export function CourtGrid({
             <div key={c.id} className="border-l border-line/80 px-1 py-2 text-center">
               <div className="text-xs font-medium">
                 {c.court_code}
-                {c.convertible ? <span className="ml-0.5 text-subtle">↔</span> : null}
               </div>
               {/* A court out of service says so in its own heading — otherwise
                   the only clue is a column of stripes with nothing naming it. */}
@@ -534,7 +519,6 @@ export function CourtGrid({
               date={date}
               onPick={onPick}
               onInspect={onInspect}
-              canRelease={canRelease}
               selected={selected}
               now={now}
             />
@@ -559,7 +543,6 @@ function HourRow({
   date,
   onPick,
   onInspect,
-  canRelease,
   selected,
   now,
 }: {
@@ -569,7 +552,6 @@ function HourRow({
   date: string;
   onPick?: (court: Court, hour: number) => void;
   onInspect?: (court: Court, hour: number, occ: OccSlot & { ref: string }) => void;
-  canRelease: boolean;
   selected?: { courtId: string; hour: number } | null;
   now: number;
 }) {
@@ -590,7 +572,7 @@ function HourRow({
         const occ = occAt(slots, c.id, date, hour);
         const state = slotState(c, occ, date, hour, now);
         const title = cellTitle(state, occ);
-        const clickable = onPick && (isBookable(state) || (canRelease && state === "merged"));
+        const clickable = onPick && (isBookable(state));
         const cls = cn(
           "h-9 w-full overflow-hidden rounded-[var(--radius-xs)]",
           STATE_CLASS[state],
@@ -624,7 +606,7 @@ function HourRow({
           <div key={c.id} className="border-l border-t border-line/70 p-1">
             <button
               type="button"
-              title={state === "merged" ? "Tap to release the paired court" : title}
+              title={title}
               aria-label={
                 isBookable(state)
                   ? `Book ${c.court_code} at ${String(hour).padStart(2, "0")}:00`

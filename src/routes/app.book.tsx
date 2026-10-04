@@ -8,7 +8,7 @@ import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/com
 import { Cover, HoldProgress, HoldTimer, MediaCaption, media, sportPhoto } from "@/components/media";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, money, when } from "@/components/shell";
-import { Badge, Button, Card, DateField, Seg, Skeleton, StatusBadge } from "@/components/ui";
+import { Badge, Button, Card, DateField, Input, Seg, Skeleton, StatusBadge } from "@/components/ui";
 import { GlareHover, StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
 import { todayISO, sportLabel } from "@/lib/arena3/labels";
@@ -58,6 +58,7 @@ type Hold = {
   /** Which slot this is, carried from the tap so the card can name it. */
   court_code?: string;
   hour?: number;
+  promo?: { code: string; name: string; discount_vnd: number } | null;
 };
 
 /** A hold that was refused, and — when another hour would help — where to go instead. */
@@ -73,6 +74,8 @@ function Page() {
   const [sport, setSport] = useState(Route.useSearch().sport ?? "badminton");
   const [data, setData] = useState<{ courts: Court[]; slots: OccSlot[] } | null>(null);
   const [hold, setHold] = useState<Hold | null>(null);
+  // Typed before tapping a slot: the hold is priced when it is made, so the code goes with it.
+  const [promoCode, setPromoCode] = useState("");
   const [overlap, setOverlap] = useState<{ court: Court; hour: number; message: string } | null>(null);
   // Week strip or whole month — both show how many slots each day has left.
   const [view, setView] = useState<"week" | "month">("week");
@@ -165,7 +168,12 @@ function Page() {
     try {
       const res = await apiPost<Hold>(
         "/bookings",
-        { court_id: court.id, start_at: start, ...(confirmOverlap ? { confirm_overlap: true } : {}) },
+        {
+          court_id: court.id,
+          start_at: start,
+          ...(confirmOverlap ? { confirm_overlap: true } : {}),
+          ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
+        },
         true,
       );
       setHold({ ...res, court_code: court.court_code, hour });
@@ -280,6 +288,15 @@ function Page() {
           <MonthCalendar value={date} onChange={setDate} avail={avail} />
         )}
         <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            placeholder="Promo code (optional)"
+            aria-label="Promo code"
+            autoCapitalize="characters"
+            maxLength={32}
+            className="h-9 w-44"
+          />
           <Seg
             value={view}
             onChange={(v) => setView(v === "month" ? "month" : "week")}
@@ -525,6 +542,11 @@ function Page() {
                     <span className="font-medium text-fg">{hold.booking.code}</span>
                   )}{" "}
                   · <span className="font-display text-lg tabular-nums text-fg">{money(hold.price)}</span>
+                  {hold.promo ? (
+                    <span className="ml-2 text-xs text-accent">
+                      {hold.promo.code}: −{money(hold.promo.discount_vnd)}
+                    </span>
+                  ) : null}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

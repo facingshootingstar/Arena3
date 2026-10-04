@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Shell, money } from "@/components/shell";
+import { Shell } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Input, Select, Skeleton, StatusBadge } from "@/components/ui";
 import { apiGet } from "@/lib/arena3/client";
 import { formatDate, sportLabel } from "@/lib/arena3/labels";
@@ -20,7 +20,6 @@ type Row = {
   sport_scope: string | null;
   end_on: string | null;
   plan_state: "active" | "expiring" | "expired" | "none";
-  debt_vnd: number;
   classes: number;
 };
 
@@ -134,7 +133,6 @@ function Page() {
                   <span className="text-muted">
                     {m.classes} class{m.classes === 1 ? "" : "es"}
                   </span>
-                  {m.debt_vnd > 0 ? <Badge tone="danger">Owes {money(m.debt_vnd)}</Badge> : null}
                 </div>
               </Card>
             ))}

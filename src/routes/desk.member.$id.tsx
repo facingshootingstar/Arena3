@@ -38,7 +38,6 @@ function Page() {
   const [data, setData] = useState<{
     user: { full_name: string; phone: string; member_code: string | null; date_of_birth: string | null };
     guardian: { name: string | null; phone: string | null };
-    debt_vnd: number;
     subscriptions: Array<{
       id: string;
       status: string;
@@ -196,9 +195,6 @@ function Page() {
       subtitle={`${data.user.member_code} · ${data.user.phone}`}
     >
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <p className="text-sm">
-          Outstanding balance <span className="tabular-nums font-medium">{money(data.debt_vnd)}</span>
-        </p>
         <Button size="sm" variant="outline" onClick={openEdit}>
           Edit profile
         </Button>

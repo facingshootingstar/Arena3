@@ -28,7 +28,9 @@ const SETTINGS_FORM_KEYS = [
   "hold_minutes",
   "book_ahead_days",
   "cancel_court_hours",
-  "debt_limit_vnd",
+  "gate_dedup_minutes",
+  "at_risk_idle_days",
+  "self_checkin_enabled",
   "freeze_max_days_year",
   "waitlist_offer_hours",
 ];
@@ -129,9 +131,25 @@ function Page() {
         {f("hold_minutes", "Hold length (minutes)", "number")}
         {f("book_ahead_days", "Book ahead (days)", "number")}
         {f("cancel_court_hours", "Court cancellation window (hours)", "number")}
-        {f("debt_limit_vnd", "Debt ceiling (đ)", "number")}
+        {f("gate_dedup_minutes", "Count a repeat gate scan once for (minutes)", "number")}
+        {f("at_risk_idle_days", "At-risk after no visit for (days)", "number")}
         {f("freeze_max_days_year", "Freeze cap (days per year)", "number")}
         {f("waitlist_offer_hours", "Waitlist offer window (hours)", "number")}
+        <label className="flex items-start gap-3 text-sm md:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-1 size-4 accent-[var(--color-accent)]"
+            checked={s.self_checkin_enabled === true}
+            onChange={(e) => setS({ ...s, self_checkin_enabled: e.target.checked })}
+          />
+          <span>
+            Let members check in themselves
+            <span className="block text-xs text-muted">
+              Off by default. When on, the front desk shows a code that changes every 30 seconds and a member scans it
+              from their own phone. Members without a plan or booking are still sent to the desk.
+            </span>
+          </span>
+        </label>
         <p className="text-xs text-muted md:col-span-2">
           Time zone ({String(s.timezone ?? "—")}) and currency ({String(s.currency ?? "—")}) are fixed for this centre.
         </p>
@@ -171,7 +189,7 @@ function Page() {
   );
 }
 
-type Court = { id: string; court_code: string; sport: string; status: string; convertible?: boolean };
+type Court = { id: string; court_code: string; sport: string; status: string };
 
 const STATUSES = [
   { value: "ready", label: "Open", tone: "accent" as const },
@@ -243,7 +261,6 @@ function Courts() {
               <div>
                 <p className="font-medium">
                   {c.court_code}
-                  {c.convertible ? <span className="ml-1 text-subtle">↔</span> : null}
                 </p>
                 <p className="text-xs text-muted">{sportLabel(c.sport)}</p>
               </div>

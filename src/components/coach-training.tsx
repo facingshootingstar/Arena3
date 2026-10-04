@@ -168,20 +168,89 @@ export function ResultsPanel({ sessionId, cancelled }: { sessionId: string; canc
 
 /* ------------------------------------------------------------------ *
  * Plans — build, publish, copy last week (FR-TRN-04)                   *
+ * Blocks carry intensity, a description, equipment and a target so a   *
+ * plan can be run by someone other than its author (BR-74). A published *
+ * plan that changes keeps its earlier versions (BR-75).                *
  * ------------------------------------------------------------------ */
 
-type Block = { title: string; minutes: string; phase: string };
+type Block = {
+  title: string;
+  minutes: string;
+  phase: string;
+  intensity: string;
+  description: string;
+  equipment: string;
+  target: string;
+};
+type PlanBlock = {
+  title: string;
+  minutes: number;
+  phase?: string;
+  intensity?: string;
+  description?: string;
+  equipment?: string;
+  target?: string;
+};
+type PlanPayload = {
+  blocks?: PlanBlock[];
+  note?: string;
+  goal?: string;
+  sport?: string;
+  level?: string;
+};
 type PlanRow = {
   id: string;
   title: string | null;
   published: boolean;
   source: string;
+  version?: number;
   session_id: string | null;
   session_start: string | null;
-  payload: { blocks?: Array<{ title: string; minutes: number; phase?: string }>; note?: string };
+  payload: PlanPayload;
 };
+type Template = { id: string; title: string | null; payload: PlanPayload };
+type Version = { version: number; title: string | null; payload: PlanPayload; created_at: string };
+type PlanWarning = { message: string };
 
-const blank = (): Block => ({ title: "", minutes: "10", phase: "" });
+const INTENSITIES = ["light", "medium", "hard"] as const;
+const MAX_BLOCKS = 12;
+
+const blank = (): Block => ({
+  title: "",
+  minutes: "10",
+  phase: "technique",
+  intensity: "medium",
+  description: "",
+  equipment: "",
+  target: "",
+});
+
+const fromPlanBlocks = (list: PlanBlock[] | undefined): Block[] =>
+  list?.length
+    ? list.map((b) => ({
+        title: b.title.replace(/\s*\d+\s*[′']$/, ""),
+        minutes: String(b.minutes),
+        phase: b.phase ?? "",
+        intensity: b.intensity ?? "",
+        description: b.description ?? "",
+        equipment: b.equipment ?? "",
+        target: b.target ?? "",
+      }))
+    : [blank()];
+
+/** Only what the coach filled in goes to the server — empty strings would fail its checks. */
+const toPlanBlocks = (list: Block[]): PlanBlock[] =>
+  list.map((b) => ({
+    title: b.title,
+    minutes: Number(b.minutes),
+    ...(b.phase ? { phase: b.phase } : {}),
+    ...(b.intensity ? { intensity: b.intensity } : {}),
+    ...(b.description.trim() ? { description: b.description.trim() } : {}),
+    ...(b.equipment.trim() ? { equipment: b.equipment.trim() } : {}),
+    ...(b.target.trim() ? { target: b.target.trim() } : {}),
+  }));
+
+const planMinutes = (list: Block[]) => list.reduce((n, b) => n + (Number.isFinite(Number(b.minutes)) ? Number(b.minutes) : 0), 0);
 
 /** Monday of the week before the one holding `iso` (the centre's calendar). */
 function lastWeekMonday(iso: string) {
@@ -198,6 +267,12 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
   const [note, setNote] = useState("");
   const [focus, setFocus] = useState("core technique");
   const [busy, setBusy] = useState(false);
+  // The plan being changed. Its payload is carried so goal / sport / level survive an edit.
+  const [editing, setEditing] = useState<PlanRow | null>(null);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateId, setTemplateId] = useState("");
+  const [open, setOpen] = useState<Record<number, boolean>>({ 0: true });
+  const [history, setHistory] = useState<{ plan: PlanRow; items: Version[] } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -214,48 +289,82 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
     void load();
   }, [load]);
 
+  useEffect(() => {
+    apiGet<{ items: Template[] }>(`/training-plans/templates?sport=${session.sport}&level=${session.level}`)
+      .then((r) => setTemplates(r.items))
+      .catch(() => setTemplates([]));
+  }, [session.sport, session.level]);
+
+  function reset() {
+    setBlocks([blank()]);
+    setTitle("");
+    setNote("");
+    setEditing(null);
+    setTemplateId("");
+    setOpen({ 0: true });
+  }
+
+  function warn(warnings: PlanWarning[] | undefined) {
+    for (const w of warnings ?? []) toast.warning(w.message);
+  }
+
   async function suggest() {
     try {
-      const r = await apiPost<{ payload: { blocks?: Array<{ title: string; minutes: number }> } }>(
-        "/training-plans/suggest",
-        { sport: session.sport, level: session.level, goal: focus },
-      );
+      const r = await apiPost<{ payload: PlanPayload }>("/training-plans/suggest", {
+        sport: session.sport,
+        level: session.level,
+        goal: focus,
+      });
       // The suggestion writes its length into the title ("Net shots 10′"); the minutes box already says it.
-      const next = (r.payload.blocks ?? []).map((b) => ({
-        title: b.title.replace(/\s*\d+\s*[′']$/, ""),
-        minutes: String(b.minutes),
-        phase: "",
-      }));
-      if (next.length) setBlocks(next);
+      const next = fromPlanBlocks(r.payload.blocks);
+      if (r.payload.blocks?.length) setBlocks(next);
       toast.success("Suggestion added. Edit anything before you publish.");
     } catch (e) {
       toast.error(say(e));
     }
   }
 
+  async function loadTemplate() {
+    if (!templateId) return;
+    const t = templates.find((x) => x.id === templateId);
+    if (!t) return;
+    setBlocks(fromPlanBlocks(t.payload.blocks));
+    if (!title && t.title) setTitle(t.title);
+    if (!note && t.payload.note) setNote(t.payload.note);
+    setEditing(null);
+    toast.success("Template loaded. Change anything, then save or publish.");
+  }
+
   async function submit(published: boolean) {
     setBusy(true);
     try {
-      await apiPost("/training-plans", {
-        class_id: session.class_id,
-        session_id: session.id,
-        title,
-        published,
-        source: "coach",
-        payload: {
-          goal: title || focus,
-          note,
-          blocks: blocks.map((b) => ({
-            title: b.title,
-            minutes: Number(b.minutes),
-            ...(b.phase ? { phase: b.phase } : {}),
-          })),
-        },
-      });
-      toast.success(published ? "Plan published to the class" : "Draft saved");
-      setBlocks([blank()]);
-      setTitle("");
-      setNote("");
+      const payload = {
+        ...(editing?.payload ?? {}),
+        goal: title || editing?.payload.goal || focus,
+        note,
+        blocks: toPlanBlocks(blocks),
+      };
+      if (editing) {
+        const r = await apiPatch<{ warnings?: PlanWarning[] }>(`/training-plans/${editing.id}`, {
+          title,
+          payload,
+          published,
+        });
+        toast.success(published ? "Plan updated for the class" : "Draft updated");
+        warn(r.warnings);
+      } else {
+        const r = await apiPost<{ warnings?: PlanWarning[] }>("/training-plans", {
+          class_id: session.class_id,
+          session_id: session.id,
+          title,
+          published,
+          source: "coach",
+          payload,
+        });
+        toast.success(published ? "Plan published to the class" : "Draft saved");
+        warn(r.warnings);
+      }
+      reset();
       await load();
     } catch (e) {
       toast.error(say(e));
@@ -264,10 +373,47 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
     }
   }
 
+  function edit(p: PlanRow) {
+    setEditing(p);
+    setTitle(p.title ?? "");
+    setNote(p.payload.note ?? "");
+    setBlocks(fromPlanBlocks(p.payload.blocks));
+    setOpen({ 0: true });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function toggle(p: PlanRow) {
     try {
       await apiPatch(`/training-plans/${p.id}`, { published: !p.published });
       setPlans((l) => l?.map((x) => (x.id === p.id ? { ...x, published: !p.published } : x)) ?? l);
+    } catch (e) {
+      toast.error(say(e));
+    }
+  }
+
+  async function saveTemplate(p: PlanRow) {
+    try {
+      await apiPost(`/training-plans/${p.id}/save-template`, {
+        title: p.title ?? undefined,
+        sport: p.payload.sport ?? session.sport,
+        level: p.payload.level ?? session.level,
+      });
+      toast.success("Saved as a template for this sport and level");
+      const r = await apiGet<{ items: Template[] }>(`/training-plans/templates?sport=${session.sport}&level=${session.level}`);
+      setTemplates(r.items);
+    } catch (e) {
+      toast.error(say(e));
+    }
+  }
+
+  async function showHistory(p: PlanRow) {
+    if (history?.plan.id === p.id) {
+      setHistory(null);
+      return;
+    }
+    try {
+      const r = await apiGet<{ items: Version[] }>(`/training-plans/${p.id}/versions`);
+      setHistory({ plan: p, items: r.items });
     } catch (e) {
       toast.error(say(e));
     }
@@ -294,16 +440,36 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
 
   const setBlock = (i: number, patch: Partial<Block>) =>
     setBlocks((l) => l.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  const move = (i: number, by: -1 | 1) =>
+    setBlocks((l) => {
+      const j = i + by;
+      if (j < 0 || j >= l.length) return l;
+      const next = [...l];
+      [next[i], next[j]] = [next[j]!, next[i]!];
+      return next;
+    });
 
   return (
     <div className="mt-10">
       <SplitText as="h2" text="Session plan" className="font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">
-        Plan this session block by block. {f5 ? "The AI only suggests — you decide what students see. " : ""}
+        Plan this session block by block — what to do, how hard, with what, and what good looks like.{" "}
+        {f5 ? "The AI only suggests — you decide what students see. " : ""}
         Published plans appear under My progress for everyone in the class.
       </p>
       <Reveal>
         <Card className="mt-3 grid gap-4">
+          {editing ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hold/10 px-3 py-2 text-sm">
+              <span>
+                Editing “{editing.title || "plan"}”
+                {editing.published ? " — students will be told it changed and the old version is kept." : "."}
+              </span>
+              <Button size="sm" variant="ghost" onClick={reset}>
+                Cancel edit
+              </Button>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Title">
               <Input maxLength={120} placeholder="Footwork and net play" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -324,51 +490,131 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
             ) : null}
           </div>
 
-          <div className="grid gap-2">
-            {blocks.map((b, i) => (
-              <div key={i} className="grid grid-cols-[1fr_5rem] gap-2 md:grid-cols-[1fr_8rem_5rem_auto]">
-                <Input
-                  aria-label={`Block ${i + 1} title`}
-                  maxLength={120}
-                  placeholder={`Block ${i + 1}`}
-                  value={b.title}
-                  onChange={(e) => setBlock(i, { title: e.target.value })}
-                />
-                <Input
-                  aria-label={`Block ${i + 1} minutes`}
-                  inputMode="numeric"
-                  className="md:order-3"
-                  value={b.minutes}
-                  onChange={(e) => setBlock(i, { minutes: e.target.value })}
-                />
-                <Select
-                  aria-label={`Block ${i + 1} phase`}
-                  className="md:order-2"
-                  value={b.phase}
-                  onChange={(e) => setBlock(i, { phase: e.target.value })}
-                >
-                  <option value="">Phase</option>
-                  {PHASES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
+          {templates.length && !editing ? (
+            <div className="grid grid-cols-[1fr_auto] items-end gap-2 md:max-w-md">
+              <Field label="Start from a template">
+                <Select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+                  <option value="">Choose…</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title || "Untitled template"} · {(t.payload.blocks ?? []).length === 1 ? "1 block" : `${(t.payload.blocks ?? []).length} blocks`}
                     </option>
                   ))}
                 </Select>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="md:order-4"
-                  disabled={blocks.length === 1}
-                  onClick={() => setBlocks((l) => l.filter((_, j) => j !== i))}
-                >
-                  Remove
-                </Button>
+              </Field>
+              <Button variant="outline" disabled={!templateId} onClick={() => void loadTemplate()}>
+                Use
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="grid gap-2">
+            {blocks.map((b, i) => (
+              <div key={i} className="grid gap-2 rounded-md border border-line p-3">
+                <div className="grid grid-cols-[1fr_5rem] gap-2 md:grid-cols-[1fr_8rem_7rem_5rem]">
+                  <Input
+                    aria-label={`Block ${i + 1} title`}
+                    maxLength={120}
+                    placeholder={`Block ${i + 1}`}
+                    value={b.title}
+                    onChange={(e) => setBlock(i, { title: e.target.value })}
+                  />
+                  <Input
+                    aria-label={`Block ${i + 1} minutes`}
+                    inputMode="numeric"
+                    className="md:order-4"
+                    value={b.minutes}
+                    onChange={(e) => setBlock(i, { minutes: e.target.value })}
+                  />
+                  <Select
+                    aria-label={`Block ${i + 1} phase`}
+                    className="md:order-2"
+                    value={b.phase}
+                    onChange={(e) => setBlock(i, { phase: e.target.value })}
+                  >
+                    <option value="">Phase</option>
+                    {PHASES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    aria-label={`Block ${i + 1} intensity`}
+                    className="md:order-3"
+                    value={b.intensity}
+                    onChange={(e) => setBlock(i, { intensity: e.target.value })}
+                  >
+                    <option value="">Intensity</option>
+                    {INTENSITIES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                {open[i] ? (
+                  <div className="grid gap-2">
+                    <Textarea
+                      rows={2}
+                      maxLength={600}
+                      aria-label={`Block ${i + 1} description`}
+                      placeholder="How it runs: drill set-up, reps, rotation…"
+                      value={b.description}
+                      onChange={(e) => setBlock(i, { description: e.target.value })}
+                    />
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <Input
+                        aria-label={`Block ${i + 1} equipment`}
+                        maxLength={200}
+                        placeholder="Equipment: shuttles, cones, ladder…"
+                        value={b.equipment}
+                        onChange={(e) => setBlock(i, { equipment: e.target.value })}
+                      />
+                      <Input
+                        aria-label={`Block ${i + 1} target`}
+                        maxLength={200}
+                        placeholder="Target: 8 of 10 clears past the line…"
+                        value={b.target}
+                        onChange={(e) => setBlock(i, { target: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}>
+                    {open[i] ? "Hide details" : "Details"}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move block ${i + 1} up`}>
+                    Up
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={i === blocks.length - 1}
+                    onClick={() => move(i, 1)}
+                    aria-label={`Move block ${i + 1} down`}
+                  >
+                    Down
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={blocks.length === 1}
+                    onClick={() => setBlocks((l) => l.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </Button>
+                </div>
               </div>
             ))}
-            <div>
-              <Button variant="outline" size="sm" disabled={blocks.length >= 12} onClick={() => setBlocks((l) => [...l, blank()])}>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" size="sm" disabled={blocks.length >= MAX_BLOCKS} onClick={() => setBlocks((l) => [...l, blank()])}>
                 Add block
               </Button>
+              <span className="text-xs text-muted">
+                {blocks.length} of {MAX_BLOCKS} blocks · {planMinutes(blocks)} min in total
+              </span>
             </div>
           </div>
 
@@ -378,14 +624,16 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
 
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy || session.status === "cancelled"} onClick={() => submit(true)}>
-              Publish to the class
+              {editing ? "Save and publish" : "Publish to the class"}
             </Button>
             <Button variant="outline" disabled={busy || session.status === "cancelled"} onClick={() => submit(false)}>
-              Save as draft
+              {editing ? "Save as draft" : "Save as draft"}
             </Button>
-            <Button variant="ghost" onClick={copyLastWeek}>
-              Copy plans from last week
-            </Button>
+            {!editing ? (
+              <Button variant="ghost" onClick={copyLastWeek}>
+                Copy plans from last week
+              </Button>
+            ) : null}
           </div>
         </Card>
       </Reveal>
@@ -397,21 +645,47 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
           <EmptyState title="No plans for this class yet" hint="Build one above, or copy last week's." />
         ) : (
           plans.map((p) => (
-            <Card key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <p className="font-medium">{p.title || (p.payload.blocks?.[0]?.title ?? "Plan")}</p>
-                <p className="text-xs text-muted">
-                  {p.session_start ? `${sessionDay(p.session_start)} · ${hhmm(p.session_start)}` : "Whole class"} ·{" "}
-                  {(p.payload.blocks ?? []).length} blocks
-                  {p.source === "ai" ? " · AI draft" : ""}
-                </p>
+            <Card key={p.id} className="grid gap-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium">{p.title || (p.payload.blocks?.[0]?.title ?? "Plan")}</p>
+                  <p className="text-xs text-muted">
+                    {p.session_start ? `${sessionDay(p.session_start)} · ${hhmm(p.session_start)}` : "Whole class"} ·{" "}
+                    {(p.payload.blocks ?? []).length === 1 ? "1 block" : `${(p.payload.blocks ?? []).length} blocks`} ·{" "}
+                    {(p.payload.blocks ?? []).reduce((n, b) => n + b.minutes, 0)} min
+                    {p.version && p.version > 1 ? ` · v${p.version}` : ""}
+                    {p.source === "ai" ? " · AI draft" : ""}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={p.published ? "accent" : "muted"}>{p.published ? "Published" : "Draft"}</Badge>
+                  <Button size="sm" variant="outline" onClick={() => edit(p)}>
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => toggle(p)}>
+                    {p.published ? "Unpublish" : "Publish"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void saveTemplate(p)}>
+                    Save as template
+                  </Button>
+                  {p.version && p.version > 1 ? (
+                    <Button size="sm" variant="ghost" onClick={() => void showHistory(p)}>
+                      {history?.plan.id === p.id ? "Hide history" : "History"}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge tone={p.published ? "accent" : "muted"}>{p.published ? "Published" : "Draft"}</Badge>
-                <Button size="sm" variant="outline" onClick={() => toggle(p)}>
-                  {p.published ? "Unpublish" : "Publish"}
-                </Button>
-              </div>
+              {history?.plan.id === p.id ? (
+                <ul className="grid gap-1 border-t border-line pt-2 text-xs text-muted">
+                  {history.items.map((v) => (
+                    <li key={v.version}>
+                      v{v.version} · {formatDate(v.created_at)} · {(v.payload.blocks ?? []).length === 1 ? "1 block" : `${(v.payload.blocks ?? []).length} blocks`},{" "}
+                      {(v.payload.blocks ?? []).reduce((n, b) => n + b.minutes, 0)} min
+                      {v.title ? ` · ${v.title}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </Card>
           ))
         )}

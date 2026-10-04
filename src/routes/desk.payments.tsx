@@ -8,6 +8,7 @@ import { Shell, money, useSessionUser, when } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Input, Seg, Select, Skeleton } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SplitText, SpotlightCard, StarBorder } from "@/components/fx";
+import { PromoInput } from "@/components/promo-input";
 import { api, apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 
@@ -27,6 +28,10 @@ type Order = {
   plan_name: string;
   price_vnd: number;
   paid_vnd: number;
+  plan_id: string;
+  /** A code the member already put on the order in the app. */
+  promo_code: string | null;
+  promo_discount_vnd: number;
 };
 
 type Refund = {
@@ -142,6 +147,7 @@ function Page() {
   // but a slow network should never grey out the whole queue.
   const [method, setMethod] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [promo, setPromo] = useState<Record<string, { code: string; discount_vnd: number } | null>>({});
 
   // `api` rather than `apiGet`: the de-duplicator hands back an identical GET
   // that is already in flight, and every refresh here runs straight after a
@@ -199,7 +205,15 @@ function Page() {
     }
   }
 
+  // What the desk is charging for an order: list price, less any code the member
+  // already applied, less one the desk typed in. Partial payments are not taken (BR-12).
+  const dueOf = useCallback(
+    (o: Order) => o.price_vnd - (promo[o.id]?.discount_vnd ?? o.promo_discount_vnd),
+    [promo],
+  );
+
   async function takePayment(o: Order) {
+    const due = dueOf(o);
     setBusy(o.id);
     try {
       const res = await apiPost<{ invoice: { id: string } }>(
@@ -208,7 +222,8 @@ function Page() {
           ref_type: "subscription",
           ref_id: o.id,
           method: method[o.id] ?? "cash",
-          amount_vnd: o.price_vnd - o.paid_vnd,
+          amount_vnd: due,
+          ...(promo[o.id]?.code ? { promo_code: promo[o.id]!.code } : {}),
         },
         true,
       );
@@ -409,7 +424,7 @@ function Page() {
             // part payment plus a price change, or a refund posted back against
             // it — rare, but a negative balance would render "Take -200,000đ"
             // and then ask the server to take a negative payment.
-            const due = Math.max(0, o.price_vnd - o.paid_vnd);
+            const due = Math.max(0, dueOf(o) - o.paid_vnd);
             const settled = due === 0;
             const waited = daysWaiting(o.ordered_on);
             return (
@@ -444,6 +459,23 @@ function Page() {
                           )}
                         </div>
                       </div>
+
+                      {o.promo_code ? (
+                        <p className="mt-2 text-xs text-accent">
+                          {o.promo_code} already applied: −{money(o.promo_discount_vnd)}
+                        </p>
+                      ) : o.paid_vnd === 0 ? (
+                        <div className="mt-3 max-w-xs">
+                          <PromoInput
+                            scope="plan"
+                            compact
+                            target={{ plan_id: o.plan_id, user_id: o.user_id }}
+                            onChange={(q) =>
+                              setPromo((m) => ({ ...m, [o.id]: q ? { code: q.code, discount_vnd: q.discount_vnd } : null }))
+                            }
+                          />
+                        </div>
+                      ) : null}
 
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Select
@@ -571,7 +603,7 @@ function Page() {
         {!data ? (
           <Skeleton className="mt-3 h-24" />
         ) : receipts.length ? (
-          <Stagger className="mt-3 grid gap-2" gap={0.04}>
+          <Stagger className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2" gap={0.04}>
             {receipts.map((t) => (
               <StaggerItem key={t.id}>
                 <motion.div

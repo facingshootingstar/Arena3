@@ -364,7 +364,7 @@ function Landing() {
       photo: media.basketball,
       count: 2,
       codes: "BR-01, BR-02",
-      note: "Full-size hardwood, breakaway rims, convertible to four badminton bays.",
+      note: "Full-size hardwood with breakaway rims.",
     },
     {
       id: "volleyball",
@@ -391,7 +391,7 @@ function Landing() {
       code: "BR-01, BR-02",
       name: "Basketball courts",
       photo: media.basketballCourt,
-      note: "Full-size hardwood with breakaway rims — and each one converts to four badminton bays when the schedule needs them.",
+      note: "Full-size hardwood with breakaway rims.",
     },
     {
       code: "BC-01, BC-02",
@@ -416,7 +416,7 @@ function Landing() {
     {
       n: "02",
       title: "Hold it for five minutes",
-      body: "The slot is yours while you decide. No card up front, no deposit, no phone call.",
+      body: "The slot is yours while you decide. No card up front, no phone call.",
     },
     {
       n: "03",
@@ -681,8 +681,7 @@ function Landing() {
             <SplitText text="Courts & pricing" />
           </h2>
           <p className="mt-3 max-w-md text-muted">
-            One hall, sixteen playing surfaces. Either basketball floor converts to four badminton
-            bays when the schedule asks for it.
+            One hall, sixteen playing surfaces — badminton, basketball and volleyball under one roof.
           </p>
         </Reveal>
 
@@ -840,7 +839,6 @@ function Landing() {
                 setPicked(null);
               }}
               onPickDate={setSchedDate}
-              canRelease={false}
               legendCompact
               selected={picked ? { courtId: picked.court.id, hour: picked.hour } : null}
             />
