@@ -29,9 +29,16 @@ type Payload = { k: CheckinKind; s: string; j: string; e: number };
 
 export type VerifiedToken = { kind: CheckinKind; sub: string; jti: string; expiresAt: number };
 
-/** A dev constant keeps local runs working; production should set CHECKIN_SECRET. */
+/**
+ * A dev constant keeps local runs working. In production it would be a key
+ * anyone can read in the repository, so there the QR codes refuse to work until
+ * CHECKIN_SECRET (or OTP_SECRET) is set.
+ */
 function secret(): string {
-  return process.env.CHECKIN_SECRET?.trim() || process.env.OTP_SECRET?.trim() || "arena3-dev-checkin-secret";
+  const set = process.env.CHECKIN_SECRET?.trim() || process.env.OTP_SECRET?.trim();
+  if (set) return set;
+  if (process.env.NODE_ENV === "production") throw new Error("CHECKIN_SECRET is not set");
+  return "arena3-dev-checkin-secret";
 }
 
 export function checkinSecretConfigured(): boolean {
