@@ -9,6 +9,7 @@ import { SpotlightCard, StarBorder } from "@/components/fx";
 import { ClassDetailModal, OccupancyDetailModal } from "@/components/class-detail";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { todayISO } from "@/lib/arena3/labels";
+import { t, tServer } from "@/lib/i18n";
 
 export const Route = createFileRoute("/desk/courts")({
   component: Page,
@@ -29,7 +30,7 @@ function Page() {
   }
   useEffect(() => {
     setData(null);
-    void load().catch((e) => toast.error(e.message));
+    void load().catch((e) => toast.error(tServer(e.message)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
@@ -40,8 +41,8 @@ function Page() {
   return (
     <Shell
       role="receptionist"
-      title="Court map"
-      subtitle="Take walk-in payment on the spot."
+      title={t("Court map")}
+      subtitle={t("Take walk-in payment on the spot.")}
     >
       <div className="mb-4 grid gap-3">
         <DateStrip value={date} onChange={setDate} />
@@ -50,10 +51,10 @@ function Page() {
             value={sport}
             onChange={setSport}
             options={[
-              { value: "", label: "All" },
-              { value: "badminton", label: "Badminton" },
-              { value: "basketball", label: "Basketball" },
-              { value: "volleyball", label: "Volleyball" },
+              { value: "", label: t("All") },
+              { value: "badminton", label: t("Badminton") },
+              { value: "basketball", label: t("Basketball") },
+              { value: "volleyball", label: t("Volleyball") },
             ]}
           />
           <DateField value={date} onChange={setDate} />
@@ -71,29 +72,29 @@ function Page() {
         <Card className="relative z-[2] grid gap-3 md:grid-cols-4">
           <div className="md:col-span-4">
             <p className="text-sm text-muted">
-              Walk-in · {pick.court.court_code} · {sportLabel(pick.court.sport)} · {String(pick.hour).padStart(2, "0")}
+              {t("Walk-in")} · {pick.court.court_code} · {sportLabel(pick.court.sport)} · {String(pick.hour).padStart(2, "0")}
               :00
             </p>
           </div>
-          <Field label="Full name">
+          <Field label={t("Full name")}>
             <Input
               value={form.guest_name}
               onChange={(e) => setForm({ ...form, guest_name: e.target.value })}
-              placeholder="Guest name"
+              placeholder={t("Guest name")}
             />
           </Field>
-          <Field label="Phone">
+          <Field label={t("Phone")}>
             <Input
               value={form.guest_phone}
               onChange={(e) => setForm({ ...form, guest_phone: e.target.value })}
               placeholder="0901…"
             />
           </Field>
-          <Field label="Payment method">
+          <Field label={t("Payment method")}>
             <Select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
-              <option value="cash">Cash</option>
-              <option value="transfer">Bank transfer</option>
-              <option value="card">Card</option>
+              <option value="cash">{t("Cash")}</option>
+              <option value="transfer">{t("Bank transfer")}</option>
+              <option value="card">{t("Card")}</option>
             </Select>
           </Field>
           {/* Own row: the star border needs the button at its natural width, and
@@ -109,21 +110,21 @@ function Page() {
                       { court_id: pick.court.id, start_at: isoAt(pick.hour), ...form },
                       true,
                     );
-                    toast.success(`Took ${money(res.payment.amount_vnd)} · ${res.payment.code}`);
+                    toast.success(t("Took {amount} · {code}", { amount: money(res.payment.amount_vnd), code: res.payment.code }));
                     setPick(null);
                     setForm({ guest_name: "", guest_phone: "", method: "cash" });
                     await load();
                     if (res.invoice_id) await openInvoice(res.invoice_id);
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Something went wrong");
+                    toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
                   }
                 }}
               >
-                Take payment & hold
+                {t("Take payment & hold")}
               </Button>
             </StarBorder>
             <Button variant="ghost" onClick={() => setPick(null)}>
-              Never mind
+              {t("Never mind")}
             </Button>
           </div>
         </Card>

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Skeleton, Stat } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, FilterChip, Input, Modal, Pagination, Select, Skeleton, Stat } from "@/components/ui";
 import { ExportButtons } from "@/components/report-panels";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { addDaysISO, formatDate, sportLabel, todayISO } from "@/lib/arena3/labels";
+import { t, tk, tServer } from "@/lib/i18n";
 
 type Counts = { present: number; late: number; absent: number; excused: number; rate_pct: number | null };
 
@@ -34,7 +35,7 @@ export function AttendancePanel({ canExport }: { canExport: boolean }) {
     apiGet<Report>(`/reports/attendance?from=${from}&to=${to}`)
       .then((d) => live && setData(d))
       .catch((e: Error) => {
-        if (live) toast.error(e.message);
+        if (live) toast.error(tServer(e.message));
       });
     return () => {
       live = false;
@@ -44,16 +45,16 @@ export function AttendancePanel({ canExport }: { canExport: boolean }) {
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="From">
+        <Field label={t("From")}>
           <Input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
         </Field>
-        <Field label="To">
+        <Field label={t("To")}>
           <Input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
         </Field>
-        <Select value={view} onChange={(e) => setView(e.target.value as typeof view)} aria-label="Group by">
-          <option value="class">By class</option>
-          <option value="coach">By coach</option>
-          <option value="student">By student</option>
+        <Select value={view} onChange={(e) => setView(e.target.value as typeof view)} aria-label={t("Group by")}>
+          <option value="class">{t("By class")}</option>
+          <option value="coach">{t("By coach")}</option>
+          <option value="student">{t("By student")}</option>
         </Select>
         {canExport ? <ExportButtons kind="attendance" from={from} to={to} /> : null}
       </div>
@@ -63,14 +64,14 @@ export function AttendancePanel({ canExport }: { canExport: boolean }) {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-4">
-            <Stat label="Attendance rate" value={pct(data.totals.rate_pct)} />
-            <Stat label="Present or late" value={String(data.totals.present + data.totals.late)} />
-            <Stat label="Absent" value={String(data.totals.absent)} />
-            <Stat label="Excused (not counted)" value={String(data.totals.excused)} />
+            <Stat label={t("Attendance rate")} value={pct(data.totals.rate_pct)} />
+            <Stat label={t("Present or late")} value={String(data.totals.present + data.totals.late)} />
+            <Stat label={t("Absent")} value={String(data.totals.absent)} />
+            <Stat label={t("Excused (not counted)")} value={String(data.totals.excused)} />
           </div>
           {view === "class" ? (
             <Table
-              head={["Class", "Coach", "Students", "Present", "Late", "Absent", "Excused", "Rate"]}
+              head={[t("Class"), t("Coach"), t("Students"), t("Present"), t("Late"), t("Absent"), t("Excused"), t("Rate")]}
               rows={data.classes.map((c) => [
                 `${c.class_code} · ${sportLabel(c.sport)}`,
                 c.coach,
@@ -84,12 +85,12 @@ export function AttendancePanel({ canExport }: { canExport: boolean }) {
             />
           ) : view === "coach" ? (
             <Table
-              head={["Coach", "Classes", "Present", "Late", "Absent", "Excused", "Rate"]}
+              head={[t("Coach"), t("Classes"), t("Present"), t("Late"), t("Absent"), t("Excused"), t("Rate")]}
               rows={data.coaches.map((c) => [c.coach, c.classes, c.present, c.late, c.absent, c.excused, pct(c.rate_pct)])}
             />
           ) : (
             <Table
-              head={["Student", "Class", "Present", "Late", "Absent", "Excused", "Rate"]}
+              head={[t("Student"), t("Class"), t("Present"), t("Late"), t("Absent"), t("Excused"), t("Rate")]}
               rows={data.students.map((s) => [
                 `${s.full_name}${s.member_code ? ` (${s.member_code})` : ""}`,
                 s.class_code,
@@ -108,9 +109,9 @@ export function AttendancePanel({ canExport }: { canExport: boolean }) {
 }
 
 function Table({ head, rows }: { head: string[]; rows: Array<Array<string | number>> }) {
-  if (!rows.length) return <EmptyState title="No marked sessions in this window" hint="Pick a longer range." />;
+  if (!rows.length) return <EmptyState title={t("No marked sessions in this window")} hint={t("Pick a longer range.")} />;
   return (
-    <Card className="overflow-x-auto p-0">
+    <Card className="overflow-x-auto p-0" role="region" aria-label={t("Table, scrolls sideways")} tabIndex={0}>
       <table className="w-full min-w-[34rem] text-sm">
         <thead>
           <tr className="border-b border-line text-left text-xs text-muted">
@@ -151,19 +152,41 @@ type RiskItem = {
 };
 
 const CHANNELS = [
-  { value: "phone", label: "Phone call" },
-  { value: "zalo", label: "Zalo" },
-  { value: "sms", label: "SMS" },
-  { value: "in_person", label: "In person" },
+  { value: "phone", label: tk("Phone call") },
+  { value: "zalo", label: tk("Zalo") },
+  { value: "sms", label: tk("SMS") },
+  { value: "in_person", label: tk("In person") },
 ];
 const OUTCOMES = [
-  { value: "reached", label: "Spoke to them" },
-  { value: "will_return", label: "Will come back" },
-  { value: "reschedule", label: "Wants another time" },
-  { value: "leaving", label: "Leaving" },
-  { value: "no_answer", label: "No answer" },
+  { value: "reached", label: tk("Spoke to them") },
+  { value: "will_return", label: tk("Will come back") },
+  { value: "reschedule", label: tk("Wants another time") },
+  { value: "leaving", label: tk("Leaving") },
+  { value: "no_answer", label: tk("No answer") },
 ];
-const outcomeLabel = (v: string) => OUTCOMES.find((o) => o.value === v)?.label ?? v;
+const outcomeLabel = (v: string) => {
+  const l = OUTCOMES.find((o) => o.value === v)?.label;
+  return l ? t(l) : v;
+};
+
+const RISK_PAGE = 20;
+type RiskKind = "streak" | "idle" | "expiring";
+type RiskFilter = "todo" | "done" | "all" | RiskKind;
+type RiskSort = "priority" | "plan_end" | "last_seen" | "name";
+
+const SORTS: Array<{ value: RiskSort; label: string }> = [
+  { value: "priority", label: tk("Most urgent first") },
+  { value: "plan_end", label: tk("Plan ends soonest") },
+  { value: "last_seen", label: tk("Away the longest") },
+  { value: "name", label: tk("Name A–Z") },
+];
+
+/** The short word a receptionist reads in a table cell; the long sentence stays in the tooltip. */
+function reasonChip(kind: string, idleDays: number | null) {
+  if (kind === "streak") return t("Absent in a row");
+  if (kind === "idle") return t("No visit {n}+ days", { n: idleDays ?? 14 });
+  return t("Plan ending · low attendance");
+}
 
 /** Members who may be drifting away, with what has already been done about it (FR-TRN-09). */
 export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
@@ -173,6 +196,11 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
   const [form, setForm] = useState({ channel: "phone", outcome: "reached", note: "" });
   const [busy, setBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<RiskFilter>("todo");
+  const [sort, setSort] = useState<RiskSort>("priority");
+  const [q, setQ] = useState("");
+  const [offset, setOffset] = useState(0);
+  const top = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const r = await apiGet<{ items: RiskItem[]; idle_days: number }>("/at-risk");
@@ -180,7 +208,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
     setIdleDays(r.idle_days);
   }, []);
   useEffect(() => {
-    void load().catch((e) => toast.error(e.message));
+    void load().catch((e) => toast.error(tServer(e.message)));
   }, [load]);
 
   async function save() {
@@ -195,98 +223,211 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
         outcome: form.outcome,
         note: form.note,
       });
-      toast.success("Contact saved");
+      toast.success(t("Contact saved"));
       setTarget(null);
       setForm({ channel: "phone", outcome: "reached", note: "" });
       await load();
     } catch (e) {
-      if (e instanceof ApiClientError && e.body.field) setFieldError(e.message);
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      if (e instanceof ApiClientError && e.body.field) setFieldError(tServer(e.message));
+      toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
     } finally {
       setBusy(false);
     }
   }
 
-  if (!items) return <Skeleton className="h-40" />;
+  const counts = useMemo(() => {
+    const c = { all: 0, todo: 0, done: 0, streak: 0, idle: 0, expiring: 0 };
+    for (const m of items ?? []) {
+      c.all++;
+      if (m.contacted) c.done++;
+      else c.todo++;
+      for (const r of m.reasons) if (r.kind in c) c[r.kind as RiskKind]++;
+    }
+    return c;
+  }, [items]);
+
+  const shown = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    const rows = (items ?? []).filter((m) => {
+      if (filter === "todo" && m.contacted) return false;
+      if (filter === "done" && !m.contacted) return false;
+      if (filter === "streak" || filter === "idle" || filter === "expiring") {
+        if (!m.reasons.some((r) => r.kind === filter)) return false;
+      }
+      if (!term) return true;
+      return [m.full_name, m.member_code, m.phone].some((v) => v?.toLowerCase().includes(term));
+    });
+    // The server already returns "most urgent first"; only the other orders need work here.
+    if (sort === "plan_end") rows.sort((a, b) => (a.plan_end_on ?? "9999").localeCompare(b.plan_end_on ?? "9999"));
+    if (sort === "last_seen") rows.sort((a, b) => (a.last_seen_at ?? "").localeCompare(b.last_seen_at ?? ""));
+    if (sort === "name") rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return rows;
+  }, [items, filter, sort, q]);
+
+  // A new search, filter or sort starts from the first page; a stale offset would show an empty one.
+  useEffect(() => setOffset(0), [filter, sort, q]);
+  const page = shown.slice(offset, offset + RISK_PAGE);
+  const goTo = (o: number) => {
+    setOffset(o);
+    top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (!items)
+    return (
+      <div className="grid gap-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-16" />
+        ))}
+      </div>
+    );
+
+  const chips: Array<{ value: RiskFilter; label: string; count: number; tone?: "hold" }> = [
+    { value: "todo", label: t("To call"), count: counts.todo, tone: "hold" },
+    { value: "done", label: t("Already contacted"), count: counts.done },
+    { value: "all", label: t("Everyone"), count: counts.all },
+    { value: "streak", label: t("Absent in a row"), count: counts.streak },
+    { value: "idle", label: t("No visit {n}+ days", { n: idleDays ?? 14 }), count: counts.idle },
+    { value: "expiring", label: t("Plan ending soon"), count: counts.expiring },
+  ];
+
   return (
-    <div className="grid gap-3">
-      <p className="text-sm text-muted">
-        Three things put someone here: absent three sessions running, no visit for {idleDays ?? "—"}+ days on a live
-        plan, or a plan ending soon with low attendance. Contacting them is a courtesy call — never a penalty.
-      </p>
-      {!items.length ? <EmptyState title="Nobody is at risk" hint="Everyone with a plan has been in recently." /> : null}
-      {items.map((m) => (
-        <Card key={m.user_id} className="grid gap-2">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p className="font-medium">
-                {m.full_name} <span className="text-xs text-muted">{m.member_code}</span>
-              </p>
-              <p className="text-xs text-muted">
-                {m.phone ?? "no phone"}
-                {m.plan_end_on ? ` · plan until ${formatDate(m.plan_end_on)}` : " · no live plan"}
-                {m.attendance_pct !== null ? ` · attendance ${m.attendance_pct}%` : ""}
-                {m.last_seen_at ? ` · last seen ${formatDate(m.last_seen_at)}` : " · never seen"}
-              </p>
-            </div>
-            <Badge tone={m.contacted ? "muted" : "hold"}>{m.contacted ? "Contacted" : "Not contacted"}</Badge>
-          </div>
-          <ul className="grid gap-1 text-sm">
-            {m.reasons.map((r) => (
-              <li key={r.kind}>• {r.message}</li>
-            ))}
-          </ul>
-          {m.last_contact ? (
-            <p className="text-xs text-muted">
-              {formatDate(m.last_contact.at)} · {m.last_contact.by}: {outcomeLabel(m.last_contact.outcome)}
-              {m.last_contact.note ? ` — ${m.last_contact.note}` : ""}
-            </p>
+    <div className="grid gap-3" ref={top}>
+      <details className="group rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-sm shadow-[var(--shadow-border)]">
+        <summary className="cursor-pointer font-medium marker:text-muted">{t("Who ends up on this list?")}</summary>
+        <p className="mt-2 text-muted">
+          {t(
+            "Three things put someone here: absent three sessions running, no visit for {n}+ days on a live plan, or a plan ending soon with low attendance. Contacting them is a courtesy call — never a penalty.",
+            { n: idleDays ?? "—" },
+          )}
+        </p>
+      </details>
+
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" role="group" aria-label={t("Filter the list")}>
+        {chips.map((c) => (
+          <FilterChip key={c.value} active={filter === c.value} onClick={() => setFilter(c.value)} label={c.label} count={c.count} tone={c.tone} />
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
+        <Input placeholder={t("Search name, phone or member code")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("Search the list")} />
+        <Select value={sort} onChange={(e) => setSort(e.target.value as RiskSort)} aria-label={t("Sort the list")}>
+          {SORTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {t(s.label)}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {!items.length ? (
+        <EmptyState title={t("Nobody is at risk")} hint={t("Everyone with a plan has been in recently.")} />
+      ) : !shown.length ? (
+        <EmptyState
+          title={filter === "todo" && !q ? t("Everyone on the list has been contacted") : t("Nobody matches")}
+          hint={filter === "todo" && !q ? t("Nice work. Switch to “Already contacted” to review the calls.") : t("Loosen the filter or check the spelling.")}
+        >
+          {filter !== "all" || q ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setFilter("all");
+                setQ("");
+              }}
+            >
+              {t("Show everyone")}
+            </Button>
           ) : null}
-          {canContact ? (
-            <div>
-              <Button size="sm" variant="outline" onClick={() => setTarget(m)}>
-                Log a contact
-              </Button>
-            </div>
-          ) : null}
-        </Card>
-      ))}
+        </EmptyState>
+      ) : (
+        <>
+          <Card className="overflow-hidden p-0">
+            <ul className="divide-y divide-line/70">
+              {page.map((m) => (
+                <li key={m.user_id} className="grid gap-x-4 gap-y-1.5 px-4 py-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_8.5rem_auto] md:items-center">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {m.full_name} <span className="text-xs font-normal tabular-nums text-muted">{m.member_code}</span>
+                    </p>
+                    <p className="truncate text-xs text-muted">
+                      {m.phone ? (
+                        <a href={`tel:${m.phone}`} className="tabular-nums hover:underline">
+                          {m.phone}
+                        </a>
+                      ) : (
+                        t("no phone")
+                      )}
+                      {m.last_seen_at ? ` · ${t("last seen {date}", { date: formatDate(m.last_seen_at) })}` : ` · ${t("never seen")}`}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5" title={m.reasons.map((r) => tServer(r.message)).join(" ")}>
+                    {m.reasons.map((r) => (
+                      <Badge key={r.kind} tone={r.kind === "streak" ? "danger" : r.kind === "idle" ? "hold" : "muted"}>
+                        {reasonChip(r.kind, idleDays)}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="text-xs text-muted md:text-right">
+                    <p>{m.plan_end_on ? t("Plan ends {date}", { date: formatDate(m.plan_end_on) }) : t("No live plan")}</p>
+                    {m.attendance_pct !== null ? <p className="tabular-nums">{t("Attendance {pct}%", { pct: m.attendance_pct })}</p> : null}
+                  </div>
+                  <div className="flex items-center gap-2 md:justify-end">
+                    <Badge tone={m.contacted ? "muted" : "hold"}>{m.contacted ? t("Contacted") : t("Not contacted")}</Badge>
+                    {canContact ? (
+                      <Button size="sm" variant={m.contacted ? "ghost" : "outline"} onClick={() => setTarget(m)}>
+                        {t("Log a contact")}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {m.last_contact ? (
+                    <p className="text-xs text-muted md:col-span-4">
+                      {formatDate(m.last_contact.at)} · {m.last_contact.by}: {outcomeLabel(m.last_contact.outcome)}
+                      {m.last_contact.note ? ` — ${m.last_contact.note}` : ""}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </Card>
+          <Pagination offset={offset} total={shown.length} pageSize={RISK_PAGE} onChange={goTo} />
+        </>
+      )}
 
       <Modal
         open={target !== null}
         onClose={() => setTarget(null)}
-        title={target ? `Contact ${target.full_name}` : ""}
+        title={target ? t("Contact {name}", { name: target.full_name }) : ""}
         footer={
           <>
             <Button variant="ghost" onClick={() => setTarget(null)}>
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button disabled={busy} onClick={() => void save()}>
-              {busy ? "Saving…" : "Save"}
+              {busy ? t("Saving…") : t("Save")}
             </Button>
           </>
         }
       >
         <div className="grid gap-3">
-          <Field label="How">
+          <Field label={t("How")}>
             <Select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
               {CHANNELS.map((c) => (
                 <option key={c.value} value={c.value}>
-                  {c.label}
+                  {t(c.label)}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="What happened" hint={fieldError ?? undefined}>
+          <Field label={t("What happened")} hint={fieldError ?? undefined}>
             <Select value={form.outcome} onChange={(e) => setForm({ ...form, outcome: e.target.value })}>
               {OUTCOMES.map((c) => (
                 <option key={c.value} value={c.value}>
-                  {c.label}
+                  {t(c.label)}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Note (optional)">
+          <Field label={t("Note (optional)")}>
             <Input value={form.note} maxLength={300} onChange={(e) => setForm({ ...form, note: e.target.value })} />
           </Field>
         </div>

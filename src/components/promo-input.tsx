@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { apiPost } from "@/lib/arena3/client";
+import { t, tServer } from "@/lib/i18n";
 
 export type PromoQuote = {
   valid: boolean;
@@ -45,7 +46,7 @@ export function PromoInput({
     } catch (e) {
       setQuote(null);
       onChange(null);
-      setError(e instanceof Error ? e.message : "That code could not be applied.");
+      setError(e instanceof Error ? tServer(e.message) : t("That code could not be applied."));
     } finally {
       setBusy(false);
     }
@@ -63,8 +64,8 @@ export function PromoInput({
       <div className="flex gap-2">
         <Input
           value={code}
-          placeholder="Promo code"
-          aria-label="Promo code"
+          placeholder={t("Promo code")}
+          aria-label={t("Promo code")}
           className={compact ? "h-9" : undefined}
           disabled={quote !== null}
           autoCapitalize="characters"
@@ -78,17 +79,21 @@ export function PromoInput({
         />
         {quote ? (
           <Button type="button" variant="ghost" size="sm" onClick={clear}>
-            Remove
+            {t("Remove")}
           </Button>
         ) : (
           <Button type="button" variant="outline" size="sm" disabled={busy || !code.trim()} onClick={() => void apply()}>
-            {busy ? "Checking…" : "Apply"}
+            {busy ? t("Checking…") : t("Apply")}
           </Button>
         )}
       </div>
       {quote ? (
         <p className="text-xs text-accent">
-          {quote.name}: −{quote.discount_vnd.toLocaleString("vi-VN")} ₫ → pay {quote.final_vnd.toLocaleString("vi-VN")} ₫
+          {t("{name}: −{discount} ₫ → pay {total} ₫", {
+            name: quote.name,
+            discount: quote.discount_vnd.toLocaleString("vi-VN"),
+            total: quote.final_vnd.toLocaleString("vi-VN"),
+          })}
         </p>
       ) : null}
       {error ? <p className="text-xs text-danger">{error}</p> : null}
