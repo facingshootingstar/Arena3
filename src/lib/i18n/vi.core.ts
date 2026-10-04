@@ -289,6 +289,7 @@ export const core: Record<string, string> = {
   "Reason for the correction": "Lý do chỉnh sửa",
   "Save correction": "Lưu chỉnh sửa",
   "Save register": "Lưu điểm danh",
+  "Saved": "Đã lưu",
   "Nobody is enrolled in this session yet, so there is no register to take.": "Chưa có ai đăng ký buổi này nên không có gì để điểm danh.",
 
   // coach.student.$id.tsx
@@ -335,4 +336,12 @@ export const core: Record<string, string> = {
   "Done": "Xong",
   "No homework assigned.": "Chưa giao bài tập về nhà.",
   "Something went wrong": "Đã xảy ra lỗi",
+  "Tomorrow": "Ngày mai",
+  "Next session": "Buổi tiếp theo",
+  "Coming up": "Sắp tới",
+  "Take register": "Điểm danh ngay",
+  "Court {court}": "Sân {court}",
+  "{enrolled}/{capacity} students": "{enrolled}/{capacity} học viên",
+  "Change session": "Đổi buổi khác",
+  "Back to attendance": "Quay lại điểm danh",
 };

@@ -3,7 +3,7 @@
 
 @theme {
   --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
-  --font-display: "Newsreader", "Be Vietnam Pro", serif;
+  --font-display: "Be Vietnam Pro", system-ui, sans-serif;
   /* Second display voice: heavy condensed block caps for the loud, athletic bits
      (scoreboard numerals, sport names, section kickers). The serif still carries
      the narrative headings — pairing the two is what keeps Arena3 from reading
@@ -11,20 +11,20 @@
   --font-athletic: "Anton", "Be Vietnam Pro", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
-  --color-bg: #e6decd;
-  --color-fg: #141c12;
-  --color-surface: #fffaf2;
-  --color-muted: #2c3429;
-  --color-subtle: #3d4638;
-  --color-line: #d4cec2;
-  --color-line-strong: #b7b0a3;
+  --color-bg: #f3f5f2;
+  --color-fg: #0f1714;
+  --color-surface: #ffffff;
+  --color-muted: #3f4a44;
+  --color-subtle: #55615a;
+  --color-line: #e0e5e0;
+  --color-line-strong: #c3cbc4;
   --color-accent: #1f5c43;
   --color-accent-fg: #fff8ee;
   --color-accent-2: #164433;
   --color-hold: #7a4e0c;
   --color-danger: #8a2424;
-  --color-ink: #141c12;
-  --color-wood: #e7dfd0;
+  --color-ink: #0f1714;
+  --color-wood: #eaeeea;
   --color-on-media: #fff8ee;
   --color-on-media-muted: #eadfcb;
   --color-pass: #143226;
@@ -40,7 +40,7 @@
   --color-warning: var(--color-hold);
   --color-success: var(--color-accent-2);
 
-  --text-2xs: 0.6875rem;
+  --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
 
   /* Fluid display sizes: scale smoothly between a phone and a wide desktop
@@ -54,17 +54,16 @@
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  --shadow-soft: 0 1px 0 rgba(28, 36, 24, 0.04), 0 10px 28px -18px rgba(28, 36, 24, 0.22);
-  --shadow-border: 0 0 0 1px rgba(28, 36, 24, 0.06), 0 1px 2px -1px rgba(28, 36, 24, 0.06),
-    0 8px 24px -16px rgba(28, 36, 24, 0.16);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 20, 0.05), 0 8px 24px -12px rgba(16, 24, 20, 0.18);
+  --shadow-border: 0 0 0 1px rgba(16, 24, 20, 0.07), 0 1px 2px rgba(16, 24, 20, 0.04);
   /* Elevation tinted with the brand colour rather than neutral grey, so a raised
      control reads as "lit from the accent" instead of "floating on grey". */
-  --shadow-accent: 0 8px 22px -12px color-mix(in oklab, var(--color-accent) 75%, transparent);
-  --shadow-accent-lg: 0 18px 38px -16px color-mix(in oklab, var(--color-accent) 80%, transparent);
+  --shadow-accent: 0 1px 2px rgba(16, 24, 20, 0.12);
+  --shadow-accent-lg: 0 4px 12px -4px color-mix(in oklab, var(--color-accent) 55%, transparent);
 
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
@@ -195,12 +194,6 @@
   #root {
     min-height: 100%;
     background-color: var(--color-bg);
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(250, 246, 238, 0.65), transparent 55%),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath fill='none' stroke='%23164533' stroke-opacity='0.09' stroke-width='1' d='M18 12h84v96H18z'/%3E%3Cpath fill='none' stroke='%23164533' stroke-opacity='0.06' stroke-width='1' d='M18 60h84M60 12v96M18 36h84M18 84h84M42 12v96M78 12v96'/%3E%3Ccircle cx='60' cy='60' r='10' fill='none' stroke='%23164533' stroke-opacity='0.07'/%3E%3C/svg%3E"),
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23d9d0bc' fill-opacity='0.35'/%3E%3C/svg%3E");
-    background-size: auto, 120px 120px, 4px 4px;
-    background-attachment: fixed;
     color: var(--color-fg);
   }
   body {
@@ -218,6 +211,7 @@
   h2,
   h3 {
     font-family: var(--font-display);
+    font-weight: 600;
     /* Newsreader carries an optical-size axis. Letting it choose means headings
        get the display cut — open counters, finer hairlines — instead of the
        text cut scaled up, which is what makes a serif look inflated. */
@@ -238,6 +232,10 @@
   }
   p {
     text-wrap: pretty;
+  }
+  .font-display {
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -402,35 +400,27 @@
    step numbers. Anton ships a single weight, so size and tracking carry the
    emphasis instead of font-weight. */
 .athletic {
-  font-family: var(--font-athletic);
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  line-height: 0.92;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
 }
 
-/* Scoreboard numerals — the same block-caps voice as `.athletic` with the caps
-   transform taken off.
-   The only letter in a VND figure is the currency mark, and uppercasing
-   "1,500,000đ" gives "1,500,000Đ": a letter Vietnamese does not use for money,
-   set in a heavy condensed face, at the top of every stat tile in the reports.
-   Tracking is pulled back too — Anton's digits are already tight, and the extra
-   0.02em that keeps its caps from colliding just loosens a number. */
+/* Numbers in stat tiles and totals: one clean bold sans, tabular so columns align. */
 .figure {
-  font-family: var(--font-athletic);
-  font-weight: 400;
-  letter-spacing: 0.005em;
-  line-height: 0.92;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 
-/* Small label that sits above a heading. Same family, opened right up — wide
-   tracking is what stops heavy condensed caps from reading as shouting. */
+/* Small label above a heading or a field: sentence case, semibold, no tracking. */
 .kicker {
-  font-family: var(--font-athletic);
-  font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.005em;
 }
 
 .text-gradient {
@@ -645,4 +635,57 @@
 }
 .link-underline:hover::after {
   transform: scaleX(1);
+}
+
+/* Icon motion: every effect leaves the icon fully drawn when animation is off (reduced motion). */
+@keyframes ai-bounce {
+  0%, 62%, 100% { transform: translateY(0) rotate(0); }
+  18% { transform: translateY(-4px) rotate(-8deg); }
+  34% { transform: translateY(0) rotate(0) scale(1.06, 0.9); }
+  48% { transform: translateY(-2px) rotate(6deg); }
+}
+@keyframes ai-wiggle {
+  0%, 70%, 100% { transform: rotate(0); }
+  76% { transform: rotate(-14deg); }
+  84% { transform: rotate(12deg); }
+  92% { transform: rotate(-6deg); }
+}
+@keyframes ai-swing {
+  0%, 100% { transform: rotate(-9deg); }
+  50% { transform: rotate(9deg); }
+}
+@keyframes ai-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes ai-pop {
+  0% { transform: scale(0.4) rotate(-20deg); }
+  60% { transform: scale(1.35) rotate(6deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes ai-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ai-scan {
+  0% { top: 6%; opacity: 0; }
+  12%, 88% { opacity: 0.5; }
+  100% { top: 94%; opacity: 0; }
+}
+.ai-bounce { animation: ai-bounce 2.6s ease-in-out infinite; transform-origin: 50% 80%; }
+.ai-wiggle { animation: ai-wiggle 3.4s ease-in-out infinite; transform-origin: 40% 60%; }
+.ai-swing { animation: ai-swing 2.8s ease-in-out infinite; transform-origin: 50% 10%; }
+.ai-float { animation: ai-float 3s ease-in-out infinite; }
+.ai-pop { animation: ai-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.ai-draw { stroke-dasharray: 1; animation: ai-draw 0.55s 0.1s ease-out both; }
+.ai-scan {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  height: 2px;
+  border-radius: 9999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 12px 2px color-mix(in oklab, var(--color-accent) 60%, transparent);
+  animation: ai-scan 2.4s ease-in-out infinite;
+  pointer-events: none;
 }

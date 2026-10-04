@@ -117,7 +117,7 @@ export function MonthCalendar({
           <ChevronRight className="size-4" />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-2xs font-medium uppercase tracking-wide text-muted">
+      <div className="grid grid-cols-7 gap-1 text-center text-2xs font-medium text-muted">
         {WEEKDAYS.map((d) => (
           <span key={d}>{t(d)}</span>
         ))}

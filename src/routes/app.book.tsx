@@ -309,7 +309,7 @@ function Page() {
             aria-label={t("Promo code")}
             autoCapitalize="characters"
             maxLength={32}
-            className="h-9 w-44"
+            className="h-9 w-full sm:w-44"
           />
           <Seg
             value={view}

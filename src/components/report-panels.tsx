@@ -161,7 +161,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
 
           <Card className="mt-3 overflow-x-auto p-0" role="region" aria-label={t("Table, scrolls sideways")} tabIndex={0}>
             <table className="w-full text-sm">
-              <thead className="text-left text-2xs uppercase tracking-wider text-muted">
+              <thead className="text-left text-2xs text-muted">
                 <tr>
                   <th className="px-4 py-2 font-medium">{t("Sport")}</th>
                   <th className="px-3 py-2 text-right font-medium">{t("Sold")}</th>
@@ -355,7 +355,7 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
               <p className="px-4 pb-4 pt-2 text-sm text-muted">{t("No classes were running in this period.")}</p>
             ) : (
               <table className="mt-2 w-full min-w-[560px] text-sm">
-                <thead className="text-left text-2xs uppercase tracking-wider text-muted">
+                <thead className="text-left text-2xs text-muted">
                   <tr>
                     <th className="px-4 py-2 font-medium">{t("Class")}</th>
                     <th className="px-3 py-2 font-medium">{t("Coach")}</th>

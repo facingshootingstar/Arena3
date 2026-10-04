@@ -228,7 +228,7 @@ export function DateStrip({
                 : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
             )}
           >
-            <span className="text-2xs font-medium uppercase tracking-wide opacity-70">
+            <span className="text-2xs font-medium opacity-70">
               {it.isToday ? t("Today") : it.wd}
             </span>
             <span className="font-display text-xl tabular-nums leading-none">{it.day}</span>
@@ -500,7 +500,7 @@ export function CourtGrid({
             minWidth: `max(100%, ${3.25 + list.length * 4.5}rem)`,
           }}
         >
-          <div className="sticky left-0 z-10 bg-surface px-2 py-2 text-2xs font-medium uppercase tracking-wider text-muted">
+          <div className="sticky left-0 z-10 bg-surface px-2 py-2 text-2xs font-medium text-muted">
             {t("Hour")}
           </div>
           {list.map((c) => (

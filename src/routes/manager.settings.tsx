@@ -275,7 +275,7 @@ function Courts() {
               <div
                 role="radiogroup"
                 aria-label={t("Status for {code}", { code: c.court_code })}
-                className="inline-flex rounded-[var(--radius-pill)] bg-wood p-1"
+                className="inline-flex rounded-[var(--radius-md)] bg-wood p-1"
               >
                 {STATUSES.map((st) => {
                   const on = c.status === st.value;
@@ -288,7 +288,7 @@ function Courts() {
                       disabled={busy === c.id}
                       onClick={() => void set(c, st.value)}
                       className={cn(
-                        "relative min-h-8 rounded-[var(--radius-pill)] px-3 text-2xs font-semibold uppercase tracking-wider transition-colors duration-200 disabled:opacity-60",
+                        "relative min-h-8 rounded-[var(--radius-sm)] px-3 text-2xs font-semibold transition-colors duration-200 disabled:opacity-60",
                         on ? "text-bg" : "text-muted hover:text-fg",
                       )}
                     >
@@ -296,7 +296,7 @@ function Courts() {
                         <motion.span
                           layoutId={`court-status-${c.id}`}
                           className={cn(
-                            "absolute inset-0 rounded-[var(--radius-pill)]",
+                            "absolute inset-0 rounded-[var(--radius-sm)]",
                             st.tone === "accent" ? "bg-accent" : st.tone === "hold" ? "bg-hold" : "bg-danger",
                           )}
                           transition={{ type: "spring", stiffness: 420, damping: 34 }}

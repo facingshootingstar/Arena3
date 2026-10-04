@@ -3,12 +3,13 @@ import { SectionTitle } from "@/components/section";
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
+import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm, useSessionUser } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Field, Input, Select, Seg } from "@/components/ui";
 import { SplitText } from "@/components/fx";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/desk/gate")({ component: Page });
 
@@ -144,6 +145,7 @@ function Page() {
       title={t("Gate")}
       subtitle={t("Scan a member's code to let them in. Type a phone number only when the code can't be used.")}
     >
+      <PhotoBanner src={media.deskGate} focus="50% 30%" className="mb-4" />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
         <div className="grid content-start gap-4">
           <Card className="grid gap-3">
@@ -240,7 +242,7 @@ function Page() {
               ))}
               {result.plans.map((p) => (
                 <p key={p.id} className="text-sm">
-                  {p.name}
+                  {tData(p.name)}
                   <span className="text-muted">
                     {" "}
                     · {t("until {date}", { date: p.end_on })}

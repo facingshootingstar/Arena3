@@ -12,7 +12,7 @@ import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { PromoInput } from "@/components/promo-input";
 import { api, apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/desk/payments")({
   component: Page,
@@ -457,7 +457,7 @@ function Page() {
                             {o.member_code ?? t("No code yet")} · {o.phone}
                           </p>
                           <p className="mt-2 text-sm">
-                            {o.plan_name} · {t("runs to {date}", { date: o.end_on })}
+                            {tData(o.plan_name)} · {t("runs to {date}", { date: o.end_on })}
                           </p>
                         </div>
                         <div className="text-right">

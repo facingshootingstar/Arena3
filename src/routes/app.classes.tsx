@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cover, MediaCaption, sportPhoto } from "@/components/media";
+import { Cover, MediaCaption, PhotoBanner, media, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Seg, ShowMore, Skeleton } from "@/components/ui";
@@ -65,6 +65,7 @@ function Page() {
       title={t("Classes")}
       subtitle={t("Enrol by sport. When a class is full you join a first-come waitlist.")}
     >
+      <PhotoBanner src={media.classGroup} focus="50% 40%" className="mb-4" />
       {offers.length ? (
         <Card className="mb-4 border border-hold/30 bg-hold/5">
           <p className="text-sm font-medium">{t("A waitlist seat opened up")}</p>
@@ -147,7 +148,7 @@ function Page() {
                   {/* The bar on its own is a ratio nobody converts in their
                       head. What decides whether you enrol now or later is the
                       number of seats, so the bar gets a caption. */}
-                  <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs uppercase tracking-wider">
+                  <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs">
                     <span className="text-muted">{full ? t("Full") : t("{n} seats left", { n: c.capacity - c.enrolled_count })}</span>
                     <span className="tabular-nums text-subtle">{pct}%</span>
                   </div>

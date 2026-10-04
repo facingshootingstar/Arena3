@@ -9,7 +9,7 @@ import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t } from "@/lib/i18n";
+import { t, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/plans")({
   component: Page,
@@ -112,12 +112,12 @@ function Page() {
               <GlareHover>
                 <Cover src={sportPhoto(p.sport_scope)} alt="" scrim="none" className="h-36">
                   <MediaCaption>
-                    <p className="text-2xs uppercase tracking-wider">{sportLabel(p.sport_scope)}</p>
+                    <p className="text-2xs">{sportLabel(p.sport_scope)}</p>
                   </MediaCaption>
                 </Cover>
               </GlareHover>
               <div className="flex flex-1 flex-col p-5">
-                <h2 className="font-display text-2xl">{p.name}</h2>
+                <h2 className="font-display text-2xl">{tData(p.name)}</h2>
                 <p className="mt-3 font-display text-3xl tabular-nums">{money(p.price_vnd)}</p>
                 <ul className="mt-4 grid gap-2 text-sm text-muted">
                   <li className="flex items-center gap-2">

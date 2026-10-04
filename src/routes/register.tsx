@@ -135,7 +135,7 @@ function Register() {
         <Card className="relative z-[2] w-full p-6">
           <div className="flex items-center gap-2">
             <ArenaMark className="size-7" />
-            <p className="text-2xs uppercase tracking-wider text-muted">Arena3</p>
+            <p className="text-2xs text-muted">Arena3</p>
           </div>
           <h1 className="mt-3 font-display text-3xl">{t("Create an account")}</h1>
           <AnimatePresence mode="wait">

@@ -29,20 +29,19 @@ export function Button({
   size?: "md" | "sm" | "lg";
 }) {
   const base =
-    "sweep inline-flex items-center whitespace-nowrap justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow,color] duration-200 ease-[var(--ease-smooth)] disabled:opacity-50 disabled:pointer-events-none active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
-  // Fully-rounded: a pill reads as "pressable" at a glance and is the one shape
-  // that never fights the square data tables and court grids around it.
+    "inline-flex items-center whitespace-nowrap justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow,color] duration-150 ease-[var(--ease-smooth)] disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+  // Softly squared (not pills): sits calmly next to tables, cards and court grids.
   const sizes = {
-    lg: "min-h-13 rounded-[var(--radius-pill)] px-7 text-[0.95rem]",
-    md: "min-h-11 rounded-[var(--radius-pill)] px-5 text-sm",
-    sm: "min-h-9 rounded-[var(--radius-pill)] px-4 text-xs",
+    lg: "min-h-13 rounded-[var(--radius-md)] px-7 text-[0.95rem]",
+    md: "min-h-11 rounded-[var(--radius-md)] px-5 text-sm",
+    sm: "min-h-9 rounded-[var(--radius-sm)] px-3.5 text-[0.8125rem]",
   };
   const styles = {
     primary:
-      "bg-accent text-accent-fg shadow-[var(--shadow-accent)] hover:bg-accent-2 hover:shadow-[var(--shadow-accent-lg)] hover:-translate-y-px",
-    ink: "bg-fg text-bg hover:opacity-90 hover:-translate-y-px",
+      "bg-accent text-accent-fg hover:bg-accent-2",
+    ink: "bg-fg text-bg hover:opacity-90",
     outline:
-      "border border-line bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-wood hover:border-line-strong",
+      "border border-line-strong/70 bg-surface text-fg hover:bg-wood",
     ghost: "text-fg hover:bg-wood",
     danger: "bg-danger text-bg hover:opacity-90",
   } as const;
@@ -53,7 +52,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        "h-11 w-full rounded-[var(--radius-sm)] border border-line bg-surface px-3 text-sm text-fg placeholder:text-subtle outline-none transition-[box-shadow] duration-150 focus:ring-2 focus:ring-accent/30",
+        "h-11 w-full rounded-[var(--radius-sm)] border border-line-strong/70 bg-surface px-3 text-sm text-fg placeholder:text-subtle outline-none transition-[box-shadow] duration-150 focus:ring-2 focus:ring-accent/30",
         className,
       )}
       {...props}
@@ -185,7 +184,7 @@ export function Card({
       className={cn(
         "rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-border)]",
         interactive &&
-          "transition-[transform,box-shadow] duration-300 ease-[var(--ease-smooth)] hover:-translate-y-1 hover:shadow-[var(--shadow-soft)]",
+          "transition-shadow duration-200 hover:shadow-[var(--shadow-soft)]",
         className,
       )}
       {...props}
@@ -290,7 +289,7 @@ export function Seg({
   const group = useId();
   const reduced = useReducedMotion();
   return (
-    <div className="flex flex-wrap gap-1 rounded-[var(--radius-pill)] bg-wood p-1">
+    <div className="flex flex-wrap gap-1 rounded-[var(--radius-md)] bg-wood p-1">
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -300,18 +299,18 @@ export function Seg({
             onClick={() => onChange(o.value)}
             aria-pressed={active}
             className={cn(
-              "relative min-h-9 rounded-[var(--radius-pill)] px-4 text-sm font-medium transition-colors duration-200",
+              "relative min-h-9 rounded-[var(--radius-sm)] px-4 text-sm font-medium transition-colors duration-200",
               active ? "text-accent-fg" : "text-muted hover:text-fg",
             )}
           >
             {/* Sliding pill travels between options instead of blinking on. */}
             {active ? (
               reduced ? (
-                <span className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent" />
+                <span className="absolute inset-0 rounded-[var(--radius-sm)] bg-accent" />
               ) : (
                 <motion.span
                   layoutId={`seg-${group}`}
-                  className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent shadow-[var(--shadow-accent)]"
+                  className="absolute inset-0 rounded-[var(--radius-sm)] bg-accent"
                   transition={{ type: "spring", stiffness: 420, damping: 34 }}
                 />
               )
@@ -350,7 +349,7 @@ export function FilterChip({
       className={cn(
         "inline-flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-[var(--radius-pill)] border px-3.5 text-sm font-medium transition-colors duration-150",
         active
-          ? "border-accent bg-accent text-accent-fg shadow-[var(--shadow-accent)]"
+          ? "border-accent bg-accent text-accent-fg"
           : "border-line bg-surface text-fg hover:bg-wood",
       )}
     >

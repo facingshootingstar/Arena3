@@ -306,7 +306,7 @@ function Page() {
             </option>
           ))}
         </select>
-        <label className="grid gap-0.5 text-2xs uppercase tracking-wider text-muted">
+        <label className="grid gap-0.5 text-2xs text-muted">
           {t("From")}
           <input
             type="date"
@@ -316,7 +316,7 @@ function Page() {
             className={selectCls}
           />
         </label>
-        <label className="grid gap-0.5 text-2xs uppercase tracking-wider text-muted">
+        <label className="grid gap-0.5 text-2xs text-muted">
           {t("To")}
           <input
             type="date"
@@ -351,7 +351,7 @@ function Page() {
             {t("Clear filters")}
           </Button>
         ) : null}
-        <span className="ml-auto text-2xs uppercase tracking-wider text-muted">
+        <span className="ml-auto text-2xs text-muted">
           {data ? t("{n} shown", { n: rows.length }) : t("Loading")}
         </span>
       </div>
@@ -399,7 +399,7 @@ function Page() {
                     <Badge tone={toneFor(e.action)}>{actionLabel(e.action)}</Badge>
                     <span className="text-sm font-medium">{e.actor_name ?? t("System")}</span>
                     {e.actor_role ? (
-                      <span className="text-2xs uppercase tracking-wider text-muted">{roleLabel(e.actor_role)}</span>
+                      <span className="text-2xs text-muted">{roleLabel(e.actor_role)}</span>
                     ) : null}
                     <span className="text-sm text-muted">
                       {entityLabel(e.entity)}
@@ -413,13 +413,13 @@ function Page() {
                         <div className="grid gap-2 md:grid-cols-2">
                           {before ? (
                             <div>
-                              <p className="mb-1 uppercase tracking-wider text-muted">{t("Before")}</p>
+                              <p className="mb-1 text-muted">{t("Before")}</p>
                               <pre className="max-h-48 overflow-auto rounded-[var(--radius-sm)] bg-wood p-2">{before}</pre>
                             </div>
                           ) : null}
                           {after ? (
                             <div>
-                              <p className="mb-1 uppercase tracking-wider text-muted">{t("After")}</p>
+                              <p className="mb-1 text-muted">{t("After")}</p>
                               <pre className="max-h-48 overflow-auto rounded-[var(--radius-sm)] bg-wood p-2">{after}</pre>
                             </div>
                           ) : null}

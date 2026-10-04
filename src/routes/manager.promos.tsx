@@ -5,7 +5,7 @@ import { Shell, money } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { formatDate, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager/promos")({ component: Page });
 
@@ -195,7 +195,7 @@ function Page() {
               <p className="text-xs text-muted">
                 {p.applies_to.map((a) => (a === "plan" ? t("plans") : t("courts"))).join(" + ")}
                 {p.sport ? ` · ${sportLabel(p.sport)}` : ""}
-                {p.plan_name ? ` · ${t("{name} only", { name: p.plan_name })}` : ""}
+                {p.plan_name ? ` · ${t("{name} only", { name: tData(p.plan_name) })}` : ""}
                 {p.starts_at ? ` · ${t("from {date}", { date: formatDate(p.starts_at) })}` : ""}
                 {p.ends_at ? ` · ${t("until {date}", { date: formatDate(p.ends_at) })}` : ""}
                 {` · ${t("{n} per member", { n: p.max_per_member })}`}

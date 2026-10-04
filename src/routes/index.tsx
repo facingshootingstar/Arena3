@@ -59,7 +59,7 @@ import { COACHES, type CoachCard } from "@/lib/arena3/coaches";
 import { addDaysISO, levelLabel, rruleLabel, sportLabel, weekdayShort } from "@/lib/arena3/labels";
 import { money } from "@/components/shell";
 import { LangSwitch } from "@/components/lang-switch";
-import { t, tk } from "@/lib/i18n";
+import { t, tk, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
   // Today's schedule loads with the page rather than behind a sign-in wall:
@@ -205,7 +205,7 @@ function SiteHeader({ reduced }: { reduced: boolean }) {
           >
             <ArenaMark className="size-8" />
           </motion.span>
-          <span className="font-display text-xl font-normal italic">Arena3</span>
+          <span className="font-display text-xl font-bold">Arena3</span>
         </Link>
         {/* Same voice as the signed-in header: a row of quiet uppercase pills.
             The landing used a wide-tracked display face that read as decoration
@@ -216,7 +216,7 @@ function SiteHeader({ reduced }: { reduced: boolean }) {
             <a
               key={href}
               href={href}
-              className="flex h-9 items-center whitespace-nowrap rounded-[var(--radius-pill)] px-3 text-xs font-semibold uppercase tracking-[0.1em] text-muted transition-colors duration-200 hover:bg-wood hover:text-fg"
+              className="flex h-9 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-xs font-semibold text-muted transition-colors duration-200 hover:bg-wood hover:text-fg"
             >
               {t(label)}
             </a>
@@ -514,15 +514,12 @@ function Landing() {
               </p>
             </div>
 
-            {/* Two voices, one headline: the narrative line stays in the serif
-                italic, then the payoff drops into block caps underneath and
-                tucks up under it. Lifted from unseen.co's title treatment, but
-                built out of the two faces Arena3 already uses. */}
+            {/* One headline, two lines: the setup in white, the payoff tinted. */}
             <h1 className="mt-4">
-              <span className="block font-display text-4xl font-medium italic leading-[0.96] sm:text-6xl">
+              <span className="block font-display text-4xl font-bold leading-[1.05] sm:text-6xl">
                 <WordReveal text={t("Courts, classes, plans —")} delay={0.35} />
               </span>
-              <span className="athletic media-glow -mt-1 block text-[3.25rem] leading-[0.86] sm:-mt-2 sm:text-[5.5rem]">
+              <span className="media-glow block font-display text-4xl font-bold leading-[1.05] sm:text-6xl">
                 <WordReveal text={t("one calendar.")} delay={0.75} className="text-gradient-media py-[0.3em] -my-[0.3em]" />
               </span>
             </h1>
@@ -1242,11 +1239,11 @@ function Landing() {
                     </GlareHover>
                     <div className="relative z-[2] flex flex-1 flex-col p-5">
                       {featured ? (
-                        <span className="mb-2 inline-flex w-fit items-center gap-1 rounded-full bg-accent/12 px-2.5 py-1 text-2xs font-medium uppercase tracking-wider text-accent-2">
+                        <span className="mb-2 inline-flex w-fit items-center gap-1 rounded-full bg-accent/12 px-2.5 py-1 text-2xs font-medium text-accent-2">
                           <Sparkles className="size-3" /> {t("Most picked")}
                         </span>
                       ) : null}
-                      <h3 className="font-display text-2xl">{p.name}</h3>
+                      <h3 className="font-display text-2xl">{tData(p.name)}</h3>
                       <p className="mt-3 font-display text-3xl tabular-nums">{money(p.price_vnd)}</p>
                       <p className="mt-2 flex-1 text-sm text-muted">
                         {p.duration_days
@@ -1408,7 +1405,7 @@ function Landing() {
           <div>
             <div className="flex items-center gap-2.5">
               <ArenaMark className="size-8" />
-              <span className="font-display text-xl italic">Arena3</span>
+              <span className="font-display text-xl font-bold">Arena3</span>
             </div>
             <p className="mt-4 max-w-xs text-sm text-muted">
               {t("An indoor sports centre that runs courts, classes and memberships off a single calendar.")}

@@ -141,14 +141,14 @@ function Page() {
                 : "mr-auto bg-surface text-fg",
             )}
           >
-            <p className={cn("text-2xs uppercase tracking-wider", m.role === "me" ? "text-accent-fg/70" : "text-muted")}>
+            <p className={cn("text-2xs", m.role === "me" ? "text-accent-fg/70" : "text-muted")}>
               {m.role === "me" ? t("You") : t("Assistant")}
             </p>
             <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm leading-relaxed">
               {m === WELCOME ? t(m.text) : m.text}
             </p>
             {m.role === "bot" && sourceLabel(m.source) ? (
-              <p className="mt-2 text-2xs uppercase tracking-wider text-muted">{sourceLabel(m.source)}</p>
+              <p className="mt-2 text-2xs text-muted">{sourceLabel(m.source)}</p>
             ) : null}
           </motion.div>
         ))}
@@ -160,7 +160,7 @@ function Page() {
             exit={{ opacity: 0 }}
             className="mr-auto max-w-[85%] rounded-[var(--radius-lg)] bg-surface px-4 py-3 shadow-[var(--shadow-border)]"
           >
-            <ShinyText className="shiny-muted text-2xs uppercase tracking-wider" speed={2.4}>
+            <ShinyText className="shiny-muted text-2xs" speed={2.4}>
               {t("Assistant")}
             </ShinyText>
             <p className="mt-1 flex items-center gap-1 text-sm text-muted">

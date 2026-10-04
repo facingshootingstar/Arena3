@@ -102,7 +102,7 @@ export function ResultsPanel({ sessionId, cancelled }: { sessionId: string; canc
     setDraft((d) => ({ ...d, [id]: { ...d[id]!, [k]: v } as Draft }));
 
   return (
-    <div className="mt-10">
+    <div>
       <SectionTitle text={t("Results")} className="font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">
         {t("How much of the plan each student got through, and any numbers worth tracking. Leave a row blank to record nothing.")}
@@ -115,53 +115,68 @@ export function ResultsPanel({ sessionId, cancelled }: { sessionId: string; canc
         <p className="mt-3 text-sm text-muted">{t("Nobody is enrolled in this class yet.")}</p>
       ) : (
         <>
-          <div className="mt-3 grid gap-2">
-            {rows.map((r) => {
-              const d = draft[r.user_id];
-              if (!d) return null;
-              return (
-                <Card key={r.user_id} className="grid gap-3 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium">
-                      {r.full_name} <span className="text-xs text-muted">{r.member_code}</span>
-                    </p>
-                    {r.attendance ? <Badge tone={r.attendance === "absent" ? "danger" : "muted"}>{t(r.attendance)}</Badge> : null}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                    <Field label={t("Plan done %")}>
-                      <Input
-                        inputMode="numeric"
-                        placeholder="0–100"
-                        value={d.pct}
-                        onChange={(e) => set(r.user_id, "pct", e.target.value)}
-                      />
-                    </Field>
-                    {METRICS.map((m) => (
-                      <Field key={m.key} label={t(m.label)}>
-                        <Input
-                          inputMode="numeric"
-                          placeholder={t(m.hint)}
-                          value={d[m.key]}
-                          onChange={(e) => set(r.user_id, m.key, e.target.value)}
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                  <Field label={t("Note")}>
+          {/* One row per student, columns shared: numbers line up so a column can be filled straight down. */}
+          <Card className="mt-3 overflow-hidden p-0">
+            <div className="hidden grid-cols-[minmax(0,1.4fr)_repeat(4,5.5rem)] gap-2 border-b border-line bg-wood/60 px-4 py-2 text-xs font-semibold text-muted md:grid">
+              <span>{t("Student")}</span>
+              <span>{t("Plan done %")}</span>
+              {METRICS.map((m) => (
+                <span key={m.key}>{t(m.label)}</span>
+              ))}
+            </div>
+            <ul className="divide-y divide-line">
+              {rows.map((r) => {
+                const d = draft[r.user_id];
+                if (!d) return null;
+                return (
+                  <li key={r.user_id} className="grid gap-2 px-4 py-3">
+                    <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1.4fr)_repeat(4,5.5rem)]">
+                      <p className="flex min-w-0 flex-wrap items-center gap-x-2 font-medium">
+                        {r.full_name}
+                        {r.attendance ? (
+                          <Badge tone={r.attendance === "absent" ? "danger" : "muted"}>{t(r.attendance)}</Badge>
+                        ) : null}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 md:contents">
+                        <label className="grid gap-1">
+                          <span className="text-xs text-muted md:sr-only">{t("Plan done %")}</span>
+                          <Input
+                            inputMode="numeric"
+                            placeholder="0–100"
+                            value={d.pct}
+                            onChange={(e) => set(r.user_id, "pct", e.target.value)}
+                          />
+                        </label>
+                        {METRICS.map((m) => (
+                          <label key={m.key} className="grid gap-1">
+                            <span className="text-xs text-muted md:sr-only">{t(m.label)}</span>
+                            <Input
+                              inputMode="numeric"
+                              placeholder={t(m.hint)}
+                              value={d[m.key]}
+                              onChange={(e) => set(r.user_id, m.key, e.target.value)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                     <Input
+                      aria-label={t("Note")}
                       maxLength={1000}
                       placeholder={t("What stood out today")}
                       value={d.note}
                       onChange={(e) => set(r.user_id, "note", e.target.value)}
                     />
-                  </Field>
-                </Card>
-              );
-            })}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+          <div className="sticky bottom-24 z-10 mt-4 md:bottom-4">
+            <Button size="lg" className="w-full shadow-[var(--shadow-soft)]" onClick={save} disabled={saving}>
+              {saving ? t("Saving…") : t("Save results")}
+            </Button>
           </div>
-          <Button className="mt-4" onClick={save} disabled={saving}>
-            {saving ? t("Saving…") : t("Save results")}
-          </Button>
         </>
       )}
     </div>
@@ -463,7 +478,7 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
     });
 
   return (
-    <div className="mt-10">
+    <div>
       <SectionTitle text={t("Session plan")} className="font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">
         {t("Plan this session block by block — what to do, how hard, with what, and what good looks like.")}{" "}
@@ -776,7 +791,7 @@ export function HomeworkPanel({ classId }: { classId: string }) {
   }
 
   return (
-    <div className="mt-10">
+    <div>
       <SectionTitle text={t("Homework")} className="font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">{t("Something to practise before the next class. Students tick items off as they go.")}</p>
       <Card className="mt-3 grid gap-3">

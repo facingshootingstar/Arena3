@@ -3,6 +3,7 @@ import { SectionTitle } from "@/components/section";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { sessionDay } from "@/components/class-detail";
+import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm } from "@/components/shell";
 import { Badge, Card, EmptyState, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
@@ -127,6 +128,7 @@ function Page() {
         <Skeleton className="h-40" />
       ) : (
         <div className="grid gap-10">
+          <PhotoBanner src={media.trainProgress} focus="50% 38%" />
           <Card className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="kicker text-2xs text-muted">{t("Your goal")}</p>
@@ -164,7 +166,7 @@ function Page() {
                     <Lift className="h-full">
                       <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
                         <Card interactive className="relative z-[2] h-full">
-                          <p className="text-2xs uppercase tracking-wider text-muted">
+                          <p className="text-2xs text-muted">
                             {sessionDay(s.start_at)} · {hhmm(s.start_at)} · {sportLabel(s.sport)} · {s.court_code}
                           </p>
                           {s.plans.length ? (

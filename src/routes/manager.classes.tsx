@@ -133,7 +133,7 @@ function Page() {
           </Select>
         </Field>
         <div className="md:col-span-2">
-          <p className="text-2xs font-medium uppercase tracking-wider text-muted">{t("Repeats weekly on")}</p>
+          <p className="text-2xs font-medium text-muted">{t("Repeats weekly on")}</p>
           <div className="mt-1.5 flex flex-wrap gap-1">
             {DAYS.map((d) => (
               <button

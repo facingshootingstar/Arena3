@@ -7,7 +7,7 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { StarBorder } from "@/components/fx";
 import { ApiClientError, apiGet, apiPut } from "@/lib/arena3/client";
 import { DAY_KIND_LABEL, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 import { SectionTitle } from "@/components/section";
 import { Banknote, ChevronDown, Percent, Ticket } from "lucide-react";
 
@@ -135,7 +135,7 @@ function Page() {
           <div className="grid gap-5">
             {groups.map(([sport, rows], gi) => (
               <details key={sport} open={gi === 0 || rows.some((x) => x.index === bad)} className="group">
-                <summary className="mb-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--radius-md)] bg-surface px-3 text-sm font-medium uppercase tracking-wider text-muted [&::-webkit-details-marker]:hidden">
+                <summary className="mb-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--radius-md)] bg-surface px-3 text-sm font-medium text-muted [&::-webkit-details-marker]:hidden">
                   <span>
                     {sportLabel(sport)} <span className="normal-case tracking-normal">· {t("{n} rates", { n: rows.length })}</span>
                   </span>
@@ -220,7 +220,7 @@ function Page() {
             {onSale.map((p) => (
               <Card key={p.id} className="flex items-center justify-between gap-3 p-3">
                 <span>
-                  <span className="block text-sm font-medium">{p.name}</span>
+                  <span className="block text-sm font-medium">{tData(p.name)}</span>
                   <span className="block text-xs text-muted">
                     {sportLabel(p.sport_scope)} · {p.duration_days ? t("{n} days", { n: p.duration_days }) : t("per session")} ·{" "}
                     {t("{n} court hours", { n: p.court_hours })} · {t("{pct}% off courts", { pct: p.court_discount_pct })}

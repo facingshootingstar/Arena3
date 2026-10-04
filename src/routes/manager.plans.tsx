@@ -8,7 +8,7 @@ import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
+import { t, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager/plans")({
   component: Page,
@@ -73,8 +73,8 @@ function Page() {
       await apiPatch(`/plans/${p.id}`, { is_on_sale: on });
       toast.success(
         on
-          ? t("{name} is on sale again", { name: p.name })
-          : t("{name} is no longer sold. Members who hold it keep it.", { name: p.name }),
+          ? t("{name} is on sale again", { name: tData(p.name) })
+          : t("{name} is no longer sold. Members who hold it keep it.", { name: tData(p.name) }),
       );
       await load();
       setDetail((d) => (d && d.plan.id === p.id ? { ...d, plan: { ...d.plan, is_on_sale: on } } : d));
@@ -136,14 +136,14 @@ function Page() {
           <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
             <GlareHover>
               <Cover src={sportPhoto(p.sport_scope)} alt="" className="h-28">
-                <p className="absolute bottom-3 left-4 text-2xs uppercase tracking-wider text-on-media on-media">
+                <p className="absolute bottom-3 left-4 text-2xs text-on-media on-media">
                   {sportLabel(p.sport_scope)}
                 </p>
               </Cover>
             </GlareHover>
             <div className="flex flex-1 flex-col p-5">
               <Badge tone={p.is_on_sale ? "accent" : "muted"}>{p.is_on_sale ? t("On sale") : t("Not for sale")}</Badge>
-              <h2 className="mt-2 font-display text-2xl">{p.name}</h2>
+              <h2 className="mt-2 font-display text-2xl">{tData(p.name)}</h2>
               <p className="mt-2 font-display text-3xl tabular-nums">{money(p.price_vnd)}</p>
               <p className="mt-2 text-sm text-muted">
                 {p.duration_days ? t("{n} days", { n: p.duration_days }) : t("Per session")}
@@ -260,7 +260,7 @@ function Page() {
       <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
-        title={detail?.plan.name ?? t("Plan")}
+        title={tData(detail?.plan.name) ?? t("Plan")}
         footer={
           <>
             {detail ? (

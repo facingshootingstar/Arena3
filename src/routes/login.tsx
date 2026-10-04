@@ -85,7 +85,7 @@ function Login() {
             <span className="font-display text-2xl">Arena3</span>
           </Link>
           <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-            <ShinyText className="shiny-on-media text-2xs uppercase tracking-wider" speed={6}>
+            <ShinyText className="shiny-on-media text-2xs" speed={6}>
               {t("The desk is open")}
             </ShinyText>
             <SplitText
@@ -108,7 +108,7 @@ function Login() {
         </Cover>
         <div className="mb-6 flex items-center gap-2 lg:hidden">
           <ArenaMark />
-          <p className="text-2xs font-medium uppercase tracking-wider text-muted">{t("Sports centre")}</p>
+          <p className="text-2xs font-medium text-muted">{t("Sports centre")}</p>
         </div>
         <h1 className="font-display text-4xl">{t("Sign in")}</h1>
         <p className="mt-1 text-sm text-muted">
@@ -166,7 +166,7 @@ function Login() {
         </Reveal>
         {DEMO_LOGINS_ON ? (
         <>
-        <p className="mt-8 text-2xs font-semibold uppercase tracking-widest text-muted">{t("Demo accounts")}</p>
+        <p className="mt-8 text-2xs font-semibold text-muted">{t("Demo accounts")}</p>
         <Stagger className="mt-3 flex flex-wrap gap-2" gap={0.05}>
           {DEMOS.map((d) => (
             <StaggerItem key={d.phone}>
@@ -179,7 +179,7 @@ function Login() {
               }}
               className="rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_10px_24px_-18px_rgba(27,31,29,0.6)] active:scale-95"
             >
-              <span className="text-2xs font-semibold uppercase tracking-wider text-accent">{roleLabel(d.role)}</span>
+              <span className="text-2xs font-semibold text-accent">{roleLabel(d.role)}</span>
               <span className="ml-2 text-sm font-medium">{d.name}</span>
             </button>
             </StaggerItem>

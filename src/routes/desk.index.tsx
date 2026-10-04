@@ -8,7 +8,7 @@ import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
+import { t, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/desk/")({
   component: Page,
@@ -211,7 +211,7 @@ function Page() {
 
       <SectionTitle text={t("New member")} className="mt-8 font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">{t("Three steps: profile → plan → payment.")}</p>
-      <ol className="mt-3 flex gap-2 text-2xs font-medium uppercase tracking-wider">
+      <ol className="mt-3 flex gap-2 text-2xs font-medium">
         {[
           [1, t("Profile")],
           [2, t("Plan")],
@@ -296,7 +296,7 @@ function Page() {
             </p>
             {newUser.temp_password ? (
               <Card className="mb-4 border border-hold/30 bg-hold/5 p-4">
-                <p className="text-2xs uppercase tracking-wider text-muted">{t("Temporary password — hand this to the member so they can sign in")}</p>
+                <p className="text-2xs text-muted">{t("Temporary password — hand this to the member so they can sign in")}</p>
                 <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{newUser.temp_password}</p>
                 <p className="mt-1 text-xs text-muted">{t("They change it after the first sign-in.")}</p>
               </Card>
@@ -311,8 +311,8 @@ function Page() {
                     picked?.id === p.id ? "border-accent bg-accent/10" : "border-line hover:bg-wood"
                   }`}
                 >
-                  <p className="text-2xs uppercase tracking-wider text-muted">{sportLabel(p.sport_scope)}</p>
-                  <p className="font-medium">{p.name}</p>
+                  <p className="text-2xs text-muted">{sportLabel(p.sport_scope)}</p>
+                  <p className="font-medium">{tData(p.name)}</p>
                   <p className="text-sm tabular-nums text-muted">
                     {money(p.price_vnd)}
                     {p.duration_days ? ` · ${t("{n} days", { n: p.duration_days })}` : ""} · {t("{n} court hours", { n: p.court_hours })}

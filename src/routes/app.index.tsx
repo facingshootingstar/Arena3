@@ -13,7 +13,7 @@ import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
 import { formatDate, levelLabel, planBenefits, sportLabel, todayISO } from "@/lib/arena3/labels";
-import { t, tk } from "@/lib/i18n";
+import { t, tk, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/")({
   component: Page,
@@ -107,7 +107,7 @@ function Page() {
       <div className="mb-6 flex items-end justify-between gap-3">
         <div>
           <ShinyText
-            className="shiny-muted mb-1 block text-[11px] font-semibold uppercase tracking-widest"
+            className="shiny-muted mb-1 block text-[11px] font-semibold"
             speed={6}
           >
             {t("Member")}
@@ -160,7 +160,7 @@ function Page() {
           <p className="mt-1 text-sm text-muted">
             {t("{plans} — ask the desk to unfreeze.", {
               plans: frozen
-                .map((s) => t("{plan} · new end date {date}", { plan: s.plan_name, date: formatDate(s.end_on) }))
+                .map((s) => t("{plan} · new end date {date}", { plan: tData(s.plan_name), date: formatDate(s.end_on) }))
                 .join(" · "),
             })}
           </p>
@@ -175,7 +175,7 @@ function Page() {
               plans: expiring
                 .map((s) =>
                   t("{plan} — {n} days left (until {date})", {
-                    plan: s.plan_name,
+                    plan: tData(s.plan_name),
                     n: daysUntil(s.end_on),
                     date: formatDate(s.end_on),
                   }),
@@ -346,8 +346,8 @@ function Page() {
               <StaggerItem key={s.id}>
                 <Link to={forCourts ? "/app/book" : "/app/classes"} search={{ sport }} className="block h-full">
                   <Card interactive className="h-full">
-                    <p className="text-2xs uppercase tracking-wider text-muted">{sportLabel(s.sport_scope)}</p>
-                    <p className="mt-1 font-medium text-fg">{s.plan_name}</p>
+                    <p className="text-2xs text-muted">{sportLabel(s.sport_scope)}</p>
+                    <p className="mt-1 font-medium text-fg">{tData(s.plan_name)}</p>
                     <p className="text-sm text-muted">{t("Until {date}", { date: formatDate(s.end_on) })}</p>
                     <p className="text-sm text-muted">{planBenefits(s).join(" · ")}</p>
                   </Card>

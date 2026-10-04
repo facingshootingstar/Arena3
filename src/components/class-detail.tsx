@@ -138,7 +138,7 @@ export function ClassDetailModal({
           </div>
 
           <section>
-            <h3 className="text-2xs font-medium uppercase tracking-wider text-muted">
+            <h3 className="text-2xs font-medium text-muted">
               {t("Sessions · {n} to come", { n: upcoming.length })}
             </h3>
             {data.sessions.length ? (
@@ -189,7 +189,7 @@ export function ClassDetailModal({
           </section>
 
           <section>
-            <h3 className="text-2xs font-medium uppercase tracking-wider text-muted">
+            <h3 className="text-2xs font-medium text-muted">
               {t("Students · {n}", { n: confirmed.length })}
             </h3>
             {confirmed.length ? (
@@ -213,7 +213,7 @@ export function ClassDetailModal({
 
           {manage && c.status !== "cancelled" ? (
             <section className="grid gap-3 border-t border-line pt-4">
-              <h3 className="text-2xs font-medium uppercase tracking-wider text-muted">{t("Manage this class")}</h3>
+              <h3 className="text-2xs font-medium text-muted">{t("Manage this class")}</h3>
               {action ? (
                 <ActionForm classData={c} action={action} onDone={changed} onBack={() => setAction(null)} />
               ) : (

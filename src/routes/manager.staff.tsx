@@ -5,7 +5,7 @@ import { Shell, when } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPost, apiPatch } from "@/lib/arena3/client";
 import { roleLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
+import { t, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager/staff")({ component: Page });
 
@@ -121,7 +121,7 @@ function Page() {
               <Card key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 font-medium">
-                    {s.full_name}
+                    {tData(s.full_name)}
                     <Badge tone={s.role === "manager" ? "ink" : "accent"}>{roleLabel(s.role)}</Badge>
                     {s.status !== "active" ? <Badge tone="danger">{t("Locked")}</Badge> : null}
                     {s.must_change_password ? <Badge tone="hold">{t("Must change password")}</Badge> : null}

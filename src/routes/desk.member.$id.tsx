@@ -9,7 +9,7 @@ import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiGet, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
 import { METHOD_LABEL, formatDate, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/desk/member/$id")({
   component: Page,
@@ -217,7 +217,7 @@ function Page() {
           <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
           <Card interactive className="relative z-[2] h-full">
             <StatusBadge status={s.status} />
-            <h2 className="mt-2 font-display text-2xl">{s.plan_name}</h2>
+            <h2 className="mt-2 font-display text-2xl">{tData(s.plan_name)}</h2>
             <p className="text-sm text-muted">
               {sportLabel(s.sport_scope)} · {t("through {date}", { date: formatDate(s.end_on) })} · {t("{n} court hours", { n: Number(s.court_hours_left) })}
             </p>
@@ -316,7 +316,7 @@ function Page() {
               }
             }}
           >
-            {p.name} · {money(p.price_vnd)}
+            {tData(p.name)} · {money(p.price_vnd)}
           </Button>
         ))}
       </Reveal>

@@ -408,7 +408,7 @@ export const manager: Record<string, string> = {
   "Plan suggestions": "Gợi ý giáo án",
   "Drill templates per sport — a coach still has to approve.": "Mẫu bài tập theo từng môn. HLV vẫn phải duyệt.",
   "Member assistant": "Trợ lý cho hội viên",
-  "Gemini Q&A, grounded in the timetable, plans and coaches.": "Hỏi đáp bằng Gemini, dựa trên lịch học, gói tập và HLV.",
+  "Gemini Q&A, grounded in the timetable, plans and coaches.": "Hỏi đáp bằng trợ lý AI, dựa trên lịch học, gói tập và HLV.",
   "Centre settings": "Cài đặt trung tâm",
   "New transactions pick these up within a minute.": "Các giao dịch mới sẽ dùng thiết lập này trong vòng một phút.",
   "{key} switched on": "Đã bật {key}",

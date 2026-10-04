@@ -8,7 +8,7 @@ import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
+import { t, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/desk/gear")({ component: Page });
 
@@ -108,7 +108,7 @@ function Page() {
             >
               {items.map((i) => (
                 <option key={i.id} value={i.id} disabled={i.stock < 1}>
-                  {i.name} · {i.stock ? t("{n} left", { n: i.stock }) : t("none left")} · {money(i.rent_vnd)}
+                  {tData(i.name)} · {i.stock ? t("{n} left", { n: i.stock }) : t("none left")} · {money(i.rent_vnd)}
                 </option>
               ))}
             </Select>
@@ -226,8 +226,8 @@ function Page() {
             <Lift className="h-full">
               <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={280} strength={0.1}>
                 <Card interactive className="relative z-[2] h-full p-4">
-                  <p className="text-2xs uppercase tracking-wider text-muted">{i.sport ? sportLabel(i.sport) : t("General")}</p>
-                  <p className="font-medium">{i.name}</p>
+                  <p className="text-2xs text-muted">{i.sport ? sportLabel(i.sport) : t("General")}</p>
+                  <p className="font-medium">{tData(i.name)}</p>
                   <p className="text-sm text-muted">
                     {t("{n} in stock · {amount} each", { n: i.stock, amount: money(i.rent_vnd) })}
                   </p>
@@ -244,7 +244,7 @@ function Page() {
             <Card className="flex items-center justify-between p-4">
               <div>
                 <p className="font-medium">
-                  {l.name} × {l.qty}
+                  {tData(l.name)} × {l.qty}
                 </p>
                 <p className="text-xs text-muted">
                   {l.member_name ? `${l.member_name}${l.member_code ? ` · ${l.member_code}` : ""} · ` : `${t("Guest")} · `}

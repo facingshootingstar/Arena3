@@ -281,8 +281,8 @@ function MoreMenu({ items, pathname, all }: { items: NavItem[]; pathname: string
         aria-haspopup="menu"
         aria-expanded={open}
         className={cn(
-          "flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-pill)] px-3.5 text-xs font-semibold uppercase tracking-[0.1em] transition-colors duration-200",
-          inside ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-muted hover:bg-wood hover:text-fg",
+          "flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] px-3.5 text-sm font-medium transition-colors duration-150",
+          inside ? "bg-accent/10 text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
         )}
       >
         <Ellipsis className="size-4" strokeWidth={1.75} />
@@ -416,7 +416,7 @@ export function Shell({
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <Link to={home} aria-label={t("Arena3 home")} className="flex items-center gap-2">
             <ArenaMark className="size-8" />
-            <span className={cn("hidden font-display text-2xl font-normal italic tracking-tight", dense ? "2xl:inline" : "sm:inline")}>Arena3</span>
+            <span className={cn("hidden font-display text-xl font-bold tracking-tight", dense ? "2xl:inline" : "sm:inline")}>Arena3</span>
           </Link>
           <nav className={cn("ml-3 items-center gap-1", showNav ? "hidden md:flex" : "hidden")}>
             {rowItems.map((it) => {
@@ -429,15 +429,15 @@ export function Shell({
                   activeOptions={{ exact: true }}
                   className={cn(
                     dense ? "px-2.5" : "px-3.5",
-                    "relative flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-pill)] text-xs font-semibold uppercase tracking-[0.1em] transition-colors duration-200",
-                    active ? "text-accent-fg" : "text-muted hover:bg-wood hover:text-fg",
+                    "relative flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] text-sm font-medium transition-colors duration-150",
+                    active ? "text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
                   )}
                 >
                   {/* Highlight slides between tabs rather than cutting. */}
                   {active ? (
                     <motion.span
                       layoutId="shell-nav-active"
-                      className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent shadow-[var(--shadow-accent)]"
+                      className="absolute inset-0 rounded-[var(--radius-md)] bg-accent/10"
                       transition={{ type: "spring", stiffness: 400, damping: 34 }}
                     />
                   ) : null}
@@ -483,12 +483,12 @@ export function Shell({
       >
         <PageIn key={pathname}>
           {title ? (
-            <header className="mb-6 flex items-center justify-between gap-4 rounded-[var(--radius-xl)] bg-surface/70 px-5 py-4 shadow-[var(--shadow-border)] sm:px-6">
+            <header className="mb-6 flex items-center justify-between gap-4 px-1">
               <div className="min-w-0">
-                <h1 className="font-display text-3xl font-semibold text-balance sm:text-4xl">{title}</h1>
+                <h1 className="font-display text-2xl font-bold text-balance sm:text-3xl">{title}</h1>
                 {subtitle ? <p className="mt-1.5 max-w-2xl text-[0.95rem] leading-snug text-muted">{subtitle}</p> : null}
               </div>
-              <Spot name={spotForPath(pathname)} className="hidden sm:block sm:h-24 sm:w-[7.5rem]" />
+              <Spot name={spotForPath(pathname)} className="hidden sm:block sm:h-20 sm:w-24" />
             </header>
           ) : null}
           {children}
@@ -502,7 +502,7 @@ export function Shell({
           still a real <Link>, so prefetch, long-press and "open in new tab" work
           the way a tab bar should on a touch device. */}
       <nav className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] md:hidden">
-        <div className="glass mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-pill)] p-1.5 shadow-[0_18px_40px_-24px_rgba(20,28,18,0.75)]">
+        <div className="mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-xl)] border border-line bg-surface p-1.5 shadow-[0_8px_30px_-12px_rgba(16,24,20,0.28)]">
           {dockItems.map((it) => {
             const active = navActive(pathname, it.to, items);
             const Icon = it.icon;
@@ -512,20 +512,20 @@ export function Shell({
                 to={it.to}
                 activeOptions={{ exact: true }}
                 className={cn(
-                  "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-pill)] text-[11px] tracking-wide transition-colors duration-200",
-                  active ? "font-semibold text-accent-fg" : "font-medium text-muted",
+                  "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] text-[11px] transition-colors duration-200",
+                  active ? "font-semibold text-accent-2" : "font-medium text-muted",
                 )}
               >
                 {active ? (
                   <motion.span
                     layoutId="shell-dock-active"
-                    className="absolute inset-0 rounded-[var(--radius-pill)] bg-accent shadow-[var(--shadow-accent)]"
+                    className="absolute inset-0 rounded-[var(--radius-lg)] bg-accent/10"
                     transition={{ type: "spring", stiffness: 420, damping: 36 }}
                   />
                 ) : null}
                 <motion.span
                   className="relative z-[1]"
-                  animate={{ y: active ? -1 : 0, scale: active ? 1.08 : 1 }}
+                  animate={{ y: 0, scale: 1 }}
                   transition={{ type: "spring", stiffness: 420, damping: 26 }}
                 >
                   <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
@@ -540,9 +540,9 @@ export function Shell({
               onClick={() => setSheet(true)}
               aria-haspopup="dialog"
               className={cn(
-                "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-pill)] text-[11px] tracking-wide",
+                "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] text-[11px]",
                 sheetItems.some((it) => navActive(pathname, it.to, items))
-                  ? "bg-accent font-semibold text-accent-fg"
+                  ? "bg-accent/10 font-semibold text-accent-2"
                   : "font-medium text-muted",
               )}
             >

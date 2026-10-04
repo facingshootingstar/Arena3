@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { VI } from "@/lib/i18n/vi";
+import { viData } from "@/lib/i18n/vi.data";
 import { VI_SERVER_EXACT, VI_SERVER_PATTERNS } from "@/lib/i18n/vi.srv";
 
 /**
@@ -48,6 +49,11 @@ export function tServer(msg: string): string {
     if (m) return vi.replace(/\$(\d)/g, (_, i: string) => m[Number(i)] ?? "");
   }
   return msg;
+}
+
+/** Seeded demo content stored in English in the database (plan, gear and staff names, health notes). */
+export function tData<T extends string | null | undefined>(s: T): T {
+  return (current === "vi" && s ? viData(s) : s) as T;
 }
 
 export const getLang = (): Lang => current;

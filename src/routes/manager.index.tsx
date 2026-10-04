@@ -213,7 +213,7 @@ function Page() {
         />
       {period === "custom" ? (
         <>
-        <span className="text-2xs uppercase tracking-wider text-muted">{t("From")}</span>
+        <span className="text-2xs text-muted">{t("From")}</span>
         <DateField
           value={from}
           onChange={(v) => {
@@ -222,7 +222,7 @@ function Page() {
           }}
           aria-label={t("From date")}
         />
-        <span className="text-2xs uppercase tracking-wider text-muted">{t("To")}</span>
+        <span className="text-2xs text-muted">{t("To")}</span>
         <DateField
           value={to}
           onChange={(v) => {
@@ -233,7 +233,7 @@ function Page() {
         />
         </>
       ) : null}
-        <div className="w-40">
+        <div className="w-full min-w-0 sm:w-52">
           <Select aria-label={t("Payment method")} value={method} onChange={(e) => setMethod(e.target.value)}>
             <option value="">{t("All methods")}</option>
             {["cash", "transfer", "card", "gateway", "quota"].map((m) => (
@@ -442,7 +442,7 @@ function Page() {
             <CardTitle icon={PiggyBank} title={t("Where the money came from")} hint={t("The same revenue split by what was sold, with refunds shown.")} />
             {Object.keys(rev.by_source).length || Object.keys(rev.refunds_by_source ?? {}).length ? (
               <table className="mt-3 w-full text-sm">
-                <thead className="text-left text-2xs uppercase tracking-wider text-muted">
+                <thead className="text-left text-2xs text-muted">
                   <tr>
                     <th className="pb-1 font-medium">{t("Source")}</th>
                     <th className="pb-1 text-right font-medium">{t("Taken")}</th>
@@ -472,7 +472,7 @@ function Page() {
             <CardTitle icon={Clock} title={t("By cashier shift")} hint={t("Takings for each shift a cashier opened at the desk.")} />
             {rev.by_shift?.length ? (
               <table className="mt-3 w-full text-sm">
-                <thead className="text-left text-2xs uppercase tracking-wider text-muted">
+                <thead className="text-left text-2xs text-muted">
                   <tr>
                     <th className="pb-1 font-medium">{t("Shift")}</th>
                     <th className="pb-1 text-right font-medium">{t("Taken")}</th>

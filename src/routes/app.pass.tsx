@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
+import { ScanLine } from "@/components/arena-icons";
+import { PhotoBanner, media } from "@/components/media";
 import { Shell } from "@/components/shell";
 import { Badge, Button, Card, Field, Input, Skeleton } from "@/components/ui";
 import { apiGet, apiPost } from "@/lib/arena3/client";
@@ -98,12 +100,20 @@ function Page() {
       subtitle={t("Show this code to the front desk. It changes every minute, so a photo of it is no use to anyone.")}
     >
       <div className="grid max-w-md gap-4">
+        <PhotoBanner src={media.memberCard} focus="50% 40%" />
         <Card className="grid place-items-center gap-3 p-6">
           {error ? (
             <p className="text-sm text-danger">{error}</p>
           ) : img ? (
             // The code must stay readable in sunlight: white tile, no theming.
-            <img src={img} alt={t("Your check-in code")} className="size-64 rounded-[var(--radius-md)] bg-white p-2" />
+            <div className="relative overflow-hidden rounded-[var(--radius-md)]">
+              <img
+                src={img}
+                alt={t("Your check-in code")}
+                className="size-64 bg-white p-2"
+              />
+              <ScanLine />
+            </div>
           ) : (
             <Skeleton className="size-64" />
           )}

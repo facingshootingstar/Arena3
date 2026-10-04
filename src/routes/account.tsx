@@ -170,7 +170,7 @@ function Profile({ user }: { user: SessionUser | null }) {
 function Row({ label, value, note, mono }: { label: string; value: string; note?: string; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-2xs uppercase tracking-wider text-subtle">{label}</dt>
+      <dt className="text-2xs text-subtle">{label}</dt>
       <dd className={mono ? "mt-0.5 font-mono text-sm font-semibold tracking-wider" : "mt-0.5 text-sm"}>{value}</dd>
       {note ? <dd className="mt-1 text-xs text-subtle">{note}</dd> : null}
     </div>

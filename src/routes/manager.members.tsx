@@ -5,7 +5,7 @@ import { Shell } from "@/components/shell";
 import { Badge, Card, EmptyState, FilterChip, Input, Pagination, Select, Skeleton, StatusBadge } from "@/components/ui";
 import { apiGet } from "@/lib/arena3/client";
 import { formatDate, sportLabel } from "@/lib/arena3/labels";
-import { locale, t, tk, tServer } from "@/lib/i18n";
+import { locale, t, tk, tServer, tData } from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager/members")({
   component: Page,
@@ -143,7 +143,7 @@ function Page() {
                       </Badge>
                       {m.plan_name ? (
                         <span className="truncate text-xs text-muted">
-                          {m.plan_name}
+                          {tData(m.plan_name)}
                           {m.end_on ? ` · ${t("until {date}", { date: formatDate(m.end_on) })}` : ""}
                         </span>
                       ) : null}
