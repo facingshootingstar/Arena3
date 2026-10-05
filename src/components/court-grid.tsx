@@ -224,7 +224,7 @@ export function DateStrip({
             className={cn(
               "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color,transform,box-shadow] duration-200 active:scale-95",
               on
-                ? "bg-accent text-accent-fg shadow-[0_8px_20px_-12px_rgba(31,92,67,0.9)]"
+                ? "bg-accent text-accent-fg shadow-[0_8px_20px_-12px_rgba(30,79,216,0.9)]"
                 : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
             )}
           >

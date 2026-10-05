@@ -11,25 +11,26 @@
   --font-athletic: "Anton", "Be Vietnam Pro", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
-  --color-bg: #f3f5f2;
-  --color-fg: #0f1714;
+  --color-bg: #f4f6fc;
+  --color-fg: #0b1230;
   --color-surface: #ffffff;
-  --color-muted: #3f4a44;
-  --color-subtle: #55615a;
-  --color-line: #e0e5e0;
-  --color-line-strong: #c3cbc4;
-  --color-accent: #1f5c43;
-  --color-accent-fg: #fff8ee;
-  --color-accent-2: #164433;
-  --color-hold: #7a4e0c;
-  --color-danger: #8a2424;
-  --color-ink: #0f1714;
-  --color-wood: #eaeeea;
-  --color-on-media: #fff8ee;
-  --color-on-media-muted: #eadfcb;
-  --color-pass: #143226;
-  --color-pass-fg: #fff8ee;
-  --color-pass-muted: #c5d0be;
+  --color-muted: #424c6b;
+  --color-subtle: #56617f;
+  --color-line: #dde3f2;
+  --color-line-strong: #bcc6e0;
+  --color-accent: #1e4fd8;
+  --color-accent-fg: #ffffff;
+  --color-accent-2: #15348f;
+  --color-hold: #9a5200;
+  --color-danger: #b4232a;
+  --color-ink: #0b1230;
+  --color-wood: #e8edf9;
+  --color-on-media: #ffffff;
+  --color-on-media-muted: #dbe5ff;
+  --color-pass: #0c1b57;
+  --color-pass-fg: #ffffff;
+  --color-pass-muted: #c3d0f5;
+  --color-volt: #c8f31d;
 
   /* Semantic roles. The palette above is named after what things look like
      (wood, ink, pass); these name what they mean, so a status colour is chosen
@@ -58,11 +59,11 @@
   --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  --shadow-soft: 0 1px 2px rgba(16, 24, 20, 0.05), 0 8px 24px -12px rgba(16, 24, 20, 0.18);
-  --shadow-border: 0 0 0 1px rgba(16, 24, 20, 0.07), 0 1px 2px rgba(16, 24, 20, 0.04);
+  --shadow-soft: 0 1px 2px rgba(11, 18, 48, 0.05), 0 8px 24px -12px rgba(11, 18, 48, 0.18);
+  --shadow-border: 0 0 0 1px rgba(11, 18, 48, 0.07), 0 1px 2px rgba(11, 18, 48, 0.04);
   /* Elevation tinted with the brand colour rather than neutral grey, so a raised
      control reads as "lit from the accent" instead of "floating on grey". */
-  --shadow-accent: 0 1px 2px rgba(16, 24, 20, 0.12);
+  --shadow-accent: 0 1px 2px rgba(11, 18, 48, 0.12);
   --shadow-accent-lg: 0 4px 12px -4px color-mix(in oklab, var(--color-accent) 55%, transparent);
 
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
@@ -324,29 +325,29 @@
 
 .hero-scrim {
   background:
-    linear-gradient(90deg, rgba(20, 28, 18, 0.9) 0%, rgba(20, 28, 18, 0.58) 42%, rgba(20, 28, 18, 0.18) 100%),
-    linear-gradient(to top, rgba(20, 28, 18, 0.55) 0%, transparent 42%),
-    linear-gradient(to bottom, rgba(20, 28, 18, 0.35) 0%, transparent 28%);
+    linear-gradient(90deg, rgba(8, 14, 40, 0.9) 0%, rgba(8, 14, 40, 0.58) 42%, rgba(8, 14, 40, 0.18) 100%),
+    linear-gradient(to top, rgba(8, 14, 40, 0.55) 0%, transparent 42%),
+    linear-gradient(to bottom, rgba(8, 14, 40, 0.35) 0%, transparent 28%);
 }
 
 .media-scrim {
   background: linear-gradient(
     to top,
-    rgba(20, 28, 18, 0.55) 0%,
-    rgba(20, 28, 18, 0.12) 48%,
-    rgba(20, 28, 18, 0.08) 100%
+    rgba(8, 14, 40, 0.55) 0%,
+    rgba(8, 14, 40, 0.12) 48%,
+    rgba(8, 14, 40, 0.08) 100%
   );
 }
 
 .caption-bar {
-  background: rgba(20, 28, 18, 0.82);
+  background: rgba(8, 14, 40, 0.82);
   color: var(--color-on-media);
 }
 
 .on-media {
   text-shadow:
-    0 1px 2px rgba(8, 12, 6, 0.7),
-    0 10px 28px rgba(8, 12, 6, 0.45);
+    0 1px 2px rgba(4, 8, 28, 0.7),
+    0 10px 28px rgba(4, 8, 28, 0.45);
 }
 
 .marquee {
@@ -434,7 +435,7 @@
    above vanishes against video. Stays inside the cream/sand family so it still
    reads as Arena3 and not as a stock neon gradient. */
 .text-gradient-media {
-  background: linear-gradient(105deg, var(--color-on-media) 8%, #dcead4 46%, #f0d49a 95%);
+  background: linear-gradient(105deg, var(--color-on-media) 8%, #dbe5ff 46%, #c8f31d 95%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -449,7 +450,7 @@
    overflow-hidden descendants — which is exactly what the word-reveal wrappers
    are. Put this on the heading and `.text-gradient-media` on the span inside. */
 .media-glow {
-  filter: drop-shadow(0 2px 7px rgba(8, 12, 6, 0.6));
+  filter: drop-shadow(0 2px 7px rgba(4, 8, 28, 0.6));
 }
 
 /* Band of light sliding across the glyphs. The two stops are variables rather
@@ -476,8 +477,8 @@
 /* Reversed-out variant for headings sitting on footage or ink. */
 .shiny-on-media {
   --shiny-base: var(--color-on-media);
-  --shiny-glint: #f5e2b4;
-  filter: drop-shadow(0 2px 7px rgba(8, 12, 6, 0.55));
+  --shiny-glint: #e6ff7a;
+  filter: drop-shadow(0 2px 7px rgba(4, 8, 28, 0.55));
 }
 /* Quiet variant for eyebrow labels on cream — reads as a muted kicker until the
    glint passes, so it never competes with the heading under it. */
@@ -552,7 +553,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(90deg, transparent, rgba(255, 248, 238, 0.28), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
   transform: translateX(-110%) skewX(-18deg);
 }
 .sweep:hover::after {

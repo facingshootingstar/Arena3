@@ -479,7 +479,7 @@ function Landing() {
         <GLBackground
           variant="threads"
           className="opacity-60 mix-blend-screen"
-          color="#eadfcb"
+          color="#dbe5ff"
           amplitude={1.2}
           speed={0.55}
           opacity={0.32}
@@ -633,7 +633,7 @@ function Landing() {
             the moment before the chunk lands. */}
         <GLBackground
           variant="aurora"
-          colors={["#1f5c43", "#4e9e75", "#c9a227"]}
+          colors={["#1e4fd8", "#5b86ff", "#c8f31d"]}
           amplitude={1.15}
           speed={0.85}
           opacity={0.6}
@@ -921,7 +921,7 @@ function Landing() {
       <section id="how" className="relative mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
         {/* Pointer-reactive dot field. Costs nothing when the cursor is still —
             the canvas loop parks itself once the ripple settles. */}
-        <GLBackground variant="dotgrid" className="-z-[1]" color="#1f5c43" gap={30} opacity={0.22} />
+        <GLBackground variant="dotgrid" className="-z-[1]" color="#1e4fd8" gap={30} opacity={0.22} />
         <Reveal>
           <p className="kicker text-2xs text-muted">{t("Booking")}</p>
           <h2 className="mt-2 max-w-xl font-display text-4xl sm:text-5xl">
@@ -1203,7 +1203,7 @@ function Landing() {
         <GLBackground
           variant="silk"
           className="-z-[1] opacity-70"
-          color="#1f5c43"
+          color="#1e4fd8"
           speed={0.5}
           scale={1.7}
           opacity={0.13}

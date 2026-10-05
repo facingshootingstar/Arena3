@@ -25,7 +25,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       // The same green the manifest and the palette use. It was a lighter one
       // here, so the phone chrome did not match the header it sat above.
-      { name: "theme-color", content: "#1f5c43" },
+      { name: "theme-color", content: "#1e4fd8" },
       {
         name: "description",
         content:

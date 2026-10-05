@@ -74,7 +74,7 @@ function Login() {
         <GLBackground
           variant="threads"
           className="opacity-55 mix-blend-screen"
-          color="#eadfcb"
+          color="#dbe5ff"
           amplitude={1.1}
           speed={0.5}
           opacity={0.3}

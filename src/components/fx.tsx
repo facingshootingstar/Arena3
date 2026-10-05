@@ -896,7 +896,7 @@ export function StarBorder({
  * Mounted once at the app root.
  */
 export function ClickSpark({
-  color = "#1f5c43",
+  color = "#1e4fd8",
   count = 8,
   length = 13,
   duration = 380,
