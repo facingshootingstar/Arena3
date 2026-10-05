@@ -7,9 +7,10 @@
 -- the next fortnight, and a lived-in court map for the book-ahead week
 -- (evenings busy, mornings quieter, clashes with a class simply skipped).
 --
--- Idempotent. Codes start with CRT-F. A past seed booking marked no-show only
--- because its hour arrived (code CRT-…-U…) is put back to completed, except
--- about one in twelve, so the no-show list still has something on it.
+-- Idempotent. Court codes start with CRT-F. Receipts are PAY-YYYYMMDD-9xxx,
+-- in the 9xxx band so they never meet next_doc_code. A past seed booking
+-- marked no-show only because its hour arrived (code CRT-…-U…) is put back to
+-- completed, except about one in twelve, so the no-show list still has something on it.
 
 -- ---------------------------------------------------------------- classes ---
 -- One session per open class on each of its weekdays, today through 14 days.
@@ -116,6 +117,10 @@ DECLARE
   v_price INT;
   thresh INT;
   rec_id UUID := '00000000-0000-0000-0000-000000000002';
+  v_pay TEXT;
+  v_created TIMESTAMPTZ;
+  pay_day DATE;
+  pay_n INT := 0;
 BEGIN
   SELECT array_agg(id ORDER BY member_code) INTO members
     FROM users WHERE role = 'member' AND status = 'active';
@@ -139,6 +144,16 @@ BEGIN
           ELSE                   CASE WHEN hh >= 17 THEN 400000 ELSE 250000 END
         END;
 
+        -- ponytail: 9xxx stays clear of next_doc_code (tens per day). Collides
+        -- only if one calendar day ever posts 9000 real receipts.
+        v_created := least(v_at - interval '1 day', now());
+        IF pay_day IS DISTINCT FROM (v_created AT TIME ZONE 'Asia/Ho_Chi_Minh')::date THEN
+          pay_day := (v_created AT TIME ZONE 'Asia/Ho_Chi_Minh')::date;
+          pay_n := 0;
+        END IF;
+        pay_n := pay_n + 1;
+        v_pay := 'PAY-' || to_char(pay_day, 'YYYYMMDD') || '-' || lpad((9000 + pay_n)::text, 4, '0');
+
         bid := gen_random_uuid();
         BEGIN
           oid := occupancy_attach(v_court.id, v_at, v_at + interval '1 hour', 'booking', bid, NULL);
@@ -156,12 +171,12 @@ BEGIN
             code, user_id, method, amount_vnd, vat_rate, status,
             ref_type, ref_id, created_by, created_at
           ) VALUES (
-            'PAY-F' || substr(v_code, 5),
+            v_pay,
             members[1 + (abs(hashtext(v_code)) % m_total)],
             (ARRAY['cash','transfer','card','gateway']::pay_method[])[1 + (abs(hashtext(v_code)) % 4)],
             v_price, 0, 'posted', 'booking', bid,
             rec_id,
-            least(v_at - interval '1 day', now())
+            v_created
           );
         EXCEPTION WHEN OTHERS THEN
           RAISE NOTICE '0025 booking skipped % %: %', v_court.court_code, v_at, SQLERRM;
