@@ -44,7 +44,6 @@ import {
 } from "@/lib/arena3/client";
 import { roleLabel } from "@/lib/arena3/labels";
 import { locale, t, tk } from "@/lib/i18n";
-import { CalmToggle } from "./calm-toggle";
 import { ConnectionBanner } from "./connection-banner";
 import { LangSwitch } from "./lang-switch";
 import { useDialog } from "./ui";
@@ -279,9 +278,6 @@ function AccountMenu({
                   <UserCog aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
                   {t("Account settings")}
                 </Link>
-              </li>
-              <li>
-                <CalmToggle row />
               </li>
               <li>
                 <button

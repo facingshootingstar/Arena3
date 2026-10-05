@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { isValidVnPhone, normalizePhone, passwordOk, phoneLast9 } from "./phone.ts";
 import { rruleLabel } from "./labels.ts";
 import { numberToVietnamese, vndInWords } from "./money-words.ts";
-import { addDays, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
+import { addDays, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
 import { ApiError, mapDbError } from "./errors.ts";
 import { checkOpeningHours, parseSettingsPatch } from "./validate.ts";
 import {
@@ -68,6 +68,7 @@ describe("pricing", () => {
 describe("rrule", () => {
   it("labels weekly BYDAY in English", () => {
     assert.equal(rruleLabel("FREQ=WEEKLY;BYDAY=MO,WE,FR;BYHOUR=18"), "Mon, Wed, Fri · 18:00");
+    assert.equal(rruleLabel("FREQ=WEEKLY;BYDAY=MO,WE,FR;BYHOUR=18", 60), "Mon, Wed, Fri · 18:00–19:00");
   });
   it("sorts a scrambled week and collapses all seven days", () => {
     assert.equal(rruleLabel("FREQ=WEEKLY;BYDAY=TH,TU;BYHOUR=19"), "Tue, Thu · 19:00");
@@ -244,6 +245,18 @@ describe("database errors keep their meaning", () => {
   it("leaves the unknown to be a 500", () => {
     assert.equal(mapDbError(new Error("boom")), null);
     assert.equal(mapDbError({ code: "XX000" }), null);
+  });
+});
+
+describe("class length", () => {
+  it("defaults to one court hour and refuses a half hour", () => {
+    assert.equal(classMinutes(undefined), 60);
+    assert.equal(classMinutes(null), 60);
+    assert.equal(classMinutes(60), 60);
+    assert.equal(classMinutes(120), 120);
+    assert.equal(classMinutes(180), 180);
+    assert.equal(classMinutes(90), null);
+    assert.equal(classMinutes(45), null);
   });
 });
 

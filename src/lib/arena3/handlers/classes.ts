@@ -4,7 +4,7 @@ import { audit, classSubscription, enqueue, getSettings, num, readJson, str } fr
 import { classCode } from "../labels";
 import { expandWeekly } from "../rrule";
 import { requireRole, type PublicUser } from "../session";
-import { addDays, ictDateString, slotSpan } from "../time";
+import { addDays, classMinutes, ictDateString, slotSpan } from "../time";
 import { one } from "../tx";
 import { inviteWaitlist } from "./ops";
 
@@ -40,7 +40,10 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   const start_on = str(b.start_on);
   const end_on = str(b.end_on);
   const capacity = num(b.capacity) ?? 12;
-  const duration_min = num(b.duration_min) ?? 90;
+  const duration_min = classMinutes(num(b.duration_min));
+  if (duration_min == null) {
+    throw err.validation("A class runs for whole court hours (60, 120 or 180).");
+  }
   if (!sport || !level || !coach_id || !court_id || !rrule || !start_on || !end_on) {
     throw err.validation("Class details are incomplete.");
   }
