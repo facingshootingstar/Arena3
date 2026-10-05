@@ -1,14 +1,15 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Button, Card, DateField, EmptyState, Field, Input, Select, ShowMore, StatusBadge } from "@/components/ui";
+import { Button, Card, DateField, EmptyState, Field, Input, LoadError, Select, ShowMore, Skeleton, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { ClassDetailModal } from "@/components/class-detail";
-import { apiGet, apiPost } from "@/lib/arena3/client";
+import { apiPost } from "@/lib/arena3/client";
 import { composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
+import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/manager/classes")({
   component: Page,
@@ -24,25 +25,32 @@ const DAYS = [
   { k: "SU", l: tk("Sun") },
 ];
 
+type ClassRow = {
+  id: string;
+  code: string;
+  sport: string;
+  level: string;
+  status: string;
+  court_code: string;
+  coach_name: string;
+  enrolled_count: number;
+  capacity: number;
+  rrule?: string;
+};
+
 function Page() {
   const [limit, setLimit] = useState(8);
-  const [items, setItems] = useState<
-    Array<{
-      id: string;
-      code: string;
-      sport: string;
-      level: string;
-      status: string;
-      court_code: string;
-      coach_name: string;
-      enrolled_count: number;
-      capacity: number;
-      rrule?: string;
-    }>
-  >([]);
-  const [courts, setCourts] = useState<Array<{ id: string; court_code: string; sport: string }>>([]);
-  const [coaches, setCoaches] = useState<Array<{ id: string; full_name: string; sports: string[] | null }>>([]);
-  const [loaded, setLoaded] = useState(false);
+  const classesRead = useRead<{ items: ClassRow[] }>("/classes");
+  const courtsRead = useRead<{ items: Array<{ id: string; court_code: string; sport: string }> }>("/courts");
+  const coachesRead = useRead<{ items: Array<{ id: string; full_name: string; sports: string[] | null }> }>(
+    "/staff?role=coach&status=active",
+  );
+  const items = classesRead.data?.items ?? null;
+  const courts = useMemo(() => courtsRead.data?.items ?? [], [courtsRead.data]);
+  const coaches = useMemo(() => coachesRead.data?.items ?? [], [coachesRead.data]);
+  // The form can only say "no coach teaches this" once the coaches have really been read.
+  const loaded = !!courtsRead.data && !!coachesRead.data;
+  const formError = courtsRead.error ?? coachesRead.error;
   // The class whose sessions and roster are open (B-08).
   const [detail, setDetail] = useState<string | null>(null);
   const [days, setDays] = useState<string[]>(["TU", "TH"]);
@@ -58,15 +66,8 @@ function Page() {
     end_on: addDaysISO(todayISO(), 60),
   });
 
-  const load = useCallback(async () => {
-    setItems((await apiGet<{ items: typeof items }>("/classes")).items);
-    setCourts((await apiGet<{ items: typeof courts }>("/courts")).items);
-    setCoaches((await apiGet<{ items: typeof coaches }>("/staff?role=coach&status=active")).items);
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    void load().catch((e) => toast.error(tServer(e.message)));
-  }, [load]);
+  // After a change, the class list is read again (a published class is a new row or a new status).
+  const load = classesRead.reload;
 
   // The people and courts a class of this sport can actually use. Nothing is
   // assumed about which accounts exist: a centre that issued its own coach
@@ -97,6 +98,22 @@ function Page() {
 
   return (
     <Shell role="manager" title={t("Classes")} subtitle={t("Pick the days and the hour — clashes on court or coach are blocked for you.")}>
+      {formError ? (
+        // Without the courts and coaches the form would offer nothing to pick, so it says why instead.
+        <div className="mb-6">
+          <LoadError
+            message={formError.message}
+            onRetry={
+              formError.refused
+                ? undefined
+                : () => {
+                    courtsRead.reload();
+                    coachesRead.reload();
+                  }
+            }
+          />
+        </div>
+      ) : (
       <Reveal from="down">
       <Card className="mb-6 grid gap-3 md:grid-cols-3">
         <Field label={t("Sport")}>
@@ -140,7 +157,7 @@ function Page() {
                 key={d.k}
                 type="button"
                 onClick={() => toggleDay(d.k)}
-                className={`relative min-h-9 min-w-11 rounded-[var(--radius-sm)] px-2 text-sm font-medium transition-colors duration-200 active:scale-95 ${
+                className={`relative min-h-11 min-w-11 rounded-[var(--radius-sm)] px-2 text-sm font-medium sm:min-h-9 transition-colors duration-200 active:scale-95 ${
                   days.includes(d.k) ? "text-bg" : "bg-wood text-muted hover:bg-wood/70"
                 }`}
               >
@@ -198,7 +215,7 @@ function Page() {
                 toast.success(t("Draft created"));
                 const pub = await apiPost<{ sessions: unknown[]; skipped: unknown[] }>(`/classes/${row.id}/publish`);
                 toast.success(t("Published {n} sessions", { n: pub.sessions.length }));
-                await load();
+                load();
               } catch (e) {
                 toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
               }
@@ -209,8 +226,14 @@ function Page() {
         </div>
       </Card>
       </Reveal>
+      )}
+      {classesRead.error ? (
+        <LoadError message={classesRead.error.message} onRetry={classesRead.error.refused ? undefined : classesRead.reload} />
+      ) : !items ? (
+        <Skeleton className="h-40" />
+      ) : null}
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.06}>
-        {items.slice(0, limit).map((c) => (
+        {(items ?? []).slice(0, limit).map((c) => (
           <StaggerItem key={c.id} className="h-full">
           <Lift className="h-full">
           <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
@@ -236,7 +259,7 @@ function Page() {
                   try {
                     await apiPost(`/classes/${c.id}/publish`);
                     toast.success(t("Published"));
-                    await load();
+                    load();
                   } catch (e) {
                     toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
                   }
@@ -251,8 +274,10 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
-      <ShowMore shown={Math.min(limit, items.length)} total={items.length} step={8} onMore={() => setLimit((n) => n + 8)} />
-      {loaded && !items.length ? (
+      {items ? (
+        <ShowMore shown={Math.min(limit, items.length)} total={items.length} step={8} onMore={() => setLimit((n) => n + 8)} />
+      ) : null}
+      {items && !items.length ? (
         <EmptyState
           title={t("No classes yet")}
           hint={t("Pick a sport, a coach and the days above, then press Create & publish. Members can book as soon as it is published.")}

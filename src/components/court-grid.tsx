@@ -78,13 +78,13 @@ const STATE_CLASS: Record<SlotState, string> = {
   // Dashed, because a hold is the one state that undoes itself.
   hold: "stripes border-2 border-dashed border-hold bg-hold/40 text-hold",
   // Mid green, solid: clearly sold, and unmistakably not the amber of a hold.
-  booked: "bg-accent/80 text-accent-fg",
+  booked: "bg-accent/90 text-accent-fg",
   // The darkest green: the only state where someone is on the court as you read this.
   in_use: "bg-accent-2 text-accent-fg ring-2 ring-accent-2/40",
   class: "bg-fg text-bg",
   maintenance: "stripes bg-wood text-muted",
   closed: "stripes bg-line-strong/45 text-subtle",
-  past: "bg-wood/30 text-subtle/80 line-through decoration-subtle/40",
+  past: "bg-wood/30 text-subtle line-through decoration-subtle/40",
 };
 
 /**
@@ -228,7 +228,7 @@ export function DateStrip({
                 : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
             )}
           >
-            <span className="text-2xs font-medium opacity-70">
+            <span className="text-2xs font-medium opacity-90">
               {it.isToday ? t("Today") : it.wd}
             </span>
             <span className="font-display text-xl tabular-nums leading-none">{it.day}</span>
@@ -313,7 +313,7 @@ function NoFreeSlots({
             <button
               type="button"
               onClick={() => onPickDate(tomorrow)}
-              className="min-h-9 rounded-[var(--radius-pill)] border border-line bg-surface px-4 text-xs font-medium shadow-[var(--shadow-border)] transition-colors duration-150 hover:bg-wood"
+              className="min-h-11 rounded-[var(--radius-pill)] border border-line bg-surface px-4 text-xs font-medium shadow-[var(--shadow-border)] transition-colors duration-150 hover:bg-wood sm:min-h-9"
             >
               {t("Try {day} {n}", { day: weekdayShort(tomorrow), n: Number(tomorrow.slice(8, 10)) })}
             </button>
@@ -324,7 +324,7 @@ function NoFreeSlots({
                   key={a.sport}
                   type="button"
                   onClick={() => onPickSport(a.sport)}
-                  className="min-h-9 rounded-[var(--radius-pill)] border border-line bg-surface px-4 text-xs font-medium shadow-[var(--shadow-border)] transition-colors duration-150 hover:bg-wood"
+                  className="min-h-11 rounded-[var(--radius-pill)] border border-line bg-surface px-4 text-xs font-medium shadow-[var(--shadow-border)] transition-colors duration-150 hover:bg-wood sm:min-h-9"
                 >
                   {t("{sport} · {n} free", { sport: sportLabel(a.sport), n: a.count })}
                 </button>
@@ -569,7 +569,7 @@ function HourRow({
       <div
         className={cn(
           "sticky left-0 z-10 flex items-center gap-1 border-t border-line/70 bg-surface px-2 py-1 text-xs tabular-nums",
-          past ? "text-subtle/80 line-through" : live ? "font-medium text-accent-2" : "text-muted",
+          past ? "text-subtle line-through" : live ? "font-medium text-accent-2" : "text-muted",
         )}
       >
         {live ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" /> : null}

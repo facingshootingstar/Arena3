@@ -1,7 +1,9 @@
 export const core: Record<string, string> = {
-  // header, language, skip link
+  // header, language, skip link, pause button
   "Language": "Ngôn ngữ",
   "Skip to main content": "Chuyển đến nội dung chính",
+  "Pause animations": "Tạm dừng hiệu ứng",
+  "Play animations": "Bật lại hiệu ứng",
 
   // shell.tsx
   "Schedule": "Lịch",
@@ -32,6 +34,7 @@ export const core: Record<string, string> = {
   "Sign out": "Đăng xuất",
   "More": "Thêm",
   "More pages": "Các trang khác",
+  "Main menu": "Menu chính",
   "Arena3 home": "Trang chủ Arena3",
   "Assistant": "Trợ lý",
   "Close": "Đóng",
@@ -47,6 +50,7 @@ export const core: Record<string, string> = {
 
   // section.tsx (titles are looked up by their English text)
   "Quick actions": "Thao tác nhanh",
+  "Quick links": "Lối tắt",
   "Up next": "Sắp tới",
   "Homework": "Bài tập về nhà",
   "Coach reviews": "Nhận xét của HLV",
@@ -344,4 +348,23 @@ export const core: Record<string, string> = {
   "{enrolled}/{capacity} students": "{enrolled}/{capacity} học viên",
   "Change session": "Đổi buổi khác",
   "Back to attendance": "Quay lại điểm danh",
+
+  // ── connection banner and the error / not-found pages
+  "You are offline.": "Bạn đang mất kết nối mạng.",
+  "The server is not answering.": "Máy chủ chưa trả lời.",
+  "Check your Wi-Fi or mobile data, then reload this page.": "Hãy kiểm tra Wi-Fi hoặc dữ liệu di động, rồi tải lại trang.",
+  "It may be restarting. Wait a moment, then reload this page.": "Có thể máy chủ đang khởi động lại. Chờ một lát rồi tải lại trang.",
+  "Still no answer. Check the connection and try once more.": "Vẫn chưa kết nối được. Hãy kiểm tra mạng rồi thử lại.",
+  "This page could not load.": "Trang này chưa tải được.",
+  "The server had a problem. Reload the page to try again.": "Máy chủ đang gặp sự cố. Hãy tải lại trang để thử lại.",
+  "This could not be loaded.": "Chưa tải được nội dung này.",
+  "Try again": "Thử lại",
+  "You are connected again.": "Đã kết nối lại.",
+  "Reload page": "Tải lại trang",
+  "Trying…": "Đang thử…",
+  "Back to home": "Về trang chủ",
+  "This screen stopped working. Reloading usually fixes it.": "Màn hình này bị lỗi. Tải lại trang thường sẽ khắc phục được.",
+  "An unexpected error occurred. Try reloading the page.": "Đã xảy ra lỗi không mong muốn. Hãy thử tải lại trang.",
+  "This page isn’t here": "Không tìm thấy trang này",
+  "The address may have changed, or the link that brought you here is out of date.": "Địa chỉ có thể đã đổi, hoặc đường dẫn bạn bấm đã cũ.",
 };

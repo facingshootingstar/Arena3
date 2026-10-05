@@ -1,15 +1,26 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, ArrowLeft, Target } from "lucide-react";
 import { SectionTitle } from "@/components/section";
-import { useCallback, useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { StepTabs } from "@/components/coach-ui";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Select, Skeleton, Textarea } from "@/components/ui";
-import { apiGet, apiPost, apiPut } from "@/lib/arena3/client";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  LoadError,
+  Select,
+  Skeleton,
+  Textarea,
+} from "@/components/ui";
+import { apiPost, apiPut } from "@/lib/arena3/client";
 import { formatDate, levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
 import { t, tServer, tk, tData } from "@/lib/i18n";
+import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/coach/student/$id")({ component: Page });
 
@@ -66,33 +77,29 @@ const say = (e: unknown) => (e instanceof Error ? tServer(e.message) : t("Someth
 
 function Page() {
   const { id } = Route.useParams();
-  const [p, setP] = useState<Profile | null>(null);
-  const [failed, setFailed] = useState(false);
+  const read = useRead<Profile>(`/students/${id}/profile`);
+  const p = read.data;
   const [tab, setTab] = useState("progress");
   const [note, setNote] = useState("");
   const [lvl, setLvl] = useState({ sport: "badminton", level: "beginner" });
   const [rev, setRev] = useState({ sport: "badminton", period_weeks: "4", technique: "3", fitness: "3", attitude: "3", comment: "" });
-
-  const load = useCallback(async () => {
-    try {
-      setP(await apiGet<Profile>(`/students/${id}/profile`));
-    } catch (e) {
-      toast.error(say(e));
-      setFailed(true);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // One save at a time: a second tap on "Save review" used to put the same review on record twice.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   async function run(fn: () => Promise<unknown>, ok: string) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     try {
       await fn();
       toast.success(ok);
-      await load();
+      read.reload();
     } catch (e) {
       toast.error(say(e));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
   }
 
@@ -102,14 +109,20 @@ function Page() {
     <Shell role="coach" title={p?.student.full_name ?? t("Student")} subtitle={p ? (p.student.member_code ?? "") : ""}>
       <Link
         to="/coach/attendance"
-        className="inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-muted hover:text-fg"
+        className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-muted hover:text-fg sm:min-h-9"
       >
         <ArrowLeft aria-hidden className="size-4" />
         {t("Back to attendance")}
       </Link>
       {!p ? (
-        failed ? (
-          <EmptyState title={t("This student isn't available")} hint={t("You can see students in the classes you teach.")} />
+        read.error ? (
+          read.error.refused ? (
+            <EmptyState title={t("This student isn't available")} hint={t("You can see students in the classes you teach.")} />
+          ) : (
+            <div className="mt-4">
+              <LoadError message={read.error.message} onRetry={read.reload} />
+            </div>
+          )
         ) : (
           <Skeleton className="mt-4 h-40" />
         )
@@ -201,7 +214,7 @@ function Page() {
                         ))}
                       </Select>
                     </Field>
-                    <Button className="col-span-2 sm:col-span-1" variant="outline" onClick={() => run(() => apiPut(`/students/${id}/level`, lvl), t("Level updated"))}>
+                    <Button className="col-span-2 sm:col-span-1" variant="outline" disabled={busy} onClick={() => run(() => apiPut(`/students/${id}/level`, lvl), t("Level updated"))}>
                       {t("Set level")}
                     </Button>
                   </div>
@@ -250,6 +263,7 @@ function Page() {
                   </Field>
                   <div>
                     <Button
+                      disabled={busy}
                       onClick={() =>
                         run(async () => {
                           await apiPost(`/students/${id}/reviews`, rev);
@@ -290,7 +304,7 @@ function Page() {
                 <Textarea rows={2} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Observation, injury watch, what to work on…")} />
                 <div>
                   <Button
-                    disabled={!note.trim()}
+                    disabled={busy || !note.trim()}
                     onClick={() =>
                       run(async () => {
                         await apiPost(`/students/${id}/notes`, { body: note });

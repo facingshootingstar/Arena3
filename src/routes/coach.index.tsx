@@ -1,15 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, ChevronRight, ClipboardCheck, MapPin, Users } from "lucide-react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { sessionDay } from "@/components/class-detail";
 import { ArenaIcon, SportIcon } from "@/components/arena-icons";
 import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Skeleton, StatusBadge } from "@/components/ui";
-import { apiGet } from "@/lib/arena3/client";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  LoadError,
+  Skeleton,
+  StatusBadge,
+} from "@/components/ui";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
+import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/coach/")({
   component: Page,
@@ -45,13 +51,9 @@ function dayName(iso: string) {
 
 function Page() {
   const navigate = useNavigate();
-  const [items, setItems] = useState<CoachSession[] | null>(null);
-
-  useEffect(() => {
-    void apiGet<{ items: CoachSession[] }>("/coach/schedule")
-      .then((r) => setItems(r.items))
-      .catch((e) => toast.error(tServer(e.message)));
-  }, []);
+  const read = useRead<{ items: CoachSession[] }>("/coach/schedule");
+  // null = not answered yet (or failed); [] = the centre really has nothing for this coach.
+  const items = read.data?.items ?? null;
 
   const take = (id: string) => void navigate({ to: "/coach/attendance", search: { session: id } });
 
@@ -72,7 +74,12 @@ function Page() {
       title={t("Schedule")}
       subtitle={t("Every session you teach, by day. Tap one to take its register.")}
     >
-      {!items ? (
+      {read.error ? (
+        <LoadError
+          message={read.error.message}
+          onRetry={read.error.refused ? undefined : read.reload}
+        />
+      ) : !items ? (
         <div className="grid gap-3">
           <Skeleton className="h-44" />
           <Skeleton className="h-32" />

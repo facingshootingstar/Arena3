@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { toast } from "sonner";
 import { ScanLine } from "@/components/arena-icons";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, Field, Input, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, Field, Input, LoadError, Skeleton } from "@/components/ui";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { t } from "@/lib/i18n";
 
@@ -101,7 +101,7 @@ function Page() {
       <div className="grid max-w-md gap-4">
         <Card className="grid place-items-center gap-3 p-6">
           {error ? (
-            <p className="text-sm text-danger">{error}</p>
+            <LoadError message={error} onRetry={() => void refresh()} />
           ) : img ? (
             // The code must stay readable in sunlight: white tile, no theming.
             <div className="relative overflow-hidden rounded-[var(--radius-md)]">

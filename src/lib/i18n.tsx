@@ -63,9 +63,10 @@ export const locale = (): string => (current === "vi" ? "vi-VN" : "en-GB");
 function apply(next: Lang) {
   if (next === current) return;
   current = next;
+  // Screen readers pick the voice from this, so it must change even when storage is blocked.
+  if (typeof document !== "undefined") document.documentElement.lang = next;
   try {
     localStorage.setItem(STORAGE_KEY, next);
-    document.documentElement.lang = next;
   } catch {
     /* private mode: the choice just lasts until reload */
   }

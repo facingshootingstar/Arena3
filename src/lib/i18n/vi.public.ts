@@ -15,6 +15,7 @@ export const pub: Record<string, string> = {
   "Plans": "Gói tập",
   "Book a court": "Đặt sân",
   "Sign in": "Đăng nhập",
+  "Your session has ended. Please sign in again to continue.": "Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại để tiếp tục.",
   "Join": "Tham gia",
   "Close menu": "Đóng menu",
   "Open menu": "Mở menu",

@@ -1,5 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
+import { useRetryKey } from "@/lib/connection";
 import { LangProvider, t } from "@/lib/i18n";
 import { ClickSpark } from "@/components/fx";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
@@ -15,6 +16,12 @@ function SkipLink() {
       {t("Skip to main content")}
     </a>
   );
+}
+
+// "Reload page" on the connection banner bumps this key, which remounts whatever page is showing so
+// it asks for its data again. Without it a page whose first request failed keeps its grey blocks.
+function RetryOutlet() {
+  return <Outlet key={useRetryKey()} />;
 }
 
 export const Route = createRootRoute({
@@ -63,11 +70,15 @@ export const Route = createRootRoute({
           <LangProvider>
             <SkipLink />
             <ClickSpark />
-            <Outlet />
+            <RetryOutlet />
           </LangProvider>
+          {/* Below the 56px header on both sizes: sonner's phone default of 16px sat on top of it, and
+              six seconds rather than four, because a refused payment is a line to read twice. */}
           <Toaster
             position="top-center"
             offset={72}
+            mobileOffset={{ top: 68, left: 16, right: 16 }}
+            duration={6000}
             visibleToasts={3}
             toastOptions={{
               className: "font-sans",

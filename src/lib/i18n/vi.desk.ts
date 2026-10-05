@@ -182,6 +182,7 @@ export const desk: Record<string, string> = {
   "Out on loan": "Đang cho thuê",
   "Take it back": "Nhận lại",
   "Nothing is out right now.": "Hiện không có gì đang cho thuê.",
+  "No gear is listed yet": "Chưa có dụng cụ nào trong danh sách",
 
   // ── desk.index ──
   "Find a member, sell a plan, take payment — three moves.": "Tìm hội viên, bán gói tập, thu tiền — ba bước.",
@@ -235,6 +236,7 @@ export const desk: Record<string, string> = {
   "through {date}": "đến {date}",
   "Payment recorded": "Đã ghi nhận thanh toán",
   "Take payment": "Thu tiền",
+  "Take payment · {amount}": "Thu tiền · {amount}",
   "Frozen for 7 days — the end date moves out to match": "Đã bảo lưu 7 ngày — ngày hết hạn được lùi tương ứng",
   "Could not freeze the plan": "Không bảo lưu được gói tập",
   "Freeze for 7 days": "Bảo lưu 7 ngày",
@@ -295,6 +297,9 @@ export const desk: Record<string, string> = {
   "No shift open — open one to take payment": "Chưa mở ca — hãy mở ca để thu tiền",
   "Back to reports": "Quay lại báo cáo",
   "Back to the desk": "Quay lại quầy lễ tân",
+  "This member could not be opened": "Không mở được hồ sơ hội viên này",
+  "The link may be old, or the member may have been removed. Search for them again from the desk.":
+    "Đường dẫn có thể đã cũ, hoặc hội viên đã bị xoá. Hãy tìm lại hội viên từ quầy lễ tân.",
   "Transfers to check": "Chuyển khoản cần đối soát",
   "A member said they would transfer and the court is being held open for them. Find the money on the statement before you confirm — nothing has been posted yet.": "Hội viên báo sẽ chuyển khoản và sân đang được giữ cho họ. Hãy tìm khoản tiền trong sao kê trước khi xác nhận — chưa có gì được ghi nhận.",
   "left": "còn lại",

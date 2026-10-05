@@ -218,6 +218,20 @@ export function sourceLabel(s: string) {
   return SOURCE_LABEL[s] ?? s;
 }
 
+/** What a payment or refund was raised against, in words the desk uses. */
+export function refTypeLabel(r: string) {
+  const label = (
+    {
+      subscription: tk("Plan"),
+      booking: tk("Booking"),
+      day_pass: tk("Day pass"),
+      walkin: tk("Walk-in"),
+      equipment: tk("Equipment hire"),
+    } as Record<string, string>
+  )[r];
+  return label ? t(label) : r;
+}
+
 const MONTH_SHORT = [
   tk("Jan"),
   tk("Feb"),

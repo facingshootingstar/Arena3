@@ -4,13 +4,14 @@ import { toast } from "sonner";
 import { Cover, MediaCaption, PhotoBanner, media, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Seg, ShowMore, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, LoadError, Seg, ShowMore, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
-import { apiDelete, apiGet, apiPost } from "@/lib/arena3/client";
+import { apiDelete, apiPost } from "@/lib/arena3/client";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
+import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/app/classes")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
@@ -36,22 +37,18 @@ type Enr = { id: string; class_id: string; status: string; waitlist_pos: number 
 type Offer = { id: string; class_id: string; expires_at: string; sport: string; level: string };
 
 function Page() {
-  const [items, setItems] = useState<Cl[] | null>(null);
-  const [mine, setMine] = useState<Enr[]>([]);
-  const [offers, setOffers] = useState<Offer[]>([]);
+  const classesRead = useRead<{ items: Cl[] }>("/classes");
+  const meRead = useRead<{ enrollments?: Enr[]; offers?: Offer[] }>("/me");
+  // The list is only shown once the member's own enrolments are known too: without them every class would read "Enrol".
+  const items = classesRead.data && meRead.data ? classesRead.data.items : null;
+  const mine = meRead.data?.enrollments ?? [];
+  const offers = meRead.data?.offers ?? [];
+  const failure = classesRead.error ?? meRead.error;
   const [sport, setSport] = useState(Route.useSearch().sport ?? "");
-  async function load() {
-    const [cls, me] = await Promise.all([
-      apiGet<{ items: Cl[] }>("/classes"),
-      apiGet<{ enrollments: Enr[]; offers: Offer[] }>("/me"),
-    ]);
-    setItems(cls.items);
-    setMine(me.enrollments ?? []);
-    setOffers(me.offers ?? []);
-  }
-  useEffect(() => {
-    void load().catch((e) => toast.error(e.message));
-  }, []);
+  const load = () => {
+    classesRead.reload();
+    meRead.reload();
+  };
 
   const [limit, setLimit] = useState(6);
   const matching = (items ?? []).filter((c) => !sport || c.sport === sport);
@@ -89,7 +86,7 @@ function Page() {
                   try {
                     await apiPost(`/waitlist/${o.id}/accept`);
                     toast.success(t("Seat claimed"));
-                    await load();
+                    load();
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : t("This offer has expired"));
                   }
@@ -113,7 +110,9 @@ function Page() {
           ]}
         />
       </div>
-      {!items ? (
+      {failure ? (
+        <LoadError message={failure.message} onRetry={failure.refused ? undefined : load} />
+      ) : !items ? (
         <div className="grid gap-3 md:grid-cols-2">
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
@@ -173,7 +172,7 @@ function Page() {
                         try {
                           await apiDelete(`/enrollments/${enr.id}`);
                           toast.success(t("Enrolment cancelled"));
-                          await load();
+                          load();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : t("Could not cancel"));
                         }
@@ -189,7 +188,7 @@ function Page() {
                         try {
                           await apiDelete(`/enrollments/${enr.id}`);
                           toast.success(t("Left the waitlist"));
-                          await load();
+                          load();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : t("Something went wrong"));
                         }
@@ -205,7 +204,7 @@ function Page() {
                         try {
                           const r = await apiPost<{ waitlisted?: boolean }>(`/classes/${c.id}/enroll`, {});
                           toast.success(r.waitlisted ? t("Added to the waitlist") : t("You are enrolled"));
-                          await load();
+                          load();
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : t("Could not enrol"));
                         }

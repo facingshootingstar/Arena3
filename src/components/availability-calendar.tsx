@@ -102,7 +102,7 @@ export function MonthCalendar({
           aria-label={t("Previous month")}
           disabled={!canPrev}
           onClick={() => setMonth(shiftMonth(month, -1))}
-          className="grid size-9 place-items-center rounded-full hover:bg-wood disabled:opacity-30"
+          className="grid size-11 place-items-center rounded-full hover:bg-wood disabled:opacity-30 sm:size-9"
         >
           <ChevronLeft className="size-4" />
         </button>
@@ -112,7 +112,7 @@ export function MonthCalendar({
           aria-label={t("Next month")}
           disabled={!canNext}
           onClick={() => setMonth(shiftMonth(month, 1))}
-          className="grid size-9 place-items-center rounded-full hover:bg-wood disabled:opacity-30"
+          className="grid size-11 place-items-center rounded-full hover:bg-wood disabled:opacity-30 sm:size-9"
         >
           <ChevronRight className="size-4" />
         </button>

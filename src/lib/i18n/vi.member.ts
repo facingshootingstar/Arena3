@@ -166,6 +166,7 @@ export const member: Record<string, string> = {
   "Ask about the timetable, plans, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Type «ticket: …» to send a note to the desk.": "Hỏi về lịch học, gói tập, HLV, cách hủy hoặc danh sách chờ. Mọi câu trả lời dựa trên dữ liệu của trung tâm. Gõ «ticket: …» để gửi ghi chú cho lễ tân.",
   "in-house": "nội bộ",
   "The assistant is switched off": "Trợ lý đang tắt",
+  "The assistant could not answer.": "Trợ lý chưa trả lời được.",
   "Gemini answers, grounded in Arena3's own timetable, plans and coaches.": "Trợ lý AI trả lời dựa trên lịch học, gói tập và HLV của Arena3.",
   "Arena3 assistant": "Trợ lý Arena3",
   "Grounded in this centre's timetable and prices": "Dựa trên lịch học và bảng giá của trung tâm",

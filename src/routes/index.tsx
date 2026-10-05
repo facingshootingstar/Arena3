@@ -14,8 +14,9 @@ import {
   X,
 } from "lucide-react";
 import { ArenaMark } from "@/components/mark";
+import { CalmToggle } from "@/components/calm-toggle";
 import { Cover, HeroVideo, MediaCaption, media, sportPhoto } from "@/components/media";
-import { Button, Card, Modal, Seg, Skeleton } from "@/components/ui";
+import { Button, ButtonAnchor, ButtonLink, Card, Modal, Seg, Skeleton } from "@/components/ui";
 import {
   CourtGrid,
   DateStrip,
@@ -197,7 +198,7 @@ function SiteHeader({ reduced }: { reduced: boolean }) {
       transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <Link to="/" className="group flex items-center gap-2.5" onClick={() => setOpen(false)}>
+        <Link to="/" className="group flex min-h-11 items-center gap-2.5" onClick={() => setOpen(false)}>
           <motion.span
             whileHover={reduced ? undefined : { rotate: -8, scale: 1.06 }}
             transition={{ type: "spring", stiffness: 380, damping: 18 }}
@@ -225,24 +226,23 @@ function SiteHeader({ reduced }: { reduced: boolean }) {
         {/* Two zones, not one row of five buttons: what the centre sells is on
             the left of the rule, what belongs to a person is on the right. */}
         <div className="hidden items-center gap-2 md:flex">
-          <a href="#schedule">
-            <Button>{t("Book a court")}</Button>
-          </a>
+          <ButtonAnchor href="#schedule">{t("Book a court")}</ButtonAnchor>
           <span aria-hidden className="mx-1 h-6 w-px bg-line-strong/70" />
-          <Link to="/login">
-            <Button variant="ghost">{t("Sign in")}</Button>
-          </Link>
-          <Link to="/register">
-            <Button variant="outline">{t("Join")}</Button>
-          </Link>
+          <ButtonLink to="/login" variant="ghost">
+            {t("Sign in")}
+          </ButtonLink>
+          <ButtonLink to="/register" variant="outline">
+            {t("Join")}
+          </ButtonLink>
           <LangSwitch />
+          <CalmToggle />
         </div>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-label={open ? t("Close menu") : t("Open menu")}
-          className="grid size-10 place-items-center rounded-[var(--radius-md)] border border-line bg-surface/70 text-fg transition-colors duration-200 hover:border-accent hover:bg-wood xl:hidden"
+          className="grid size-11 place-items-center rounded-[var(--radius-md)] border border-line bg-surface/70 text-fg transition-colors duration-200 hover:border-accent hover:bg-wood xl:hidden"
         >
           {open ? <X className="size-5" strokeWidth={1.75} /> : <Menu className="size-5" strokeWidth={1.75} />}
         </button>
@@ -261,9 +261,9 @@ function SiteHeader({ reduced }: { reduced: boolean }) {
             <nav className="mx-auto grid max-w-6xl gap-1 px-4 py-3">
               {/* The first nav entry is the schedule, which is what this button
                   does — so the sheet shows the action and then the rest. */}
-              <a href="#schedule" onClick={() => setOpen(false)} className="mb-1 block">
-                <Button className="w-full">{t("Book a court")}</Button>
-              </a>
+              <ButtonAnchor href="#schedule" onClick={() => setOpen(false)} className="mb-1 w-full">
+                {t("Book a court")}
+              </ButtonAnchor>
               {NAV.slice(1).map(([href, label]) => (
                 <a
                   key={href}
@@ -275,17 +275,16 @@ function SiteHeader({ reduced }: { reduced: boolean }) {
                 </a>
               ))}
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line/70 pt-3">
-                <Link to="/login" onClick={() => setOpen(false)}>
-                  <Button variant="outline" className="w-full">
-                    {t("Sign in")}
-                  </Button>
-                </Link>
-                <Link to="/register" onClick={() => setOpen(false)}>
-                  <Button className="w-full">{t("Join")}</Button>
-                </Link>
+                <ButtonLink to="/login" variant="outline" onClick={() => setOpen(false)} className="w-full">
+                  {t("Sign in")}
+                </ButtonLink>
+                <ButtonLink to="/register" onClick={() => setOpen(false)} className="w-full">
+                  {t("Join")}
+                </ButtonLink>
               </div>
-              <div className="flex justify-center pt-1 md:hidden">
+              <div className="flex items-center justify-center gap-2 pt-1 md:hidden">
                 <LangSwitch />
+                <CalmToggle />
               </div>
             </nav>
           </motion.div>
@@ -548,26 +547,24 @@ function Landing() {
                   stranger to buy a subscription before they have seen the
                   place. The order is the funnel: see a free hour, take it,
                   come back — membership is what you buy on the third visit. */}
-                              <a href="#schedule">
-                  <Button
-                    size="lg"
-                    className="group bg-on-media text-fg shadow-[var(--shadow-soft)] hover:bg-surface hover:shadow-[var(--shadow-soft)]"
-                  >
-                    {t("Book a court")}
-                    <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
-                  </Button>
-                </a>
-                            <a href="#courts">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="group border-on-media/40 bg-on-media/10 text-on-media shadow-none backdrop-blur-sm hover:border-on-media/70 hover:bg-on-media/20"
-                >
-                  {t("See courts & pricing")}
-                  {/* Diagonal arrow, unseen.co's tell for a "go and look" link. */}
-                  <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </Button>
-              </a>
+              <ButtonAnchor
+                href="#schedule"
+                size="lg"
+                className="group bg-on-media text-fg shadow-[var(--shadow-soft)] hover:bg-surface hover:shadow-[var(--shadow-soft)]"
+              >
+                {t("Book a court")}
+                <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </ButtonAnchor>
+              <ButtonAnchor
+                href="#courts"
+                variant="outline"
+                size="lg"
+                className="group border-on-media/40 bg-on-media/10 text-on-media shadow-none backdrop-blur-sm hover:border-on-media/70 hover:bg-on-media/20"
+              >
+                {t("See courts & pricing")}
+                {/* Diagonal arrow, unseen.co's tell for a "go and look" link. */}
+                <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </ButtonAnchor>
             </motion.div>
 
             {/* The live number is the argument for tapping the button above —
@@ -592,7 +589,7 @@ function Landing() {
               <span className="mt-1 block">
                 {/* Membership is the third-visit decision, so it stays a link
                     under the fold of the offer rather than a third button. */}
-                <a href="#plans" className="link-underline text-on-media">
+                <a href="#plans" className="link-underline hit text-on-media">
                   {t("Or see membership plans")}
                 </a>
               </span>
@@ -842,12 +839,10 @@ function Landing() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Link to="/login">
-                    <Button>{t("Sign in & hold it")}</Button>
-                  </Link>
-                  <Link to="/register">
-                    <Button variant="outline">{t("Create an account")}</Button>
-                  </Link>
+                  <ButtonLink to="/login">{t("Sign in & hold it")}</ButtonLink>
+                  <ButtonLink to="/register" variant="outline">
+                    {t("Create an account")}
+                  </ButtonLink>
                   <Button variant="ghost" onClick={() => setPicked(null)}>
                     {t("Pick another")}
                   </Button>
@@ -1038,9 +1033,9 @@ function Landing() {
           title={openCoach?.name ?? ""}
           footer={
             <>
-              <a href="#classes" onClick={() => setOpenCoach(null)}>
-                <Button>{t("See open classes")}</Button>
-              </a>
+              <ButtonAnchor href="#classes" onClick={() => setOpenCoach(null)}>
+                {t("See open classes")}
+              </ButtonAnchor>
               <Button variant="ghost" onClick={() => setOpenCoach(null)}>
                 {t("Close")}
               </Button>
@@ -1252,17 +1247,21 @@ function Landing() {
                         · {t("{n} court hours", { n: p.court_hours })} ·{" "}
                         {t("{n}% off", { n: p.court_discount_pct })}
                       </p>
-                      <Link to="/register" className="mt-5 block">
+                      <div className="mt-5">
                         {/* Only the recommended plan gets the travelling border —
                             on all three it would stop meaning anything. */}
                         {featured ? (
                           <StarBorder className="w-full" innerClassName="bg-surface">
-                            <Button className="w-full">{t("Join to buy")}</Button>
+                            <ButtonLink to="/register" className="w-full" aria-label={`${t("Join to buy")} — ${tData(p.name)}`}>
+                              {t("Join to buy")}
+                            </ButtonLink>
                           </StarBorder>
                         ) : (
-                          <Button className="w-full">{t("Join to buy")}</Button>
+                          <ButtonLink to="/register" className="w-full" aria-label={`${t("Join to buy")} — ${tData(p.name)}`}>
+                            {t("Join to buy")}
+                          </ButtonLink>
                         )}
-                      </Link>
+                      </div>
                     </div>
                   </Card>
                 </SpotlightCard>
@@ -1312,7 +1311,7 @@ function Landing() {
                       {sportLabel(c.sport)}
                     </p>
                     <p className="font-display text-xl">{levelLabel(c.level)}</p>
-                    <p className="truncate text-sm text-muted">
+                    <p className="text-sm text-muted">
                       {c.coach_name} · {c.court_code} · {c.duration_min}′
                     </p>
                     <p className="text-sm">{rruleLabel(c.rrule)}</p>
@@ -1340,11 +1339,14 @@ function Landing() {
                             ? t("1 seat left")
                             : t("{n} seats left", { n: left })}
                       </span>
-                      <Link to="/register">
-                        <Button size="sm" variant={full ? "outline" : "primary"}>
-                          {full ? t("Join the waitlist") : t("Enrol")}
-                        </Button>
-                      </Link>
+                      <ButtonLink
+                        to="/register"
+                        size="sm"
+                        variant={full ? "outline" : "primary"}
+                        aria-label={`${full ? t("Join the waitlist") : t("Enrol")} — ${sportLabel(c.sport)} ${levelLabel(c.level)}`}
+                      >
+                        {full ? t("Join the waitlist") : t("Enrol")}
+                      </ButtonLink>
                     </div>
                   </div>
                 </Card>
@@ -1377,21 +1379,18 @@ function Landing() {
                   {t("Reception is staffed the whole time we are open. Walk-ins never need an account.")}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
-                                      <Link to="/register">
-                      <Button size="lg" className="group bg-on-media text-fg hover:bg-surface">
-                        {t("Create an account")}
-                        <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                      </Button>
-                    </Link>
-                                    <Link to="/login">
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="border-on-media/40 bg-transparent text-on-media hover:bg-on-media/10"
-                    >
-                      {t("Sign in")}
-                    </Button>
-                  </Link>
+                  <ButtonLink to="/register" size="lg" className="group bg-on-media text-fg hover:bg-surface">
+                    {t("Create an account")}
+                    <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </ButtonLink>
+                  <ButtonLink
+                    to="/login"
+                    size="lg"
+                    variant="outline"
+                    className="border-on-media/40 bg-transparent text-on-media hover:bg-on-media/10"
+                  >
+                    {t("Sign in")}
+                  </ButtonLink>
                 </div>
               </Reveal>
             </div>
@@ -1432,7 +1431,7 @@ function Landing() {
 
           <div>
             <p className="kicker text-2xs text-muted">{t("Explore")}</p>
-            <ul className="mt-4 grid gap-2.5 text-sm">
+            <ul className="mt-3 grid gap-0 text-sm sm:mt-4 sm:gap-1">
               {[
                 ["#schedule", t("Today's schedule")],
                 ["#courts", t("Courts & pricing")],
@@ -1443,7 +1442,7 @@ function Landing() {
                 ["#plans", t("Membership plans")],
               ].map(([href, label]) => (
                 <li key={href}>
-                  <a href={href} className="link-underline text-muted hover:text-fg">
+                  <a href={href} className="link-underline hit text-muted hover:text-fg">
                     {label}
                   </a>
                 </li>
@@ -1549,7 +1548,7 @@ function Testimonials() {
             type="button"
             aria-label={t("Previous quote")}
             onClick={() => step(-1)}
-            className="grid size-10 place-items-center rounded-full border border-line bg-surface text-fg transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-wood active:scale-95"
+            className="grid size-11 place-items-center rounded-full border border-line bg-surface text-fg transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-wood active:scale-95"
           >
             <ChevronLeft className="size-4" strokeWidth={1.75} />
           </button>
@@ -1557,7 +1556,7 @@ function Testimonials() {
             type="button"
             aria-label={t("Next quote")}
             onClick={() => step(1)}
-            className="grid size-10 place-items-center rounded-full border border-line bg-surface text-fg transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-wood active:scale-95"
+            className="grid size-11 place-items-center rounded-full border border-line bg-surface text-fg transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-wood active:scale-95"
           >
             <ChevronRight className="size-4" strokeWidth={1.75} />
           </button>
@@ -1570,7 +1569,7 @@ function Testimonials() {
               aria-label={t("Show quote {k} of {n}", { k: k + 1, n })}
               aria-current={k === i}
               onClick={() => setI(k)}
-              className="group grid h-6 place-items-center px-1"
+              className="group grid h-11 min-w-11 place-items-center px-1 sm:h-6 sm:min-w-6"
             >
               <span
                 className={`block h-1.5 rounded-full transition-all duration-300 ${

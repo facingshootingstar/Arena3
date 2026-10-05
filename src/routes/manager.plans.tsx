@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Cover, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, Check, EmptyState, Field, Input, LoadError, Modal, MoneyInput, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 import { t, tServer, tData } from "@/lib/i18n";
+import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/manager/plans")({
   component: Page,
@@ -45,20 +46,14 @@ type Detail = {
 };
 
 function Page() {
-  const [items, setItems] = useState<Plan[] | null>(null);
+  const read = useRead<{ items: Plan[] }>("/plans");
+  const items = read.data?.items ?? null;
   const [detail, setDetail] = useState<Detail | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [fe, setFe] = useState<{ field: string; message: string } | null>(null);
   const bad = (f: string) => (fe?.field === f ? fe.message : undefined);
-
-  async function load() {
-    setItems((await apiGet<{ items: Plan[] }>("/plans")).items);
-  }
-  useEffect(() => {
-    void load().catch((e) => toast.error(tServer(e.message)));
-  }, []);
 
   async function openDetail(id: string) {
     try {
@@ -76,7 +71,7 @@ function Page() {
           ? t("{name} is on sale again", { name: tData(p.name) })
           : t("{name} is no longer sold. Members who hold it keep it.", { name: tData(p.name) }),
       );
-      await load();
+      read.reload();
       setDetail((d) => (d && d.plan.id === p.id ? { ...d, plan: { ...d.plan, is_on_sale: on } } : d));
     } catch (e) {
       toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
@@ -103,7 +98,7 @@ function Page() {
       toast.success(t("Plan created"));
       setOpen(false);
       setForm(emptyForm);
-      await load();
+      read.reload();
     } catch (e) {
       if (e instanceof ApiClientError && e.body.field) setFe({ field: e.body.field, message: tServer(e.message) });
       else toast.error(e instanceof Error ? tServer(e.message) : t("Could not create the plan"));
@@ -121,7 +116,9 @@ function Page() {
       <div className="mb-4 flex justify-end">
         <Button onClick={() => setOpen(true)}>{t("New plan")}</Button>
       </div>
-      {!items ? (
+      {read.error ? (
+        <LoadError message={read.error.message} onRetry={read.error.refused ? undefined : read.reload} />
+      ) : !items ? (
         <Skeleton className="h-48" />
       ) : !items.length ? (
         <EmptyState title={t("No plans yet")} hint={t("Create the first plan so members can buy court hours and class sessions in the app.")}>
@@ -202,11 +199,7 @@ function Page() {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("Price (đ)")} hint={bad("price_vnd")}>
-              <Input
-                inputMode="numeric"
-                value={form.price_vnd}
-                onChange={(e) => setForm({ ...form, price_vnd: e.target.value })}
-              />
+              <MoneyInput value={form.price_vnd} onChange={(v) => setForm({ ...form, price_vnd: v })} />
             </Field>
             <Field label={t("Duration (days)")} hint={bad("duration_days")}>
               <Input
@@ -238,22 +231,16 @@ function Page() {
               />
             </Field>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.is_on_sale}
-              onChange={(e) => setForm({ ...form, is_on_sale: e.target.checked })}
-            />
-            {t("Put it on sale now (members see it in the app)")}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.carry_over_hours}
-              onChange={(e) => setForm({ ...form, carry_over_hours: e.target.checked })}
-            />
-            {t("Carry unused court hours over on renewal")}
-          </label>
+          <Check
+            checked={form.is_on_sale}
+            onChange={(e) => setForm({ ...form, is_on_sale: e.target.checked })}
+            label={t("Put it on sale now (members see it in the app)")}
+          />
+          <Check
+            checked={form.carry_over_hours}
+            onChange={(e) => setForm({ ...form, carry_over_hours: e.target.checked })}
+            label={t("Carry unused court hours over on renewal")}
+          />
         </div>
       </Modal>
 

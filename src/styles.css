@@ -266,6 +266,15 @@
   box-shadow: none;
 }
 
+/* A box the page has said is wrong gets a red edge to match the red line that says why. The line of
+   text is the real message; the edge only points at the box. Unlayered, so it beats the utility
+   border colour the field is built with. */
+input[aria-invalid="true"],
+textarea[aria-invalid="true"],
+select[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
 /* First focusable element on every page: hidden until a keyboard user reaches it. */
 .skip-link {
   position: fixed;
@@ -294,11 +303,22 @@
   }
 }
 
+/* Calm: the device asks for reduced motion, or the person pressed "Pause animations" (see
+   src/lib/calm.ts). The pseudo-elements are named on purpose: the orbiting light on a StarBorder
+   is a ::before, and a bare `*` does not reach it. */
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation: none !important;
     transition: none !important;
   }
+}
+:root[data-calm="1"] *,
+:root[data-calm="1"] *::before,
+:root[data-calm="1"] *::after {
+  animation: none !important;
+  transition: none !important;
 }
 
 .court-lines {
@@ -422,6 +442,32 @@
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0.005em;
+}
+
+/* A link that looks small but is easy to hit: the hit area grows by padding that an equal negative
+   margin takes back, so nothing moves (24px on a mouse layout, 44px on a phone). */
+.tap {
+  display: inline-block;
+  padding-block: 0.125rem;
+  margin-block: -0.125rem;
+}
+@media (max-width: 639.98px) {
+  .tap {
+    padding-block: 0.75rem;
+    margin-block: -0.75rem;
+  }
+}
+
+/* A stand-alone text link or text button: 44px tall on a phone, 24px with a mouse. */
+.hit {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+@media (max-width: 639.98px) {
+  .hit {
+    min-height: 2.75rem;
+  }
 }
 
 .text-gradient {
@@ -591,6 +637,10 @@
     transform: none;
     opacity: 1;
   }
+}
+:root[data-calm="1"] .split-unit {
+  transform: none;
+  opacity: 1;
 }
 
 /* Expanding halo behind a live/now indicator. */
