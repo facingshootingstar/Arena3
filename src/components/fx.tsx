@@ -591,11 +591,13 @@ export function ScrollVelocity({
   const factor = useTransform(smooth, [0, 1000], [0, 4], { clamp: false });
   const x = useTransform(baseX, (v) => `${wrap(-50, 0, v)}%`);
   const direction = useRef(1);
+  const paused = useRef(false);
 
   useAnimationFrame((_, delta) => {
-    if (reduced) return;
+    if (reduced || paused.current) return;
     let moveBy = direction.current * baseVelocity * (delta / 1000);
-    const f = factor.get();
+    // A flick used to multiply this without a ceiling. Keep the boost to at most double.
+    const f = Math.max(-1, Math.min(1, factor.get()));
     if (f < 0) direction.current = -1;
     else if (f > 0) direction.current = 1;
     moveBy += direction.current * moveBy * Math.abs(f);
@@ -613,7 +615,15 @@ export function ScrollVelocity({
   }
 
   return (
-    <div className={cn("marquee", className)}>
+    <div
+      className={cn("marquee", className)}
+      onMouseEnter={() => {
+        paused.current = true;
+      }}
+      onMouseLeave={() => {
+        paused.current = false;
+      }}
+    >
       {/* Duplicated `copies` times and wrapped over half the track, so the seam
           is always off-screen no matter how wide the content is. */}
       <motion.div className="flex w-max will-change-transform" style={{ x }}>

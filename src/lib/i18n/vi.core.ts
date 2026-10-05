@@ -235,6 +235,7 @@ export const core: Record<string, string> = {
   "Weekday": "Ngày thường",
   "Weekend": "Cuối tuần",
   "Holiday": "Ngày lễ",
+  "Every day": "Mỗi ngày",
   "Mon": "T2",
   "Tue": "T3",
   "Wed": "T4",

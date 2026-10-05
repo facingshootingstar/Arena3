@@ -223,6 +223,7 @@ export const manager: Record<string, string> = {
   "Draft created": "Đã tạo bản nháp",
   "Published {n} sessions": "Đã đăng {n} buổi học",
   "Create & publish": "Tạo và đăng",
+  "Publishing…": "Đang đăng…",
   "Publish": "Đăng",
   "No classes yet": "Chưa có lớp nào",
   "Pick a sport, a coach and the days above, then press Create & publish. Members can book as soon as it is published.": "Chọn môn, HLV và các ngày ở trên, rồi bấm Tạo và đăng. Hội viên có thể đăng ký ngay khi lớp được đăng.",

@@ -885,7 +885,7 @@ function Landing() {
         >
           {/* Speed and direction track the scroll wheel: flicking down drives
               the strip, scrolling back up reverses it. */}
-          <ScrollVelocity baseVelocity={1.8}>
+          <ScrollVelocity baseVelocity={0.55} copies={2}>
             {classes.map((c) => (
               <span
                 key={c.id}
@@ -895,6 +895,7 @@ function Landing() {
                 <span className="kicker text-2xs text-muted">{levelLabel(c.level)}</span>
                 <span className="tabular-nums text-accent-2">{rruleLabel(c.rrule)}</span>
                 <span className="text-subtle">{c.court_code}</span>
+                <span className="text-muted">{c.coach_name}</span>
                 <span aria-hidden className="size-1.5 rounded-full bg-accent/45" />
               </span>
             ))}
@@ -1293,7 +1294,7 @@ function Landing() {
         </Reveal>
 
         <Stagger className="mt-8 grid gap-4 md:grid-cols-2" gap={0.08}>
-          {classes.slice(0, 4).map((c) => {
+          {classes.map((c) => {
             const pct = c.capacity ? Math.min(100, (c.enrolled_count / c.capacity) * 100) : 0;
             const nearlyFull = pct >= 80;
             const full = c.enrolled_count >= c.capacity;

@@ -53,6 +53,7 @@ function Page() {
   const formError = courtsRead.error ?? coachesRead.error;
   // The class whose sessions and roster are open (B-08).
   const [detail, setDetail] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [days, setDays] = useState<string[]>(["TU", "TH"]);
   const [hour, setHour] = useState(19);
   const [form, setForm] = useState({
@@ -205,8 +206,12 @@ function Page() {
           ) : null}
           <Button
             className="w-full"
-            disabled={!!missing || !form.coach_id || !form.court_id}
+            disabled={creating || !!missing || !form.coach_id || !form.court_id}
             onClick={async () => {
+              // One click used to land many identical classes: the button stayed
+              // live for the whole create-and-publish round trip.
+              if (creating) return;
+              setCreating(true);
               try {
                 const row = await apiPost<{ id: string }>("/classes", {
                   ...form,
@@ -218,10 +223,12 @@ function Page() {
                 load();
               } catch (e) {
                 toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
+              } finally {
+                setCreating(false);
               }
             }}
           >
-            {t("Create & publish")}
+            {creating ? t("Publishing…") : t("Create & publish")}
           </Button>
         </div>
       </Card>
