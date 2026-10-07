@@ -154,9 +154,9 @@ function Page() {
       </Reveal>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Stat label={t("Open tickets")} value={data ? String(data.open) : "—"} />
-        <Stat label={t("Urgent")} value={data ? String(data.urgent) : "—"} />
-        <Stat label={t("Repair cost this month")} value={data ? money(data.cost_month_vnd) : "—"} />
+        <Stat label={t("Open tickets")} value={data ? String(data.open) : "-"} />
+        <Stat label={t("Urgent")} value={data ? String(data.urgent) : "-"} />
+        <Stat label={t("Repair cost this month")} value={data ? money(data.cost_month_vnd) : "-"} />
       </div>
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -185,7 +185,7 @@ function Page() {
                       {w.title} <span className="font-mono text-xs text-muted">{w.code}</span>
                     </p>
                     <p className="text-xs text-muted">
-                      {w.court_code ?? t("General")} · {w.reporter ?? "—"} · {when(w.created_at)}
+                      {w.court_code ?? t("General")} · {w.reporter ?? "-"} · {when(w.created_at)}
                       {w.assignee ? ` · ${w.assignee}` : ""}
                     </p>
                     {w.description ? <p className="mt-1 text-sm">{w.description}</p> : null}

@@ -98,7 +98,7 @@ function Page() {
   }
 
   return (
-    <Shell role="manager" title={t("Classes")} subtitle={t("Pick the days and the hour — clashes on court or coach are blocked for you.")}>
+    <Shell role="manager" title={t("Classes")} subtitle={t("Pick the days and the hour, clashes on court or coach are blocked for you.")}>
       {formError ? (
         // Without the courts and coaches the form would offer nothing to pick, so it says why instead.
         <div className="mb-6">

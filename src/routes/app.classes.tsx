@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cover, MediaCaption, PhotoBanner, media, sportPhoto } from "@/components/media";
+import { SportIcon } from "@/components/arena-icons";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, LoadError, Seg, ShowMore, Skeleton } from "@/components/ui";
+import { Button, Card, EmptyState, LoadError, Seg, ShowMore, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GlareHover, SpotlightCard } from "@/components/fx";
+import { SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { apiDelete, apiPost } from "@/lib/arena3/client";
 import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
@@ -62,14 +62,13 @@ function Page() {
       title={t("Classes")}
       subtitle={t("Enrol by sport. When a class is full you join a first-come waitlist.")}
     >
-      <PhotoBanner src={media.classGroup} focus="50% 40%" className="mb-4" />
       {offers.length ? (
         <Card className="mb-4 border border-hold/30 bg-hold/5">
           <p className="text-sm font-medium">{t("A waitlist seat opened up")}</p>
           {offers.map((o) => (
             <div key={o.id} className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm">
-                {t("{sport} · {level} — claim before {time}", {
+                {t("{sport} · {level}, claim before {time}", {
                   sport: sportLabel(o.sport),
                   level: levelLabel(o.level),
                   time: new Date(o.expires_at).toLocaleTimeString(locale(), {
@@ -127,19 +126,21 @@ function Page() {
               <StaggerItem key={c.id} className="h-full">
               <Lift className="h-full">
               <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.11}>
-              <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
-                <GlareHover>
-                  <Cover src={sportPhoto(c.sport)} alt="" scrim="none" className="h-24 sm:h-28">
-                    <MediaCaption className="flex items-end justify-between">
-                      <Badge tone="accent" className="bg-surface text-fg">
-                        {sportLabel(c.sport)}
-                      </Badge>
-                      <p className="tabular-nums text-sm">{c.enrolled_count}/{c.capacity}</p>
-                    </MediaCaption>
-                  </Cover>
-                </GlareHover>
+              <Card className="flex h-full flex-col overflow-hidden p-0">
+                {/* One photo repeated on every card said nothing; the sport icon and the seat count do. */}
                 <div className="flex flex-1 flex-col p-5">
-                  <h2 className="font-display text-2xl">{levelLabel(c.level)}</h2>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 text-sm font-medium text-muted">
+                      <span aria-hidden className="grid size-8 place-items-center rounded-[var(--radius-sm)] bg-accent/10 text-accent-2">
+                        <SportIcon sport={c.sport} className="size-4" />
+                      </span>
+                      {sportLabel(c.sport)}
+                    </span>
+                    <span className="text-sm tabular-nums text-muted">
+                      {c.enrolled_count}/{c.capacity}
+                    </span>
+                  </div>
+                  <h2 className="mt-3 text-xl font-semibold">{levelLabel(c.level)}</h2>
                   <p className="mt-1 text-sm text-muted">
                     {c.coach_name} · {c.court_code} · {c.duration_min}′
                   </p>
@@ -194,7 +195,7 @@ function Page() {
                         }
                       }}
                     >
-                      {t("Waitlisted #{pos} · Leave", { pos: enr.waitlist_pos ?? "—" })}
+                      {t("Waitlisted #{pos} · Leave", { pos: enr.waitlist_pos ?? "-" })}
                     </Button>
                   ) : (
                     <Button

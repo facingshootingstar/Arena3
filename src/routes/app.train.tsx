@@ -3,7 +3,6 @@ import { SectionTitle } from "@/components/section";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { sessionDay } from "@/components/class-detail";
-import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm } from "@/components/shell";
 import { Badge, Card, Check, EmptyState, LoadError, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
@@ -103,7 +102,7 @@ function Page() {
     try {
       const r = await apiPut<{ completed: boolean }>(`/me/homework/${hw.id}`, { done_items: done });
       if (r.completed) {
-        toast.success(t("Homework done — nice work"));
+        toast.success(t("Homework done, nice work"));
         setTimeout(() => setD((x) => x && { ...x, homework: x.homework.filter((h) => h.id !== hw.id) }), 700);
       }
     } catch (e) {
@@ -116,7 +115,7 @@ function Page() {
     <Shell
       role="member"
       title={t("My progress")}
-      subtitle={t("Your plans, homework and what your coach has noticed. AI only suggests — a coach approves what reaches you.")}
+      subtitle={t("Your plans, homework and what your coach has noticed. AI only suggests, a coach approves what reaches you.")}
     >
       {error ? (
         <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
@@ -124,7 +123,6 @@ function Page() {
         <Skeleton className="h-40" />
       ) : (
         <div className="grid gap-10">
-          <PhotoBanner src={media.trainProgress} focus="50% 38%" />
           <Card className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="kicker text-2xs text-muted">{t("Your goal")}</p>

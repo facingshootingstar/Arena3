@@ -15,6 +15,7 @@ export function Cover({
   scrim = "auto",
   style,
   children,
+  eager = false,
 }: {
   src: string;
   alt: string;
@@ -23,6 +24,8 @@ export function Cover({
   scrim?: "auto" | "media" | "hero" | "none";
   style?: CSSProperties;
   children?: ReactNode;
+  /** The one picture above the fold: fetched first instead of when it scrolls near. */
+  eager?: boolean;
 }) {
   const showScrim = scrim === "media" || scrim === "hero" || (scrim === "auto" && children != null);
   return (
@@ -30,6 +33,9 @@ export function Cover({
       <img
         src={src}
         alt={alt}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        fetchPriority={eager ? "high" : undefined}
         className={cn("absolute inset-0 z-0 size-full object-cover", imgClassName)}
       />
       {showScrim ? (

@@ -116,7 +116,7 @@ function Page() {
     <Shell
       role="manager"
       title={t("Pricing")}
-      subtitle={t("A new price only applies to new transactions — bookings and plans already sold keep theirs.")}
+      subtitle={t("A new price only applies to new transactions, bookings and plans already sold keep theirs.")}
     >
       <section aria-labelledby="court-rates">
         <SectionTitle
@@ -157,7 +157,7 @@ function Page() {
                           ) : null}
                         </span>
                         <span className="text-sm tabular-nums">
-                          {r.start_local.slice(0, 5)}–{r.end_local.slice(0, 5)}
+                          {r.start_local.slice(0, 5)}-{r.end_local.slice(0, 5)}
                         </span>
                         <span>
                           <Badge tone={r.is_peak ? "accent" : "muted"}>{r.is_peak ? t("Peak") : t("Off-peak")}</Badge>

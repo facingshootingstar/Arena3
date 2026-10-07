@@ -55,7 +55,7 @@ export function ExportButtons({
 
 const SPORTS = ["badminton", "basketball", "volleyball"];
 const hours = (min: number) => Math.round((min / 60) * 10) / 10;
-const pctText = (v: number | null | undefined) => (v == null ? "—" : `${v}%`);
+const pctText = (v: number | null | undefined) => (v == null ? "-" : `${v}%`);
 
 function SportSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (

@@ -3,6 +3,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Card, Field, Input } from "@/components/ui";
+import { ArenaMark } from "@/components/mark";
 import { AnimatePresence, motion } from "@/components/motion";
 import { ApiClientError, apiPost } from "@/lib/arena3/client";
 import { LangSwitch } from "@/components/lang-switch";
@@ -95,7 +96,7 @@ function Forgot() {
     setBusy(true);
     try {
       await apiPost("/auth/otp/verify", { phone, otp, purpose: "reset", password });
-      toast.success(t("Password changed — sign in with the new one."));
+      toast.success(t("Password changed, sign in with the new one."));
       void navigate({ to: "/login" });
     } catch (err) {
       setError({
@@ -108,10 +109,17 @@ function Forgot() {
   }
 
   return (
-    <main id="main-content" tabIndex={-1} className="mx-auto grid min-h-dvh max-w-md place-items-center px-4">
-      <Card className="relative w-full p-6">
-        <LangSwitch className="absolute right-4 top-4" />
-        <h1 className="pr-28 font-display text-3xl">{t("Forgot your password")}</h1>
+    <main id="main-content" tabIndex={-1} className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
+      {/* Same frame as sign-in: the brand and the language switch above the card, not squeezed into it. */}
+      <div className="mb-8 flex items-center justify-between gap-3">
+        <Link to="/" className="flex min-h-11 items-center gap-2.5">
+          <ArenaMark className="size-8" />
+          <span className="text-lg font-bold tracking-tight">Arena3</span>
+        </Link>
+        <LangSwitch />
+      </div>
+      <Card className="w-full p-6">
+        <h1 className="text-2xl font-bold tracking-tight">{t("Forgot your password")}</h1>
 
         <AnimatePresence mode="wait">
           {step === "phone" ? (
@@ -173,11 +181,11 @@ function Forgot() {
                 )}
               </p>
               <p className="text-sm text-muted">
-                {t("No email on your account, or can't open it? Ask the front desk to reset your password — they will give you a temporary one.")}
+                {t("No email on your account, or can't open it? Ask the front desk to reset your password, they will give you a temporary one.")}
               </p>
               {demoOtp ? (
                 <p className="rounded-[var(--radius-md)] border border-hold/40 px-3 py-2 text-sm text-hold">
-                  {slot(t("Demo build — the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{demoOtp}</span>)}
+                  {slot(t("Demo build, the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{demoOtp}</span>)}
                 </p>
               ) : null}
 

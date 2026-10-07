@@ -3,13 +3,10 @@ import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
-import { Cover, HeroVideo, MediaCaption, media } from "@/components/media";
+import { Cover, media } from "@/components/media";
 import { Button, Card, Field, Input } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion";
-import { GLBackground, Magnet, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiPost, homeFor, setSession, takeSessionNotice, type SessionUser } from "@/lib/arena3/client";
 import { roleLabel } from "@/lib/arena3/labels";
-import { CalmToggle } from "@/components/calm-toggle";
 import { LangSwitch } from "@/components/lang-switch";
 import { t, tServer, tk } from "@/lib/i18n";
 
@@ -37,7 +34,7 @@ const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: str
   { role: "coach", phone: "0901110011", name: "Coach Khoa", note: tk("Badminton classes") },
   { role: "member", phone: "0901230101", name: "Nam", note: tk("All-access plan · court booked today") },
   { role: "member", phone: "0901230102", name: "Linh", note: tk("Plan expires in ~4 days") },
-  { role: "member", phone: "0901230106", name: "Ha", note: tk("Expired — needs a renewal") },
+  { role: "member", phone: "0901230106", name: "Ha", note: tk("Expired, needs a renewal") },
 ];
 
 function Login() {
@@ -83,55 +80,32 @@ function Login() {
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-dvh lg:grid lg:grid-cols-2">
-      <div className="grain relative hidden min-h-dvh overflow-hidden lg:block">
-        <HeroVideo src={media.receptionVideo} poster={media.reception} />
+      {/* A still photograph: the old looping video cost three megabytes before the form could be used. */}
+      <div className="relative hidden min-h-dvh overflow-hidden lg:block">
+        <Cover src={media.reception} alt="" scrim="none" className="absolute inset-0" />
         <div className="hero-scrim absolute inset-0" />
-        <GLBackground
-          variant="threads"
-          className="opacity-55 mix-blend-screen"
-          color="#dbe5ff"
-          amplitude={1.1}
-          speed={0.5}
-          opacity={0.3}
-        />
-        <div className="relative flex h-full flex-col justify-between p-10">
-          <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
-            <ArenaMark className="size-8" />
-            <span className="font-display text-2xl">Arena3</span>
+        <div className="relative flex h-full flex-col justify-between p-10 text-on-media">
+          <Link to="/" className="inline-flex items-center gap-2.5 self-start">
+            <ArenaMark className="size-9" />
+            <span className="text-xl font-bold tracking-tight">Arena3</span>
           </Link>
-          <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-            <ShinyText className="shiny-on-media text-2xs" speed={6}>
-              {t("The desk is open")}
-            </ShinyText>
-            <SplitText
-              as="p"
-              text={t("One schedule for courts, classes and cash.")}
-              splitBy="words"
-              stagger={0.055}
-              delay={0.25}
-              className="mt-2 block font-display text-4xl leading-tight"
-            />
-          </div>
+          <p className="max-w-sm text-3xl font-bold leading-tight tracking-tight on-media">
+            {t("One schedule for courts, classes and cash.")}
+          </p>
         </div>
       </div>
       <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
-        <div className="absolute right-4 top-2 z-10 flex items-center gap-2 lg:top-4">
-          <CalmToggle />
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <Link to="/" className="flex min-h-11 items-center gap-2.5 lg:invisible">
+            <ArenaMark className="size-8" />
+            <span className="text-lg font-bold tracking-tight">Arena3</span>
+          </Link>
           <LangSwitch />
         </div>
-        <Cover src={media.hallCourts} alt="" scrim="none" className="mb-6 h-36 rounded-[var(--radius-xl)] lg:hidden">
-          <MediaCaption>
-            <span className="font-display text-2xl">Arena3</span>
-          </MediaCaption>
-        </Cover>
-        <div className="mb-6 flex items-center gap-2 lg:hidden">
-          <ArenaMark />
-          <p className="text-2xs font-medium text-muted">{t("Sports centre")}</p>
-        </div>
-        <h1 className="font-display text-4xl">{t("Sign in")}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("Sign in")}</h1>
         <p className="mt-1 text-sm text-muted">
           {DEMO_LOGINS_ON
-            ? t("Sign in with your phone or email — or tap a demo account below.")
+            ? t("Sign in with your phone or email, or tap a demo account below.")
             : t("Sign in with your phone number or email.")}
         </p>
         {/* The live region is always there, so the line is read out when it appears. */}
@@ -142,9 +116,7 @@ function Login() {
             </p>
           ) : null}
         </div>
-        <Reveal className="mt-6" from="up">
-        <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
-        <Card className="relative z-[2] p-5">
+        <Card className="mt-6 p-5">
           <form className="grid gap-4" onSubmit={submit}>
             <Field label={t("Phone or email")}>
               <Input
@@ -181,11 +153,9 @@ function Login() {
                 {error.message}
               </p>
             ) : null}
-            <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
-              <Button type="submit" disabled={busy} className="w-full">
-                {busy ? t("Signing in…") : t("Sign in")}
-              </Button>
-            </Magnet>
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy ? t("Signing in…") : t("Sign in")}
+            </Button>
           </form>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
             <Link to="/register" className="hit text-accent-2 underline underline-offset-2">
@@ -201,29 +171,26 @@ function Login() {
             </Link>
           </div>
         </Card>
-        </SpotlightCard>
-        </Reveal>
         {DEMO_LOGINS_ON ? (
         <>
         <p className="mt-8 text-2xs font-semibold text-muted">{t("Demo accounts")}</p>
-        <Stagger className="mt-3 flex flex-wrap gap-2" gap={0.05}>
+        <div className="mt-3 flex flex-wrap gap-2">
           {DEMOS.map((d) => (
-            <StaggerItem key={d.phone}>
             <button
+              key={d.phone}
               type="button"
               title={t(d.note)}
               onClick={() => {
                 setLogin(d.phone);
                 void submit(undefined, d);
               }}
-              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_10px_24px_-18px_rgba(27,31,29,0.6)] active:scale-95"
+              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-3 py-2 text-left transition-colors duration-150 hover:border-accent"
             >
               <span className="text-2xs font-semibold text-accent">{roleLabel(d.role)}</span>
               <span className="ml-2 text-sm font-medium">{d.name}</span>
             </button>
-            </StaggerItem>
           ))}
-        </Stagger>
+        </div>
         </>
         ) : null}
       </div>

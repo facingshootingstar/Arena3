@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Cover, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Badge, Button, Card, Check, EmptyState, Field, Input, LoadError, Modal, MoneyInput, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
-import { GlareHover, SpotlightCard } from "@/components/fx";
+import { SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 import { t, tServer, tData } from "@/lib/i18n";
@@ -130,22 +129,23 @@ function Page() {
           <StaggerItem key={p.id} className="h-full">
           <Lift className="h-full">
           <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
-          <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
-            <GlareHover>
-              <Cover src={sportPhoto(p.sport_scope)} alt="" className="h-28">
-                <p className="absolute bottom-3 left-4 text-2xs text-on-media on-media">
-                  {sportLabel(p.sport_scope)}
-                </p>
-              </Cover>
-            </GlareHover>
+          <Card className="flex h-full flex-col overflow-hidden p-0">
             <div className="flex flex-1 flex-col p-5">
-              <Badge tone={p.is_on_sale ? "accent" : "muted"}>{p.is_on_sale ? t("On sale") : t("Not for sale")}</Badge>
-              <h2 className="mt-2 font-display text-2xl">{tData(p.name)}</h2>
-              <p className="mt-2 font-display text-3xl tabular-nums">{money(p.price_vnd)}</p>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted">{sportLabel(p.sport_scope)}</span>
+                <Badge tone={p.is_on_sale ? "accent" : "muted"}>{p.is_on_sale ? t("On sale") : t("Not for sale")}</Badge>
+              </div>
+              <h2 className="mt-2 text-lg font-semibold">{tData(p.name)}</h2>
+              <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">{money(p.price_vnd)}</p>
               <p className="mt-2 text-sm text-muted">
-                {p.duration_days ? t("{n} days", { n: p.duration_days }) : t("Per session")}
-                {p.session_quota ? ` · ${t("{n} class sessions", { n: p.session_quota })}` : ""}
-                {` · ${t("{n} court hours", { n: p.court_hours })} · ${t("{pct}% off courts", { pct: p.court_discount_pct })}`}
+                {[
+                  p.duration_days ? t("{n} days", { n: p.duration_days }) : t("Per session"),
+                  p.session_quota ? t("{n} class sessions", { n: p.session_quota }) : null,
+                  p.court_hours > 0 ? t("{n} court hours", { n: p.court_hours }) : null,
+                  p.court_discount_pct > 0 ? t("{pct}% off courts", { pct: p.court_discount_pct }) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
               <div className="mt-auto flex gap-2 pt-4">
                 <Button variant="outline" onClick={() => void openDetail(p.id)}>

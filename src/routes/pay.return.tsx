@@ -86,7 +86,7 @@ function Page() {
           <div className="grid gap-3">
             <p className="font-display text-2xl">{t("Checking with the bank…")}</p>
             <p className="text-sm text-muted">
-              {t("This takes a few seconds. Do not pay again — if the money has left your account it will land here.")}
+              {t("This takes a few seconds. Do not pay again, if the money has left your account it will land here.")}
             </p>
             <Skeleton className="mx-auto h-2 w-40" />
           </div>
@@ -112,7 +112,7 @@ function Page() {
           <div className="grid gap-2">
             <p className="font-display text-2xl">{t("Not confirmed yet")}</p>
             <p className="text-sm text-muted">
-              {t("The bank has not told us about it. If the money has left your account it will post by itself — your receipt will appear in your account. Please do not pay twice.")}
+              {t("The bank has not told us about it. If the money has left your account it will post by itself, your receipt will appear in your account. Please do not pay twice.")}
             </p>
             <ButtonLink to="/account" variant="outline" className="mt-2">
               {t("Check my receipts")}

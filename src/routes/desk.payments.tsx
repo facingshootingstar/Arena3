@@ -245,7 +245,7 @@ function Page() {
         },
         true,
       );
-      toast.success(t("Paid — {name} is on {plan}", { name: o.full_name, plan: o.plan_name }));
+      toast.success(t("Paid, {name} is on {plan}", { name: o.full_name, plan: o.plan_name }));
       // The money is taken the moment that POST returns, so the queue is
       // refreshed before anything else is attempted. Printing is the step most
       // likely to fail — a blocked popup is enough — and a failed print must
@@ -255,7 +255,7 @@ function Page() {
         try {
           await openInvoice(res.invoice.id);
         } catch {
-          toast.warning(t("Paid — but the receipt did not open. Reprint it from the member's profile."));
+          toast.warning(t("Paid, but the receipt did not open. Reprint it from the member's profile."));
         }
       }
     } catch (e) {
@@ -292,14 +292,14 @@ function Page() {
         `/bookings/${a.id}/${received ? "transfer-confirm" : "transfer-reject"}`,
       );
       toast.success(
-        received ? t("Confirmed — {court} is booked", { court: a.court_code }) : t("Slot released back to the grid"),
+        received ? t("Confirmed, {court} is booked", { court: a.court_code }) : t("Slot released back to the grid"),
       );
       refresh();
       if (received && res.invoice_id) {
         try {
           await openInvoice(res.invoice_id);
         } catch {
-          toast.warning(t("Confirmed — but the receipt did not open. Reprint it from the profile."));
+          toast.warning(t("Confirmed, but the receipt did not open. Reprint it from the profile."));
         }
       }
     } catch (e) {
@@ -364,7 +364,7 @@ function Page() {
         */}
         {noTill ? (
           <Link to="/desk" className="hit">
-            <Badge tone="hold">{t("No shift open — open one to take payment")}</Badge>
+            <Badge tone="hold">{t("No shift open, open one to take payment")}</Badge>
           </Link>
         ) : null}
         {/* A manager came here from the manager menu, so "back" is their own
@@ -395,7 +395,7 @@ function Page() {
         <div className="mb-10">
           <SectionTitle text={t("Transfers to check")} className="font-display text-2xl" />
           <p className="mt-1 text-sm text-muted">
-            {t("A member said they would transfer and the court is being held open for them. Find the money on the statement before you confirm — nothing has been posted yet.")}
+            {t("A member said they would transfer and the court is being held open for them. Find the money on the statement before you confirm, nothing has been posted yet.")}
           </p>
           <Stagger className="mt-3 grid gap-3" gap={0.05}>
             {awaiting.map((a) => (
@@ -427,7 +427,7 @@ function Page() {
                           </p>
                           {a.deposit_vnd > 0 && a.deposit_vnd < a.price_vnd ? (
                             <p className="text-xs text-muted">
-                              {t("Deposit — of {total}", { total: money(a.price_vnd) })}
+                              {t("Deposit, of {total}", { total: money(a.price_vnd) })}
                             </p>
                           ) : null}
                         </div>
@@ -435,7 +435,7 @@ function Page() {
                       <div className="mt-4 flex flex-wrap items-center gap-2">
                         <StarBorder speed={4}>
                           <Button disabled={busy === a.id} onClick={() => void settleTransfer(a, true)}>
-                            {t("Money received — confirm")}
+                            {t("Money received, confirm")}
                           </Button>
                         </StarBorder>
                         <Button
@@ -443,7 +443,7 @@ function Page() {
                           disabled={busy === a.id}
                           onClick={() => void settleTransfer(a, false)}
                         >
-                          {t("Not found — release")}
+                          {t("Not found, release")}
                         </Button>
                       </div>
                     </Card>
@@ -541,7 +541,7 @@ function Page() {
                             onClick={() => void takePayment(o)}
                           >
                             {settled
-                              ? t("Paid in full — ask a manager")
+                              ? t("Paid in full, ask a manager")
                               : noTill
                                 ? t("Open a shift first")
                                 : t("Take {amount} & print", { amount: money(due) })}
@@ -603,7 +603,7 @@ function Page() {
                       <Badge tone="danger">{money(Math.abs(r.amount_vnd))}</Badge>
                     </div>
                     <p className="mt-1 text-xs tabular-nums text-muted">
-                      {r.code} · {refTypeLabel(r.ref_type)} · {t("raised by {name}", { name: r.raised_by ?? "—" })} · {when(r.created_at)}
+                      {r.code} · {refTypeLabel(r.ref_type)} · {t("raised by {name}", { name: r.raised_by ?? "-" })} · {when(r.created_at)}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -644,7 +644,7 @@ function Page() {
           </div>
         </div>
         <p className="mt-1 text-sm text-muted">
-          {t("Every payment the centre has taken, however it was paid — cash at the counter, a card, a transfer off the statement, or a court settled in the app. Each one has its receipt here.")}
+          {t("Every payment the centre has taken, however it was paid, cash at the counter, a card, a transfer off the statement, or a court settled in the app. Each one has its receipt here.")}
         </p>
         <Input
           className="mt-3 sm:max-w-sm"
@@ -705,7 +705,7 @@ function Page() {
         <Pagination offset={receiptOffset} total={receipts.length} pageSize={RECEIPT_PAGE} onChange={setReceiptOffset} />
         {read.data?.capped ? (
           <p className="mt-3 text-xs text-muted">
-            {t("Showing the {n} most recent — there are older receipts in this window that this list does not reach. Pull the full period from Reports to reconcile it.", { n: read.data.receipts.length })}
+            {t("Showing the {n} most recent, there are older receipts in this window that this list does not reach. Pull the full period from Reports to reconcile it.", { n: read.data.receipts.length })}
           </p>
         ) : null}
       </div>

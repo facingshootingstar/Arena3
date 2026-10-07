@@ -39,7 +39,7 @@ export function CalmToggle({ row = false, className }: { row?: boolean; classNam
       onClick={() => setPaused(!paused)}
       className={cn(
         "grid size-12 shrink-0 place-items-center rounded-full shadow-[var(--shadow-border)] transition-colors sm:size-9",
-        paused ? "bg-accent text-white" : "bg-surface text-muted hover:text-fg",
+        paused ? "bg-accent text-accent-fg" : "bg-surface text-muted hover:text-fg",
         className,
       )}
     >

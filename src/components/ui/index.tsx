@@ -38,7 +38,7 @@ const BUTTON_SIZES = {
   sm: "min-h-11 rounded-[var(--radius-sm)] px-3.5 text-[0.8125rem] sm:min-h-9",
 } as const;
 const BUTTON_STYLES = {
-  primary: "bg-accent text-accent-fg hover:bg-accent-2",
+  primary: "bg-accent text-accent-fg hover:bg-accent-hover",
   ink: "bg-fg text-bg hover:opacity-90",
   outline: "border border-line-strong/70 bg-surface text-fg hover:bg-wood",
   ghost: "text-fg hover:bg-wood",
@@ -379,7 +379,7 @@ export function Card({
       className={cn(
         "rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-border)]",
         interactive &&
-          "transition-shadow duration-200 hover:shadow-[var(--shadow-soft)]",
+          "transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--color-line-strong),var(--shadow-soft)]",
         className,
       )}
       {...props}
@@ -402,7 +402,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium tabular-nums",
+        "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-2xs font-medium tabular-nums",
         map[tone],
         className,
       )}
@@ -485,7 +485,7 @@ export function EmptyState({
 }) {
   return (
     <div className="grid place-items-center rounded-[var(--radius-xl)] border border-dashed border-line-strong/70 px-6 py-10 text-center">
-      <Spot name={art ?? "empty"} className="mb-2 h-24 w-[7.5rem]" />
+      <Spot name={art ?? "empty"} className="mb-2 h-16 w-20" />
       <p className="font-medium">{t(title)}</p>
       {hint ? <p className="mt-1 max-w-sm text-sm text-muted">{t(hint)}</p> : null}
       {children ? <div className="mt-4">{children}</div> : null}
@@ -542,7 +542,9 @@ export function Seg({
   const group = useId();
   const reduced = useReducedMotion();
   return (
-    <div className="flex flex-wrap gap-1 rounded-[var(--radius-md)] bg-wood p-1">
+    // One line, always: on a narrow phone the segments scroll sideways instead of wrapping into a
+    // second row that reads as a different control.
+    <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-[var(--radius-md)] bg-wood p-1">
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -552,7 +554,7 @@ export function Seg({
             onClick={() => onChange(o.value)}
             aria-pressed={active}
             className={cn(
-              "relative min-h-11 min-w-11 rounded-[var(--radius-sm)] px-4 text-sm font-medium transition-colors duration-200 sm:min-h-9 sm:min-w-9",
+              "relative min-h-11 min-w-11 shrink-0 whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-sm font-medium transition-colors duration-200 sm:min-h-9 sm:min-w-9 sm:px-4",
               active ? "text-accent-fg" : "text-muted hover:text-fg",
             )}
           >
@@ -641,7 +643,7 @@ export function Pagination({
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
       <span className="tabular-nums">
-        {t("Showing {from}–{to} of {total}", { from, to, total: total.toLocaleString(locale()) })}
+        {t("Showing {from}-{to} of {total}", { from, to, total: total.toLocaleString(locale()) })}
       </span>
       {pages > 1 ? (
         <div className="flex items-center gap-2">

@@ -6,10 +6,7 @@ import { ArenaMark } from "@/components/mark";
 import { Cover, media } from "@/components/media";
 import { Button, Card, Check, DateField, Field, Input } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
-import { Reveal } from "@/components/motion";
-import { GLBackground, Magnet, SplitText, SpotlightCard } from "@/components/fx";
 import { ApiClientError, apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
-import { CalmToggle } from "@/components/calm-toggle";
 import { LangSwitch } from "@/components/lang-switch";
 import { t, tServer } from "@/lib/i18n";
 
@@ -45,8 +42,10 @@ function Register() {
     // without it there is no way to reach the person signing up.
     email: "",
     password: "",
-    dob: "1998-01-15",
-    pii_consent: true,
+    // Both start empty. A pre-filled birthday let anyone under 18 skip the guardian step by not
+    // touching it, and a pre-ticked box is not consent under Decree 13/2023: the person has to tick it.
+    dob: "",
+    pii_consent: false,
   });
   /** Opens when the date of birth makes this a minor — the server decides the age, so the form asks only then. */
   const [askGuardian, setAskGuardian] = useState(false);
@@ -86,7 +85,7 @@ function Register() {
       setSentTo(res.sent_to ?? null);
       setStep("otp");
       toast.message(
-        res.sent_to ? t("Code sent to {email}", { email: res.sent_to }) : t("Code generated — check with the front desk."),
+        res.sent_to ? t("Code sent to {email}", { email: res.sent_to }) : t("Code generated, check with the front desk."),
       );
     } catch (err) {
       const field = err instanceof ApiClientError ? (err.body.field ?? null) : null;
@@ -118,47 +117,29 @@ function Register() {
 
   return (
     <main id="main-content" tabIndex={-1} className="min-h-dvh lg:grid lg:grid-cols-2">
-      <div className="grain relative hidden overflow-hidden lg:block">
+      <div className="relative hidden overflow-hidden lg:block">
         <Cover src={media.athlete} alt="" className="h-full min-h-dvh" scrim="hero">
-          <GLBackground
-            variant="threads"
-            className="opacity-50 mix-blend-screen"
-            color="#dbe5ff"
-            amplitude={1}
-            speed={0.45}
-            opacity={0.28}
-          />
-          <div className="relative flex h-full min-h-dvh flex-col justify-between p-10">
-            <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
-              <ArenaMark className="size-8" />
-              <span className="font-display text-2xl">Arena3</span>
+          <div className="relative flex h-full min-h-dvh flex-col justify-between p-10 text-on-media">
+            <Link to="/" className="inline-flex items-center gap-2.5 self-start">
+              <ArenaMark className="size-9" />
+              <span className="text-xl font-bold tracking-tight">Arena3</span>
             </Link>
-            <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
-              <SplitText
-                as="p"
-                text={t("A live plan is your key to the courts and the classes.")}
-                splitBy="words"
-                stagger={0.05}
-                delay={0.2}
-                className="block font-display text-4xl leading-tight"
-              />
-            </div>
+            <p className="max-w-sm text-3xl font-bold leading-tight tracking-tight on-media">
+              {t("A live plan is your key to the courts and the classes.")}
+            </p>
           </div>
         </Cover>
       </div>
-      <div className="relative grid min-h-dvh place-items-center px-4 py-10">
-        <div className="absolute right-4 top-3 z-10 flex items-center gap-2">
-          <CalmToggle />
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <Link to="/" className="flex min-h-11 items-center gap-2.5 lg:invisible">
+            <ArenaMark className="size-8" />
+            <span className="text-lg font-bold tracking-tight">Arena3</span>
+          </Link>
           <LangSwitch />
         </div>
-        <Reveal className="w-full max-w-md" from="up">
-        <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
-        <Card className="relative z-[2] w-full p-6">
-          <div className="flex items-center gap-2">
-            <ArenaMark className="size-7" />
-            <p className="text-2xs text-muted">Arena3</p>
-          </div>
-          <h1 className="mt-3 font-display text-3xl">{t("Create an account")}</h1>
+        <Card className="w-full p-6">
+          <h1 className="text-2xl font-bold tracking-tight">{t("Create an account")}</h1>
           <AnimatePresence mode="wait">
           {step === "form" ? (
             <motion.form
@@ -199,7 +180,7 @@ function Register() {
                   required
                   type="email"
                   autoComplete="email"
-                  placeholder="ban@example.com"
+                  placeholder="ten@example.com"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
@@ -274,15 +255,13 @@ function Register() {
                   {error.message}
                 </p>
               ) : null}
-              <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
-                <Button
-                  type="submit"
-                  disabled={busy || mismatch || tooWeak || !form.password || !form.email}
-                  className="w-full"
-                >
-                  {busy ? t("Sending…") : t("Send OTP")}
-                </Button>
-              </Magnet>
+              <Button
+                type="submit"
+                disabled={busy || mismatch || tooWeak || !form.password || !form.email || !form.dob || !form.pii_consent}
+                className="w-full"
+              >
+                {busy ? t("Sending…") : t("Send OTP")}
+              </Button>
             </motion.form>
           ) : (
             <motion.form
@@ -309,7 +288,7 @@ function Register() {
               </p>
               {shown ? (
                 <p className="rounded-[var(--radius-md)] border border-hold/40 px-3 py-2 text-sm text-hold">
-                  {slot(t("Demo build — the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{shown}</span>)}
+                  {slot(t("Demo build, the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{shown}</span>)}
                 </p>
               ) : null}
               <Field label={t("6-digit OTP")}>
@@ -326,11 +305,9 @@ function Register() {
                   {error.message}
                 </p>
               ) : null}
-              <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
-                <Button type="submit" disabled={busy} className="w-full">
-                  {t("Verify")}
-                </Button>
-              </Magnet>
+              <Button type="submit" disabled={busy} className="w-full">
+                {t("Verify")}
+              </Button>
             </motion.form>
           )}
           </AnimatePresence>
@@ -341,8 +318,6 @@ function Register() {
             </Link>
           </p>
         </Card>
-        </SpotlightCard>
-        </Reveal>
       </div>
     </main>
   );

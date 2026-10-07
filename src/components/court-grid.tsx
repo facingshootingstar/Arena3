@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronDown, Plus } from "lucide-react";
 import { availLabel, type AvailMap } from "@/components/availability-calendar";
 import { cn } from "@/lib/cn";
 import { locale, t } from "@/lib/i18n";
@@ -67,24 +68,21 @@ export type SlotState =
 /**
  * How each state is painted. The legend is built from this, so they cannot drift.
  *
- * On the desktop grid a cell is nine pixels tall with no room for a word, so
- * colour is the whole message and two states that merely differ in opacity are
- * the same state. Hence one family per idea: beige for free, green for sold,
- * black for a class, amber and dashed for the temporary one, hatching for
- * anything the building has taken off the market.
+ * The thing people come to the grid for is a free hour, so free is the loudest state: an outlined
+ * cell with a plus, in the colour of everything else you can press. Sold hours step back to a pale
+ * tint, a court in use right now is the one solid fill, a class is ink, a hold is amber and dashed
+ * (the one state that undoes itself), and anything the building has taken off the market is
+ * hatched. Finished hours are nearly invisible.
  */
 const STATE_CLASS: Record<SlotState, string> = {
-  free: "bg-wood/70 text-muted",
-  // Dashed, because a hold is the one state that undoes itself.
-  hold: "stripes border-2 border-dashed border-hold bg-hold/40 text-hold",
-  // Mid green, solid: clearly sold, and unmistakably not the amber of a hold.
-  booked: "bg-accent/90 text-accent-fg",
-  // The darkest green: the only state where someone is on the court as you read this.
-  in_use: "bg-accent-2 text-accent-fg ring-2 ring-accent-2/40",
-  class: "bg-fg text-bg",
+  free: "bg-surface text-accent ring-1 ring-inset ring-accent/45",
+  hold: "stripes border border-dashed border-hold bg-hold/15 text-hold",
+  booked: "bg-accent/15 text-accent-2",
+  in_use: "bg-accent-strong text-accent-fg",
+  class: "bg-slot-class text-on-media",
   maintenance: "stripes bg-wood text-muted",
   closed: "stripes bg-line-strong/45 text-subtle",
-  past: "bg-wood/30 text-subtle line-through decoration-subtle/40",
+  past: "bg-wood/50 text-subtle/70",
 };
 
 /**
@@ -222,10 +220,8 @@ export function DateStrip({
             type="button"
             onClick={() => onChange(it.iso)}
             className={cn(
-              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color,transform,box-shadow] duration-200 active:scale-95",
-              on
-                ? "bg-accent text-accent-fg shadow-[0_8px_20px_-12px_rgba(30,79,216,0.9)]"
-                : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
+              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color] duration-150 active:scale-[0.97]",
+              on ? "bg-accent text-accent-fg" : "bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-wood",
             )}
           >
             <span className="text-2xs font-medium opacity-90">
@@ -252,7 +248,7 @@ export function CourtLegend({ compact = false }: { compact?: boolean }) {
     ? ["free", "hold", "booked", "in_use", "class", "past"]
     : ["free", "hold", "booked", "in_use", "class", "maintenance", "closed", "past"];
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted">
+    <ul className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-2xs text-muted">
       {order.map((s) => (
         <li key={s} className="inline-flex items-center gap-1.5">
           <span className={cn("size-2.5 rounded-[2px]", STATE_CLASS[s])} />
@@ -305,7 +301,7 @@ function NoFreeSlots({
       <p className="mt-1 text-sm text-muted">
         {dayOver
           ? `${t("The hall opens again at 06:00.")}${offers ? ` ${t("Pick the next day below.")}` : ""}`
-          : `${t("Nothing has gone wrong — this is a full day.")}${offers ? ` ${t("Here is what is still open.")}` : ""}`}
+          : `${t("Nothing has gone wrong, this is a full day.")}${offers ? ` ${t("Here is what is still open.")}` : ""}`}
       </p>
       {offers ? (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -364,8 +360,17 @@ export function CourtGrid({
   selected?: { courtId: string; hour: number } | null;
 }) {
   const now = useNowMinute();
+  const [showPast, setShowPast] = useState(false);
   const list = sport ? courts.filter((c) => c.sport === sport) : courts;
-  const free = freeHours(list, slots, date, now).length;
+  const freeList = freeHours(list, slots, date, now);
+  const free = freeList.length;
+  // Finished hours fold away, so the first row on screen is an hour you can still play.
+  const pastHours = HOURS.filter((h) => isPast(date, h, now));
+  const hours = showPast ? HOURS : HOURS.filter((h) => !isPast(date, h, now));
+  // Time first: most people want "a court at seven", not "court nine".
+  const byHour = HOURS.map((h) => ({ hour: h, open: freeList.filter((f) => f.hour === h).map((f) => f.court) })).filter(
+    (x) => x.open.length > 0,
+  );
   const hasClass = slots.some((s) => s.kind === "session" && list.some((c) => c.id === s.court_id));
 
   // Only worth computing when the answer above was zero.
@@ -409,7 +414,28 @@ export function CourtGrid({
         />
       ) : null}
       {!hasClass ? (
-        <p className="text-sm text-muted">{t("No classes scheduled on court today — you are seeing member bookings only.")}</p>
+        <p className="text-sm text-muted">{t("No classes scheduled on court today, you are seeing member bookings only.")}</p>
+      ) : null}
+
+      {onPick && byHour.length ? (
+        <div className="md:hidden">
+          <p className="mb-2 text-sm font-medium">{t("Free hours")}</p>
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            {byHour.map(({ hour, open }) => (
+              <button
+                key={hour}
+                type="button"
+                onClick={() => onPick(open[0]!, hour)}
+                aria-label={t("Book {court} at {time}", { court: open[0]!.court_code, time: `${String(hour).padStart(2, "0")}:00` })}
+                className="flex min-h-14 min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-surface px-3 text-accent ring-1 ring-inset ring-accent/45 transition-colors duration-150 active:bg-accent active:text-accent-fg"
+              >
+                <span className="text-base font-semibold tabular-nums leading-tight">{String(hour).padStart(2, "0")}:00</span>
+                <span className="text-2xs text-muted">{t("{n} courts", { n: open.length })}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-sm font-medium">{t("By court")}</p>
+        </div>
       ) : null}
 
       <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 md:hidden" role="region" aria-label={t("Courts, scrolls sideways")} tabIndex={0}>
@@ -425,7 +451,7 @@ export function CourtGrid({
               </p>
             </div>
             <div className="grid grid-cols-4 gap-1.5">
-              {HOURS.map((h) => {
+              {hours.map((h) => {
                 const occ = occAt(slots, c.id, date, h);
                 const state = slotState(c, occ, date, h, now);
                 const label = String(h).padStart(2, "0");
@@ -448,7 +474,7 @@ export function CourtGrid({
                       key={h}
                       type="button"
                       title={title}
-                      aria-label={t("{state} · {court} at {time} — show details", { state: slotStateLabel(state), court: c.court_code, time: `${label}:00` })}
+                      aria-label={t("{state} · {court} at {time}, show details", { state: slotStateLabel(state), court: c.court_code, time: `${label}:00` })}
                       onClick={() => onInspect!(c, h, inspect)}
                       className={cn(cls, "transition-transform duration-150 active:scale-95")}
                     >
@@ -473,7 +499,7 @@ export function CourtGrid({
                     className={cn(
                       cls,
                       isBookable(state) &&
-                        "transition-[background-color,color,transform] duration-150 hover:bg-accent hover:text-accent-fg active:scale-95",
+                        "transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-fg active:bg-accent active:text-accent-fg",
                     )}
                   >
                     {label}
@@ -497,7 +523,7 @@ export function CourtGrid({
             // fit and only overflows — and only then shows a scrollbar — once
             // there are genuinely too many to lay out. 4.5rem is the narrowest
             // a "BC1 / Basketball" heading stays readable at.
-            minWidth: `max(100%, ${3.25 + list.length * 4.5}rem)`,
+            minWidth: `max(100%, ${3.25 + list.length * 3.5}rem)`,
           }}
         >
           <div className="sticky left-0 z-10 bg-surface px-2 py-2 text-2xs font-medium text-muted">
@@ -517,7 +543,7 @@ export function CourtGrid({
               </div>
             </div>
           ))}
-          {HOURS.map((h) => (
+          {hours.map((h) => (
             <HourRow
               key={h}
               hour={h}
@@ -532,6 +558,18 @@ export function CourtGrid({
           ))}
         </div>
       </div>
+
+      {pastHours.length ? (
+        <button
+          type="button"
+          onClick={() => setShowPast((v) => !v)}
+          aria-expanded={showPast}
+          className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-[var(--radius-sm)] px-2 text-sm text-muted transition-colors duration-150 hover:bg-wood hover:text-fg sm:min-h-9"
+        >
+          <ChevronDown aria-hidden className={cn("size-4 transition-transform duration-200", showPast && "rotate-180")} />
+          {showPast ? t("Hide finished hours") : t("Show {n} finished hours", { n: pastHours.length })}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -540,7 +578,7 @@ export function CourtGrid({
 function cellTitle(state: SlotState, occ: OccSlot | undefined) {
   if (state === "past") return occ ? t("{kind} · finished", { kind: kindLabel(occ.kind) }) : t("This hour has passed");
   if (!occ) return slotStateLabel(state);
-  return `${slotStateLabel(state)} · ${kindLabel(occ.kind)} ${hhmm(occ.start)}–${hhmm(occ.end)}`;
+  return `${slotStateLabel(state)} · ${kindLabel(occ.kind)} ${hhmm(occ.start)}-${hhmm(occ.end)}`;
 }
 
 function HourRow({
@@ -569,7 +607,7 @@ function HourRow({
       <div
         className={cn(
           "sticky left-0 z-10 flex items-center gap-1 border-t border-line/70 bg-surface px-2 py-1 text-xs tabular-nums",
-          past ? "text-subtle line-through" : live ? "font-medium text-accent-2" : "text-muted",
+          past ? "text-subtle/70" : live ? "font-semibold text-accent-2" : "text-muted",
         )}
       >
         {live ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" /> : null}
@@ -595,7 +633,7 @@ function HourRow({
               <button
                 type="button"
                 title={title}
-                aria-label={t("{state} · {court} at {time} — show details", {
+                aria-label={t("{state} · {court} at {time}, show details", {
                   state: slotStateLabel(state),
                   court: c.court_code,
                   time: `${String(hour).padStart(2, "0")}:00`,
@@ -630,9 +668,11 @@ function HourRow({
               className={cn(
                 cls,
                 isBookable(state) &&
-                  "block transition-[background-color,transform] duration-150 hover:bg-accent active:scale-95",
+                  "grid place-items-center transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-fg active:bg-accent active:text-accent-fg",
               )}
-            />
+            >
+              {isBookable(state) ? <Plus aria-hidden className="size-3.5" strokeWidth={2.25} /> : null}
+            </button>
           </div>
         );
       })}

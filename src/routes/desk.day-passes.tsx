@@ -135,8 +135,8 @@ function Page() {
       </Reveal>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <Stat label={t("Passes for this day")} value={data ? String(data.sold) : "—"} />
-        <Stat label={t("Takings")} value={data ? money(data.revenue_vnd) : "—"} />
+        <Stat label={t("Passes for this day")} value={data ? String(data.sold) : "-"} />
+        <Stat label={t("Takings")} value={data ? money(data.revenue_vnd) : "-"} />
       </div>
 
       <SectionTitle text={t("Passes")} className="mb-3 font-display text-2xl" />

@@ -30,12 +30,11 @@ import {
   YAxis,
 } from "recharts";
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
-import { Cover, MediaCaption, media } from "@/components/media";
 import { Shell, money, when } from "@/components/shell";
 import { CapacityPanel, ExportButtons, MembersPanel } from "@/components/report-panels";
 import { Button, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
+import { GLBackground, SplitText, SpotlightCard } from "@/components/fx";
 import { t } from "@/lib/i18n";
 import { addDaysISO, formatDate, methodLabel, sourceLabel, todayISO } from "@/lib/arena3/labels";
 import { useRead } from "@/lib/use-read";
@@ -203,13 +202,6 @@ function Page() {
         radius={130}
         opacity={0.12}
       />
-      <GlareHover className="mb-5 hidden rounded-[var(--radius-xl)] sm:block" duration={1.1}>
-        <Cover src={media.hallCourts} alt="" scrim="none" className="h-32 rounded-[var(--radius-xl)]">
-          <MediaCaption>
-            <p className="font-display text-2xl">{t("Close the books for this period")}</p>
-          </MediaCaption>
-        </Cover>
-      </GlareHover>
       {/* Everything the manager runs besides the numbers. Phones reach the same pages from the
           bottom bar's More sheet, so the strip is for screens with room for it. */}
       <nav aria-label={t("Quick links")} className="mb-5 hidden flex-wrap gap-2 md:flex">
@@ -536,7 +528,7 @@ function Page() {
                             <span className="font-medium">{s.cashier ?? t("Reception")}</span>
                             <span className="block text-xs text-muted">
                               {s.opened_at ? when(s.opened_at) : ""}
-                              {s.closed_at ? ` – ${when(s.closed_at)}` : ` – ${t("still open")}`}
+                              {s.closed_at ? ` - ${when(s.closed_at)}` : ` - ${t("still open")}`}
                             </span>
                           </>
                         ) : (

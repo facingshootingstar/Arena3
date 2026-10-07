@@ -133,7 +133,7 @@ function Page() {
     <Shell
       role="receptionist"
       title={t("Gear")}
-      subtitle={t("Rent to a member's account or to a guest by phone — stock comes down on the way out, back up on return.")}
+      subtitle={t("Rent to a member's account or to a guest by phone, stock comes down on the way out, back up on return.")}
     >
       {equipmentRead.error ? (
         <div className="mb-4">
@@ -178,7 +178,7 @@ function Page() {
                       setWho(k);
                       setFieldError(null);
                     }}
-                    className={`min-h-11 rounded-full px-4 py-1 sm:min-h-9 ${who === k ? "bg-accent text-white" : "bg-wood text-muted"}`}
+                    className={`min-h-11 rounded-full px-4 py-1 sm:min-h-9 ${who === k ? "bg-accent text-accent-fg" : "bg-wood text-muted"}`}
                   >
                     {k === "member" ? t("Member") : t("Guest")}
                   </button>

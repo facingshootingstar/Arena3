@@ -157,7 +157,7 @@ function Page() {
                   <p className="text-sm text-muted">{sessionDay(open.start_at)}</p>
                   <p className="figure text-3xl tabular-nums">
                     {hhmm(open.start_at)}
-                    <span className="text-muted">–{hhmm(open.end_at)}</span>
+                    <span className="text-muted">-{hhmm(open.end_at)}</span>
                   </p>
                 </div>
                 <div className="grid gap-1 text-sm sm:justify-items-end">
@@ -326,7 +326,7 @@ function RegisterPanel({
               })
             : t("This register closed after the session.")}{" "}
           {isManager
-            ? t("You can still correct it — say why below.")
+            ? t("You can still correct it, say why below.")
             : t("Ask a manager to correct it.")}
         </p>
       ) : null}

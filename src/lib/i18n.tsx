@@ -4,7 +4,7 @@ import { viData } from "@/lib/i18n/vi.data";
 import { VI_SERVER_EXACT, VI_SERVER_PATTERNS } from "@/lib/i18n/vi.srv";
 
 /**
- * English / Vietnamese, with English as the source text.
+ * Vietnamese first, English on request, with English as the source text.
  *
  * `t("Open shift")` returns the English string unchanged in English and the Vietnamese entry
  * from `src/lib/i18n/vi.*.ts` in Vietnamese; a missing entry falls back to the English so a
@@ -22,7 +22,8 @@ export type Lang = "en" | "vi";
 type Vars = Record<string, string | number>;
 
 const STORAGE_KEY = "arena3.lang";
-let current: Lang = "en";
+// The centre is in Vietnam: Vietnamese is what the server renders and what a first visit sees.
+let current: Lang = "vi";
 const subscribers = new Set<() => void>();
 
 const fill = (s: string, vars?: Vars) =>
@@ -81,12 +82,12 @@ const subscribe = (f: () => void) => {
 };
 
 export function useLang(): Lang {
-  return useSyncExternalStore(subscribe, getLang, () => "en" as Lang);
+  return useSyncExternalStore(subscribe, getLang, () => "vi" as Lang);
 }
 
 /**
  * Keys the subtree by language, so a switch re-renders every `t()` call. The saved choice is read
- * after mount (the server and the first client render are always English, so hydration agrees).
+ * after mount (the server and the first client render are always Vietnamese, so hydration agrees).
  */
 export function LangProvider({ children }: { children: ReactNode }) {
   const lang = useLang();

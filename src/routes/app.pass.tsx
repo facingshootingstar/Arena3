@@ -130,7 +130,7 @@ function Page() {
           <form onSubmit={selfCheckin} className="grid gap-3">
             <Field tone="muted"
               label={t("Check yourself in")}
-              hint={t("Only when the centre has turned this on. Scan the code on the front-desk screen with your phone camera — or paste what it reads.")}
+              hint={t("Only when the centre has turned this on. Scan the code on the front-desk screen with your phone camera, or paste what it reads.")}
             >
               <Input value={selfCode} onChange={(e) => setSelfCode(e.target.value)} placeholder={t("Code from the desk screen")} />
             </Field>
