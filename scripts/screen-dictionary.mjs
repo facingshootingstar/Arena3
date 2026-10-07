@@ -211,7 +211,7 @@ const S = [
     "Bức tranh kinh doanh theo khoảng thời gian: doanh thu, hoàn tiền, giờ sân dùng từ gói (so với kỳ trước), biểu đồ theo cách trả và theo nguồn thu, công suất sân, giờ đông khách, hội viên mới và lớp học. Xuất Excel, PDF hoặc CSV.",
     "Quản lý, chủ trung tâm.",
     [A("Chọn Hôm nay / 7 ngày / Tháng này / Tuỳ chọn", "Hôm nay"), A("Lọc theo cách trả tiền"), A("Xuất Excel, PDF, CSV", "Xuất Excel")],
-    "Trang dài; ảnh trang sau là phần công suất sân.",
+    "Ảnh chụp lúc đầu ngày đang chọn «Hôm nay» nên doanh thu còn 0đ; chọn 7 ngày hoặc Tháng này để thấy số liệu. Ảnh trang sau là phần công suất sân.",
     "Cuộn xuống: công suất sân và lớp học"],
   ["manager", "/manager/classes", "Lớp học (quản lý)", nav("Lớp học", "sheet"),
     "Tạo lớp: môn, trình độ, sân, huấn luyện viên, các ngày trong tuần, giờ bắt đầu, ngày đầu tiên và sức chứa; hệ thống chặn trùng lịch sân hoặc trùng huấn luyện viên. Dời, hủy buổi, đổi huấn luyện viên hay hủy lớp làm trong «Buổi học & học viên».",
@@ -511,11 +511,14 @@ const days = [
   dayPage("manager", "quản lý", [["/manager", "Báo cáo", "Xem doanh thu, công suất sân, xuất file"], ["/manager/attendance", "Điểm danh", "Xem ai thực sự đến tập"], ["/manager/plans", "Gói tập", "Tạo hoặc sửa gói đang bán"], ["/manager/staff", "Nhân viên", "Cấp tài khoản lễ tân và huấn luyện viên"], ["/manager/audit", "Nhật ký thao tác", "Kiểm tra ai đã làm gì"]]),
 ].join("");
 
+// Two tables side by side, so every row fits on one A4 page.
+const appRows = S.map((r, i) => `<tr><td>${idOf(i)}</td><td>${esc(r[2])}</td><td>${ROLES[r[0]].vn}</td><td><code>${esc(r[1].replace("$ID", "{id}"))}</code></td></tr>`);
+const half = Math.ceil(appRows.length / 2);
+const appTable = (rows) => `<table class="app"><tr><th>Mã</th><th>Tên màn hình</th><th>Vai trò</th><th>Đường dẫn</th></tr>${rows.join("")}</table>`;
 const appendix = `
 <section class="page idx">
   <h2>Phụ lục kỹ thuật (cho người làm phần mềm)</h2>
-  <table class="app"><tr><th>Mã</th><th>Tên màn hình</th><th>Vai trò</th><th>Đường dẫn</th></tr>
-  ${S.map((r, i) => `<tr><td>${idOf(i)}</td><td>${esc(r[2])}</td><td>${ROLES[r[0]].vn}</td><td><code>${esc(r[1].replace("$ID", "{id}"))}</code></td></tr>`).join("")}</table>
+  <div class="app-cols">${appTable(appRows.slice(0, half))}${appTable(appRows.slice(half))}</div>
 </section>`;
 
 const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Arena3: Từ điển màn hình</title>
@@ -556,7 +559,8 @@ body { margin: 0; font-family: "Be Vietnam Pro", "Segoe UI", system-ui, sans-ser
 .flow li:not(:last-child)::after { content: "▼"; position: absolute; left: 11mm; bottom: -4.6mm; font-size: 8pt; color: #a7b0c4; background: #f5f6f9; line-height: 1 }
 .flow a { color: #fff; background: #0e1529; border-radius: 2mm; padding: 1.5mm 3mm; text-decoration: none; font-size: 12pt }
 .flow strong { display: block; font-size: 13pt } .flow span { color: #454e66; font-size: 10.5pt }
-.app { border-collapse: collapse; width: 100%; font-size: 7.2pt; line-height: 1.15 } .app th, .app td { border-bottom: .2mm solid #e2e6ee; padding: .35mm 2mm; text-align: left } .app th { color: #5d667c; font-size: 7.2pt; font-weight: 600 }
+.app-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; align-items: start }
+.app { border-collapse: collapse; width: 100%; font-size: 8pt; line-height: 1.25 } .app th, .app td { border-bottom: .2mm solid #e2e6ee; padding: 1mm 2mm; text-align: left } .app th { color: #5d667c; font-size: 7.6pt; font-weight: 600 }
 header { display: flex; align-items: center; gap: 4mm }
 .code { color: #fff; font-weight: 700; font-size: 13pt; padding: 1.5mm 3.2mm; border-radius: 2mm }
 .titles h2 { margin: 0; font-size: 20pt; line-height: 1.1; letter-spacing: -.3px } .titles small { font-size: 11pt; color: #5d667c; font-weight: 400 }
