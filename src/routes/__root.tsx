@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { useRetryKey } from "@/lib/connection";
 import { LangProvider, t } from "@/lib/i18n";
+import { ClickSpark } from "@/components/fx";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
@@ -29,13 +30,12 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      // Phone chrome matches the page surface in each colour scheme.
-      { name: "theme-color", content: "#f5f6f9", media: "(prefers-color-scheme: light)" },
-      { name: "theme-color", content: "#0a0f1d", media: "(prefers-color-scheme: dark)" },
+      // The same cobalt the manifest and the palette use, so the phone chrome matches the brand.
+      { name: "theme-color", content: "#1e4fd8" },
       {
         name: "description",
         content:
-          "Arena3: đặt sân cầu lông, bóng rổ, bóng chuyền, lớp học và gói tập tại một trung tâm thể thao trong nhà ở TP. Hồ Chí Minh.",
+          "Arena3: book badminton, basketball and volleyball courts, coached classes and memberships at an indoor sports centre in Ho Chi Minh City.",
       },
     ],
     links: [
@@ -46,7 +46,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: () => (
-    <html lang="vi" className="antialiased" suppressHydrationWarning>
+    <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
@@ -55,6 +55,9 @@ export const Route = createRootRoute({
         <AuthProvider>
           <LangProvider>
             <SkipLink />
+            {/* One shared canvas for click feedback across every route; it parks
+                its rAF loop whenever there is nothing left to draw. */}
+            <ClickSpark />
             <RetryOutlet />
           </LangProvider>
           {/* Below the 56px header on both sizes: sonner's phone default of 16px sat on top of it, and

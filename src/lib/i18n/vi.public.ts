@@ -35,6 +35,7 @@ export const pub: Record<string, string> = {
   "Front desk": "Quầy lễ tân",
   "Staffed the whole time we are open. Rackets, shuttle tubes and match balls go out on your tab and settle with the court.": "Luôn có nhân viên trực trong giờ mở cửa. Vợt, ống cầu và bóng thi đấu được ghi vào phiếu của bạn và thanh toán cùng tiền sân.",
   "Pick your slot": "Chọn khung giờ",
+  "Live court map, hour by hour. What you see is what is actually free: holds expire in front of you.": "Sơ đồ sân cập nhật trực tiếp theo từng giờ. Bạn thấy gì là sân trống thật, chỗ giữ hết hạn ngay trước mắt bạn.",
   "Live court map, hour by hour. What you see is what is actually free — holds expire in front of you.": "Sơ đồ sân cập nhật trực tiếp theo từng giờ. Bạn thấy gì là sân trống thật, chỗ giữ hết hạn ngay trước mắt bạn.",
   "Hold it for five minutes": "Giữ chỗ năm phút",
   "The slot is yours while you decide. No card up front, no phone call.": "Khung giờ được giữ cho bạn trong lúc cân nhắc. Không cần thẻ, không cần gọi điện.",
@@ -45,8 +46,10 @@ export const pub: Record<string, string> = {
   "Indoor sports centre": "Trung tâm thể thao trong nhà",
   "Open now · until {time}": "Đang mở cửa · đến {time}",
   "Closed · opens {time}": "Đã đóng cửa · mở lúc {time}",
+  "Courts, classes, plans:": "Sân, lớp, gói tập:",
   "Courts, classes, plans —": "Sân, lớp, gói tập",
   "one calendar.": "một lịch duy nhất.",
+  "Badminton, basketball, volleyball. Open 06:00-22:00, every day. Book a court in five minutes; the desk closes you out in three taps.": "Cầu lông, bóng rổ, bóng chuyền. Mở cửa 06:00-22:00 mỗi ngày. Đặt sân trong năm phút, thanh toán tại quầy chỉ với ba thao tác.",
   "Badminton, basketball, volleyball. Open 06:00–22:00, every day. Book a court in five minutes; the desk closes you out in three taps.": "Cầu lông, bóng rổ, bóng chuyền. Mở cửa 06:00-22:00 mỗi ngày. Đặt sân trong năm phút, thanh toán tại quầy chỉ với ba thao tác.",
   "See courts & pricing": "Xem sân & bảng giá",
   "{n} court hours still free {day} · from {price}/hr · held five minutes while you decide.": "Còn {n} giờ sân trống {day} · từ {price}/giờ · giữ chỗ năm phút để bạn quyết định.",
@@ -59,12 +62,14 @@ export const pub: Record<string, string> = {
   "Courts & bays": "Sân thi đấu",
   "12 badminton · 2 basketball · 2 volleyball": "12 cầu lông · 2 bóng rổ · 2 bóng chuyền",
   "Open every day": "Mở cửa mỗi ngày",
+  "06:00-22:00, no closing day": "06:00-22:00, không nghỉ ngày nào",
   "06:00–22:00, no closing day": "06:00-22:00, không nghỉ ngày nào",
   "Head coaches": "HLV trưởng",
   "One per sport, classes on the same calendar": "Mỗi môn một HLV, lớp học cùng một lịch",
 
   // landing: courts
   "Three sports": "Ba môn thể thao",
+  "One hall, sixteen playing surfaces: badminton, basketball and volleyball under one roof.": "Một nhà thi đấu, mười sáu mặt sân, cầu lông, bóng rổ và bóng chuyền dưới cùng một mái nhà.",
   "One hall, sixteen playing surfaces — badminton, basketball and volleyball under one roof.": "Một nhà thi đấu, mười sáu mặt sân, cầu lông, bóng rổ và bóng chuyền dưới cùng một mái nhà.",
   "1 court · {codes}": "1 sân · {codes}",
   "{n} courts · {codes}": "{n} sân · {codes}",
@@ -77,6 +82,7 @@ export const pub: Record<string, string> = {
   // landing: schedule
   "Live availability": "Tình trạng sân trực tiếp",
   "When is a court free?": "Khi nào có sân trống?",
+  "Every hour in the hall, exactly as it stands. Tap a free one and it is yours for five minutes while you sign in. No card up front, no phone call.": "Từng giờ trong nhà thi đấu, đúng như hiện tại. Chạm vào giờ còn trống, chỗ sẽ được giữ cho bạn năm phút trong lúc đăng nhập, không cần thẻ, không cần gọi điện.",
   "Every hour in the hall, exactly as it stands. Tap a free one and it is yours for five minutes while you sign in — no card up front, no phone call.": "Từng giờ trong nhà thi đấu, đúng như hiện tại. Chạm vào giờ còn trống, chỗ sẽ được giữ cho bạn năm phút trong lúc đăng nhập, không cần thẻ, không cần gọi điện.",
   "All": "Tất cả",
   "{price} for the hour": "{price} cho một giờ",
@@ -87,12 +93,14 @@ export const pub: Record<string, string> = {
   "Pick another": "Chọn giờ khác",
   "Classes running this week": "Các lớp đang diễn ra trong tuần",
   "What Arena3 is for": "Arena3 sinh ra để làm gì",
+  "A court should not need a phone call. Pick the hour you want, hold it while you think, and settle the whole thing (court, class, racket) on one tab at the desk.": "Đặt sân không nên phải gọi điện. Chọn giờ bạn muốn, giữ chỗ trong lúc suy nghĩ, rồi thanh toán gọn một lần tại quầy, sân, lớp học, vợt, trên cùng một phiếu.",
   "A court should not need a phone call. Pick the hour you want, hold it while you think, and settle the whole thing — court, class, racket — on one tab at the desk.": "Đặt sân không nên phải gọi điện. Chọn giờ bạn muốn, giữ chỗ trong lúc suy nghĩ, rồi thanh toán gọn một lần tại quầy, sân, lớp học, vợt, trên cùng một phiếu.",
   "Booking": "Đặt sân",
   "Three steps, no phone call.": "Ba bước, không cần gọi điện.",
 
   // landing: coaches
   "The team": "Đội ngũ",
+  "Coaches who actually take the session, not poster faces.": "Huấn luyện viên thực sự đứng lớp, không phải gương mặt trên áp phích.",
   "Coaches who actually take the session — not poster faces.": "Huấn luyện viên thực sự đứng lớp, không phải gương mặt trên áp phích.",
   "One head coach per sport. Classes never sit on court time you already bought. Sessions show up in the app the moment you join.": "Mỗi môn có một HLV trưởng. Lớp học không bao giờ trùng giờ sân bạn đã đặt. Buổi tập hiện ngay trong ứng dụng khi bạn tham gia.",
   "Badminton": "Cầu lông",
@@ -126,6 +134,7 @@ export const pub: Record<string, string> = {
   // landing: facilities
   "The building": "Cơ sở vật chất",
   "One roof, sixteen surfaces, one desk.": "Một mái nhà, mười sáu mặt sân, một quầy.",
+  "Everything the schedule can sell you sits in the same hall, so a court, a class and a racket all close out on one tab at reception.": "Mọi thứ trong lịch đều nằm trong cùng một nhà thi đấu, nên sân, lớp học và vợt đều được thanh toán trên một phiếu tại quầy.",
   "Everything the schedule can sell you sits in the same hall — so a court, a class and a racket all close out on one tab at reception.": "Mọi thứ trong lịch đều nằm trong cùng một nhà thi đấu, nên sân, lớp học và vợt đều được thanh toán trên một phiếu tại quầy.",
   "The main hall at Arena3": "Nhà thi đấu chính của Arena3",
   "Main hall": "Nhà thi đấu chính",
@@ -135,6 +144,8 @@ export const pub: Record<string, string> = {
   // landing: pricing, plans
   "Court rental": "Thuê sân",
   "Peak / off-peak": "Giờ cao điểm / giờ thường",
+  "Mon-Fri is off-peak until 17:00. Weekends run on the weekend sheet. Members either draw down plan hours or take the percentage off.": "Thứ Hai-Thứ Sáu là giờ thường đến 17:00. Cuối tuần tính theo bảng giá cuối tuần. Hội viên có thể trừ vào số giờ trong gói hoặc được giảm theo phần trăm.",
+  "Opening hours, off-peak and peak": "Giờ mở cửa, giờ thường và giờ cao điểm",
   "Mon–Fri is off-peak until 17:00. Weekends run on the weekend sheet. Members either draw down plan hours or take the percentage off.": "Thứ Hai-Thứ Sáu là giờ thường đến 17:00. Cuối tuần tính theo bảng giá cuối tuần. Hội viên có thể trừ vào số giờ trong gói hoặc được giảm theo phần trăm.",
   "Sport": "Môn",
   "Memberships": "Gói hội viên",
@@ -159,10 +170,12 @@ export const pub: Record<string, string> = {
 
   // landing: closing, footer
   "The Arena3 frontage at dusk": "Mặt tiền Arena3 lúc hoàng hôn",
+  "06:00-22:00 · seven days": "06:00-22:00 · cả tuần",
   "06:00–22:00 · seven days": "06:00-22:00 · cả tuần",
   "Reception is staffed the whole time we are open. Walk-ins never need an account.": "Quầy lễ tân luôn có người trong giờ mở cửa. Khách vãng lai không cần tài khoản.",
   "An indoor sports centre that runs courts, classes and memberships off a single calendar.": "Trung tâm thể thao trong nhà quản lý sân, lớp học và gói hội viên trên một lịch duy nhất.",
   "Visit": "Ghé thăm",
+  "06:00-22:00, seven days": "06:00-22:00, cả tuần",
   "06:00–22:00, seven days": "06:00-22:00, cả tuần",
   "Ho Chi Minh City": "TP. Hồ Chí Minh",
   "Front desk, during opening hours": "Quầy lễ tân, trong giờ mở cửa",
@@ -175,6 +188,7 @@ export const pub: Record<string, string> = {
   // landing: testimonials
   "I book between meetings and the court is simply there when I arrive. The five-minute hold is the reason I stopped ringing ahead.": "Tôi đặt sân giữa các cuộc họp và đến nơi là có sân sẵn. Nhờ giữ chỗ năm phút mà tôi không còn phải gọi hỏi trước nữa.",
   "Badminton · A3-2026-0001": "Cầu lông · A3-2026-0001",
+  "The beginner ladder moved me onto a real training plan without it ever feeling like a test, and my knee has been fine since the coach reworked my footwork.": "Lớp cơ bản đưa tôi vào một giáo án tập luyện thực sự mà không hề có cảm giác bị kiểm tra, và đầu gối tôi ổn hẳn từ khi HLV chỉnh lại bước chân cho tôi.",
   "The beginner ladder moved me onto a real training plan without it ever feeling like a test — and my knee has been fine since the coach reworked my footwork.": "Lớp cơ bản đưa tôi vào một giáo án tập luyện thực sự mà không hề có cảm giác bị kiểm tra, và đầu gối tôi ổn hẳn từ khi HLV chỉnh lại bước chân cho tôi.",
   "Badminton · A3-2026-0002": "Cầu lông · A3-2026-0002",
   "Plan hours come straight off at the desk. No cash, no working out what counts as peak, no arguing about the price on a Saturday morning.": "Giờ trong gói được trừ ngay tại quầy. Không tiền mặt, không phải tính giờ nào là cao điểm, không cãi giá vào sáng thứ Bảy.",
@@ -192,6 +206,7 @@ export const pub: Record<string, string> = {
   "Badminton classes": "Các lớp cầu lông",
   "All-access plan · court booked today": "Gói không giới hạn · có sân đặt hôm nay",
   "Plan expires in ~4 days": "Gói hết hạn sau khoảng 4 ngày",
+  "Expired: needs a renewal": "Đã hết hạn, cần gia hạn",
   "Expired, needs a renewal": "Đã hết hạn, cần gia hạn",
   "Welcome, {name}": "Chào mừng, {name}",
   "Could not sign you in": "Không thể đăng nhập",
@@ -211,6 +226,7 @@ export const pub: Record<string, string> = {
   // register
   "The two passwords do not match.": "Hai mật khẩu không khớp.",
   "Code sent to {email}": "Đã gửi mã đến {email}",
+  "Code generated. Check with the front desk.": "Đã tạo mã, vui lòng hỏi lễ tân.",
   "Code generated, check with the front desk.": "Đã tạo mã, vui lòng hỏi lễ tân.",
   "Could not create the account": "Không thể tạo tài khoản",
   "That OTP is not right": "Mã xác nhận không đúng",
@@ -227,6 +243,7 @@ export const pub: Record<string, string> = {
   "Send OTP": "Gửi mã xác nhận",
   "We emailed a code to {email}. It expires in 5 minutes.": "Chúng tôi đã gửi mã đến {email}. Mã hết hạn sau 5 phút.",
   "We could not email the code. Ask the front desk to verify you in person.": "Chúng tôi không gửi được mã qua email. Hãy nhờ lễ tân xác minh trực tiếp cho bạn.",
+  "Demo build: the code is {code}.": "Bản demo, mã là {code}.",
   "Demo build, the code is {code}.": "Bản demo, mã là {code}.",
   "6-digit OTP": "Mã xác nhận 6 chữ số",
   "Verify": "Xác minh",

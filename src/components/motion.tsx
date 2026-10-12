@@ -4,9 +4,11 @@ import {
   MotionConfig,
   motion,
   useInView,
+  useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
+  useSpring,
   useTransform,
   type MotionProps,
   type Variants,
@@ -29,15 +31,27 @@ import { useCalm } from "@/lib/calm";
 /**
  * Shared motion vocabulary for Arena3.
  *
- * Motion has to say something: a state changed, a panel opened, a list arrived. Inside the
- * signed-in app (everything under `Shell`) the scroll reveals and cascades below render as plain
- * elements, because a till operator does not need the list they open fifty times a shift to fade
- * in. The public pages keep a short entrance. Every primitive degrades to a plain, fully-visible
- * element under reduced motion, so content never depends on an animation having run.
+ * Every primitive here degrades to a plain, fully-visible element when the
+ * visitor asks for reduced motion — content never depends on an animation
+ * having run. (The pause button in `@/lib/calm` does not swap elements: see
+ * `MotionProvider`.)
  */
 
-export const EASE_SMOOTH = [0.22, 1, 0.36, 1] as const;
-export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
+/**
+ * The device's reduced-motion setting, but only once the component has mounted.
+ *
+ * The server cannot know the setting, so it always renders the moving version. If the first
+ * client render already chose the still version (a plain `<div>` instead of a spotlight, whole
+ * text instead of split words), hydration would not match the server's HTML and React would
+ * throw the page away and rebuild it. Answering "no" until mounted keeps hydration exact; the
+ * still version takes over one render later.
+ */
+export function useReducedMotionAfterMount(): boolean {
+  const reduced = useReducedMotion();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted && !!reduced;
+}
 
 /** Set by the app shell: scroll reveals and cascades render statically below it. */
 const QuietCtx = createContext(false);
@@ -46,18 +60,23 @@ export function QuietMotion({ children }: { children: ReactNode }) {
   return <QuietCtx.Provider value>{children}</QuietCtx.Provider>;
 }
 
+/** Still when the device asks for reduced motion, or anywhere inside the signed-in app. */
 function useStill() {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionAfterMount();
   const quiet = useContext(QuietCtx);
-  return Boolean(reduced || quiet);
+  return reduced || quiet;
 }
+
+export const EASE_SMOOTH = [0.22, 1, 0.36, 1] as const;
+export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 /** Wrap a subtree so every nested transition shares the house easing. */
 export function MotionProvider({ children }: { children: ReactNode }) {
-  // "always" is what the pause button asks for; "user" leaves it to the device setting.
+  // "always" is what the pause button asks for; "user" leaves it to the device setting. Slides
+  // become fades either way and nothing remounts, so pressing the button never costs typed text.
   const calm = useCalm();
   return (
-    <MotionConfig reducedMotion={calm ? "always" : "user"} transition={{ duration: 0.3, ease: EASE_SMOOTH }}>
+    <MotionConfig reducedMotion={calm ? "always" : "user"} transition={{ duration: 0.5, ease: EASE_SMOOTH }}>
       {children}
     </MotionConfig>
   );
@@ -77,19 +96,20 @@ type RevealProps = {
   as?: ElementType;
 };
 
-/** Fade an element in the first time it scrolls into view (public pages only). */
+/** Fade + slide an element in the first time it scrolls into view. */
 export function Reveal({
   children,
   className,
   from = "up",
   delay = 0,
-  duration = 0.45,
-  distance = 12,
+  duration = 0.6,
+  distance = 22,
   repeat = false,
   as = "div",
 }: RevealProps) {
-  const still = useStill();
+  const reduced = useStill();
   const Tag = motion[as as "div"] ?? motion.div;
+
   const offset =
     from === "up"
       ? { y: distance }
@@ -101,15 +121,15 @@ export function Reveal({
             ? { x: distance }
             : {};
 
-  if (still) return <div className={className}>{children}</div>;
+  if (reduced) return <div className={className}>{children}</div>;
 
   return (
     <Tag
       className={className}
       initial={{ opacity: 0, ...offset }}
       whileInView={{ opacity: 1, x: 0, y: 0 }}
-      viewport={{ once: !repeat, amount: 0.15 }}
-      transition={{ duration, delay: Math.min(delay, 0.15), ease: EASE_SMOOTH }}
+      viewport={{ once: !repeat, amount: 0.2, margin: "0px 0px -80px 0px" }}
+      transition={{ duration, delay, ease: EASE_SMOOTH }}
     >
       {children}
     </Tag>
@@ -118,18 +138,27 @@ export function Reveal({
 
 const staggerParent: Variants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.05, delayChildren: 0.03 } },
+  show: { transition: { staggerChildren: 0.075, delayChildren: 0.05 } },
 };
 
 const staggerChild: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE_SMOOTH } },
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_SMOOTH } },
 };
 
 /**
- * Each item animates itself rather than waiting to be told to: variant propagation does not survive
- * a filter remounting the list (the replacements sat at `opacity: 0`). `Stagger` publishes only
- * whether the container has been seen and how long each item waits.
+ * Each item animates itself rather than waiting to be told to.
+ *
+ * Variant propagation was the obvious way to build this and it does not
+ * survive contact with a filter: motion resolves a child's variant when the
+ * child mounts, and a parent that has already finished its cascade has no
+ * label change left to broadcast. Swapping the sport on Classes remounts the
+ * whole list into exactly that state, so every replacement card sat at
+ * `opacity: 0` and the list looked wiped.
+ *
+ * So `Stagger` publishes only the two facts an item needs — has the container
+ * been seen, and how long should this one wait — and the item drives its own
+ * `animate`. Whenever an item mounts, it animates in.
  */
 const StaggerCtx = createContext<{ inView: boolean; delay: number }>({ inView: true, delay: 0 });
 
@@ -138,17 +167,25 @@ export function Stagger({
   children,
   className,
   delay = 0,
-  gap = 0.05,
+  gap = 0.075,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
   gap?: number;
 }) {
-  const still = useStill();
+  const reduced = useStill();
   const ref = useRef<HTMLDivElement>(null);
-  const observed = useInView(ref, { once: true, amount: 0, margin: "0px 0px -40px 0px" });
-  // The observer does not reliably fire for a container that mounts already on screen.
+  // `amount: 0` because most of these lists are filled by a fetch: the
+  // container is empty and therefore zero-height when the observer first
+  // looks at it, and a ratio threshold can never be met by a box with no area.
+  const observed = useInView(ref, { once: true, amount: 0, margin: "0px 0px -60px 0px" });
+
+  // The observer does not reliably deliver a first callback for a container
+  // that mounts already on screen — which is every one of these lists, since
+  // they mount when their fetch lands. Without this the cards sat at
+  // `opacity: 0` until something happened to scroll the page. Measuring once
+  // after mount answers the same question directly.
   const [onScreenAtMount, setOnScreenAtMount] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -156,15 +193,18 @@ export function Stagger({
     const r = el.getBoundingClientRect();
     if (r.top < window.innerHeight && r.bottom > 0) setOnScreenAtMount(true);
   }, []);
+
   const inView = observed || onScreenAtMount;
 
-  if (still) return <div className={className}>{children}</div>;
+  if (reduced) return <div className={className}>{children}</div>;
 
   return (
     <div ref={ref} className={className}>
       {Children.map(children, (child, i) =>
         isValidElement(child) ? (
-          <StaggerCtx.Provider value={{ inView, delay: delay + Math.min(i, 6) * Math.min(gap, 0.06) }}>
+          // Capped so a long list does not leave its tail waiting several
+          // seconds — past a dozen items the offsets are indistinguishable.
+          <StaggerCtx.Provider value={{ inView, delay: delay + Math.min(i, 12) * gap }}>
             {child}
           </StaggerCtx.Provider>
         ) : (
@@ -180,15 +220,15 @@ export function StaggerItem({
   className,
   ...rest
 }: { children: ReactNode; className?: string } & MotionProps) {
-  const still = useStill();
+  const reduced = useStill();
   const { inView, delay } = useContext(StaggerCtx);
-  if (still) return <div className={className}>{children}</div>;
+  if (reduced) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 10 }}
-      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-      transition={{ duration: 0.4, ease: EASE_SMOOTH, delay }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      transition={{ duration: 0.55, ease: EASE_SMOOTH, delay }}
       {...rest}
     >
       {children}
@@ -198,14 +238,10 @@ export function StaggerItem({
 
 export { staggerParent, staggerChild };
 
-/** Former parallax layer; renders its content in place. */
-export function Parallax({ children, className }: { children: ReactNode; className?: string; speed?: number }) {
-  return <div className={className}>{children}</div>;
-}
-
-/** A number, formatted. (It used to count up from zero, which made every figure wrong for a second.) */
+/** Count a number up once it enters the viewport. */
 export function CountUp({
   to,
+  duration = 1.4,
   suffix = "",
   prefix = "",
   format,
@@ -218,9 +254,33 @@ export function CountUp({
   format?: (n: number) => string;
   className?: string;
 }) {
-  const shown = format ? format(to) : Math.round(to).toLocaleString(locale());
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.4 });
+  const reduced = useReducedMotionAfterMount();
+  const [value, setValue] = useState(reduced ? to : 0);
+
+  useEffect(() => {
+    if (reduced) {
+      setValue(to);
+      return;
+    }
+    if (!inView) return;
+    let raf = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / (duration * 1000));
+      // easeOutCubic — fast start, gentle settle.
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(to * eased);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, to, duration, reduced]);
+
+  const shown = format ? format(value) : Math.round(value).toLocaleString(locale());
   return (
-    <span className={cn("tabular-nums", className)}>
+    <span ref={ref} className={cn("tabular-nums", className)}>
       {prefix}
       {shown}
       {suffix}
@@ -228,36 +288,80 @@ export function CountUp({
   );
 }
 
-/** Former pointer tilt; renders its content in place. */
-export function Tilt({ children, className }: { children: ReactNode; className?: string; max?: number }) {
-  return <div className={className}>{children}</div>;
+/** Subtle 3D tilt toward the pointer. Pointer-only; never fires on touch. */
+export function Tilt({
+  children,
+  className,
+  max = 7,
+}: {
+  children: ReactNode;
+  className?: string;
+  max?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotionAfterMount();
+  const rx = useSpring(useMotionValue(0), { stiffness: 220, damping: 22 });
+  const ry = useSpring(useMotionValue(0), { stiffness: 220, damping: 22 });
+
+  if (reduced) return <div className={className}>{children}</div>;
+
+  return (
+    <motion.div
+      ref={ref}
+      className={cn("[transform-style:preserve-3d]", className)}
+      style={{ rotateX: rx, rotateY: ry, perspective: 800 }}
+      onPointerMove={(e) => {
+        if (e.pointerType !== "mouse") return;
+        const el = ref.current;
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const px = (e.clientX - r.left) / r.width - 0.5;
+        const py = (e.clientY - r.top) / r.height - 0.5;
+        ry.set(px * max * 2);
+        rx.set(-py * max * 2);
+      }}
+      onPointerLeave={() => {
+        rx.set(0);
+        ry.set(0);
+      }}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
-/** Former hover lift; cards show hover through their border instead. */
+/**
+ * Lift-on-hover wrapper for cards and tiles. No whileTap here on purpose: Motion makes any
+ * element with a press gesture keyboard-focusable (tabindex=0), which turned every card into
+ * a nameless Tab stop.
+ */
 export function Lift({
   children,
   className,
+  amount = -4,
+  ...rest
 }: { children: ReactNode; className?: string; amount?: number } & MotionProps) {
-  return <div className={className}>{children}</div>;
+  const reduced = useReducedMotionAfterMount();
+  if (reduced) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      className={className}
+      whileHover={{ y: amount }}
+      transition={{ type: "spring", stiffness: 320, damping: 26 }}
+      {...rest}
+    >
+      {children}
+    </motion.div>
+  );
 }
 
-/** Former word-by-word headline; renders the text. */
-export function WordReveal({ text, className }: { text: string; className?: string; delay?: number; gap?: number }) {
-  return <span className={className}>{text}</span>;
-}
-
-/** Former scroll progress bar. */
-export function ScrollProgress(_: { className?: string }) {
-  return null;
-}
-
-/** Route content fades in on mount: a short cue that the page changed. */
+/** Fade/slide route content in on mount. Used by the app shells. */
 export function PageIn({
   children,
   className,
   ...rest
 }: { children: ReactNode; className?: string } & ComponentPropsWithoutRef<"div">) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionAfterMount();
   if (reduced) {
     return (
       <div className={className} {...rest}>
@@ -268,9 +372,9 @@ export function PageIn({
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.18, ease: EASE_SMOOTH }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: EASE_SMOOTH }}
     >
       {children}
     </motion.div>

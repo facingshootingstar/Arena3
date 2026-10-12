@@ -75,7 +75,7 @@ export type SlotState =
  * hatched. Finished hours are nearly invisible.
  */
 const STATE_CLASS: Record<SlotState, string> = {
-  free: "bg-surface text-accent ring-1 ring-inset ring-accent/45",
+  free: "bg-surface text-accent-text ring-1 ring-inset ring-accent/45",
   hold: "stripes border border-dashed border-hold bg-hold/15 text-hold",
   booked: "bg-accent/15 text-accent-2",
   in_use: "bg-accent-strong text-accent-fg",
@@ -220,11 +220,13 @@ export function DateStrip({
             type="button"
             onClick={() => onChange(it.iso)}
             className={cn(
-              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color] duration-150 active:scale-[0.97]",
-              on ? "bg-accent text-accent-fg" : "bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-wood",
+              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color,transform,box-shadow] duration-200 active:scale-95",
+              on
+                ? "bg-accent text-accent-fg shadow-[0_8px_20px_-12px_rgba(30,79,216,0.9)]"
+                : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
             )}
           >
-            <span className="text-2xs font-medium opacity-90">
+            <span className="text-2xs font-medium opacity-90 dark:opacity-100">
               {it.isToday ? t("Today") : it.wd}
             </span>
             <span className="font-display text-xl tabular-nums leading-none">{it.day}</span>
@@ -301,7 +303,7 @@ function NoFreeSlots({
       <p className="mt-1 text-sm text-muted">
         {dayOver
           ? `${t("The hall opens again at 06:00.")}${offers ? ` ${t("Pick the next day below.")}` : ""}`
-          : `${t("Nothing has gone wrong, this is a full day.")}${offers ? ` ${t("Here is what is still open.")}` : ""}`}
+          : `${t("Nothing has gone wrong. This is a full day.")}${offers ? ` ${t("Here is what is still open.")}` : ""}`}
       </p>
       {offers ? (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -414,7 +416,7 @@ export function CourtGrid({
         />
       ) : null}
       {!hasClass ? (
-        <p className="text-sm text-muted">{t("No classes scheduled on court today, you are seeing member bookings only.")}</p>
+        <p className="text-sm text-muted">{t("No classes on court today, so you are seeing member bookings only.")}</p>
       ) : null}
 
       {onPick && byHour.length ? (
@@ -427,7 +429,7 @@ export function CourtGrid({
                 type="button"
                 onClick={() => onPick(open[0]!, hour)}
                 aria-label={t("Book {court} at {time}", { court: open[0]!.court_code, time: `${String(hour).padStart(2, "0")}:00` })}
-                className="flex min-h-14 min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-surface px-3 text-accent ring-1 ring-inset ring-accent/45 transition-colors duration-150 active:bg-accent active:text-accent-fg"
+                className="flex min-h-14 min-w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-surface px-3 text-accent-text ring-1 ring-inset ring-accent/45 transition-[background-color,color,transform] duration-150 hover:bg-accent hover:text-accent-fg active:scale-95"
               >
                 <span className="text-base font-semibold tabular-nums leading-tight">{String(hour).padStart(2, "0")}:00</span>
                 <span className="text-2xs text-muted">{t("{n} courts", { n: open.length })}</span>
@@ -499,7 +501,7 @@ export function CourtGrid({
                     className={cn(
                       cls,
                       isBookable(state) &&
-                        "transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-fg active:bg-accent active:text-accent-fg",
+                        "transition-[background-color,color,transform] duration-150 hover:bg-accent hover:text-accent-fg active:scale-95",
                     )}
                   >
                     {label}
@@ -523,7 +525,7 @@ export function CourtGrid({
             // fit and only overflows — and only then shows a scrollbar — once
             // there are genuinely too many to lay out. 4.5rem is the narrowest
             // a "BC1 / Basketball" heading stays readable at.
-            minWidth: `max(100%, ${3.25 + list.length * 3.5}rem)`,
+            minWidth: `max(100%, ${3.25 + list.length * 4.5}rem)`,
           }}
         >
           <div className="sticky left-0 z-10 bg-surface px-2 py-2 text-2xs font-medium text-muted">
@@ -668,7 +670,7 @@ function HourRow({
               className={cn(
                 cls,
                 isBookable(state) &&
-                  "grid place-items-center transition-[background-color,color] duration-150 hover:bg-accent hover:text-accent-fg active:bg-accent active:text-accent-fg",
+                  "grid place-items-center transition-[background-color,color,transform] duration-150 hover:bg-accent hover:text-accent-fg active:scale-95",
               )}
             >
               {isBookable(state) ? <Plus aria-hidden className="size-3.5" strokeWidth={2.25} /> : null}

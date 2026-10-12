@@ -379,7 +379,7 @@ export function Card({
       className={cn(
         "rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-border)]",
         interactive &&
-          "transition-shadow duration-150 hover:shadow-[0_0_0_1px_var(--color-line-strong),var(--shadow-soft)]",
+          "transition-shadow duration-200 hover:shadow-[var(--shadow-soft)]",
         className,
       )}
       {...props}
