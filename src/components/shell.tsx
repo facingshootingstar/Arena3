@@ -96,6 +96,7 @@ const NAV: Record<string, NavItem[]> = {
   // all (B-10). Schedule, register and profile are three different jobs.
   coach: [
     { to: "/coach", label: tk("Schedule"), icon: CalendarDays },
+    { to: "/coach/classes", label: tk("Classes"), icon: Ticket },
     { to: "/coach/attendance", label: tk("Attendance"), icon: ClipboardList },
     { to: "/coach/earnings", label: tk("Earnings"), icon: HandCoins },
     { to: "/account", label: tk("Profile"), icon: UserCog },

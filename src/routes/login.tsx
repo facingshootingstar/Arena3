@@ -70,8 +70,10 @@ function Login() {
       toast.success(t("Welcome, {name}", { name: res.user.full_name }), { id: "login-hello" });
       navigate({ to: homeFor(res.user.role) });
     } catch (err) {
+      const msg = err instanceof Error ? tServer(err.message) : t("Could not sign you in");
+      toast.error(msg, { id: "login-error-toast" });
       setError({
-        message: err instanceof Error ? tServer(err.message) : t("Could not sign you in"),
+        message: msg,
         // Only a refused sign-in says anything about the two boxes; no signal or a busy server does not.
         credentials: err instanceof ApiClientError && (err.status === 400 || err.status === 401),
       });

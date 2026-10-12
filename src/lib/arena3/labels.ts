@@ -1,4 +1,4 @@
-import { t, tk } from "@/lib/i18n";
+import { t, tk } from "./translator.ts";
 
 /**
  * Label tables are module-scope, so they hold English (marked with `tk`) and translate when a
