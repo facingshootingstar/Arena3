@@ -2,7 +2,10 @@
 
 Rules applied (Learning UML 2.0, ch. 3): one initial node, activity final nodes,
 rounded action nodes named as verb phrases, decision and merge diamonds whose
-outgoing flows carry [guards], and one partition per participant.
+outgoing flows carry [guards], and one partition per participant. A flow that waits
+for something to happen uses an accept event action (a signal) or a time event (an
+hourglass), never a guard. The partitions are laid out like the SJ template's swimlane
+flowcharts (p. 7-14): vertical lanes, the actor first, the system in the middle.
 """
 
 import math
@@ -11,17 +14,23 @@ from lib import Diagram, LINE, INK
 
 LANE = ("swimlane;startSize=40;horizontal=1;html=1;whiteSpace=wrap;fillColor=#e2e8f0;swimlaneFillColor=#ffffff;"
         "strokeColor=#334155;strokeWidth=1.5;fontFamily=Helvetica;fontSize=14;fontStyle=1;fontColor=#1e293b;")
-ACTION = ("rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#334155;strokeWidth=1.2;"
-          "fontFamily=Helvetica;fontSize=12;fontColor=#1e293b;")
+ACTION = ("rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#334155;strokeWidth=1.2;"
+          "fontFamily=Helvetica;fontSize=13;fontColor=#1e293b;")
+ACCEPT = ("shape=mxgraph.sysml.accEvent;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#334155;"
+          "strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1e293b;spacingLeft=14;")
+TIME = "shape=mxgraph.sysml.timeEvent;html=1;fillColor=#ffffff;strokeColor=#334155;strokeWidth=1.2;"
+NOTE_TEXT = ("text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=13;"
+             "fontColor=#1e293b;")
 DECISION = ("rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#334155;strokeWidth=1.2;"
             "fontFamily=Helvetica;fontSize=11;fontColor=#1e293b;")
 START = "ellipse;html=1;shape=startState;fillColor=#1e293b;strokeColor=#1e293b;"
 FINAL = "ellipse;html=1;shape=endState;fillColor=#1e293b;strokeColor=#1e293b;"
 FLOW = ("endArrow=open;endSize=10;html=1;rounded=0;edgeStyle=none;strokeColor=" + LINE + ";strokeWidth=1.3;"
-        "fontFamily=Helvetica;fontSize=11;fontColor=" + INK + ";labelBackgroundColor=#ffffff;")
+        "fontFamily=Helvetica;fontSize=12;fontColor=" + INK + ";labelBackgroundColor=#ffffff;")
 
-LANE_X = (150, 550, 1070)
-LANE_W = (400, 520, 380)
+LANE_X = (20, 370, 890)
+LANE_W = (350, 520, 300)
+LOOP = LANE_X[0] + 35            # x of the loop-back flows down the actor lane's left side
 LANE_Y = 20
 ROW0 = 110
 PITCH = 80
@@ -63,6 +72,18 @@ class Swimlanes:
 
     def action(self, cid, text, lane, row, dx=0, w=220, h=52):
         return self._place(cid, text, ACTION, lane, row, dx, w, h, "rect")
+
+    def accept(self, cid, text, lane, row, dx=0, w=200, h=46):
+        """Accept event action: the flow waits here until the signal arrives."""
+        return self._place(cid, text, ACCEPT, lane, row, dx, w, h, "rect")
+
+    def time(self, cid, text, lane, row, dx=0):
+        """Time event: the flow waits until the time is reached; its name sits to the right."""
+        self._place(cid, "", TIME, lane, row, dx, 30, 40, "rect")
+        x, y, w, h = self.geo[cid]
+        self.d.vertex(text, NOTE_TEXT, x + w + 8 - LANE_X[lane], y + 4 - LANE_Y, 120, 32, id=cid + "_name",
+                      parent=self.lane_ids[lane], role="label")
+        return cid
 
     def decision(self, cid, lane, row, dx=0):
         return self._place(cid, "", DECISION, lane, row, dx, 36, 36, "rhombus")
@@ -155,8 +176,8 @@ def register():
     s.flow("m1", "a2")
     s.flow("a2", "a3", out="r", into="l")
     s.flow("a3", "d1")
-    s.flow("d1", "m1", "details invalid", out="l", into="l", via=[(200, row_y(4)), (200, row_y(2))],
-           at=(640, row_y(4) - 14))
+    s.flow("d1", "m1", "details invalid", out="l", into="l", via=[(LOOP, row_y(4)), (LOOP, row_y(2))],
+           at=(s.cx(S) - 170, row_y(4) - 14))
     s.flow("d1", "a4", "details valid", at=(s.cx(S) + 52, row_y(4) + 40))
     s.flow("a4", "a5", out="r", into="l")
     s.flow("a5", "m2", out="b", into="t")
@@ -164,8 +185,8 @@ def register():
     s.flow("a6", "a7", out="r", into="l")
     s.flow("a7", "d2")
     s.flow("d2", "m2", "wrong code, fewer than 5 attempts", out="l", into="l",
-           via=[(200, row_y(8)), (200, row_y(6))], at=(560, row_y(8) - 14))
-    s.flow("d2", "a8", "code expired or locked", out="r", into="t", at=(912, row_y(8) - 14))
+           via=[(LOOP, row_y(8)), (LOOP, row_y(6))], at=(s.cx(S) - 250, row_y(8) - 14))
+    s.flow("d2", "a8", "code expired or locked", out="r", into="t", at=(s.cx(S) + 102, row_y(8) - 14))
     s.flow("a8", "f1")
     s.flow("d2", "a9", "code correct", out="b", into=(155 / 210, 0), at=(s.cx(S) + 48, row_y(8) + 36))
     s.flow("a9", "a10", out="b", into=(65 / 230, 0))
@@ -179,11 +200,11 @@ def booking():
     M, S, P = 0, 1, 2
     s.start("st", M, 0)
     s.merge("m1", M, 1)
-    s.action("a1", "Choose a sport, date, court and time slot", M, 2, w=280)
+    s.action("a1", "Choose a sport, date, court and time slot", M, 2, w=240)
     s.action("a2", "Place a 5-minute hold<br>(BR-06, BR-05, BR-09)", S, 2, w=230)
     s.decision("d1", S, 3)
     s.action("a3", "See why the slot cannot be held", M, 3)
-    s.action("a4", "Choose deposit or full amount, a promo code and the payment method", M, 4, w=220, h=58)
+    s.action("a4", "Choose deposit or full amount, a promo code and the payment method", M, 4, w=250, h=58)
     s.decision("d2", M, 5)
     s.action("a5", "Create a payOS payment link", S, 5, dx=110, w=190)
     s.action("p1", "Show the VietQR checkout and take the member's payment", P, 5, w=220, h=58)
@@ -203,19 +224,19 @@ def booking():
     s.flow("m1", "a1")
     s.flow("a1", "a2", out="r", into="l")
     s.flow("a2", "d1")
-    s.flow("d1", "a3", "slot not available", out="l", into="r", at=(650, row_y(3) - 14))
-    s.flow("a3", "m1", out="l", into="l", via=[(200, row_y(3)), (200, row_y(1))])
+    s.flow("d1", "a3", "slot not available", out="l", into="r", at=(s.cx(S) - 160, row_y(3) - 14))
+    s.flow("a3", "m1", out="l", into="l", via=[(LOOP, row_y(3)), (LOOP, row_y(1))])
     s.flow("d1", "a4", "hold placed", out="b", into="r", at=(s.cx(S) + 44, row_y(3) + 34))
     s.flow("a4", "d2")
-    s.flow("d2", "a5", "payOS QR", out="r", into="l", at=(640, row_y(5) - 14))
+    s.flow("d2", "a5", "payOS QR", out="r", into="l", at=(s.cx(S) - 170, row_y(5) - 14))
     s.flow("a5", "p1", out="r", into="l")
     s.flow("p1", "p2")
     s.flow("p2", "a7", out="b", into="r")
     s.flow("d2", "a6", "bank transfer", out="b", into="l", at=(s.cx(M) + 52, row_y(5) + 46))
     s.flow("a6", "a8", out="b", into="r")
     s.flow("a8", "f1")
-    s.flow("d2", "a9", "plan hours", out="l", into="l", via=[(180, row_y(5)), (180, row_y(9))],
-           at=(255, row_y(5) - 14))
+    s.flow("d2", "a9", "plan hours", out="l", into="l", via=[(LOOP - 15, row_y(5)), (LOOP - 15, row_y(9))],
+           at=(s.cx(M) - 95, row_y(5) - 14))
     s.flow("a9", "m2", out="b", into="l")
     s.flow("a7", "m2", out="b", into="r")
     s.flow("m2", "a10")
@@ -225,7 +246,7 @@ def booking():
 
 
 def waitlist():
-    s = Swimlanes("13-ad-enrol-waitlist", ["Member", "Arena3 System", "Scheduled job (every 15 s)"], 9)
+    s = Swimlanes("13-ad-enrol-waitlist", ["Member", "Arena3 System", "Scheduled job (every 15 s)"], 11)
     M, S, J = 0, 1, 2
     s.start("st", M, 0)
     s.action("a1", "Choose an open class and press Enrol", M, 1)
@@ -237,28 +258,32 @@ def waitlist():
     s.action("a4", "Confirm the enrolment", S, 3, dx=175, w=140)
     s.final("f2", S, 4, dx=175)
     s.action("a5", "Add the member to the class waitlist", S, 4, w=200)
-    s.action("a6", "Offer the seat for 2 hours and notify the member", S, 5, w=200, h=56)
-    s.decision("d3", S, 6)
-    s.action("a7", "Accept the waitlist offer", M, 6)
-    s.action("j1", "Expire the offer and cancel the waitlist place", J, 6, w=240, h=56)
-    s.action("a8", "Confirm the enrolment and close the offer", S, 7, w=200)
-    s.action("j2", "Offer the seat to the next member on the waitlist", J, 7, w=240, h=56)
-    s.final("f3", S, 8)
-    s.final("f4", J, 8)
+    s.accept("ev1", "A seat is freed", S, 5)
+    s.action("a6", "Offer the seat for 2 hours and notify the member", S, 6, w=200, h=56)
+    s.decision("d3", S, 7)
+    s.action("a7", "Accept the waitlist offer", M, 7)
+    s.time("t1", "2 hours after the offer", J, 7, dx=-60)
+    s.action("a8", "Confirm the enrolment and close the offer", S, 8, w=200)
+    s.action("j1", "Expire the offer and cancel the waitlist place", J, 8, w=240, h=56)
+    s.final("f3", S, 9)
+    s.action("j2", "Offer the seat to the next member on the waitlist", J, 9, w=240, h=56)
+    s.final("f4", J, 10)
 
     s.flow("st", "a1")
     s.flow("a1", "a2", out="r", into="l")
     s.flow("a2", "d1")
-    s.flow("d1", "a3", "a rule is broken", out="l", into="r", at=(650, row_y(2) - 14))
+    s.flow("d1", "a3", "a rule is broken", out="l", into="r", at=(s.cx(S) - 160, row_y(2) - 14))
     s.flow("a3", "f1")
     s.flow("d1", "d2", "rules met", at=(s.cx(S) + 40, row_y(2) + 40))
     s.flow("d2", "a4", "seat free", out="r", into="l", at=(s.cx(S) + 60, row_y(3) - 14))
     s.flow("a4", "f2")
     s.flow("d2", "a5", "class full", at=(s.cx(S) - 46, row_y(3) + 40))
-    s.flow("a5", "a6", "a seat is freed", at=(s.cx(S) - 58, row_y(4.5)))
+    s.flow("a5", "ev1")
+    s.flow("ev1", "a6")
     s.flow("a6", "d3")
-    s.flow("d3", "a7", "member accepts within 2 hours", out="l", into="r", at=(s.cx(S) - 150, row_y(6) - 14))
-    s.flow("d3", "j1", "2 hours pass", out="r", into="l", at=(s.cx(S) + 120, row_y(6) - 14))
+    s.flow("d3", "a7", "member accepts", out="l", into="r", at=(s.cx(S) - 150, row_y(7) - 14))
+    s.flow("d3", "t1", "no answer", out="r", into="l", at=(s.cx(S) + 110, row_y(7) - 14))
+    s.flow("t1", "j1", out="b", into=(60 / 240, 0))
     s.flow("a7", "a8", out="b", into="l")
     s.flow("a8", "f3")
     s.flow("j1", "j2")
@@ -279,7 +304,7 @@ def refund():
     s.action("a4", "Post the refund and restore the promo if fully refunded", S, 6, dx=-130, w=200, h=56)
     s.final("f1", S, 7, dx=-130)
     s.action("a5", "Save the refund as pending approval", S, 6, dx=130, w=190)
-    s.action("m2", "Review the pending refund (the raiser cannot decide it)", G, 7, w=220, h=56)
+    s.action("m2", "Review the pending refund (the raiser cannot decide it)", G, 7, w=250, h=56)
     s.decision("d3", G, 8)
     s.action("a6", "Post the refund and restore the promo if fully refunded", S, 8, dx=60, w=200, h=56)
     s.action("a7", "Mark the refund as rejected", S, 9, dx=60, w=200)
@@ -292,16 +317,16 @@ def refund():
     s.flow("m1", "a2")
     s.flow("a2", "a3", out="r", into="l")
     s.flow("a3", "d1")
-    s.flow("d1", "m1", "amount too large", out="l", into="l", via=[(200, row_y(4)), (200, row_y(2))],
-           at=(640, row_y(4) - 14))
+    s.flow("d1", "m1", "amount too large", out="l", into="l", via=[(LOOP, row_y(4)), (LOOP, row_y(2))],
+           at=(s.cx(S) - 170, row_y(4) - 14))
     s.flow("d1", "d2", "amount accepted", at=(s.cx(S) + 58, row_y(4) + 40))
     s.flow("d2", "a4", "below 1,000,000 VND", out="l", into="t", at=(s.cx(S) - 120, row_y(5) - 16))
     s.flow("d2", "a5", "1,000,000 VND or more", out="r", into="t", at=(s.cx(S) + 120, row_y(5) - 16))
     s.flow("a4", "f1")
     s.flow("a5", "m2", out="r", into="t")
     s.flow("m2", "d3")
-    s.flow("d3", "a6", "approve", out="l", into="r", at=(1110, row_y(8) - 14))
-    s.flow("d3", "a7", "reject", out="b", into="r", at=(1110, row_y(9) - 14))
+    s.flow("d3", "a6", "approve", out="l", into="r", at=(s.cx(G) - 150, row_y(8) - 14))
+    s.flow("d3", "a7", "reject", out="b", into="r", at=(s.cx(G) - 150, row_y(9) - 14))
     s.flow("a6", "mg", out="l", into="t")
     s.flow("a7", "mg", out="b", into="r")
     s.flow("mg", "a8")

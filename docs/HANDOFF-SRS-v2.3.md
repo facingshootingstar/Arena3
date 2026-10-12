@@ -42,7 +42,7 @@ Targets: the Claude Docs project `ef2ef169-beab-4a4d-8c61-e3a8ad8ea5f8` (node `1
   - Logical ERD is split into 5 figures for A4 readability.
   - The real schema is in `migrations/*.sql` (49 tables), not `src/lib/db.ts` as the rules say.
   - The prose says "Ten background jobs" but the table has 11 rows.
-  - Figure count goes from 27 to 36.
+  - Figure count goes from 27 to 41 (9 new figures, plus the class diagrams and the conceptual ERD split in two with the user's approval).
   - 30 FKs are not drawn as lines, only listed in the boxes.
   - Bare error codes (VALIDATION etc.) in flows cite the 5.2 Error Responses code instead of a Message ID, because the message count must stay 21.
 
@@ -67,28 +67,32 @@ Targets: the Claude Docs project `ef2ef169-beab-4a4d-8c61-e3a8ad8ea5f8` (node `1
 
 ## 4. Figures
 
-Builder: `python scripts/srs_diagrams/build.py [filter] [--no-png]`, output `docs/diagrams/srs/`; `lib.py check()` must pass (all 36 do).
+Builder: `python scripts/srs_diagrams/build.py [filter] [--no-png]`, output `docs/diagrams/srs/`; `lib.py check()` must pass (all 41 do).
+
+On 2026-10-12 the user approved splitting each class diagram and the conceptual ERD into two figures, so the figure count is 41 (27 old + 9 from §4 of the plan + 5 parts). Each part is a separate figure, with its own caption and its own mention in the text before it. Split each "Figure N covers …" paragraph between the two parts.
 
 | Source file (docs/diagrams/srs/) | Becomes |
 |---|---|
 | 01-context-diagram | Fig 1 |
 | 03..10-uc-* (8 files) | Figs 2–9 (2.2.1.1–8) |
 | 24..28-sf-* (5 files) | Figs 10–14 screens flow (3.1.1.1–5) |
-| 19-erd-conceptual | Fig 15 |
-| 31..35-erd-logical-1..5 | Figs 16–20 |
-| 11-ad-register, 12-ad-book-and-pay, 13-ad-enrol-waitlist, 14-ad-refund | Figs 21–24 inside UC-02, UC-08, UC-13, UC-24 |
-| 38-system-architecture | Fig 25 |
-| 39-package-diagram | Fig 26 |
-| 20-cd-booking-payment | Fig 27 |
-| 16-sd-book-and-pay, 18-sd-refund | Figs 28, 29 (II.3.1.2) |
-| 21-cd-membership-classes | Fig 30 |
-| 36-sd-enrol-class | Fig 31 (II.3.2.2) |
-| 22-cd-coaching | Fig 32 |
-| 37-sd-take-attendance | Fig 33 (II.3.3.2) |
-| 23-cd-operations | Fig 34 |
-| 15-sd-register, 17-sd-gate-checkin | Figs 35, 36 (II.3.4.2) |
+| 19-erd-conceptual (courts, bookings and payments), 44-erd-conceptual-2 (members, plans and classes) | Figs 15, 16 (3.1.5.1) |
+| 31..35-erd-logical-1..5 | Figs 17–21 |
+| 11-ad-register, 12-ad-book-and-pay, 13-ad-enrol-waitlist, 14-ad-refund | Figs 22–25 inside UC-02, UC-08, UC-13, UC-24 |
+| 38-system-architecture | Fig 26 |
+| 39-package-diagram | Fig 27 |
+| 20-cd-booking-payment (courts and bookings), 40-cd-booking-payment-2 (payments) | Figs 28, 29 (II.3.1.1) |
+| 16-sd-book-and-pay, 18-sd-refund | Figs 30, 31 (II.3.1.2) |
+| 21-cd-membership-classes (membership plans), 41-cd-membership-classes-2 (classes and attendance) | Figs 32, 33 (II.3.2.1) |
+| 36-sd-enrol-class | Fig 34 (II.3.2.2) |
+| 22-cd-coaching (coach and member roles), 42-cd-coaching-2 (coach pay, plans and homework) | Figs 35, 36 (II.3.3.1) |
+| 37-sd-take-attendance | Fig 37 (II.3.3.2) |
+| 23-cd-operations (accounts and member care), 43-cd-operations-2 (centre and equipment) | Figs 38, 39 (II.3.4.1) |
+| 15-sd-register, 17-sd-gate-checkin | Figs 40, 41 (II.3.4.2) |
 
 Caption below, centred, `Figure N. Title`; continuous from 1; each figure mentioned in text before it appears; List of Figures matches. Old PNG→blob ids are in `scripts/srs_pipeline/blobs.txt` (27 old); the 9 new PNGs (`31`–`39`) still need upload + blob. Old blob ids: context `8ce143c9-2ad7`; activity `6c68d614-3729`, `aeaae399-8609`, `09cde083-8df1`, `173918d3-0af7`; UC `863394a5-8261`, `20eb16a8-7f6e`, `bd407701-78f0`, `35bcbef8-b4d1`, `810e856d-b2f6`, `8e53916e-65a1`, `445a9577-b114`, `d641d028-e2ce`; screens `c93173b7-5eb7`, `43e9031d-467e`, `0a5c2780-becb`, `79aa3c32-5dd8`, `c86dedfc-1269`; ERD `23bf0aeb-1913`; class `39193b4d-04c1`, `d85aa569-6679`, `3862f629-d030`, `3ba4b78a-b00d`; sequence `7bc1fa05-ef17`, `929915ee-935b`, `a351651f-9611`, `d186ec08-cb9e` (confirm mapping with `blobs.txt`).
+
+On 2026-10-12 (§11) these figures were redrawn: `01` context, `03..10` use case, `11..14` activity, `15..18`, `36`, `37` sequence, `24..28` screens flow, `38` architecture and `39` package. The class diagrams (`20..23` plus the new `40..43`) and the conceptual ERD (`19` plus the new `44`) were then split into two figures each. Every one of these old blob ids is now stale, so upload the new PNGs and create new blobs. Only the logical ERDs (`31..35`) are unchanged. `make_html.py` maps PNGs by their two-digit prefix, and the new prefixes `40..44` are unique. `docs/Arena3-SRS-v2.2.1.pdf` keeps the old, unsplit class and conceptual ERD figures, because a patched PDF cannot gain pages; the split figures belong in v2.3.
 
 ## 5. Target structure (rules §2, Title Case)
 
@@ -105,7 +109,7 @@ Front matter: Cover, Record of Changes (+ footnote `*A – Added, M – Modified
 - 5 Requirement Appendix — 5.1 Business Rules; 5.2 Common Requirements (with unnumbered "Error Responses" and "Configurable Settings"); 5.3 Application Messages List.
 
 **Part II SDD**
-- 1 System Design: 1.1 System Architecture (Fig 25); 1.2 Package Diagram (Fig 26) + unnumbered "Package Descriptions" (`No | Package Name | Description`, 7 rows from `scripts/srs_diagrams/architecture.py: package_rows()`).
+- 1 System Design: 1.1 System Architecture (Fig 26); 1.2 Package Diagram (Fig 27) + unnumbered "Package Descriptions" (`No | Package Name | Description`, 7 rows from `scripts/srs_diagrams/architecture.py: package_rows()`).
 - 2 Database Design + "Table Descriptions" (all 49 tables from `dbschema.load()`; format `# | Entity | Description` with "Store … (table `x`)." + `Primary Key:` + `Foreign Key:` bullets).
 - 3 Detailed Design: 3.1 Booking and Payment; 3.2 Membership and Classes; 3.3 Coaching and Training; 3.4 Centre Operations — each with 3.x.1 Class Diagram and 3.x.2 Sequence Diagram.
 
@@ -143,7 +147,7 @@ MSG01 → UC-02 3b, UC-19, UC-36 · MSG02 → UC-02 3c, UC-04, UC-05 · MSG03 �
 ## 8. Plan (what to do next)
 
 1. Write `gen_srs.py` (scratch dir). It parses `scripts/srs_pipeline/doc-nb.txt` by the line ranges above, uses `dbschema.load()` for PK/FK and `architecture.package_rows()`, applies a hand-written per-UC extras table (Interface = screen from 3.1.2, Data Collect/Computation/Storage derived from each UC's flows, Screen Layout or `N/A – reason`), maps messages, splits Pre/Postconditions into PRE-n/POST-n, numbers flows `n.0` / `n.1…` / `n.0.E1…`, replaces bare codes (VALIDATION, UNAUTHENTICATED, FORBIDDEN, CONFLICT_STATE, CONFLICT_SLOT, HOLD_EXPIRED, RATE_LIMITED, "C-08 or C-09") with Message IDs / BR codes / the 5.2 Error Responses code, unifies secondary-actor names, and preserves "Other information" rows.
-2. Validate: 9 actors, 44 UC, 53 BR, 26 NFR, 21 messages, 44 screens, 11 non-screen functions, ≥17 entities, 49 tables, 36 figures; every BR cited by a UC; every Message ID cited by a flow; figures mentioned before appearing; numbering continuous.
+2. Validate: 9 actors, 44 UC, 53 BR, 26 NFR, 21 messages, 44 screens, 11 non-screen functions, ≥17 entities, 49 tables, 41 figures; every BR cited by a UC; every Message ID cited by a flow; figures mentioned before appearing; numbering continuous.
 3. Emit markdown chunks of ~8–12 KB. Insert each at root end in order (Record of Changes table `.181` stays: append the footnote and a new row via `insert as:"blocks"` on the table id). Use single-paragraph fallbacks for multi-line cells ("PRE-1: … PRE-2: …"), then optionally upgrade with the cell-replace op.
 4. Upload the 9 new PNGs (one per call) and create blobs; append to `blobs.txt`.
 5. Delete the old blocks ("## I. Overall requirements" … end of old content) by id with a multi-id `delete` + `ifRev`.
@@ -160,3 +164,46 @@ TanStack Start (SSR); `/v1/$` → `handleApi` in `src/lib/arena3/router.ts`; han
 - Screen Layout screenshots: take from localhost with seed accounts (never the real login on arena3-self.vercel.app); if not possible, `N/A – reason` or a placeholder and report it.
 - Purpose sentences for 4.2.x sections that lack one.
 - "Ten background jobs" vs 11 table rows (report, don't silently change).
+
+## 11. Context and use case diagram review (2026-10-12) — apply in step 3
+
+The context diagram and the eight use case diagrams were redrawn against R7 p.20–21, SJ p.6 and Learning UML 2.0 ch. 2. The Claude Docs project was not shared with the account used for that session, so the doc is still untouched; apply the text changes below while restructuring. The same changes are already in `docs/Arena3-SRS-v2.2.1.pdf`, which `python scripts/srs_pipeline/patch_v221.py docs/Arena3-SRS-v2.2.pdf docs/Arena3-SRS-v2.2.1.pdf docs/diagrams/srs` builds from the v2.2 PDF. It adds a 2.2.1 row to the Record of Changes, so number the restructure 2.3 as planned. Each changed row keeps its information elsewhere (flows or postconditions), and every change is checked against the code.
+
+**Use case names.** Ovals use Title Case. `UC` in `scripts/srs_diagrams/usecase.py` is the single source for the 2.2.2 table and the 3.x.y headings; copy it word for word.
+
+**Actor rule (now stated in the diagrams).** An actor is linked to a use case only when it interacts with Arena3 during that use case: it triggers it, performs a step, or exchanges data with the system (Learning UML 2.0 Fig. 2-3, Table 2-1). People who are only served at the counter, notified later, assigned or paid are stakeholders, not actors. Primary actors stand left; secondary actors stand right, together with Manager, the second primary actor of UC-28. The Account and Access diagram shows Member, Receptionist, Coach and Manager specialising the abstract Registered User. UC-28 is drawn once only, in Front Desk Operations.
+
+**2.2 text** (old II.2 paragraph): replace "Associations carry no arrowheads." with "Associations carry no arrowheads. Primary actors stand left and secondary actors right; an actor is linked only to the use cases in which it interacts with Arena3. The Account and Access diagram also shows the four roles specialising Registered User."
+
+**Actors table, Gemini AI:** "Google's model. Answers member questions and drafts training plans from centre data only." → "Google's model. Answers member questions from centre data only." The training-plan suggestion (`trainingSuggest`, `handlers/ops.ts`) uses a built-in drill list and never calls Gemini.
+
+**Secondary Actors rows** (rows not listed stay as they are):
+
+| UC | Old | New |
+|---|---|---|
+| UC-02, UC-04 | Email service (SMTP) | Mail delivery (SMTP) |
+| UC-13 | Receptionist or manager, enrolling on the member's behalf | Receptionist or Manager, enrolling on the member's behalf |
+| UC-16 | Coach, who writes the plans and feedback | None |
+| UC-17 | Gemini AI service; Receptionist, who answers support requests | Gemini AI |
+| UC-20 | Member | payOS (flow 3a; `PayOnlineButton` on `/desk/member/$id`) |
+| UC-21 | Member, if known | None |
+| UC-22 | Member; payOS | payOS (`PayOnlineButton` on `/desk/payments`) |
+| UC-23 | Guest or member | None |
+| UC-24 | Manager, who signs off large refunds; Member, who is notified | Manager, who can raise a refund directly (flow 4b) |
+| UC-25 | Member | Member, who shows the booking QR code (flow 3b) |
+| UC-27 | Guest or member | None |
+| UC-29 | Member, who receives the reply | None |
+| UC-32 | Gemini AI service | None |
+| UC-33 | Member, who receives homework | None |
+| UC-34 | Member | None |
+| UC-39 | Coach, who is assigned | None |
+| UC-42 | Receptionist, who raised the refund; Member, who is notified | None |
+| UC-43 | Coach, who is paid | None |
+
+The code confirms that raising a refund does not notify the member: `paymentsRefund` sends no notice, and only approve or reject (UC-42) does.
+
+**UC-32, alternative flow 2b:** "The coach asks for an AI suggestion: the system sends the class sport and level to Gemini and fills the blocks, which the coach reviews." → "The coach asks for a suggestion: the system fills the blocks with suggested drills for the class sport and level, and the coach reviews them."
+
+**Not changed:** the external-entity table in I.1. The context diagram now copies it word for word. The xAI fallback is already in the IV.1.2 Gemini row ("12-second timeout, then xAI Grok, then rule-based answers"), so there is no tenth actor.
+
+**Record of Changes (v2.3 row), add to its description:** "Redrew the context and use case diagrams to the FPT template and UML 2.0 notation; aligned secondary actors with the flows; removed Gemini from UC-32 to match the code."

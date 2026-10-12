@@ -1,121 +1,40 @@
-"""Conceptual ERD in the FPT template's Chen style: entities, verb diamonds, 1/N/M cardinality."""
+"""Conceptual ERD in the FPT template's Chen style (R7 p. 37): entities, verb diamonds, 1/N/M cardinality.
 
-from lib import Diagram, FONT, LINE
+The 17 entities are drawn in two figures on one grid of four columns so the names stay readable on an
+A4 portrait page: courts, bookings and payments, then members, plans and classes. User, Payment and
+Court appear in both figures, where they link the two halves.
+"""
 
+from lib import Diagram, LINE
+
+FONT = "fontFamily=Helvetica;fontSize=13;fontColor=#1e293b;"
 ENTITY = ("rounded=0;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#334155;strokeWidth=1.5;"
           + FONT + "fontStyle=1;")
 REL = ("rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#334155;strokeWidth=1.2;" + FONT)
 CARD = "text;html=1;align=center;verticalAlign=middle;" + FONT + "fontStyle=1;"
 JOIN = "html=1;rounded=0;edgeStyle=none;endArrow=none;strokeColor=" + LINE + ";strokeWidth=1.2;"
 
-EW, EH = 130, 44
-RW, RH = 100, 56
-
-# id: (label, centre x, centre y, width)
-ENTITIES = {
-    "invoice": ("Invoice", 380, 60, EW),
-    "promo": ("Promotion", 590, 60, EW),
-    "item": ("EquipmentItem", 820, 60, EW),
-    "rule": ("PriceRule", 1350, 60, EW),
-    "shiftc": ("CashierShift", 90, 290, EW),
-    "pay": ("Payment", 420, 290, 150),
-    "booking": ("CourtBooking", 820, 290, EW),
-    "court": ("Court", 1350, 290, EW),
-    "wo": ("WorkOrder", 1505, 425, EW),
-    "review": ("ProgressReview", 1200, 430, EW),
-    "plan": ("MembershipPlan", 90, 560, EW),
-    "sub": ("Subscription", 420, 560, EW),
-    "user": ("User", 800, 560, 240),
-    "att": ("Attendance", 1200, 575, EW),
-    "tplan": ("TrainingPlan", 390, 810, EW),
-    "tclass": ("TrainingClass", 780, 810, 220),
-    "csession": ("ClassSession", 1200, 810, EW),
-}
-
-# id: (verb, centre x, centre y)
-RELATIONS = {
-    "r_bills": ("bills", 380, 170),
-    "r_disc": ("discounts", 590, 170),
-    "r_rents": ("rents", 820, 170),
-    "r_prices": ("prices", 1350, 170),
-    "r_collects": ("collects", 245, 290),
-    "r_settle_b": ("settles", 620, 290),
-    "r_hosts_b": ("hosts", 1085, 290),
-    "r_needs": ("needs", 1505, 290),
-    "r_settle_s": ("settles", 390, 425),
-    "r_pays": ("pays", 610, 425),
-    "r_makes": ("makes", 860, 425),
-    "r_reviews": ("receives", 1030, 430),
-    "r_defines": ("defines", 245, 560),
-    "r_holds": ("holds", 600, 560),
-    "r_logs": ("logs", 1030, 575),
-    "r_hosts_s": ("hosts", 1350, 560),
-    "r_records": ("records", 1200, 690),
-    "r_teaches": ("teaches", 720, 690),
-    "r_enrols": ("enrols in", 840, 690),
-    "r_follows": ("follows", 560, 810),
-    "r_has": ("has", 1012, 810),
-}
+EW, EH = 124, 40
+RW, RH = 96, 52
+COL = [90, 360, 630, 900]                 # entity centres, 270 px apart
+ROW = [50 + 120 * k for k in range(7)]    # rows of entities (even) and diamonds (odd)
+MID = [(a + b) / 2 for a, b in zip(COL, COL[1:])]
 
 TIP = {"l": (0, 0.5), "r": (1, 0.5), "t": (0.5, 0), "b": (0.5, 1)}
 
-# entity, relationship, cardinality on the entity side, point where the line leaves the entity,
-# diamond tip it enters, bends, and which side of the line the cardinality sits on
-JOINS = [
-    ("invoice", "r_bills", "1", (380, 82), "t", (), False),
-    ("pay", "r_bills", "1", (380, 268), "b", (), False),
-    ("promo", "r_disc", "1", (590, 82), "t", (), False),
-    ("pay", "r_disc", "N", (470, 268), "l", ((470, 170),), False),
-    ("item", "r_rents", "N", (820, 82), "t", (), False),
-    ("booking", "r_rents", "M", (820, 268), "b", (), False),
-    ("rule", "r_prices", "N", (1350, 82), "t", (), False),
-    ("court", "r_prices", "1", (1350, 268), "b", (), False),
-    ("shiftc", "r_collects", "1", (155, 290), "l", (), False),
-    ("pay", "r_collects", "N", (345, 290), "r", (), False),
-    ("pay", "r_settle_b", "N", (495, 290), "l", (), False),
-    ("booking", "r_settle_b", "1", (755, 290), "r", (), False),
-    ("booking", "r_hosts_b", "N", (885, 290), "l", (), False),
-    ("court", "r_hosts_b", "1", (1285, 290), "r", (), False),
-    ("court", "r_needs", "1", (1415, 290), "l", (), False),
-    ("wo", "r_needs", "N", (1505, 403), "b", (), True),
-    ("pay", "r_settle_s", "N", (390, 312), "t", (), True),
-    ("sub", "r_settle_s", "1", (390, 538), "b", (), True),
-    ("pay", "r_pays", "N", (480, 312), "l", ((480, 425),), False),
-    ("user", "r_pays", "1", (710, 535), "r", ((710, 425),), True),
-    ("booking", "r_makes", "N", (860, 312), "t", (), False),
-    ("user", "r_makes", "1", (860, 535), "b", (), False),
-    ("user", "r_reviews", "1", (920, 545), "l", ((950, 545), (950, 430)), False),
-    ("review", "r_reviews", "N", (1135, 430), "r", (), False),
-    ("plan", "r_defines", "1", (155, 560), "l", (), False),
-    ("sub", "r_defines", "N", (355, 560), "r", (), False),
-    ("sub", "r_holds", "N", (485, 560), "l", (), False),
-    ("user", "r_holds", "1", (680, 560), "r", (), False),
-    ("user", "r_logs", "1", (920, 575), "l", (), True),
-    ("att", "r_logs", "N", (1135, 575), "r", (), True),
-    ("court", "r_hosts_s", "1", (1350, 312), "t", (), False),
-    ("csession", "r_hosts_s", "N", (1265, 810), "b", ((1350, 810),), False),
-    ("att", "r_records", "N", (1200, 597), "t", (), False),
-    ("csession", "r_records", "1", (1200, 788), "b", (), False),
-    ("user", "r_teaches", "1", (720, 585), "t", (), True),
-    ("tclass", "r_teaches", "N", (720, 788), "b", (), True),
-    ("user", "r_enrols", "M", (840, 585), "t", (), False),
-    ("tclass", "r_enrols", "N", (840, 788), "b", (), False),
-    ("tplan", "r_follows", "N", (455, 810), "l", (), False),
-    ("tclass", "r_follows", "1", (670, 810), "r", (), False),
-    ("tclass", "r_has", "1", (890, 810), "l", (), False),
-    ("csession", "r_has", "N", (1135, 810), "r", (), False),
-]
 
-
-def build():
-    d = Diagram("19-erd-conceptual")
-    for eid, (name, cx, cy, w) in ENTITIES.items():
-        d.vertex(name, ENTITY, cx - w / 2, cy - EH / 2, w, EH, id=eid)
-    for rid, (verb, cx, cy) in RELATIONS.items():
+def chen(name, entities, relations, joins):
+    """entities: id -> (label, cx, cy, w); relations: id -> (verb, cx, cy);
+    joins: (entity, relation, cardinality, side of the entity, x or y on that side, diamond tip, bends, flip)."""
+    d = Diagram(name, w=1020, h=ROW[-1] + 80)
+    for eid, (label, cx, cy, w) in entities.items():
+        d.vertex(label, ENTITY, cx - w / 2, cy - EH / 2, w, EH, id=eid)
+    for rid, (verb, cx, cy) in relations.items():
         d.vertex(verb, REL, cx - RW / 2, cy - RH / 2, RW, RH, id=rid, shape="rhombus")
 
-    for n, (eid, rid, card, start, tip, bends, flip) in enumerate(JOINS):
+    for n, (eid, rid, card, side, at, tip, bends, flip) in enumerate(joins):
         ex, ey, ew, eh = d.abs_of(eid)
+        start = {"t": (at, ey), "b": (at, ey + eh), "l": (ex, at), "r": (ex + ew, at)}[side]
         exit = ((start[0] - ex) / ew, (start[1] - ey) / eh)
         d.edge(eid, rid, style=JOIN, points=bends, exit=exit, entry=TIP[tip], id=f"j{n}")
         nxt = bends[0] if bends else d._anchor(rid, TIP[tip])
@@ -128,3 +47,97 @@ def build():
             y = start[1] + 3 if flip else start[1] - 19
         d.vertex(card, CARD, x, y, 16, 16, id=f"c{n}", role="label")
     return d
+
+
+def courts_and_payments():
+    A, B, C, D = COL
+    r0, r1, r2, r3, r4 = ROW[:5]
+    user_w = 330
+    entities = {
+        "promo": ("Promotion", A, r0, EW), "invoice": ("Invoice", B, r0, EW),
+        "item": ("EquipmentItem", C, r0, EW), "rule": ("PriceRule", D, r0, EW),
+        "shiftc": ("CashierShift", A, r2, EW), "pay": ("Payment", B, r2, EW),
+        "booking": ("CourtBooking", C, r2, EW), "court": ("Court", D, r2, EW),
+        "user": ("User", (B + C) / 2, r4, user_w), "wo": ("WorkOrder", D, r4, EW),
+    }
+    relations = {
+        "r_disc": ("discounts", A, r1), "r_bills": ("bills", B, r1), "r_rents": ("rents", C, r1),
+        "r_prices": ("prices", D, r1), "r_collects": ("collects", MID[0], r2), "r_settle": ("settles", MID[1], r2),
+        "r_hosts": ("hosts", MID[2], r2), "r_pays": ("pays", B, r3), "r_makes": ("makes", C, r3),
+        "r_needs": ("needs", D, r3),
+    }
+    low = r2 - EH / 2 - 26            # the discounts line runs under the r1 diamonds, above the r2 row
+    joins = [
+        ("promo", "r_disc", "1", "b", A, "t", (), False),
+        ("pay", "r_disc", "N", "t", B - 40, "b", [(B - 40, low), (A, low)], True),
+        ("invoice", "r_bills", "1", "b", B, "t", (), False),
+        ("pay", "r_bills", "1", "t", B, "b", (), False),
+        ("item", "r_rents", "N", "b", C, "t", (), False),
+        ("booking", "r_rents", "M", "t", C, "b", (), False),
+        ("rule", "r_prices", "N", "b", D, "t", (), False),
+        ("court", "r_prices", "1", "t", D, "b", (), False),
+        ("shiftc", "r_collects", "1", "r", r2, "l", (), False),
+        ("pay", "r_collects", "N", "l", r2, "r", (), False),
+        ("pay", "r_settle", "N", "r", r2, "l", (), False),
+        ("booking", "r_settle", "1", "l", r2, "r", (), False),
+        ("booking", "r_hosts", "N", "r", r2, "l", (), False),
+        ("court", "r_hosts", "1", "l", r2, "r", (), False),
+        ("pay", "r_pays", "N", "b", B, "t", (), False),
+        ("user", "r_pays", "1", "t", B, "b", (), False),
+        ("booking", "r_makes", "N", "b", C, "t", (), False),
+        ("user", "r_makes", "1", "t", C, "b", (), False),
+        ("court", "r_needs", "1", "b", D, "t", (), False),
+        ("wo", "r_needs", "N", "t", D, "b", (), False),
+    ]
+    d = chen("19-erd-conceptual", entities, relations, joins)
+    d.h = r4 + 60
+    return d
+
+
+def members_and_classes():
+    A, B, C, D = COL
+    r0, r1, r2, r3, r4, r5, r6 = ROW
+    uw = EW
+    teach, enrol = C - 50, C + 50
+    entities = {
+        "pay": ("Payment", B, r0, EW), "review": ("ProgressReview", C, r0, EW),
+        "plan": ("MembershipPlan", A, r2, EW), "sub": ("Subscription", B, r2, EW),
+        "user": ("User", C, r2, uw), "att": ("Attendance", D, r2, EW),
+        "tplan": ("TrainingPlan", B, r4, EW), "tclass": ("TrainingClass", C, r4, uw),
+        "csession": ("ClassSession", D, r4, EW), "court": ("Court", D, r6, EW),
+    }
+    relations = {
+        "r_settle": ("settles", B, r1), "r_receives": ("receives", C, r1),
+        "r_defines": ("defines", MID[0], r2), "r_holds": ("holds", MID[1], r2), "r_logs": ("logs", MID[2], r2),
+        "r_teaches": ("teaches", teach, r3), "r_enrols": ("enrols in", enrol, r3), "r_records": ("records", D, r3),
+        "r_follows": ("follows", MID[1], r4), "r_has": ("has", MID[2], r4), "r_hosts": ("hosts", D, r5),
+    }
+    joins = [
+        ("pay", "r_settle", "N", "b", B, "t", (), False),
+        ("sub", "r_settle", "1", "t", B, "b", (), False),
+        ("review", "r_receives", "N", "b", C, "t", (), False),
+        ("user", "r_receives", "1", "t", C, "b", (), False),
+        ("plan", "r_defines", "1", "r", r2, "l", (), False),
+        ("sub", "r_defines", "N", "l", r2, "r", (), False),
+        ("sub", "r_holds", "N", "r", r2, "l", (), False),
+        ("user", "r_holds", "1", "l", r2, "r", (), False),
+        ("user", "r_logs", "1", "r", r2, "l", (), False),
+        ("att", "r_logs", "N", "l", r2, "r", (), False),
+        ("user", "r_teaches", "1", "b", teach, "t", (), True),
+        ("tclass", "r_teaches", "N", "t", teach, "b", (), True),
+        ("user", "r_enrols", "M", "b", enrol, "t", (), False),
+        ("tclass", "r_enrols", "N", "t", enrol, "b", (), False),
+        ("att", "r_records", "N", "b", D, "t", (), False),
+        ("csession", "r_records", "1", "t", D, "b", (), False),
+        ("tplan", "r_follows", "N", "r", r4, "l", (), False),
+        ("tclass", "r_follows", "1", "l", r4, "r", (), False),
+        ("tclass", "r_has", "1", "r", r4, "l", (), False),
+        ("csession", "r_has", "N", "l", r4, "r", (), False),
+        ("csession", "r_hosts", "N", "b", D, "t", (), False),
+        ("court", "r_hosts", "1", "t", D, "b", (), False),
+    ]
+    return chen("44-erd-conceptual-2", entities, relations, joins)
+
+
+def build():
+    return [courts_and_payments(), members_and_classes()]

@@ -4,20 +4,29 @@ Lifelines are named `name : Type`. A synchronous call has a solid line and a fil
 arrowhead, an asynchronous signal a solid line and an open arrowhead, and a reply a
 dashed line and an open arrowhead. Execution occurrences (activation bars) start when a
 lifeline receives a message and end when it replies. alt and par fragments carry their
-guards in square brackets, one per operand.
+guards in square brackets, one per operand. People are actor lifelines (a stick figure, as in
+the R7 template p. 154); systems and software parts are boxes. Message labels wrap to the gap
+between their two lifelines, so the figure stays narrow enough for an A4 portrait page.
 """
+
+import re
 
 from lib import Diagram, LINE, INK, CHAR_W
 
 HEAD = 40
 LIFELINE = ("shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;"
             "collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;"
-            "fillColor=#eef2ff;strokeColor=#334155;strokeWidth=1.2;fontFamily=Helvetica;fontSize=12;"
+            "fillColor=#f8fafc;strokeColor=#334155;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;"
             "fontColor=#1e293b;")
+ACTOR_LIFELINE = (LIFELINE.replace("shape=umlLifeline;", "shape=umlLifeline;participant=umlActor;")
+                  .replace("whiteSpace=wrap;", "whiteSpace=nowrap;").replace("size=40;", "size=56;")
+                  + "verticalAlign=top;spacingTop=56;labelBackgroundColor=#ffffff;fillColor=#ffffff;")
+ACTOR_W = 36
+PEOPLE = ("Guest", "Member", "Receptionist", "Coach", "Manager")
 BAR = ("html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;"
        "portConstraint=eastwest;fillColor=#ffffff;strokeColor=#334155;strokeWidth=1.2;")
 _MSG = ("html=1;rounded=0;edgeStyle=none;strokeColor=" + LINE + ";strokeWidth=1.2;fontFamily=Helvetica;"
-        "fontSize=11;fontColor=" + INK + ";labelBackgroundColor=#ffffff;endSize=8;")
+        "fontSize=12;fontColor=" + INK + ";labelBackgroundColor=#ffffff;endSize=8;")
 CALL = _MSG + "endArrow=block;endFill=1;"
 SIGNAL = _MSG + "endArrow=open;endFill=0;"
 REPLY = _MSG + "endArrow=open;endFill=0;dashed=1;"
@@ -25,19 +34,50 @@ FRAME = ("shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=50;height=
          "swimlaneFillColor=none;strokeColor=#334155;strokeWidth=1.2;fontFamily=Helvetica;fontSize=12;"
          "fontStyle=1;fontColor=#1e293b;")
 SEPARATOR = "line;strokeWidth=1.2;dashed=1;dashPattern=6 4;html=1;strokeColor=#334155;fillColor=none;"
-GUARD = ("text;html=1;align=left;verticalAlign=middle;whiteSpace=nowrap;fontFamily=Helvetica;fontSize=11;"
+GUARD = ("text;html=1;align=left;verticalAlign=middle;whiteSpace=nowrap;fontFamily=Helvetica;fontSize=12;"
          "fontColor=#1e293b;")
 
 LL_Y = 30
-LL_W = 170
-TOP = 110
+LL_W = 150
+TOP = 142
+SIZE = 12
+LINE_H = 14 * SIZE / 11 + 1
 PITCH = 33
 BAR_W = 12
 LOOP = 30
 
 
-def text_w(text, size=11):
+def text_w(text, size=SIZE):
     return len(text) * CHAR_W * size / 12 + 8
+
+
+def tokens(text, width):
+    """Words; a word too wide for the line (a long URL) is cut after its slashes."""
+    for word in text.split(" "):
+        if text_w(word) <= width or "/" not in word:
+            yield word
+            continue
+        part = ""
+        for piece in re.split(r"(?<=/)", word):
+            if part and text_w(part + piece) > width:
+                yield part
+                part = piece
+            else:
+                part += piece
+        if part:
+            yield part
+
+
+def wrap(text, width):
+    lines, cur = [], ""
+    for word in tokens(text, width):
+        trial = cur + word if cur.endswith("/") else (cur + " " + word).strip()
+        if cur and text_w(trial) > width:
+            lines.append(cur)
+            cur = word
+        else:
+            cur = trial
+    return lines + [cur]
 
 
 class Seq:
@@ -47,9 +87,10 @@ class Seq:
         self.name = name
         self.parts = parts
         n = len(parts)
+        gap = 190 if n >= 5 else 235
         self.cx = {}
         for i, (pid, _) in enumerate(parts):
-            self.cx[pid] = xs[i] if xs else 120 + i * (1360 / (n - 1))
+            self.cx[pid] = xs[i] if xs else 110 + i * gap
         self.y = TOP
         self.active = {}
         self.bars = []
@@ -72,7 +113,10 @@ class Seq:
         return text
 
     def _msg(self, kind, a, b, text, shift=0):
-        self.msgs.append(dict(kind=kind, a=a, b=b, y=self.y, text=self._label(text), shift=shift))
+        lines = wrap(text, abs(self.cx[a] - self.cx[b]) - BAR_W - 18)
+        self.y += (len(lines) - 1) * LINE_H
+        self.msgs.append(dict(kind=kind, a=a, b=b, y=self.y, text="<br>".join(lines), shift=shift,
+                              lines=len(lines)))
 
     # ---------- messages ----------
 
@@ -119,11 +163,16 @@ class Seq:
 
     # ---------- combined fragments ----------
 
-    def frame(self, op, guard, left, right, pad_left=95, pad_right=95):
+    def _guard(self, left, guard):
+        nxt = min((x for x in self.cx.values() if x > self.cx[left]), default=self.cx[left] + 400)
+        return wrap(guard, nxt - self.cx[left] - BAR_W - 30)
+
+    def frame(self, op, guard, left, right, pad_left=85, pad_right=85):
+        lines = self._guard(left, guard)
         f = dict(op=op, left=left, right=right, top=self.y - 18, pad_left=pad_left, pad_right=pad_right,
-                 guards=[(self.y - 3, guard)], seps=[], before=set(self.active))
+                 guards=[(self.y - 3, lines)], seps=[], before=set(self.active))
         self.open_frames.append(f)
-        self.y += 30
+        self.y += 30 + (len(lines) - 1) * LINE_H
 
     def sep(self, guard):
         f = self.open_frames[-1]
@@ -135,9 +184,10 @@ class Seq:
         for pid in f["before"]:
             if pid not in self.active:
                 self.active[pid] = line + 4
+        lines = self._guard(f["left"], guard)
         f["seps"].append(line)
-        f["guards"].append((self.y + 4, guard))
-        self.y += 33
+        f["guards"].append((self.y + 4, lines))
+        self.y += 33 + (len(lines) - 1) * LINE_H
 
     def end(self):
         f = self.open_frames.pop()
@@ -152,13 +202,21 @@ class Seq:
             self._close(pid, self.y - PITCH + 14)
         d = Diagram(self.name)
         bottom = max(b[2] for b in self.bars) + 24
+        width = {}
         for pid, label in self.parts:
-            x = self.cx[pid] - LL_W / 2
-            d.vertex(label, LIFELINE, x, LL_Y, LL_W, bottom - LL_Y, id=pid, role="lifeline", head=HEAD)
+            person = label.split(" : ")[-1] in PEOPLE
+            width[pid] = ACTOR_W if person else LL_W
+            x = self.cx[pid] - width[pid] / 2
+            d.vertex(label, ACTOR_LIFELINE if person else LIFELINE, x, LL_Y, width[pid], bottom - LL_Y, id=pid,
+                     role="lifeline", head=56 if person else HEAD)
+            if person:
+                lw = text_w(label, 13)
+                d.keepout(self.cx[pid] - lw / 2, LL_Y + 56, lw, 20, pid + " name")
         bar_ids = []
         for k, (pid, y0, y1) in enumerate(sorted(self.bars, key=lambda b: (b[0], b[1]))):
             bid = f"{pid}_x{k}"
-            d.vertex("", BAR, LL_W / 2 - BAR_W / 2, y0 - LL_Y, BAR_W, y1 - y0, id=bid, parent=pid, role="part")
+            d.vertex("", BAR, width[pid] / 2 - BAR_W / 2, y0 - LL_Y, BAR_W, y1 - y0, id=bid, parent=pid,
+                     role="part")
             bar_ids.append((pid, y0, y1, bid))
 
         def bar_at(pid, y):
@@ -174,9 +232,11 @@ class Seq:
             d.keepout(fx, f["top"], 50, 22, fid + " operator")
             for k, sy in enumerate(f["seps"]):
                 d.vertex("", SEPARATOR, fx, sy - 5, fw, 10, id=f"{fid}_s{k}", role="frame")
-            for k, (gy, text) in enumerate(f["guards"]):
+            for k, (gy, lines) in enumerate(f["guards"]):
                 gx = self.cx[f["left"]] + BAR_W / 2 + 8
-                d.vertex(text, GUARD, gx, gy - 9, text_w(text) + 12, 18, id=f"{fid}_g{k}", role="label")
+                gh = len(lines) * LINE_H + 4
+                d.vertex("<br>".join(lines), GUARD.replace("verticalAlign=middle", "verticalAlign=top"), gx,
+                         gy - 9, max(text_w(l) for l in lines) + 12, gh, id=f"{fid}_g{k}", role="label")
 
         for k, m in enumerate(self.msgs):
             y = m["y"]
@@ -197,7 +257,7 @@ class Seq:
             d.edge(sa, sb, m["text"], style, id=f"m{k + 1}",
                    exit=(1 if right else 0, (y - a0) / (a1 - a0)),
                    entry=(0 if right else 1, (y - b0) / (b1 - b0)),
-                   label_x=m["shift"], label_offset=(0, -10))
+                   label_x=m["shift"], label_offset=(0, -(m["lines"] * LINE_H / 2 + 3)))
         return d
 
 
@@ -208,7 +268,7 @@ PAY = [("member", "member : Member"), ("app", "app : Web App"), ("api", "api : A
 def register():
     s = Seq("15-sd-register", [("guest", "guest : Guest"), ("app", "app : Web App"),
                                ("api", "api : Arena3 API"), ("db", "db : Database"),
-                               ("mail", "mail : Mail Delivery")])
+                               ("mail", "smtp : Mail delivery (SMTP)")])
     s.call("guest", "app", "enter the details and give consent")
     s.call("app", "api", "POST /v1/auth/register")
     s.self_call("api", "validate (BR-01, BR-02, BR-03, BR-04)")

@@ -1,53 +1,93 @@
-"""Context diagram (DFD level 0): one process, external entities, labelled data flows."""
+"""Context diagram (DFD level 0), laid out like the R7 template (FPT Report 7, p. 20).
+
+One circle for the whole system, one rectangle per external entity, and two
+one-way data flows per entity, each labelled beside its arrow. Human entities
+sit left, top and bottom; external systems sit right. Entity names are the actor
+names of section 2.1 and every flow label is copied word for word from the
+external-entity table of section 1, so the figure and the table cannot drift.
+"""
 
 import math
 
-from lib import Diagram, FONT, LINE, INK
+from lib import CHAR_W, Diagram, INK, LINE
 
-W, H = 1240, 900
-CX, CY, RX, RY = 620, 450, 150, 390
-ENT_W, ENT_H = 200, 100
-LANE = 28
+W = 1300
+CX, CY, R = 650, 460, 240
+ENT_W, ENT_H = 180, 80
+LANE = 20       # half the gap between the two arrows of one entity
+ROW = 180       # vertical distance between side entities
+STEM = 120      # length of the top and bottom flows
+SIZE = 15       # flow label font size
 
-ENTITY = ("rounded=0;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#334155;strokeWidth=1.5;"
+ENTITY = ("rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#334155;strokeWidth=1.5;"
           "fontFamily=Helvetica;fontSize=16;fontStyle=1;fontColor=#1e293b;")
-PROCESS = ("ellipse;whiteSpace=wrap;html=1;fillColor=#eef2ff;strokeColor=#1e293b;strokeWidth=2;"
-           "fontFamily=Helvetica;fontSize=22;fontStyle=1;fontColor=#1e293b;")
-FLOW = ("endArrow=block;endFill=1;html=1;rounded=0;edgeStyle=none;strokeColor=" + LINE + ";strokeWidth=1.5;"
-        "fontFamily=Helvetica;fontSize=14;fontColor=" + INK + ";labelBackgroundColor=#ffffff;")
+PROCESS = ("ellipse;aspect=fixed;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#1e293b;strokeWidth=2;"
+           "fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#1e293b;")
+FLOW = ("endArrow=block;endFill=1;endSize=8;html=1;rounded=0;edgeStyle=none;strokeColor=" + LINE + ";"
+        "strokeWidth=1.5;fontFamily=Helvetica;fontSize=" + str(SIZE) + ";fontColor=" + INK + ";"
+        "labelBackgroundColor=#ffffff;")
 
-# name, side, row centre y, flow into the system, flow out of the system
+# name, side, slot (row offset on the left and right), data into Arena3, data out of Arena3
 ENTITIES = [
-    ("Guest", "left", 175, "Registration, OTP code", "Public info, OTP prompt"),
-    ("Member", "left", 310, "Bookings, plans, payments", "Confirmations, QR pass"),
-    ("Receptionist", "left", 450, "Walk-ins, counter payments", "Court map, receipts"),
-    ("Coach", "left", 590, "Attendance, results, plans", "Schedule, rosters, earnings"),
-    ("Manager", "left", 725, "Prices, staff, approvals", "Reports, audit log"),
-    ("payOS<br>(payment gateway)", "right", 220, "Paid-status webhook", "Payment link request"),
-    ("Mail server<br>(SMTP)", "right", 450, "Delivery result", "OTP codes, notices"),
-    ("Gemini AI<br>(assistant)", "right", 680, "Assistant answer", "Member question"),
+    ("Guest", "left", -1, "Registration details,<br>OTP code", "Public schedule,<br>prices, OTP prompt"),
+    ("Member", "left", 0, "Booking, enrolment<br>and plan requests,<br>online payments",
+     "Booking confirmations,<br>QR pass, notifications"),
+    ("Receptionist", "left", 1, "Walk-ins, check-ins,<br>counter payments,<br>refund requests",
+     "Court map, payment<br>queue, receipts"),
+    ("Coach", "top", 0, "Attendance, results,<br>training plans", "Teaching schedule,<br>rosters, earnings"),
+    ("Manager", "bottom", 0, "Prices, plans, staff,<br>settings, refund approvals", "Reports, audit log,<br>e-invoices"),
+    ("payOS", "right", -1, "Signed &quot;paid&quot;<br>webhook", "Payment link<br>request"),
+    ("Mail delivery (SMTP)", "right", 0, "Delivery result", "OTP codes, reminders,<br>notices"),
+    ("Gemini AI", "right", 1, "Assistant answer", "Member question with<br>centre context only"),
 ]
 
 
-def rim_x(y, side):
-    dx = RX * math.sqrt(1 - ((y - CY) / RY) ** 2)
-    return CX - dx if side == "left" else CX + dx
+def label_size(text):
+    lines = text.replace("&quot;", '"').split("<br>")
+    w = max(len(l) for l in lines) * CHAR_W * SIZE / 12 + 6
+    h = len(lines) * 14 * SIZE / 11 + 2
+    return w, h
+
+
+def on_circle(px, py):
+    return ((px - (CX - R)) / (2 * R), (py - (CY - R)) / (2 * R))
 
 
 def build():
-    d = Diagram("01-context-diagram", w=W, h=H)
-    proc = d.vertex("Arena3 Sports Centre<br>Management System", PROCESS, CX - RX, CY - RY, 2 * RX, 2 * RY,
+    top_y = CY - R - STEM - ENT_H
+    d = Diagram("01-context-diagram", w=W, h=int(CY + R + STEM + ENT_H + top_y))
+    proc = d.vertex("Arena3 Sports Centre<br>Management System", PROCESS, CX - R, CY - R, 2 * R, 2 * R,
                     id="process", shape="ellipse")
-    for i, (name, side, row, inflow, outflow) in enumerate(ENTITIES):
-        x = 20 if side == "left" else W - 20 - ENT_W
-        top = row - ENT_H / 2
-        ent = d.vertex(name, ENTITY, x, top, ENT_W, ENT_H, id=f"ent{i}")
-        for k, (dy, text) in enumerate(((-LANE, inflow), (LANE, outflow))):
-            y = row + dy
-            ent_rel = (1 if side == "left" else 0, (y - top) / ENT_H)
-            rim = ((rim_x(y, side) - (CX - RX)) / (2 * RX), (y - (CY - RY)) / (2 * RY))
-            if k == 0:
-                d.edge(ent, proc, text, FLOW, exit=ent_rel, entry=rim, id=f"f{i}{k}")
-            else:
-                d.edge(proc, ent, text, FLOW, exit=rim, entry=ent_rel, id=f"f{i}{k}")
+    for i, (name, side, slot, inflow, outflow) in enumerate(ENTITIES):
+        flows = []
+        if side in ("left", "right"):
+            row = CY + slot * ROW
+            x = 20 if side == "left" else W - 20 - ENT_W
+            top = row - ENT_H / 2
+            ent = d.vertex(name, ENTITY, x, top, ENT_W, ENT_H, id=f"ent{i}")
+            sign = -1 if side == "left" else 1
+            ent_edge = x + ENT_W if side == "left" else x
+            # labels sit in the clear strip between the entity and the circle's bounding square
+            centre = (ent_edge + CX + sign * R) / 2
+            for k, text in enumerate((inflow, outflow)):
+                y = row + (-LANE if k == 0 else LANE)
+                px = CX + sign * math.sqrt(R * R - (y - CY) ** 2)
+                lh = label_size(text)[1]
+                shift = centre - (ent_edge + px) / 2
+                off = (shift, -(lh / 2 + 4)) if k == 0 else (shift, lh / 2 + 4)
+                flows.append((text, (1 if side == "left" else 0, (y - top) / ENT_H), on_circle(px, y), off))
+        else:
+            left = CX - ENT_W / 2
+            top = top_y if side == "top" else CY + R + STEM
+            ent = d.vertex(name, ENTITY, left, top, ENT_W, ENT_H, id=f"ent{i}")
+            sign = -1 if side == "top" else 1
+            for k, text in enumerate((inflow, outflow)):
+                x = CX + (-LANE if k == 0 else LANE)
+                py = CY + sign * math.sqrt(R * R - (x - CX) ** 2)
+                lw = label_size(text)[0]
+                off = (-(lw / 2 + 8), 0) if k == 0 else (lw / 2 + 8, 0)
+                flows.append((text, ((x - left) / ENT_W, 1 if side == "top" else 0), on_circle(x, py), off))
+        (tin, ein, cin, oin), (tout, eout, cout, oout) = flows
+        d.edge(ent, proc, tin, FLOW, exit=ein, entry=cin, label_offset=oin, id=f"f{i}in")
+        d.edge(proc, ent, tout, FLOW, exit=cout, entry=eout, label_offset=oout, id=f"f{i}out")
     return d

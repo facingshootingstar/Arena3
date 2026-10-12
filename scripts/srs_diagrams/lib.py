@@ -12,7 +12,23 @@ import re
 import subprocess
 import xml.etree.ElementTree as ET
 
-DRAWIO = r"C:\Program Files\draw.io\draw.io.exe"
+def find_drawio():
+    """draw.io desktop: $DRAWIO_EXE, the classic installer, or the Microsoft Store package."""
+    for path in (os.environ.get("DRAWIO_EXE"), r"C:\Program Files\draw.io\draw.io.exe"):
+        if path and os.path.exists(path):
+            return path
+    try:
+        loc = subprocess.run(["powershell", "-NoProfile", "-Command", "(Get-AppxPackage *draw.io*).InstallLocation"],
+                             capture_output=True, text=True, timeout=60).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        loc = ""
+    path = os.path.join(loc, "app", "draw.io.exe") if loc else ""
+    if not os.path.exists(path):
+        raise FileNotFoundError("draw.io desktop not found; set DRAWIO_EXE")
+    return path
+
+
+DRAWIO = None
 INK = "#1e293b"
 LINE = "#334155"
 MUTED = "#64748b"
@@ -111,8 +127,8 @@ class Diagram:
         total = sum(lens) or 1
         t = ((c["label_x"] if c["label_x"] is not None else 0) + 1) / 2 * total
         px, py = pts[0]
-        for (a, b), L in zip(zip(pts, pts[1:]), lens):
-            if t <= L or L == lens[-1]:
+        for i, ((a, b), L) in enumerate(zip(zip(pts, pts[1:]), lens)):
+            if t <= L or i == len(lens) - 1:
                 f = 0 if L == 0 else min(1, t / L)
                 px, py = a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f
                 break
@@ -422,6 +438,8 @@ def save(d, export=True):
         f.write(d.xml())
     png = os.path.join(OUT, d.name + ".png")
     if export:
+        global DRAWIO
+        DRAWIO = DRAWIO or find_drawio()
         # draw.io's exporter shrinks the drawing inside the canvas when the PNG is wider than ~3000 px
         scale = min(2, round(2800 / d.w, 2))
         subprocess.run([DRAWIO, "-x", "-f", "png", "-s", str(scale), "-b", "16", "-o", png, path],
