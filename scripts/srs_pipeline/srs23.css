@@ -1,0 +1,72 @@
+@page { size: A4; margin: 2.2cm 2cm 2.2cm 2.5cm; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.4; color: #111; margin: 0; }
+.mk { position: absolute; font-size: 2px; color: #fff; }
+
+h1, h2, h3, h4, h5 { color: #000; break-after: avoid; page-break-after: avoid; position: relative; font-weight: bold; }
+h1 { font-size: 20pt; margin: 0 0 14pt; }
+h1.part { break-before: page; page-break-before: always; font-size: 22pt; color: #b91c1c; }
+h1.fronth { font-size: 20pt; }
+h2 { font-size: 16pt; margin: 18pt 0 10pt; break-before: page; page-break-before: always; }
+h1.part + h2 { break-before: auto; page-break-before: auto; }
+h3 { font-size: 14pt; margin: 16pt 0 8pt; color: #1e3a8a; }
+h4 { font-size: 12.5pt; margin: 14pt 0 6pt; font-style: italic; }
+h5 { font-size: 12pt; margin: 12pt 0 6pt; color: #1e3a8a; }
+h5.un { font-style: italic; color: #000; }
+
+p { margin: 0 0 7pt; text-align: justify; }
+ul, ol { margin: 0 0 7pt; padding-left: 22pt; }
+li { margin: 0 0 2pt; }
+code { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; background: #f1f5f9; padding: 0 2px; }
+
+table.t { width: 100%; border-collapse: collapse; margin: 4pt 0 12pt; font-family: Arial, Helvetica, sans-serif;
+  font-size: 9pt; line-height: 1.3; table-layout: fixed; }
+table.t th, table.t td { border: 0.6pt solid #475569; padding: 3pt 5pt; vertical-align: top; text-align: left;
+  overflow-wrap: anywhere; }
+table.t th { background: #dbe4f0; font-weight: bold; }
+table.t thead { display: table-header-group; }
+table.t tr { break-inside: avoid; page-break-inside: avoid; }
+table.t code { font-size: 8.5pt; }
+table.t ul.keys { margin: 2pt 0 0; padding-left: 14pt; list-style: none; }
+table.t ul.keys li::before { content: "- "; margin-left: -10pt; }
+table.auth td:not(:first-child), table.auth th:not(:first-child) { text-align: center; }
+table.auth .ind { padding-left: 14pt; display: inline-block; }
+p.foot { font-size: 10pt; font-style: italic; margin-top: -6pt; }
+
+figure.fig { margin: 8pt 0 12pt; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+figure.fig img { max-width: 100%; object-fit: contain; }
+figure.wide img { width: 100%; max-height: 21cm; }
+figure.mid img { max-height: 19cm; }
+figure.tall img { max-height: 22.5cm; }
+figcaption { text-align: center; font-size: 11pt; font-style: italic; margin-top: 5pt; }
+figcaption b { font-style: normal; }
+
+ul.blocks { list-style: none; padding-left: 0; margin: 4pt 0; }
+ul.blocks > li { position: relative; padding-left: 16pt; margin-bottom: 3pt; }
+ul.blocks > li::before { content: "●"; position: absolute; left: 0; font-size: 10pt; top: 1pt; }
+ul.blocks { break-inside: avoid; page-break-inside: avoid; }
+ul.blocks.keep { break-after: avoid; page-break-after: avoid; }
+div.layout { break-inside: avoid; page-break-inside: avoid; }
+ul.plus { list-style: none; padding-left: 20pt; margin: 2pt 0 4pt; }
+ul.plus > li { position: relative; padding-left: 14pt; }
+ul.plus > li::before { content: "+"; position: absolute; left: 0; font-weight: bold; }
+div.shot { margin: 4pt 0 10pt 16pt; break-inside: avoid; page-break-inside: avoid; }
+div.shot img { width: 100%; border: 0.6pt solid #94a3b8; }
+
+div.flow { margin: 6pt 0 10pt; }
+div.flow p.fh { margin: 8pt 0 3pt; font-size: 12pt; }
+div.flow p.fn { margin: 5pt 0 2pt 12pt; }
+div.flow p.fh, div.flow p.fn { break-after: avoid; page-break-after: avoid; }
+div.flow ol { margin: 0 0 2pt 12pt; padding-left: 22pt; }
+div.flow p.ret { margin: 0 0 4pt 34pt; font-style: italic; }
+
+.front { break-after: page; page-break-after: always; }
+.toc a { display: flex; align-items: baseline; color: #000; text-decoration: none; line-height: 1.5; }
+.toc .dots { flex: 1; border-bottom: 1.2pt dotted #555; margin: 0 4pt; transform: translateY(-3pt); }
+.toc .pn { min-width: 18pt; text-align: right; }
+.toc .l1 { font-weight: bold; margin-top: 8pt; font-size: 12pt; }
+.toc .l2 { font-weight: bold; margin-top: 3pt; font-size: 11.5pt; padding-left: 8pt; }
+.toc .l3 { padding-left: 22pt; font-size: 11pt; }
+.toc .l4 { padding-left: 38pt; font-size: 10.5pt; }
+.toc .l5 { padding-left: 54pt; font-size: 10pt; }
