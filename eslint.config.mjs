@@ -18,6 +18,11 @@ export default tseslint.config(
       // Installed agent skills ship their own bundled scripts; they are not app code.
       ".claude/**",
       ".agents/**",
+      // Document tooling from main: built docs (a vendored mermaid.min.js), the CommonJS PDF
+      // printer and the draw.io generators. They produce the SRS, not the app.
+      "docs/**",
+      "scripts/srs_pipeline/**",
+      "scripts/uml2-*.mjs",
     ],
   },
   js.configs.recommended,
