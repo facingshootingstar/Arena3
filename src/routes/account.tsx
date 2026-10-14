@@ -135,7 +135,7 @@ function Profile({ user }: { user: SessionUser | null }) {
             <Field
               label={t("Health notes")}
               tone="muted"
-              hint={t("Coaches see this before a session, injuries, asthma, anything they should know.")}
+              hint={t("Coaches see this before a session: injuries, asthma, anything they should know.")}
             >
               <Textarea
                 rows={3}
@@ -163,7 +163,7 @@ function Profile({ user }: { user: SessionUser | null }) {
       <Card className="h-fit p-6">
         <Label>{t("Cannot be changed here")}</Label>
         <dl className="mt-4 grid gap-4">
-          <Row label={t("Phone")} value={user.phone} note={t("Ask the desk, changing it needs an OTP.")} />
+          <Row label={t("Phone")} value={user.phone} note={t("Ask the desk. Changing it needs an OTP.")} />
           <Row label={t("Email")} value={user.email ?? t("Not set")} />
           <Row
             label={t("Date of birth")}
@@ -238,7 +238,7 @@ function Security({ forced }: { forced: boolean }) {
         {forced ? (
           <p className="mb-4 rounded-[var(--radius-md)] bg-wood px-3 py-2 text-sm">
             {t(
-              "You signed in with a temporary password. Choose your own to continue, enter the temporary one as the current password.",
+              "You signed in with a temporary password. Choose your own to continue, and enter the temporary one as the current password.",
             )}
           </p>
         ) : null}
@@ -427,14 +427,14 @@ function Support() {
                 </div>
                 <p className="mt-1 text-xs text-muted">{when(tix.created_at)}</p>
                 {tix.reply ? (
-                  /* Indented and on the wood tone so the reply reads as somebody
+                  /* Indented, tinted and signed at the top so the reply reads as somebody
                      else speaking, not as more of the member's own message. */
-                  <div className="mt-3 rounded-[var(--radius-md)] border-l-2 border-accent bg-wood/50 p-3">
-                    <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{tix.reply}</p>
-                    <p className="mt-1 text-2xs text-muted">
+                  <div className="mt-3 ml-3 rounded-[var(--radius-md)] bg-accent/5 p-3 ring-1 ring-inset ring-accent/15">
+                    <p className="text-2xs font-semibold text-accent-2">
                       {tix.replied_by_name ?? t("Reception")}
-                      {tix.replied_at ? ` · ${when(tix.replied_at)}` : ""}
+                      {tix.replied_at ? <span className="font-normal text-muted"> · {when(tix.replied_at)}</span> : null}
                     </p>
+                    <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{tix.reply}</p>
                   </div>
                 ) : null}
               </Card>
@@ -475,7 +475,7 @@ function Receipts() {
     return (
       <EmptyState
         title={t("No receipts yet")}
-        hint={t("Every payment you make, court, class or membership, lands here as a PDF you can download.")}
+        hint={t("Every payment you make (court, class or membership) lands here as a PDF you can download.")}
       />
     );
   }

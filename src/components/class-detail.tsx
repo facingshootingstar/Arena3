@@ -174,7 +174,7 @@ export function ClassDetailModal({
             ) : (
               <p className="mt-2 text-sm text-muted">
                 {c.status === "draft"
-                  ? t("No sessions yet, they are created when the class is published.")
+                  ? t("No sessions yet. They are created when the class is published.")
                   : t("No sessions on the calendar.")}
               </p>
             )}
@@ -272,14 +272,14 @@ function ActionForm({
     try {
       if (action.kind === "cancel-session") {
         const r = await apiPost<{ notified: number; refunded: number }>(`/sessions/${action.sessionId}/cancel`, { reason });
-        toast.success(t("Session cancelled, {told} told, {back} given a session back", { told: r.notified, back: r.refunded }));
+        toast.success(t("Session cancelled: {told} told, {back} given a session back", { told: r.notified, back: r.refunded }));
       } else if (action.kind === "move-session") {
         if (!start) throw Object.assign(new Error(t("Pick the new start time.")), { field: "start_at" });
         await apiPost(`/sessions/${action.sessionId}/reschedule`, {
           start_at: toIctIso(start),
           ...(reason ? { reason } : {}),
         });
-        toast.success(t("Session moved, members and coaches were told"));
+        toast.success(t("Session moved: members and coaches were told"));
       } else if (action.kind === "coach") {
         if (!coachId) throw Object.assign(new Error(t("Choose the new coach.")), { field: "coach_id" });
         await apiPost(`/classes/${classData.id}/coach`, { coach_id: coachId, ...(reason ? { reason } : {}) });
@@ -289,7 +289,7 @@ function ActionForm({
         toast.success(t("Capacity saved"));
       } else {
         await apiPatch(`/classes/${classData.id}`, { status: "cancelled", reason });
-        toast.success(t("Class cancelled, everyone enrolled was told"));
+        toast.success(t("Class cancelled: everyone enrolled was told"));
       }
       onDone();
     } catch (e) {

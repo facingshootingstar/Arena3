@@ -485,7 +485,7 @@ export function EmptyState({
 }) {
   return (
     <div className="grid place-items-center rounded-[var(--radius-xl)] border border-dashed border-line-strong/70 px-6 py-10 text-center">
-      <Spot name={art ?? "empty"} className="mb-2 h-16 w-20" />
+      <Spot name={art ?? "empty"} className="mb-2 h-24 w-[7.5rem]" />
       <p className="font-medium">{t(title)}</p>
       {hint ? <p className="mt-1 max-w-sm text-sm text-muted">{t(hint)}</p> : null}
       {children ? <div className="mt-4">{children}</div> : null}

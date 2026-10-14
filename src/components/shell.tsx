@@ -28,7 +28,9 @@ import {
 } from "lucide-react";
 import { type FocusEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArenaMark, AssistantMark } from "./mark";
-import { AnimatePresence, PageIn, QuietMotion, motion } from "./motion";
+import { AnimatePresence, PageIn, motion } from "./motion";
+import { GradualBlur } from "./fx";
+import { Spot, spotForPath } from "./illustrations";
 import { cn } from "@/lib/cn";
 import {
   apiGet,
@@ -249,7 +251,7 @@ function AccountMenu({
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         className="flex items-center gap-2 rounded-[var(--radius-pill)] py-1 pl-1 pr-1 transition-colors duration-150 hover:bg-wood sm:pr-3"
-        aria-label={t("Account menu, {name}", { name: user?.full_name ?? "" })}
+        aria-label={t("Account menu: {name}", { name: user?.full_name ?? "" })}
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold tracking-wide text-accent-fg">
           {initials(user?.full_name)}
@@ -268,7 +270,7 @@ function AccountMenu({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-56 origin-top-right overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[var(--shadow-soft)]"
+            className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-56 origin-top-right overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]"
           >
             <div className={cn("border-b border-line/70 px-3 pb-2.5 pt-2", compact ? "" : "xl:hidden")}>
               <p className="truncate text-sm font-medium">{user?.full_name ?? "-"}</p>
@@ -395,7 +397,7 @@ function MoreMenu({ items, pathname, all }: { items: NavItem[]; pathname: string
         <ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")} />
       </button>
       {open ? (
-        <div id={panelId} className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-56 rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[var(--shadow-soft)]">
+        <div id={panelId} className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-56 rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]">
           {grouped(items).map((g, gi) => (
             <div key={g.group ?? gi} className={cn(gi > 0 && "mt-1 border-t border-line pt-1")}>
               {g.group ? <p className="px-3 pb-1 pt-2 text-xs font-semibold text-subtle">{t(g.group)}</p> : null}
@@ -550,7 +552,9 @@ export function Shell({
   }
 
   return (
-    <div className="min-h-dvh text-fg">
+    // `isolate` gives the page its own stacking context, so a background field at `-z-[1]` (the
+    // desk's dot grid) paints above the body's own background instead of disappearing behind it.
+    <div className="isolate min-h-dvh text-fg">
       <header className="sticky top-0 z-20 border-b border-line/80 bg-surface/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <Link to={home} aria-label={t("Arena3 home")} className="-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start">
@@ -644,25 +648,28 @@ export function Shell({
         )}
       >
         <ConnectionBanner />
-        <QuietMotion>
-          <PageIn key={pathname}>
-            {title ? (
-              <header className="mb-6 px-1">
-                <h1 className="font-display text-2xl font-bold text-balance sm:text-[1.75rem]">{title}</h1>
+        <PageIn key={pathname}>
+          {title ? (
+            <header className="mb-6 flex items-center justify-between gap-4 px-1">
+              <div className="min-w-0">
+                <h1 className="font-display text-2xl font-bold text-balance sm:text-3xl">{title}</h1>
                 {subtitle ? <p className="mt-1.5 max-w-2xl text-[0.95rem] leading-snug text-muted">{subtitle}</p> : null}
-              </header>
-            ) : null}
-            {children}
-          </PageIn>
-        </QuietMotion>
+              </div>
+              <Spot name={spotForPath(pathname)} className="hidden sm:block sm:h-20 sm:w-24" />
+            </header>
+          ) : null}
+          {children}
+        </PageIn>
       </main>
       {showNav ? (
         <>
+      {/* The page fades out under the floating bar instead of being cut by it. */}
+      <GradualBlur side="bottom" position="fixed" height="5.5rem" strength={1.6} className="z-[19] lg:hidden" />
       {/* A dock rather than a bar: it floats clear of the page, but every item is
           still a real <Link>, so prefetch, long-press and "open in new tab" work
           the way a tab bar should on a touch device. */}
       <nav aria-label={t("Main menu")} className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] lg:hidden">
-        <div className="mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-xl)] border border-line bg-surface p-1.5 shadow-[var(--shadow-soft)]">
+        <div className="mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-xl)] border border-line bg-surface p-1.5 shadow-[0_8px_30px_-12px_rgba(11,18,48,0.28)]">
           {dockItems.map((it) => {
             const active = navActive(pathname, it.to, items);
             const Icon = it.icon;
@@ -759,13 +766,18 @@ export function Guard({
 
   if (!ready || !user) {
     return (
-      // Painted by the server as-is, so the first frame is the brand rather than a white page.
+      // Visible in the server render (no initial opacity: 0), so the first frame is the brand
+      // rather than a white page; the mark keeps its bounce while the session is checked.
       <div className="grid min-h-dvh place-items-center bg-bg text-muted">
         <div className="flex flex-col items-center gap-3" role="status" aria-label={t("Loading")}>
-          <ArenaMark className="size-10" />
-          <span aria-hidden className="h-1 w-16 overflow-hidden rounded-full bg-wood">
-            <span className="shimmer block h-full w-full" />
-          </span>
+          <motion.span
+            initial={false}
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <ArenaMark />
+          </motion.span>
+          <p className="font-display text-lg">Arena3</p>
         </div>
       </div>
     );

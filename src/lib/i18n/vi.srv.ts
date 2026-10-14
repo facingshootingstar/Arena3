@@ -389,16 +389,16 @@ const P: [RegExp, string][] = [
   [/^You can hold at most (\d+) slots a day\.$/, "Bạn chỉ có thể giữ tối đa $1 khung giờ mỗi ngày."],
   [/^A booking can only be moved up to (\d+) hours before it starts\.$/, "Chỉ có thể đổi lượt đặt trước giờ bắt đầu tối đa $1 giờ."],
   [/^status must be one of (.+)\.$/, "Trạng thái phải là một trong: $1."],
-  [/^This session starts in under (\d+) hours — give a reason to move it\.$/, "Buổi này bắt đầu trong chưa đầy $1 giờ — vui lòng nêu lý do dời buổi."],
-  [/^(\d+) members are already enrolled — capacity cannot go below that\.$/, "Đã có $1 hội viên đăng ký — sức chứa không thể thấp hơn số này."],
+  [/^This session starts in under (\d+) hours — give a reason to move it\.$/, "Buổi này bắt đầu trong chưa đầy $1 giờ, vui lòng nêu lý do dời buổi."],
+  [/^(\d+) members are already enrolled — capacity cannot go below that\.$/, "Đã có $1 hội viên đăng ký, sức chứa không thể thấp hơn số này."],
   [/^Over the limit of (\d+) freeze days a year\.$/, "Vượt giới hạn $1 ngày tạm khóa mỗi năm."],
-  [/^Only (\d+) (.+) left — you asked for (\d+)\.$/, "Chỉ còn $1 $2 — bạn yêu cầu $3."],
+  [/^Only (\d+) (.+) left — you asked for (\d+)\.$/, "Chỉ còn $1 $2, bạn yêu cầu $3."],
   [/^A renewal is one full period: ([\d,]+)đ\.$/, "Gia hạn là một kỳ đầy đủ: $1đ."],
   [/^A plan is paid in full: ([\d,]+)đ\. Partial payments are not taken\.$/, "Gói tập thanh toán đủ một lần: $1đ. Không nhận thanh toán một phần."],
   [/^The refund is larger than the ([\d,]+)đ still refundable\.$/, "Số tiền hoàn lớn hơn $1đ còn có thể hoàn."],
   [/^Online payment does not cover (.+)\.$/, "Thanh toán trực tuyến không áp dụng cho $1."],
   [/^That code needs an order of at least ([\d,]+)đ\.$/, "Mã này cần đơn tối thiểu $1đ."],
-  [/^Code (.+) was just fully used — price the order again\.$/, "Mã $1 vừa hết lượt dùng — hãy tính lại giá đơn."],
+  [/^Code (.+) was just fully used — price the order again\.$/, "Mã $1 vừa hết lượt dùng, hãy tính lại giá đơn."],
   [/^You have already used (.+)\.$/, "Bạn đã dùng $1 rồi."],
   [/^"(.+)" is not something a code can apply to\.$/, "Mã không áp dụng được cho \"$1\"."],
   [/^(.+) is not a sport we run\.$/, "$1 không phải môn thể thao của trung tâm."],
@@ -505,8 +505,8 @@ for (const [en, vi] of Object.entries(SPORT_VI)) {
 // ratelimit.ts: "Too many {what} — try again in {n} seconds|minute(s)."
 for (const [en, vi] of Object.entries(WHAT_VI)) {
   const e = esc(en);
-  G.push([new RegExp(`^Too many ${e} — try again in (\\d+) seconds\\.$`), `Bạn gửi quá nhiều ${vi} — vui lòng thử lại sau $1 giây.`]);
-  G.push([new RegExp(`^Too many ${e} — try again in (\\d+) minutes?\\.$`), `Bạn gửi quá nhiều ${vi} — vui lòng thử lại sau $1 phút.`]);
+  G.push([new RegExp(`^Too many ${e} — try again in (\\d+) seconds\\.$`), `Bạn gửi quá nhiều ${vi}, vui lòng thử lại sau $1 giây.`]);
+  G.push([new RegExp(`^Too many ${e} — try again in (\\d+) minutes?\\.$`), `Bạn gửi quá nhiều ${vi}, vui lòng thử lại sau $1 phút.`]);
 }
 
 export const VI_SERVER_PATTERNS: [RegExp, string][] = [...G, ...P];

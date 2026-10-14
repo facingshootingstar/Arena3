@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button, ButtonLink, Card, Modal } from "@/components/ui";
 import { money, when } from "@/components/shell";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 import { locale, t, tServer } from "@/lib/i18n";
@@ -103,7 +104,7 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
     case "transfer_rejected":
       return {
         title: t("We could not find your transfer"),
-        body: t("The transfer did not reach the account. Check the amount and the reference, or pay at the desk, your hold keeps running until it ends."),
+        body: t("The transfer did not reach the account. Check the amount and the reference, or pay at the desk. Your hold keeps running until it ends."),
         link: { to: "/app/book", label: t("See my bookings") },
       };
     case "hold_expiring":
@@ -301,19 +302,15 @@ export function NotificationList({
           </button>
         </div>
       ) : null}
-      {/* One panel, one row per message. The headline alone repeated ("Booking confirmed" twelve
-          times), so each row also carries the first line of what it says: which court, when, how much. */}
-      <Card className="mt-3 overflow-hidden p-0">
-        <ul className="divide-y divide-line">
-          {shown.map((n) => {
-            const row = notificationContent(n);
-            return (
-              <li key={n.id}>
-                <button
-                  type="button"
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-wood/60"
-                  onClick={() => void openOne(n)}
-                >
+      {/* One card per message. The headline alone repeated ("Booking confirmed" twelve times), so
+          each card also carries the first line of what it says: which court, when, how much. */}
+      <Stagger className="mt-3 grid gap-2" gap={0.04}>
+        {shown.map((n) => {
+          const row = notificationContent(n);
+          return (
+            <StaggerItem key={n.id}>
+              <button type="button" className="block w-full text-left" onClick={() => void openOne(n)}>
+                <Card className="flex items-start gap-3 p-4 transition-colors duration-200 hover:bg-wood/40">
                   <span
                     aria-label={n.read_at ? t("Read") : t("Unread")}
                     className={`mt-1.5 size-2 shrink-0 rounded-full ${n.read_at ? "bg-transparent" : "bg-accent"}`}
@@ -325,12 +322,12 @@ export function NotificationList({
                     </span>
                     {row.body ? <span className="mt-0.5 line-clamp-1 block text-sm text-muted">{row.body}</span> : null}
                   </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+                </Card>
+              </button>
+            </StaggerItem>
+          );
+        })}
+      </Stagger>
       {visible.length > limit ? (
         <div className="mt-2 flex justify-center">
           <Button size="sm" variant="ghost" onClick={() => setAll((v) => !v)}>

@@ -1,15 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Landmark, Receipt as ReceiptIcon } from "lucide-react";
+import { Landmark } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
 import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
-import { HoldProgress, HoldTimer } from "@/components/media";
+import { Cover, HoldTimer, MediaCaption, media, sportPhoto } from "@/components/media";
+import { HoldCountdown } from "@/components/moments/hold-countdown";
+import { PaidMark, ScrambleCode } from "@/components/moments/paid";
+import { SportGlyph } from "@/components/moments/sport-glyph";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, money, when } from "@/components/shell";
 import { Button, Card, DateField, Input, LoadError, Seg, Skeleton, StatusBadge } from "@/components/ui";
+import { GlareHover, StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
 import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { t } from "@/lib/i18n";
@@ -322,7 +326,7 @@ function Page() {
                   {t("Change time")}
                 </button>
               ) : b.status === "confirmed" ? (
-                <span className="text-xs text-muted">{t("Within {n}h, can't move", { n: windowHours })}</span>
+                <span className="text-xs text-muted">{t("Within {n}h: can't move", { n: windowHours })}</span>
               ) : null}
               {b.status === "confirmed" || b.status === "hold" ? (
                 <button type="button" onClick={() => setCancelId(b.id)} className="hit text-sm text-muted hover:text-danger">
@@ -347,6 +351,21 @@ function Page() {
 
   return (
     <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for five minutes while you pay.")}>
+      <GlareHover className="mb-4 block rounded-[var(--radius-xl)]" duration={1.1}>
+        <Cover
+          src={sport ? sportPhoto(sport) : media.hallCourts}
+          alt=""
+          scrim="none"
+          className="h-32 rounded-[var(--radius-xl)] md:h-40"
+        >
+          <MediaCaption>
+            <p className="font-display text-2xl">
+              <SportGlyph sport={sport || "all"} className="mr-2.5 inline-block size-8 align-[-0.3em]" />
+              {t("{sport} · 60′ slots", { sport: sport ? sportLabel(sport) : t("All 3 sports") })}
+            </p>
+          </MediaCaption>
+        </Cover>
+      </GlareHover>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="min-w-0">
           <div className="grid gap-3">
@@ -418,7 +437,7 @@ function Page() {
             {moving ? (
               <Card className="mt-4 border border-accent/30 bg-accent/5">
                 <p className="text-sm font-medium">
-                  {t("Moving {code}, now {court}, {when}", {
+                  {t("Moving {code} (now {court}, {when})", {
                     code: moving.code,
                     court: moving.court_code,
                     when: when(moving.start_at),
@@ -454,7 +473,7 @@ function Page() {
                       <Landmark className="size-5 shrink-0 text-hold" strokeWidth={1.75} />
                       <div className="min-w-[12rem] flex-1">
                         <p className="text-sm font-medium">
-                          {t("Transfer {amount}, your court is held meanwhile.", { amount: money(pending.amount) })}
+                          {t("Transfer {amount}. Your court is held meanwhile.", { amount: money(pending.amount) })}
                         </p>
                         <p className="text-xs text-muted">
                           {heldBefore}
@@ -477,9 +496,9 @@ function Page() {
                   className="overflow-hidden"
                 >
                   <Card className="mt-4 flex flex-wrap items-center gap-3 border border-accent/30 bg-accent/5">
-                    <ReceiptIcon className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
+                    <PaidMark />
                     <div className="min-w-[10rem] flex-1">
-                      <p className="text-sm font-medium">{t("Booking confirmed, your receipt is ready.")}</p>
+                      <p className="text-sm font-medium">{t("Booking confirmed. Your receipt is ready.")}</p>
                       <p className="text-xs text-muted">
                         {keptBefore}
                         <Link to="/account" className="text-accent-2 underline">
@@ -523,7 +542,7 @@ function Page() {
                     ) : taken.alts.length ? (
                       <>
                         <p className="mt-1 text-xs text-muted">
-                          {t("Nearest hours still open on this sport, tap one to hold it.")}
+                          {t("Nearest hours still open on this sport. Tap one to hold it.")}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {taken.alts.map((a) => (
@@ -567,7 +586,7 @@ function Page() {
                   <Card className="mt-4 border border-hold/30 bg-hold/5" role="alert">
                     <p className="text-sm">{overlap.message}</p>
                     <p className="mt-1 text-xs text-muted">
-                      {t("Your class enrolment stays put, this is only a clash warning.")}
+                      {t("Your class enrolment stays put. This is only a clash warning.")}
                     </p>
                     <div className="mt-3 flex gap-2">
                       <Button
@@ -602,16 +621,20 @@ function Page() {
                     you look away, so scrolling the grid for another court must not push it off screen. */}
                 <Card className="flex flex-wrap items-center justify-between gap-4 border border-accent/40 shadow-[var(--shadow-soft)]">
                   <div className="min-w-[13rem] flex-1">
-                    <HoldProgress until={hold.hold_until} onExpire={() => setHold(null)} />
+                    <HoldCountdown until={hold.hold_until} onExpire={() => setHold(null)} />
                     <p className="mt-2 text-sm text-muted">
                       {hold.court_code ? (
                         <span className="font-semibold text-fg">
                           {hold.court_code}
                           {hold.hour != null ? ` · ${String(hold.hour).padStart(2, "0")}:00` : ""}
                         </span>
-                      ) : (
-                        <span className="font-semibold text-fg">{hold.booking.code}</span>
-                      )}{" "}
+                      ) : null}{" "}
+                      {/* The booking code is born here; it decodes into place. */}
+                      {hold.booking.code ? (
+                        <>
+                          · <ScrambleCode code={hold.booking.code} className="text-xs text-subtle" />{" "}
+                        </>
+                      ) : null}
                       · <span className="text-lg font-semibold tabular-nums text-fg">{money(hold.price)}</span>
                       {hold.promo ? (
                         <span className="ml-2 text-xs text-accent-2">
@@ -629,9 +652,11 @@ function Page() {
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button disabled={busy} onClick={() => void confirmPay("quota")}>
-                      {t("Use plan hours")}
-                    </Button>
+                    <StarBorder speed={4}>
+                      <Button disabled={busy} onClick={() => void confirmPay("quota")}>
+                        {t("Use plan hours")}
+                      </Button>
+                    </StarBorder>
                     {/* Online payment settles the slot at once (payOS confirms the money first). A bank
                         transfer only promises it: the court stays on hold until reception finds it. */}
                     {onlineOn ? (
@@ -644,7 +669,7 @@ function Page() {
                         onPaid={() => {
                           setHold(null);
                           load();
-                          toast.success(t("Paid, your court is confirmed and the receipt is in your account."));
+                          toast.success(t("Paid. Your court is confirmed and the receipt is in your account."));
                         }}
                       />
                     ) : null}

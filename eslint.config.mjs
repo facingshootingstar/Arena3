@@ -15,6 +15,9 @@ export default tseslint.config(
       ".nitro/**",
       "node_modules/**",
       "src/routeTree.gen.ts",
+      // Installed agent skills ship their own bundled scripts; they are not app code.
+      ".claude/**",
+      ".agents/**",
     ],
   },
   js.configs.recommended,

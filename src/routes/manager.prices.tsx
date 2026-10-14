@@ -116,7 +116,7 @@ function Page() {
     <Shell
       role="manager"
       title={t("Pricing")}
-      subtitle={t("A new price only applies to new transactions, bookings and plans already sold keep theirs.")}
+      subtitle={t("A new price only applies to new transactions: bookings and plans already sold keep theirs.")}
     >
       <section aria-labelledby="court-rates">
         <SectionTitle

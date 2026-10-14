@@ -2,6 +2,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Dumbbell, Repeat, Ticket, UserMinus, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { SectionTitle } from "@/components/section";
 import { Shell, money } from "@/components/shell";
 import {
   Badge,
@@ -18,7 +19,8 @@ import {
   Skeleton,
   StatusBadge,
 } from "@/components/ui";
-import { motion } from "@/components/motion";
+import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
+import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
@@ -146,7 +148,19 @@ function Page() {
 
   return (
     <Shell role="receptionist" title={t("Front desk")} subtitle={t("Find a member, sell a plan, take payment.")}>
-      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]">
+      {/* Kept well under the text: this console is stared at all shift, so the
+          field is a texture, not a feature. */}
+      <GLBackground
+        variant="dotgrid"
+        position="fixed"
+        className="-z-[1]"
+        color="#1e4fd8"
+        gap={32}
+        dot={1.5}
+        radius={130}
+        opacity={0.22}
+      />
+      <Reveal className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]" from="down">
         {shiftRead.error ? (
           // Not "no till is open": the screen does not know, and saying so would send the desk to open a second one.
           <div className="w-full">
@@ -182,7 +196,7 @@ function Page() {
           </Button>
         )}
         {shift === null ? (
-          <span className="text-sm text-muted">{t("Open your cash shift first, payments can’t be taken without one.")}</span>
+          <span className="text-sm text-muted">{t("Open your cash shift first. Payments can’t be taken without one.")}</span>
         ) : null}
         {shift ? (
           <Button
@@ -206,7 +220,7 @@ function Page() {
         <ButtonLink to="/desk/courts" variant="ink">
           {t("Court map")}
         </ButtonLink>
-      </div>
+      </Reveal>
 
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
@@ -235,7 +249,7 @@ function Page() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, delay: Math.min(i, 6) * 0.03, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => navigate({ to: "/desk/member/$id", params: { id: m.id } })}
-            className="flex min-h-14 items-center justify-between rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left shadow-[var(--shadow-border)] transition-colors duration-150 hover:bg-wood"
+            className="flex min-h-14 items-center justify-between rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left shadow-[var(--shadow-border)] transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-wood"
           >
             <div>
               <div className="font-medium">{m.full_name}</div>
@@ -248,7 +262,7 @@ function Page() {
         ))}
       </div>
 
-      <h2 className="mt-8 text-lg font-semibold">{t("New member")}</h2>
+      <SectionTitle text={t("New member")} className="mt-8 font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">{t("Three steps: profile → plan → payment.")}</p>
       <ol className="mt-3 flex gap-2 text-2xs font-medium">
         {[
@@ -272,7 +286,8 @@ function Page() {
           </li>
         ))}
       </ol>
-      <Card className="mt-3">
+      <SpotlightCard className="mt-3 rounded-[var(--radius-xl)]" size={420} strength={0.09}>
+      <Card className="relative z-[2]">
         {step === 1 ? (
           <div className="grid gap-3 md:grid-cols-3">
             <Field label={t("Full name")}>
@@ -306,7 +321,7 @@ function Page() {
                     setStep(2);
                     toast.success(
                       res.existing
-                        ? t("This person already has a profile, pick a plan or stop here")
+                        ? t("This person already has a profile. Pick a plan or stop here.")
                         : res.user.member_code
                           ? t("Created {code}. Temporary password: {password}", {
                               code: res.user.member_code,
@@ -334,7 +349,7 @@ function Page() {
             </p>
             {newUser.temp_password ? (
               <Card className="mb-4 border border-hold/30 bg-hold/5 p-4">
-                <p className="text-2xs text-muted">{t("Temporary password, hand this to the member so they can sign in")}</p>
+                <p className="text-2xs text-muted">{t("Temporary password: hand this to the member so they can sign in")}</p>
                 <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{newUser.temp_password}</p>
                 <p className="mt-1 text-xs text-muted">{t("They change it after the first sign-in.")}</p>
               </Card>
@@ -413,6 +428,7 @@ function Page() {
               </Select>
             </Field>
             <div className="flex items-end gap-2 md:col-span-2">
+              <StarBorder speed={4}>
               <Button
                 disabled={busy || !shift}
                 onClick={async () => {
@@ -452,6 +468,7 @@ function Page() {
               >
                 {shift === null ? t("Open a shift first") : t("Take payment & print")}
               </Button>
+              </StarBorder>
               <Button variant="ghost" onClick={() => setStep(2)}>
                 {t("Back")}
               </Button>
@@ -459,6 +476,7 @@ function Page() {
           </div>
         ) : null}
       </Card>
+      </SpotlightCard>
         </div>
         <aside className="grid content-start gap-6">
           <DeskNow />
@@ -481,7 +499,7 @@ function Page() {
       </nav>
       {ticketsRead.error ? (
         <div>
-          <h2 className="text-base font-semibold">{t("Requests from the app")}</h2>
+          <SectionTitle text={t("Requests from the app")} className="font-display text-xl" />
           <div className="mt-3">
             <LoadError
               message={ticketsRead.error.message}
@@ -491,10 +509,11 @@ function Page() {
         </div>
       ) : tickets.length ? (
         <div>
-          <h2 className="text-base font-semibold">{t("Requests from the app")}</h2>
-          <div className="mt-3 grid gap-2">
+          <SectionTitle text={t("Requests from the app")} className="font-display text-xl" />
+          <Stagger className="mt-3 grid gap-2" gap={0.05}>
             {tickets.map((ticket) => (
-              <Card key={ticket.id} className="p-4">
+              <StaggerItem key={ticket.id}>
+              <Card className="p-4">
                 <div className="grid gap-3">
                   <div className="min-w-0">
                     {/* A member's own words, so they may contain a long run
@@ -547,7 +566,7 @@ function Page() {
                         setTickets((list) => list.filter((x) => x.id !== ticket.id));
                         setReplyTo(null);
                         setReply("");
-                        toast.success(t("Replied, the member has been notified"));
+                        toast.success(t("Replied: the member has been notified"));
                       } catch (err) {
                         toast.error(err instanceof Error ? tServer(err.message) : t("Something went wrong"));
                       } finally {
@@ -569,8 +588,9 @@ function Page() {
                   </form>
                 ) : null}
               </Card>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </div>
       ) : null}
         </aside>
@@ -637,9 +657,10 @@ function DeskNow() {
   const hhmm = (iso: string) =>
     new Date(iso).toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit" });
   return (
-    <Card className="p-4">
+    <SpotlightCard className="rounded-[var(--radius-xl)]" size={260} strength={0.1}>
+    <Card className="relative z-[2] p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold">{t("Right now")}</h2>
+        <h2 className="font-display text-xl">{t("Right now")}</h2>
         <Link to="/desk/courts" className="hit inline-flex items-center gap-1 text-sm font-medium text-accent-2 hover:underline">
           {t("Court map")}
           <ArrowRight aria-hidden className="size-3.5" />
@@ -652,7 +673,9 @@ function DeskNow() {
           { label: t("Courts free this hour"), value: freeNow },
         ].map((x) => (
           <div key={x.label} className="rounded-[var(--radius-md)] bg-wood/70 px-3 py-2.5">
-            <dd className="figure text-2xl">{x.value}</dd>
+            <dd className="figure text-2xl">
+              <CountUp to={x.value} duration={0.9} />
+            </dd>
             <dt className="mt-1 text-xs leading-snug text-muted">{x.label}</dt>
           </div>
         ))}
@@ -670,5 +693,6 @@ function DeskNow() {
         </ul>
       ) : null}
     </Card>
+    </SpotlightCard>
   );
 }
