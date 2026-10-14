@@ -400,7 +400,9 @@ export function CourtGrid({
   }
 
   return (
-    <div className="grid gap-3">
+    // One shrinkable column: the sideways strips below scroll inside it instead of widening the
+    // page (a phone at 390px used to scroll the whole screen sideways by 138px).
+    <div className="grid min-w-0 grid-cols-1 gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CourtLegend compact={legendCompact} />
         <p className="text-xs tabular-nums text-muted">{t("{n} free slots left", { n: free })}</p>
@@ -420,7 +422,7 @@ export function CourtGrid({
       ) : null}
 
       {onPick && byHour.length ? (
-        <div className="md:hidden">
+        <div className="min-w-0 md:hidden">
           <p className="mb-2 text-sm font-medium">{t("Free hours")}</p>
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {byHour.map(({ hour, open }) => (
