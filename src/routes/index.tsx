@@ -19,6 +19,7 @@ import { CLOSE_HOUR, OPEN_HOUR, useVenueHour, wdLabel } from "@/components/landi
 import { getStoredUser, getToken, homeFor } from "@/lib/arena3/client";
 import { getPublicAvailability, getPublicCatalog } from "@/lib/arena3/catalog";
 import { addDaysISO } from "@/lib/arena3/labels";
+import { BootGate } from "@/components/media";
 import { t } from "@/lib/i18n";
 
 export const Route = createFileRoute("/")({
@@ -40,11 +41,13 @@ function Home() {
   const u = getStoredUser();
   if (token && u) return <Navigate to={homeFor(u.role)} />;
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-dvh overflow-x-clip text-fg">
-      <LandingSmoother header={<SiteHeader />}>
-        <Landing />
-      </LandingSmoother>
-    </main>
+    <BootGate>
+      <main id="main-content" tabIndex={-1} className="min-h-dvh overflow-x-clip text-fg">
+        <LandingSmoother header={<SiteHeader />}>
+          <Landing />
+        </LandingSmoother>
+      </main>
+    </BootGate>
   );
 }
 

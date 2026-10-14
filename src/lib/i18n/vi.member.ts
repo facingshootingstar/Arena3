@@ -303,4 +303,7 @@ export const member: Record<string, string> = {
   "Session logged": "Đã ghi nhận buổi tập",
   "{n}% of the plan": "{n}% giáo án",
   "Your coach's notes from each session appear here.": "Ghi chú của HLV sau mỗi buổi tập sẽ hiện ở đây.",
+
+  // ── main: pass ──
+  "Member Code": "Mã hội viên",
 };

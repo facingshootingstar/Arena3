@@ -164,7 +164,7 @@ export const desk: Record<string, string> = {
 
   // ── desk.gear ──
   "Rented out · {amount}": "Đã cho thuê · {amount}",
-  "Rent to a member's account or to a guest by phone, stock comes down on the way out, back up on return.": "Cho thuê vào tài khoản hội viên hoặc cho khách theo số điện thoại, kho giảm khi cho thuê, tăng lại khi trả.",
+  "Rent to a member's account or to a guest by phone. The hire is charged to the till, stock comes down on the way out and back up on return.": "Cho thuê vào tài khoản hội viên hoặc cho khách theo số điện thoại. Tiền thuê thu vào ca thu ngân, kho giảm khi cho thuê và tăng lại khi trả.",
   "Item": "Dụng cụ",
   "{n} left": "còn {n}",
   "none left": "hết hàng",
@@ -344,4 +344,26 @@ export const desk: Record<string, string> = {
   "No {method} in this window": "Không có khoản {method} nào trong khoảng này",
   "Widen the range, or try another method.": "Hãy mở rộng khoảng thời gian, hoặc thử hình thức khác.",
   "Showing the {n} most recent, there are older receipts in this window that this list does not reach. Pull the full period from Reports to reconcile it.": "Đang hiển thị {n} biên lai gần nhất, còn các biên lai cũ hơn trong khoảng này chưa được liệt kê. Hãy lấy toàn bộ kỳ từ Báo cáo để đối soát.",
+
+  // ── main: VietQR box at the desk, gate check-in toasts, member payment options ──
+  "Payment confirmed and receipt generated": "Đã xác nhận thanh toán và tạo biên lai",
+  "Could not confirm payment": "Không xác nhận được thanh toán",
+  "Scan QR to pay · Bank transfer": "Quét QR để thanh toán · Chuyển khoản",
+  "Recording…": "Đang ghi nhận…",
+  "Money received, confirm & print": "Đã nhận tiền, xác nhận và in",
+  "Ask the customer to scan this QR code with their banking app.": "Nhờ khách quét mã QR này bằng ứng dụng ngân hàng.",
+  "VietQR payment code": "Mã thanh toán VietQR",
+  "Generating QR…": "Đang tạo mã QR…",
+  "Amount due": "Số tiền cần trả",
+  "Bank": "Ngân hàng",
+  "Account number": "Số tài khoản",
+  "Account name": "Tên chủ tài khoản",
+  "Transfer reference": "Nội dung chuyển khoản",
+  "Once the customer completes the transfer, click 'Money received, confirm & print' below to post the payment and print their receipt.": "Khi khách chuyển khoản xong, bấm «Đã nhận tiền, xác nhận và in» bên dưới để ghi nhận thanh toán và in biên lai.",
+  "Needs override approval": "Cần duyệt ngoại lệ để cho vào",
+  "Already checked in: {name}": "Đã vào cổng trước đó: {name}",
+  "Checked in: {name}": "Đã vào cổng: {name}",
+  "Bank transfer (VietQR)": "Chuyển khoản (VietQR)",
+  "Show transfer QR · {amount}": "Hiện mã QR chuyển khoản · {amount}",
+  "Online link": "Link thanh toán online",
 };

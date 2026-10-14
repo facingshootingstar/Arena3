@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { ScrambleTextPlugin } from "gsap/ScrambleTextPlugin";
 import { SplitText } from "gsap/SplitText";
-import { HeroVideo, media } from "@/components/media";
+import { HeroVideo, media, useBootOpen } from "@/components/media";
 import { ButtonAnchor } from "@/components/ui";
 import { GLBackground, ShinyText } from "@/components/fx";
 import { money } from "@/components/shell";
@@ -40,6 +40,8 @@ export function Hero({
 }) {
   const root = useRef<HTMLElement>(null);
   const calm = useCalm();
+  // The intro plays once the boot cover lifts; run under the cover, nobody would see it.
+  const open = useBootOpen();
   const status =
     isOpen == null
       ? t("Indoor sports centre")
@@ -49,7 +51,7 @@ export function Hero({
 
   useScene(root, ({ motion }) => {
     const el = root.current;
-    if (!motion || !el) return;
+    if (!motion || !el || !open) return;
     const q = gsap.utils.selector(el);
 
     // Measure the serve before any entrance tween moves the button.
@@ -118,13 +120,13 @@ export function Hero({
         invalidateOnRefresh: true,
       },
     });
-  });
+  }, [open]);
 
   return (
     <section ref={root} className="grain relative min-h-[88dvh] overflow-hidden">
       {/* Taller than the frame and slowed by the smoother, so the hall lags behind the copy. */}
       <div data-media data-speed="auto" className="absolute inset-x-0 -top-[8%] h-[116%]">
-        <HeroVideo src={media.hallVideo} poster={media.hallCourts} />
+        <HeroVideo src={media.hallVideo} poster={media.hallCourts} priority />
       </div>
       <div className="hero-scrim pointer-events-none absolute inset-0" />
       <GLBackground

@@ -10,9 +10,8 @@ import { t } from "@/lib/i18n";
  *
  * It drifts on its own and the scroll wheel drives it: flick down and it speeds forward, scroll
  * back up and it runs the other way, then eases back to its own pace. It stops under the pointer
- * so a class can be read, and stops while off-screen. Under reduced motion or the pause button it
- * does not move at all (anything that moves by itself for more than five seconds needs a way to
- * stop it, WCAG 2.2.2), and wraps onto as many rows as it needs so nothing is clipped.
+ * so a class can be read, and stops while off-screen. Under reduced motion it does not move at
+ * all, and wraps onto as many rows as it needs so nothing is clipped.
  */
 export function ClassTicker({ classes }: { classes: CatalogClass[] }) {
   const root = useRef<HTMLElement>(null);
@@ -79,7 +78,7 @@ export function ClassTicker({ classes }: { classes: CatalogClass[] }) {
     <span key={c.id} className="mr-10 inline-flex items-center gap-3 whitespace-nowrap text-sm">
       <span className="athletic text-xl sm:text-2xl">{sportLabel(c.sport)}</span>
       <span className="kicker text-2xs text-muted">{levelLabel(c.level)}</span>
-      <span className="tabular-nums text-accent-2">{rruleLabel(c.rrule)}</span>
+      <span className="tabular-nums text-accent-2">{rruleLabel(c.rrule, c.duration_min)}</span>
       <span className="text-subtle">{c.court_code}</span>
       <span className="text-muted">{c.coach_name}</span>
       <span aria-hidden className="size-1.5 rounded-full bg-accent/45" />

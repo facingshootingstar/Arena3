@@ -33,9 +33,9 @@ import { isCalm, useCalm } from "@/lib/calm";
  * Two rules hold everywhere in this file:
  *   1. `prefers-reduced-motion` collapses the effect to a plain element, once
  *      mounted (`useReducedMotionAfterMount`, so hydration matches the server).
- *      Nothing here is load-bearing for content. The pause button (`@/lib/calm`)
- *      goes further for the things that loop on their own, the shader
- *      backgrounds, and CSS stops the rest.
+ *      Nothing here is load-bearing for content. The things that loop on their
+ *      own, the shader backgrounds, also follow `useCalm()` (`@/lib/calm`) live,
+ *      and CSS stops the rest.
  *   2. Pointer effects check `pointerType === "mouse"`. A spotlight that chases
  *      a finger is just a smear, and most of Arena3's traffic is on a phone.
  */
@@ -724,8 +724,7 @@ export function ClickSpark({
     };
 
     const onClick = (e: MouseEvent) => {
-      // "Pause animations" also silences this: it is a reply to a click, but a person who asked for
-      // stillness did not mean "except sparks".
+      // Reduced motion silences this too: a click still happened, but sparks are motion.
       if (isCalm()) return;
       const now = performance.now();
       const jitter = Math.random() * Math.PI;

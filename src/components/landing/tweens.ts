@@ -26,7 +26,7 @@ export function countText(
  *
  * One `fromTo` per element, created now and played by its own trigger, rather than a batch that
  * creates tweens later from a callback: everything then belongs to the scene's context from the
- * start, so reverting it (unmount, breakpoint, the pause button) always lands on the untouched
+ * start, so reverting it (unmount, breakpoint, reduced motion switching on) always lands on the untouched
  * markup. The batch version could revert in an order that left the start state (hidden) behind.
  */
 export function rise(scope: Element, selector = "[data-rise]", { y = 34, stagger = 0.09 } = {}) {

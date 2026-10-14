@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { ArenaMark } from "@/components/mark";
-import { CalmToggle } from "@/components/calm-toggle";
 import { LangSwitch } from "@/components/lang-switch";
 import { ButtonAnchor, ButtonLink } from "@/components/ui";
 import { ScrollTrigger, gsap, useScene } from "@/lib/gsap";
@@ -46,7 +45,7 @@ export function SiteHeader() {
     const el = root.current;
     if (!el) return;
     // The progress bar is a reading of the scroll position, not motion of its own, so it stays on
-    // when animations are paused; it just stops easing.
+    // under reduced motion; it just stops easing.
     gsap.fromTo(
       bar.current,
       { scaleX: 0 },
@@ -54,7 +53,7 @@ export function SiteHeader() {
     );
     if (!motion) return;
     let hidden = false;
-    // Made now, inside the scene, so reverting it (pause button, unmount) always returns the header.
+    // Made now, inside the scene, so reverting it (breakpoint, unmount) always returns the header.
     const slide = gsap.quickTo(el, "yPercent", { duration: 0.32, ease: "arena" });
     const show = (next: boolean) => {
       if (next === hidden) return;
@@ -125,7 +124,6 @@ export function SiteHeader() {
             {t("Join")}
           </ButtonLink>
           <LangSwitch />
-          <CalmToggle />
         </div>
         <button
           type="button"
@@ -171,7 +169,6 @@ export function SiteHeader() {
             </div>
             <div className="flex items-center justify-center gap-2 pt-1 md:hidden">
               <LangSwitch />
-              <CalmToggle />
             </div>
           </nav>
         </div>

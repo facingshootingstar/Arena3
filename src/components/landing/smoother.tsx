@@ -25,7 +25,7 @@ export const useLandingScroll = () => useContext(Ctx);
  * before their parents and earlier siblings before later ones, so the smoother exists before any
  * scene builds a ScrollTrigger, and pins inside it get the transform pin type they need.
  *
- * Under reduced motion or the pause button there is no smoother at all: the same markup scrolls
+ * Under reduced motion there is no smoother at all: the same markup scrolls
  * natively, `data-speed` / `data-lag` do nothing, and anchors jump as usual.
  */
 export function LandingSmoother({ header, children }: { header: ReactNode; children: ReactNode }) {

@@ -88,16 +88,21 @@ Deliberately, and recorded so nobody plans around them:
 
 | Actor | Who they are | Where they work |
 | --- | --- | --- |
-| **Member** | A customer of the centre, with or without a membership. | `/app/*`, `/account`, `/alerts`, `/pay/return` |
-| **Receptionist** | Front-desk staff. Takes money, opens tills, reconciles transfers, checks members in at the gate, answers requests. | `/desk/*`, `/account`, `/alerts` |
-| **Coach** | Teaches classes. Sees their own timetable, marks attendance, records results, writes training plans and homework, reviews students. | `/coach/*`, `/account`, `/alerts` |
-| **Manager** | Runs the centre. Everything a receptionist can do, plus pricing, plans, settings, staff accounts, the member list, class lifecycle, reports and exports, and refund sign-off. Also reaches the coach screens. | `/manager/*`, `/desk/*`, `/coach/*` |
-| **Guest / walk-in** | Not signed in, or has no account. Served entirely by a receptionist. | — |
-| **Scheduler** | Not a person: the job loop that expires holds, marks no-shows, generates sessions and sends reminders. | — |
+| **Guest / Khách vãng lai** | Potential customer without an account or not signed in. Browses courts/plans, registers with Mail OTP. | `/`, `/plans`, `/v1/auth/register` |
+| **Member / Hội viên** | A registered customer of the centre, with or without a membership plan. | `/app/*`, `/account`, `/alerts`, `/pay/return` |
+| **Receptionist / Lễ tân** | Front-desk staff. Takes money, opens tills, reconciles transfers, checks members in at the gate, answers requests. | `/desk/*`, `/account`, `/alerts` |
+| **Coach / Huấn luyện viên** | Teaches classes. Sees assigned classes, timetable, marks attendance, records results, writes training plans and homework, reviews students. | `/coach/*`, `/coach/classes`, `/account`, `/alerts` |
+| **Manager / Quản lý** | Runs the centre. Everything a receptionist can do, plus pricing, plans, settings, staff accounts, member list, class lifecycle, reports/exports, and refund sign-off. | `/manager/*`, `/desk/*`, `/coach/*` |
+| **AI Assistant / Trợ lý AI** | Intelligent assistant responding to member inquiries, court recommendations, operational data analysis. | `/assistant`, API |
+| **Mail System / Hệ thống Email** | External messaging transport delivering registration OTPs, booking confirmations, notifications, and electronic invoices. | SMTP / Resend / Queue Worker |
+| **Scheduler / Tiến trình lập lịch** | Automated job loop expiring holds, marking no-shows, generating sessions, and sending reminders. | Background Worker |
 
 Roles are exclusive — a user has exactly one — and are enforced server-side on
 every request (`requireRole`). The UI hides what a role cannot do; that is a
 convenience, not the control.
+
+*Detailed system architecture diagrams (Use Case Diagram, Noun-based Context Diagram, and Registration Swimlane Diagram) are formally documented in [SRS-diagrams.md](SRS-diagrams.md).*
+
 
 ---
 

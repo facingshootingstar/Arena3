@@ -242,4 +242,14 @@ export const ops: Record<string, string> = {
   "Court use table, scrolls sideways": "Bảng sử dụng sân, cuộn ngang để xem thêm",
   "Classes table, scrolls sideways": "Bảng lớp học, cuộn ngang để xem thêm",
   "Attendance table, scrolls sideways": "Bảng điểm danh, cuộn ngang để xem thêm",
+
+  // ── main: coach classes ──
+  "Classes you teach: schedule, enrolled students, court and attendance details.": "Các lớp bạn dạy: lịch, học viên đã đăng ký, sân và điểm danh.",
+  "No classes assigned": "Chưa được phân lớp nào",
+  "When the manager assigns you to teach a class, it will appear here.": "Khi quản lý phân bạn dạy một lớp, lớp đó sẽ hiện ở đây.",
+  "Total Classes": "Tổng số lớp",
+  "Open Classes": "Lớp đang mở",
+  "Total Students": "Tổng số học viên",
+  "Weekly schedule": "Lịch hằng tuần",
+  "{n} upcoming sessions": "{n} buổi sắp tới",
 };

@@ -11,8 +11,7 @@ import { rise } from "./tweens";
  * On a computer the section holds still while the scroll draws the line from step to step, and
  * each step lights up as the line reaches it: pick, hold, pay, in the order a booking really
  * happens. On a phone the steps simply arrive one after another. The markup at rest is the
- * finished picture (every step lit, the line drawn), which is what reduced motion and the pause
- * button get.
+ * finished picture (every step lit, the line drawn), which is what reduced motion gets.
  */
 export function StepsScene() {
   const root = useRef<HTMLElement>(null);
