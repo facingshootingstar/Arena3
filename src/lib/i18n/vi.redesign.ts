@@ -140,4 +140,14 @@ export const redesign: Record<string, string> = {
   "Leave class": "Rời lớp",
   "You lose your place in the queue. Joining again puts you at the back.": "Bạn sẽ mất chỗ trong hàng chờ. Đăng ký lại sẽ xếp bạn xuống cuối.",
   "Your seat goes to the next person on the waitlist.": "Chỗ của bạn sẽ chuyển cho người kế tiếp trong danh sách chờ.",
+  // ── terms and data notice (R-1) ──
+  "Last updated {date}": "Cập nhật lần cuối {date}",
+  "Draft awaiting the centre's review": "Bản nháp, đang chờ trung tâm duyệt",
+  "Back to sign up": "Quay lại đăng ký",
+  "Personal data notice": "Thông báo về dữ liệu cá nhân",
+  "Terms of use": "Điều khoản sử dụng",
+  "I agree to the {terms} and the {policy}, under Decree 13/2023 on personal data protection.": "Tôi đồng ý với {terms} và {policy}, theo Nghị định 13/2023 về bảo vệ dữ liệu cá nhân.",
+  "terms of use": "điều khoản sử dụng",
+  "personal data notice": "thông báo về dữ liệu cá nhân",
+  "Arena3 home": "Trang chủ Arena3",
 };

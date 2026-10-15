@@ -18,7 +18,9 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as ForgotRouteImport } from './routes/forgot'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerRouteImport } from './routes/manager'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAssistantRouteImport } from './routes/app.assistant'
 import { Route as AppBookRouteImport } from './routes/app.book'
@@ -104,9 +106,19 @@ const ManagerRoute = ManagerRouteImport.update({
   path: '/manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -315,7 +327,9 @@ export interface FileRoutesByFullPath {
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/book': typeof AppBookRoute
   '/app/classes': typeof AppClassesRoute
@@ -362,7 +376,9 @@ export interface FileRoutesByTo {
   '/alerts': typeof AlertsRoute
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
+  '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/book': typeof AppBookRoute
   '/app/classes': typeof AppClassesRoute
@@ -414,7 +430,9 @@ export interface FileRoutesById {
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRouteWithChildren
+  '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
+  '/terms': typeof TermsRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/book': typeof AppBookRoute
   '/app/classes': typeof AppClassesRoute
@@ -467,7 +485,9 @@ export interface FileRouteTypes {
     | '/forgot'
     | '/login'
     | '/manager'
+    | '/privacy'
     | '/register'
+    | '/terms'
     | '/app/assistant'
     | '/app/book'
     | '/app/classes'
@@ -514,7 +534,9 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/forgot'
     | '/login'
+    | '/privacy'
     | '/register'
+    | '/terms'
     | '/app/assistant'
     | '/app/book'
     | '/app/classes'
@@ -565,7 +587,9 @@ export interface FileRouteTypes {
     | '/forgot'
     | '/login'
     | '/manager'
+    | '/privacy'
     | '/register'
+    | '/terms'
     | '/app/assistant'
     | '/app/book'
     | '/app/classes'
@@ -617,7 +641,9 @@ export interface RootRouteChildren {
   ForgotRoute: typeof ForgotRoute
   LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
   RegisterRoute: typeof RegisterRoute
+  TermsRoute: typeof TermsRoute
   PayReturnRoute: typeof PayReturnRoute
   V1SplatRoute: typeof V1SplatRoute
 }
@@ -687,11 +713,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -1087,7 +1127,9 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotRoute: ForgotRoute,
   LoginRoute: LoginRoute,
   ManagerRoute: ManagerRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
   RegisterRoute: RegisterRoute,
+  TermsRoute: TermsRoute,
   PayReturnRoute: PayReturnRoute,
   V1SplatRoute: V1SplatRoute,
 }

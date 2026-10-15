@@ -82,14 +82,18 @@ export async function register(sql: Sql, request: Request) {
     throw err.br("BR-02", "Password needs at least 8 characters, with letters and numbers.", { field: "password" });
   }
   if (!pii) throw err.br("BR-04", "You must accept the terms and the data-privacy notice.");
+  // Required, and a real date: without one the guardian check below (BR-03) had nothing to test.
+  if (!dob) throw err.validation("Date of birth is required.", { field: "dob" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || Number.isNaN(Date.parse(`${dob}T00:00:00+07:00`))) {
+    throw err.validation("Use a date like 2010-05-31.", { field: "dob" });
+  }
   const settings = await getSettings(sql);
-  if (dob) {
-    const age = ageYears(dob);
-    if (age < settings.minor_age) {
-      const gn = str(body.guardian_name);
-      const gp = str(body.guardian_phone);
-      if (!gn || !gp) throw err.br("BR-03", "A minor needs guardian details.", { field: "guardian_name" });
-    }
+  const age = ageYears(dob);
+  if (age < 0 || age > 120) throw err.validation("That date of birth is not possible.", { field: "dob" });
+  if (age < settings.minor_age) {
+    const gn = str(body.guardian_name);
+    const gp = str(body.guardian_phone);
+    if (!gn || !gp) throw err.br("BR-03", "A minor needs guardian details.", { field: "guardian_name" });
   }
   const exists = await one(sql, `select id from users where phone = $1 or email = $2`, [
     phone,

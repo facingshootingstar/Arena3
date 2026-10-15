@@ -14,6 +14,29 @@ import { t, tServer } from "@/lib/i18n";
 
 export const Route = createFileRoute("/register")({ component: Register });
 
+/**
+ * The consent sentence with its two documents linked (R-1). They open in a new tab: following a
+ * link must not throw away a half-filled form. A link inside the label does not tick the box.
+ */
+function ConsentLabel() {
+  const [before, rest] = t("I agree to the {terms} and the {policy}, under Decree 13/2023 on personal data protection.").split("{terms}");
+  const [middle, after] = (rest ?? "").split("{policy}");
+  const link = "font-medium text-accent-2 underline underline-offset-2";
+  return (
+    <span>
+      {before}
+      <a href="/terms" target="_blank" rel="noopener" className={link}>
+        {t("terms of use")}
+      </a>
+      {middle}
+      <a href="/privacy" target="_blank" rel="noopener" className={link}>
+        {t("personal data notice")}
+      </a>
+      {after}
+    </span>
+  );
+}
+
 /** Puts a styled node where a translated sentence has its single placeholder. */
 const SLOT = "";
 const slot = (text: string, node: ReactNode) => {
@@ -267,7 +290,7 @@ function Register() {
                 className="text-muted"
                 checked={form.pii_consent}
                 onChange={(e) => setForm({ ...form, pii_consent: e.target.checked })}
-                label={t("I agree to the terms and to Decree 13/2023 on personal data protection.")}
+                label={<ConsentLabel />}
               />
               {error ? (
                 <p id="register-error" role="alert" className="text-sm text-danger">
