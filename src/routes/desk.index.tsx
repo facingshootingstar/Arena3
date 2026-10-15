@@ -18,6 +18,7 @@ import {
   Select,
   Skeleton,
   StatusBadge,
+  Pagination,
 } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
@@ -25,6 +26,7 @@ import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
 import { t, tServer, tData } from "@/lib/i18n";
+import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/desk/")({
@@ -77,7 +79,11 @@ function Page() {
   const [form, setForm] = useState({ full_name: "", phone: "" });
   const [closeOpen, setCloseOpen] = useState(false);
   const [cash, setCash] = useState("");
-  const ticketsRead = useRead<{ items: Ticket[] }>("/tickets");
+  const ticketPage = usePageState("desk.tickets", 10);
+  const ticketsRead = useRead<{ items: Ticket[]; total: number }>(
+    `/tickets?limit=${ticketPage.pageSize}&offset=${ticketPage.offset}`,
+    { keepPrevious: true },
+  );
   // The server's list, with a request dropped from it here as soon as the desk closes or answers it.
   const [tickets, setTickets] = useState<Ticket[]>([]);
   useEffect(() => {
@@ -544,6 +550,7 @@ function Page() {
                         try {
                           await apiPost(`/tickets/${ticket.id}/close`);
                           setTickets((list) => list.filter((x) => x.id !== ticket.id));
+                          ticketsRead.reload();
                           toast.success(t("Request closed"));
                         } catch (e) {
                           toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
@@ -564,6 +571,7 @@ function Page() {
                       try {
                         await apiPost(`/tickets/${ticket.id}/reply`, { reply: reply.trim() });
                         setTickets((list) => list.filter((x) => x.id !== ticket.id));
+                        ticketsRead.reload();
                         setReplyTo(null);
                         setReply("");
                         toast.success(t("Replied: the member has been notified"));
@@ -591,6 +599,14 @@ function Page() {
               </StaggerItem>
             ))}
           </Stagger>
+          <Pagination
+            offset={ticketPage.offset}
+            total={ticketsRead.data?.total ?? 0}
+            pageSize={ticketPage.pageSize}
+            onChange={ticketPage.setOffset}
+            onPageSizeChange={ticketPage.setPageSize}
+            label={t("Request pages")}
+          />
         </div>
       ) : null}
         </aside>

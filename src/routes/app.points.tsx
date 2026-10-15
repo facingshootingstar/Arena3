@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SectionTitle } from "@/components/section";
 import { Shell, money, when } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Skeleton } from "@/components/ui";
 import { Reveal } from "@/components/motion";
 import { ApiClientError, apiPost } from "@/lib/arena3/client";
 import { t, tServer } from "@/lib/i18n";
+import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/app/points")({ component: Page });
@@ -20,12 +21,15 @@ type Data = {
   redeem_vnd: number;
   min_redeem: number;
   history: { id: string; points: number; reason: string; note: string | null; created_at: string; promo_code: string | null }[];
+  history_total: number;
 };
 
 const tierName = (k: string) => (k === "gold" ? t("Gold") : k === "silver" ? t("Silver") : t("Bronze"));
 
 function Page() {
-  const { data: d, error, reload } = useRead<Data>("/me/points");
+  const { offset, setOffset, pageSize, setPageSize } = usePageState("points.history", 10);
+  // The balance comes with every page; the history pages, newest first.
+  const { data: d, error, reload } = useRead<Data>(`/me/points?limit=${pageSize}&offset=${offset}`, { keepPrevious: true });
   const [pts, setPts] = useState("");
   const [fieldErr, setFieldErr] = useState<string | null>(null);
   const [code, setCode] = useState<{ code: string; value: number } | null>(null);
@@ -112,6 +116,14 @@ function Page() {
               ))}
             </div>
           )}
+          <Pagination
+            offset={offset}
+            total={d.history_total ?? 0}
+            pageSize={pageSize}
+            onChange={setOffset}
+            onPageSizeChange={setPageSize}
+            label={t("History pages")}
+          />
         </>
       )}
     </Shell>

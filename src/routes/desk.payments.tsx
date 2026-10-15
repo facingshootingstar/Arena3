@@ -26,6 +26,7 @@ import { PromoInput } from "@/components/promo-input";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { refTypeLabel, sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer, tData } from "@/lib/i18n";
+import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/desk/payments")({
@@ -101,10 +102,10 @@ type Queue = {
   awaiting: Awaiting[];
   orders: Order[];
   refunds: Refund[];
+  /** One page of the receipts in the window, after the method and search filters. */
   receipts: Receipt[];
+  receipts_total: number;
   days: number;
-  /** The receipt list hit its cap and there is more behind it. */
-  capped: boolean;
 };
 
 // `gateway` is one of the five values `pay_method` allows, so a payment taken
@@ -151,7 +152,13 @@ function Page() {
   const [days, setDays] = useState("7");
   const [payMethod, setPayMethod] = useState("all");
   const [receiptQuery, setReceiptQuery] = useState("");
-  const [receiptOffset, setReceiptOffset] = useState(0);
+  const receiptPaging = usePageState("desk.receipts", 25);
+  // Typing waits a beat, so one search is one request.
+  const [receiptTerm, setReceiptTerm] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setReceiptTerm(receiptQuery.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [receiptQuery]);
   // Whether this centre has payOS set up at all. Read once: the button must be
   // absent rather than present-and-broken when it has not been configured.
   const [onlineOn, setOnlineOn] = useState(false);
@@ -174,7 +181,14 @@ function Page() {
   // Every refresh here runs straight after a mutation, and `reload()` never joins a read that was
   // already in flight: two rows actioned in quick succession would otherwise let the second one adopt
   // the first one's older answer and redraw a row that has just been paid for.
-  const read = useRead<Queue>(`/payments/pending?days=${days}`);
+  const receiptParams = new URLSearchParams({
+    days,
+    receipt_limit: String(receiptPaging.pageSize),
+    receipt_offset: String(receiptPaging.offset),
+  });
+  if (payMethod !== "all") receiptParams.set("receipt_method", payMethod);
+  if (receiptTerm) receiptParams.set("receipt_q", receiptTerm);
+  const read = useRead<Queue>(`/payments/pending?${receiptParams}`);
   // Only the receipts depend on the window. The last answer stays on screen while another window is
   // being asked for, so the transfers, orders and refunds do not vanish and come back with each tap.
   const [last, setLast] = useState<Queue | null>(null);
@@ -187,20 +201,11 @@ function Page() {
   const awaiting = data?.awaiting ?? [];
   const orders = data?.orders ?? [];
   const refunds = data?.refunds ?? [];
-  // Filtered here rather than at the server: the cap is applied before the
-  // filter either way, and narrowing a list already on screen should not cost a
-  // round trip while somebody is reading down a statement.
-  const needle = receiptQuery.trim().toLowerCase();
-  const receipts = (read.data?.receipts ?? []).filter(
-    (r) =>
-      (payMethod === "all" || r.method === payMethod) &&
-      (!needle ||
-        [r.member_name, r.member_code, r.buyer_phone, r.code].some((v) => v?.toLowerCase().includes(needle))),
-  );
-  // Fifteen receipts a page: the statement used to be one unbroken column, hundreds of rows tall.
-  const RECEIPT_PAGE = 15;
-  useEffect(() => setReceiptOffset(0), [payMethod, days, receiptQuery]);
-  const receiptPage = receipts.slice(receiptOffset, receiptOffset + RECEIPT_PAGE);
+  // The server filters and pages the receipts across the whole window, so every row in it can be
+  // reached when the list is read back against a bank statement; this is one page of them.
+  const receiptPage = data?.receipts ?? [];
+  const { reset: resetReceipts } = receiptPaging;
+  useEffect(resetReceipts, [payMethod, days, receiptTerm, resetReceipts]);
   // Per-row flooring, not a floor on the total: one over-paid order must not
   // quietly cancel out what another member still owes.
   const owed = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
@@ -659,10 +664,10 @@ function Page() {
           onChange={(e) => setReceiptQuery(e.target.value)}
           aria-label={t("Search receipts")}
         />
-        {read.error ? null : !read.data ? (
+        {read.error ? null : !data ? (
           <Skeleton className="mt-3 h-24" />
-        ) : receipts.length ? (
-          <Stagger key={receiptOffset} className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2" gap={0.04}>
+        ) : receiptPage.length ? (
+          <Stagger key={receiptPaging.offset} className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-2" gap={0.04}>
             {receiptPage.map((rc) => (
               <StaggerItem key={rc.id}>
                 <motion.div
@@ -708,12 +713,14 @@ function Page() {
             />
           </div>
         )}
-        <Pagination offset={receiptOffset} total={receipts.length} pageSize={RECEIPT_PAGE} onChange={setReceiptOffset} />
-        {read.data?.capped ? (
-          <p className="mt-3 text-xs text-muted">
-            {t("Showing the {n} most recent. There are older receipts in this window that this list does not reach. Pull the full period from Reports to reconcile it.", { n: read.data.receipts.length })}
-          </p>
-        ) : null}
+        <Pagination
+          offset={receiptPaging.offset}
+          total={data?.receipts_total ?? 0}
+          pageSize={receiptPaging.pageSize}
+          onChange={receiptPaging.setOffset}
+          onPageSizeChange={receiptPaging.setPageSize}
+          label={t("Receipt pages")}
+        />
       </div>
 
       {transferTarget ? (

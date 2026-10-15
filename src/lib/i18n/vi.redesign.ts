@@ -82,4 +82,25 @@ export const redesign: Record<string, string> = {
     "Đăng nhập bằng số điện thoại hoặc email, hoặc chọn một tài khoản demo bên dưới.",
   "The beginner ladder moved me onto a real training plan, and my knee has been fine since the coach reworked my footwork.":
     "Lớp cơ bản đưa tôi vào một giáo án tập luyện thực sự, và đầu gối tôi ổn hẳn từ khi HLV chỉnh lại bước chân cho tôi.",
+
+  // ── paging (Bước 1c) ──
+  "Pages": "Các trang",
+  "Rows per page": "Số dòng mỗi trang",
+  "First page": "Trang đầu",
+  "Previous page": "Trang trước",
+  "Page {page}": "Trang {page}",
+  "Next page": "Trang sau",
+  "Last page": "Trang cuối",
+  "At-risk pages": "Các trang danh sách có nguy cơ bỏ tập",
+  "Request pages": "Các trang yêu cầu",
+  "Receipt pages": "Các trang biên lai",
+  "Alert pages": "Các trang cảnh báo",
+  "Nothing unread": "Không có gì chưa đọc",
+  "Everything here has been read.": "Bạn đã đọc hết mọi thông báo.",
+  "Notification pages": "Các trang thông báo",
+  "History pages": "Các trang lịch sử",
+  "Check-in pages": "Các trang lượt vào cổng",
+  "{n} entries": "{n} mục",
+  "Audit pages": "Các trang nhật ký",
+  "Member pages": "Các trang hội viên",
 };

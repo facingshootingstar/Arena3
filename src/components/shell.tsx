@@ -162,7 +162,8 @@ function NotificationBell({ active, to }: { active: boolean; to: string }) {
   const [unread, setUnread] = useState(0);
   useEffect(() => {
     let live = true;
-    void apiGet<{ unread: number }>("/me/notifications", { background: true })
+    // The bell needs the count, not the messages: one row is enough to get it.
+    void apiGet<{ unread: number }>("/me/notifications?limit=1", { background: true })
       .then((r) => live && setUnread(r.unread))
       .catch(() => {
         // The bell is a convenience; a failed count must not break the header.

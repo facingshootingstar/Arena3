@@ -8,6 +8,7 @@ import {
   issueInvoice,
   nextCode,
   num,
+  pageOf,
   readJson,
   str,
 } from "../helpers";
@@ -17,6 +18,7 @@ import { applyDiscount, lookupPrice, memberDiscount } from "../pricing";
 import { requireRole, type PublicUser } from "../session";
 import { ictClock, ictDateString, ictDateTime, ictStamp, roundVnd } from "../time";
 import { one } from "../tx";
+import { pageParams } from "../validate";
 import { bookingsCancel } from "./bookings";
 
 /**
@@ -522,16 +524,22 @@ export async function loyaltyBalance(sql: Sql, userId: string) {
   };
 }
 
-export async function meLoyalty(sql: Sql, user: PublicUser) {
+/** The balance, and the history a page at a time (`?limit=&offset=`, newest first). */
+export async function meLoyalty(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["member"]);
+  const { limit, offset } = pageParams(request, { def: 30, max: 100 });
   const bal = await loyaltyBalance(sql, user.id);
-  const history = await sql.query(
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select id, points, reason, note, created_at, promo_id,
-            (select code from promotions p where p.id = la.promo_id) as promo_code
-       from loyalty_adjustments la where user_id = $1 order by created_at desc limit 30`,
-    [user.id],
+            (select code from promotions p where p.id = la.promo_id) as promo_code,
+            count(*) over ()::int as total
+       from loyalty_adjustments la where user_id = $1 order by created_at desc limit $2 offset $3`,
+    [user.id, limit, offset],
   );
-  return { status: 200, body: { ...bal, history } };
+  const page = await pageOf(rows, { limit, offset }, async () =>
+    ((await one<{ n: number }>(sql, `select count(*)::int as n from loyalty_adjustments where user_id = $1`, [user.id]))?.n ?? 0),
+  );
+  return { status: 200, body: { ...bal, history: page.items, history_total: page.total, limit, offset } };
 }
 
 export async function memberLoyalty(sql: Sql, memberId: string, user: PublicUser) {

@@ -115,6 +115,26 @@ export function parseInteger(field: string, label: string, v: unknown, min: numb
   return n;
 }
 
+/**
+ * `?limit=&offset=` for a paged list. Absent values fall back to `def` rows from the top, so a
+ * caller that never asked for paging keeps the page it always got. Queries pair this with
+ * `count(*) over ()` and answer `{ items, total, limit, offset }`.
+ */
+export function pageParams(
+  request: Request,
+  opts: { def: number; max: number; prefix?: string },
+): { limit: number; offset: number } {
+  const sp = new URL(request.url).searchParams;
+  // A screen that pages two lists through one endpoint names one of them, e.g. `receipt_limit`.
+  const key = (name: string) => `${opts.prefix ?? ""}${name}`;
+  const rawLimit = sp.get(key("limit"));
+  const rawOffset = sp.get(key("offset"));
+  return {
+    limit: rawLimit === null ? opts.def : parseInteger(key("limit"), "Page size", rawLimit, 1, opts.max),
+    offset: rawOffset === null ? 0 : parseInteger(key("offset"), "Offset", rawOffset, 0, 1_000_000),
+  };
+}
+
 function parseDecimal(field: string, label: string, v: unknown, min: number, max: number): number {
   if (isBlank(v)) throw err.field(field, `${label} is required.`);
   let n: number;

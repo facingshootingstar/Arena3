@@ -134,7 +134,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => authH.mePatch(sql, request, user));
   }
   if (method === "GET" && p0 === "me" && p1 === "notifications" && !p2) {
-    return authedRead((sql, user) => authH.meNotifications(sql, user));
+    return authedRead((sql, user) => authH.meNotifications(sql, request, user));
   }
   if (method === "POST" && p0 === "me" && p1 === "notifications" && p2 === "read") {
     return authed((sql, user) => authH.meNotificationsRead(sql, request, user));
@@ -352,7 +352,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   // Loyalty points.
   if (method === "GET" && p0 === "me" && p1 === "points") {
-    return authedRead((sql, user) => xH.meLoyalty(sql, user));
+    return authedRead((sql, user) => xH.meLoyalty(sql, request, user));
   }
   if (method === "POST" && p0 === "me" && p1 === "points" && p2 === "redeem") {
     return authed((sql, user) => xH.loyaltyRedeem(sql, request, user));
@@ -556,7 +556,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authedRead((sql, user) => checkinH.deskCheckinCode(sql, user));
   }
   if (method === "GET" && p0 === "desk" && p1 === "gate-checkins") {
-    return authedRead((sql, user) => checkinH.gateCheckins(sql, user));
+    return authedRead((sql, user) => checkinH.gateCheckins(sql, request, user));
   }
   if (method === "GET" && p0 === "me" && p1 === "checkin-token") {
     return authedRead((sql, user) => checkinH.meCheckinToken(sql, user));
@@ -588,7 +588,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   // Before the bare /tickets read, or "mine" is matched as a ticket id.
   if (method === "GET" && p0 === "tickets" && p1 === "mine") {
-    return authedRead((sql, user) => opsH.ticketsMine(sql, user));
+    return authedRead((sql, user) => opsH.ticketsMine(sql, request, user));
   }
   if (method === "GET" && p0 === "tickets" && !p1) {
     return authedRead((sql, user) => opsH.ticketsList(sql, request, user));

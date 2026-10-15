@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { hashOtp, hashPassword, randomOtp, verifyPassword } from "../crypto";
 import { err } from "../errors";
-import { ageYears, audit, getSettings, readJson, str } from "../helpers";
+import { ageYears, audit, getSettings, pageOf, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
 import { limit, RULES } from "../ratelimit";
 import {
@@ -11,6 +11,7 @@ import {
   type PublicUser,
 } from "../session";
 import { one } from "../tx";
+import { pageParams } from "../validate";
 
 /**
  * Whether the OTP may be handed straight back to whoever asked for it.
@@ -361,18 +362,33 @@ export async function meGet(sql: Sql, user: PublicUser) {
  * Scoped to the caller: someone else's id simply matches nothing.
  */
 /** The member's in-app notifications and how many are unread, for the header bell. */
-export async function meNotifications(sql: Sql, user: PublicUser) {
-  const items = await sql.query(
-    `select id, template, payload, sent_at, read_at from inbox
-      where user_id = $1 order by sent_at desc limit 100`,
-    [user.id],
+/**
+ * The inbox a page at a time, newest first. Without `?limit` the caller gets the newest 100 as
+ * before; `?unread=1` keeps only what is still unread. `unread` always counts the whole inbox,
+ * so the bell can ask for `?limit=1` and still be right.
+ */
+export async function meNotifications(sql: Sql, request: Request, user: PublicUser) {
+  const { limit, offset } = pageParams(request, { def: 100, max: 100 });
+  const onlyUnread = new URL(request.url).searchParams.get("unread") === "1";
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
+    `select id, template, payload, sent_at, read_at, count(*) over ()::int as total from inbox
+      where user_id = $1 and (not $2::bool or read_at is null)
+      order by sent_at desc limit $3 offset $4`,
+    [user.id, onlyUnread, limit, offset],
   );
   const unread = await one<{ n: number }>(
     sql,
     `select count(*)::int as n from inbox where user_id = $1 and read_at is null`,
     [user.id],
   );
-  return { status: 200, body: { items, unread: unread?.n ?? 0 } };
+  const page = await pageOf(rows, { limit, offset }, async () =>
+    ((await one<{ n: number }>(
+      sql,
+      `select count(*)::int as n from inbox where user_id = $1 and (not $2::bool or read_at is null)`,
+      [user.id, onlyUnread],
+    ))?.n ?? 0),
+  );
+  return { status: 200, body: { ...page, unread: unread?.n ?? 0 } };
 }
 
 export async function meNotificationsRead(sql: Sql, request: Request, user: PublicUser) {

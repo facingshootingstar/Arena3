@@ -366,3 +366,22 @@ export async function classSubscription(
 }
 
 export type Ctx = { sql: Sql; request: Request; user: PublicUser | null };
+
+/**
+ * Shape a paged query's rows (selected with `count(*) over ()::int as total`) into
+ * `{ items, total, limit, offset }`. Past the last page there are no rows to read the total
+ * from, so `recount` answers instead; the client then steps back to the real last page.
+ */
+export async function pageOf<T extends { total: number }>(
+  rows: T[],
+  page: { limit: number; offset: number },
+  recount: () => Promise<number>,
+): Promise<{ items: Omit<T, "total">[]; total: number; limit: number; offset: number }> {
+  const total = rows.length ? Number(rows[0]!.total) : page.offset > 0 ? await recount() : 0;
+  return {
+    items: rows.map(({ total: _t, ...r }) => r),
+    total,
+    limit: page.limit,
+    offset: page.offset,
+  };
+}

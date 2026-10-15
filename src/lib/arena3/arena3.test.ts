@@ -5,7 +5,8 @@ import { rruleLabel } from "./labels.ts";
 import { numberToVietnamese, vndInWords } from "./money-words.ts";
 import { addDays, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
 import { ApiError, mapDbError } from "./errors.ts";
-import { checkOpeningHours, parseSettingsPatch } from "./validate.ts";
+import { checkOpeningHours, pageParams, parseSettingsPatch } from "./validate.ts";
+import { alignOffset, lastPageOffset, pageWindow } from "../paging.ts";
 import {
   absentStreak,
   attendanceLocked,
@@ -406,3 +407,49 @@ describe("desk subscription queuing & class schedule window", () => {
   });
 });
 
+describe("paging", () => {
+  it("draws first, last, the current page and its neighbours, with gaps between", () => {
+    assert.deepEqual(pageWindow(1, 1), [1]);
+    assert.deepEqual(pageWindow(1, 5), [1, 2, 3, 4, 5]);
+    assert.deepEqual(pageWindow(5, 20), [1, "gap", 4, 5, 6, "gap", 20]);
+    assert.deepEqual(pageWindow(1, 20), [1, 2, "gap", 20]);
+    assert.deepEqual(pageWindow(20, 20), [1, "gap", 19, 20]);
+  });
+
+  it("never hides a single page behind a gap", () => {
+    // 1 … 3 takes as much room as 1 2 3, so the page itself is drawn.
+    assert.deepEqual(pageWindow(4, 7), [1, 2, 3, 4, 5, 6, 7]);
+    assert.deepEqual(pageWindow(3, 10), [1, 2, 3, 4, "gap", 10]);
+  });
+
+  it("clamps a page outside the range and handles no pages", () => {
+    assert.deepEqual(pageWindow(0, 3), [1, 2, 3]);
+    assert.deepEqual(pageWindow(9, 3), [1, 2, 3]);
+    assert.deepEqual(pageWindow(1, 0), []);
+  });
+
+  it("keeps the top row on screen when the page size changes", () => {
+    assert.equal(alignOffset(30, 25), 25);
+    assert.equal(alignOffset(30, 50), 0);
+    assert.equal(alignOffset(125, 100), 100);
+    assert.equal(alignOffset(-5, 10), 0);
+  });
+
+  it("finds the last page of a list that shrank", () => {
+    assert.equal(lastPageOffset(51, 25), 50);
+    assert.equal(lastPageOffset(50, 25), 25);
+    assert.equal(lastPageOffset(0, 25), 0);
+  });
+
+  it("reads limit and offset, falling back for callers that never asked", () => {
+    const req = (q: string) => new Request(`http://x/v1/list${q}`);
+    assert.deepEqual(pageParams(req(""), { def: 100, max: 100 }), { limit: 100, offset: 0 });
+    assert.deepEqual(pageParams(req("?limit=25&offset=50"), { def: 100, max: 100 }), { limit: 25, offset: 50 });
+    // One endpoint can page a second list under its own names.
+    assert.deepEqual(pageParams(req("?limit=5&receipt_limit=10&receipt_offset=20"), { def: 25, max: 100, prefix: "receipt_" }), { limit: 10, offset: 20 });
+    assert.throws(() => pageParams(req("?limit=0"), { def: 25, max: 100 }));
+    assert.throws(() => pageParams(req("?limit=101"), { def: 25, max: 100 }));
+    assert.throws(() => pageParams(req("?offset=-1"), { def: 25, max: 100 }));
+    assert.throws(() => pageParams(req("?limit=abc"), { def: 25, max: 100 }));
+  });
+});

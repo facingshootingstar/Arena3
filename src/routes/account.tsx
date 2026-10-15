@@ -3,7 +3,7 @@ import { Download, Eye, EyeOff, KeyRound, Receipt, UserRound } from "lucide-reac
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Guard, Shell, money, useSessionUser, when } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input, Label, LoadError, Seg, Skeleton, Textarea } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Label, LoadError, Pagination, Seg, Skeleton, Textarea } from "@/components/ui";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard, StarBorder } from "@/components/fx";
 import {
@@ -18,6 +18,8 @@ import {
   type SessionUser,
 } from "@/lib/arena3/client";
 import { formatDate } from "@/lib/arena3/labels";
+import { usePageState } from "@/lib/use-page-state";
+import { useRead } from "@/lib/use-read";
 import { t, tk } from "@/lib/i18n";
 
 export const Route = createFileRoute("/account")({ component: Page });
@@ -332,10 +334,13 @@ function Support() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const { offset, setOffset, pageSize, setPageSize } = usePageState("account.requests", 10);
 
   async function load() {
-    const r = await apiGet<{ items: Ticket[] }>("/tickets/mine");
+    const r = await apiGet<{ items: Ticket[]; total: number }>(`/tickets/mine?limit=${pageSize}&offset=${offset}`);
     setItems(r.items);
+    setTotal(r.total);
     setLoadError(null);
   }
 
@@ -344,7 +349,8 @@ function Support() {
     void load().catch((e) => setLoadError(e instanceof Error ? e.message : t("Could not load your requests")));
   }
 
-  useEffect(loadAgain, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load reads the page it is asked for
+  useEffect(loadAgain, [offset, pageSize]);
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -357,8 +363,9 @@ function Support() {
       setBody("");
       toast.success(t("Sent to the front desk"));
       // The list is asked for again on its own: if that fails it says so beside the list, and never
-      // claims the message was not sent when it was.
-      loadAgain();
+      // claims the message was not sent when it was. The new request is at the top of page one.
+      if (offset === 0) loadAgain();
+      else setOffset(0);
     } catch (e) {
       // The message the person typed stays in the box, and the reason stays on screen beside it.
       setError(e instanceof Error ? e.message : t("Could not send that"));
@@ -442,26 +449,29 @@ function Support() {
           ))}
         </Stagger>
       )}
+      <Pagination
+        offset={offset}
+        total={total}
+        pageSize={pageSize}
+        onChange={setOffset}
+        onPageSizeChange={setPageSize}
+        label={t("Request pages")}
+      />
     </div>
   );
 }
 
 function Receipts() {
-  const [items, setItems] = useState<Invoice[] | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  function load() {
-    setLoadError(null);
-    void apiGet<{ items: Invoice[] }>("/invoices")
-      .then((r) => setItems(r.items))
-      .catch((e) => setLoadError(e instanceof Error ? e.message : t("Could not load your receipts")));
-  }
-
-  useEffect(load, []);
+  const { offset, setOffset, pageSize, setPageSize } = usePageState("account.receipts", 10);
+  // The receipts already on screen stay while another page loads, so paging does not flash empty.
+  const read = useRead<{ items: Invoice[]; total: number }>(`/invoices?limit=${pageSize}&offset=${offset}`, {
+    keepPrevious: true,
+  });
+  const items = read.data?.items ?? null;
 
   if (!items) {
-    if (loadError) return <LoadError message={loadError} onRetry={load} />;
+    if (read.error) return <LoadError message={read.error.message} onRetry={read.error.refused ? undefined : read.reload} />;
     return (
       <div className="grid gap-2">
         <Skeleton className="h-20" />
@@ -481,47 +491,57 @@ function Receipts() {
   }
 
   return (
-    <Stagger className="grid gap-2.5" gap={0.05}>
-      {items.map((r) => (
-        <StaggerItem key={r.id}>
-          <Lift amount={-2}>
-            <Card className="flex flex-wrap items-center gap-x-5 gap-y-3 p-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-wood text-muted">
-                <Receipt className="size-4" strokeWidth={1.75} />
-              </span>
-              <div className="min-w-[8rem] flex-1">
-                <p className="font-mono text-sm font-semibold tracking-wide">{r.code}</p>
-                <p className="mt-0.5 text-xs text-muted">
-                  {REF[r.ref_type] ? t(REF[r.ref_type]) : r.ref_type} · {when(r.issued_at)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-display text-lg tabular-nums">{money(r.amount_vnd)}</p>
-                <p className="text-2xs text-subtle">{METHOD[r.method] ? t(METHOD[r.method]) : r.method}</p>
-              </div>
-              {r.status !== "posted" ? <Badge tone="danger">{t("Refunded")}</Badge> : null}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={opening === r.id}
-                onClick={async () => {
-                  setOpening(r.id);
-                  try {
-                    await openInvoice(r.id);
-                  } catch (e) {
-                    toast.error(e instanceof Error ? e.message : t("Could not open that receipt"));
-                  } finally {
-                    setOpening(null);
-                  }
-                }}
-              >
-                <Download className="size-3.5" strokeWidth={2} />
-                {opening === r.id ? t("Opening…") : t("PDF")}
-              </Button>
-            </Card>
-          </Lift>
-        </StaggerItem>
-      ))}
-    </Stagger>
+    <>
+      <Stagger className="grid gap-2.5" gap={0.05}>
+        {items.map((r) => (
+          <StaggerItem key={r.id}>
+            <Lift amount={-2}>
+              <Card className="flex flex-wrap items-center gap-x-5 gap-y-3 p-4">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-wood text-muted">
+                  <Receipt className="size-4" strokeWidth={1.75} />
+                </span>
+                <div className="min-w-[8rem] flex-1">
+                  <p className="font-mono text-sm font-semibold tracking-wide">{r.code}</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {REF[r.ref_type] ? t(REF[r.ref_type]) : r.ref_type} · {when(r.issued_at)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-display text-lg tabular-nums">{money(r.amount_vnd)}</p>
+                  <p className="text-2xs text-subtle">{METHOD[r.method] ? t(METHOD[r.method]) : r.method}</p>
+                </div>
+                {r.status !== "posted" ? <Badge tone="danger">{t("Refunded")}</Badge> : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={opening === r.id}
+                  onClick={async () => {
+                    setOpening(r.id);
+                    try {
+                      await openInvoice(r.id);
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : t("Could not open that receipt"));
+                    } finally {
+                      setOpening(null);
+                    }
+                  }}
+                >
+                  <Download className="size-3.5" strokeWidth={2} />
+                  {opening === r.id ? t("Opening…") : t("PDF")}
+                </Button>
+              </Card>
+            </Lift>
+          </StaggerItem>
+        ))}
+      </Stagger>
+      <Pagination
+        offset={offset}
+        total={read.data?.total ?? 0}
+        pageSize={pageSize}
+        onChange={setOffset}
+        onPageSizeChange={setPageSize}
+        label={t("Receipt pages")}
+      />
+    </>
   );
 }
