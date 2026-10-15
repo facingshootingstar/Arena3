@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { hashOtp, hashPassword, randomOtp, verifyPassword } from "../crypto";
 import { err } from "../errors";
-import { ageYears, audit, getSettings, pageOf, readJson, str } from "../helpers";
+import { ageYears, audit, classSubscription, getSettings, pageOf, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
 import { limit, RULES } from "../ratelimit";
 import {
@@ -326,10 +326,20 @@ export async function meGet(sql: Sql, user: PublicUser) {
       [user.id],
     ),
     sql.query(
-      `select e.id, e.status, e.waitlist_pos, e.class_id, cl.sport, cl.level, cl.rrule, c.court_code
+      // `leave_until` is the last moment leaving is allowed (BR-24: cancel_class_hours before the
+      // next session), worked out here with the same rule enrollmentDelete applies.
+      `select e.id, e.status, e.waitlist_pos, e.class_id, cl.sport, cl.level, cl.rrule, c.court_code,
+              nx.start_at as next_session_at,
+              nx.start_at - make_interval(hours => st.cancel_class_hours) as leave_until
          from enrollments e
          join classes cl on cl.id = e.class_id
          join courts c on c.id = cl.court_id
+         cross join (select cancel_class_hours from center_settings where id = 1) st
+         left join lateral (
+           select s.start_at from sessions s
+            where s.class_id = e.class_id and s.status = 'scheduled' and s.start_at > now()
+            order by s.start_at limit 1
+         ) nx on true
         where e.user_id = $1 and e.status in ('confirmed','waitlisted')`,
       [user.id],
     ),
@@ -343,6 +353,19 @@ export async function meGet(sql: Sql, user: PublicUser) {
     ),
     sql.query<{ key: string; enabled: boolean }>(`select key, enabled from feature_flags`),
   ]);
+  // What enrolling in each sport would take (BR-19, BR-20), from the plan enrolment itself picks
+  // (classSubscription), so a class card can say so before the tap instead of after.
+  const classAccess =
+    user.role === "member"
+      ? Object.fromEntries(
+          await Promise.all(
+            (["badminton", "basketball", "volleyball"] as const).map(async (sport) => {
+              const sub = await classSubscription(sql, user.id, sport);
+              return [sport, sub ? { covered: true, session_left: sub.session_left } : { covered: false, session_left: null }];
+            }),
+          ),
+        )
+      : undefined;
   return {
     status: 200,
     body: {
@@ -351,6 +374,7 @@ export async function meGet(sql: Sql, user: PublicUser) {
       inbox,
       enrollments,
       offers,
+      class_access: classAccess,
       flags: Object.fromEntries(flags.map((f) => [f.key, f.enabled])),
       today: { bookings: today, classes: classesToday },
     },
@@ -361,7 +385,6 @@ export async function meGet(sql: Sql, user: PublicUser) {
  * Mark notifications read. One id, or every unread one when none is named.
  * Scoped to the caller: someone else's id simply matches nothing.
  */
-/** The member's in-app notifications and how many are unread, for the header bell. */
 /**
  * The inbox a page at a time, newest first. Without `?limit` the caller gets the newest 100 as
  * before; `?unread=1` keeps only what is still unread. `unread` always counts the whole inbox,
