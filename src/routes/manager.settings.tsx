@@ -43,7 +43,6 @@ const SETTINGS_FORM_KEYS = [
   "series_discount_pct",
   "loyalty_earn_vnd",
   "loyalty_redeem_vnd",
-  "day_pass_vnd",
 ];
 
 type Tier = { hours: number | string; refund_pct: number | string };
@@ -220,11 +219,10 @@ function Page() {
           </div>
           <p className="mt-1 text-xs text-muted">{t("The last step must be 0 hours: that is the refund for cancelling at the last minute.")}</p>
         </div>
-        <p className="mt-2 font-medium md:col-span-2">{t("Fixed weekly bookings, points and day pass")}</p>
+        <p className="mt-2 font-medium md:col-span-2">{t("Fixed weekly bookings and points")}</p>
         {f("series_min_weeks", t("Fixed booking: fewest weeks"), "number")}
         {f("series_max_weeks", t("Fixed booking: most weeks"), "number")}
         {f("series_discount_pct", t("Fixed booking discount (%)"), "number")}
-        {f("day_pass_vnd", t("Day pass price (đ)"), "money")}
         {f("loyalty_earn_vnd", t("Spend for 1 point (đ)"), "money")}
         {f("loyalty_redeem_vnd", t("Value of 1 point (đ)"), "money")}
         <Check

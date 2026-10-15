@@ -82,9 +82,8 @@ const NAV: Record<string, NavItem[]> = {
     { to: "/desk/courts", label: tk("Courts"), icon: Map, dock: false },
     { to: "/desk/classes", label: tk("Classes"), icon: Ticket, more: true, dock: false },
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet },
-    // Selling a day pass and setting up a regular booking are front-desk jobs done every day, so
-    // they come before the retention list. The row shows as many tabs as fit, in this order.
-    { to: "/desk/day-passes", label: tk("Day passes"), icon: Ticket, dock: false },
+    // Setting up a regular booking is a front-desk job done regularly, so
+    // it comes before the retention list. The row shows as many tabs as fit, in this order.
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, dock: false },
     { to: "/desk/at-risk", label: tk("At risk"), icon: UserMinus },
     // `/desk/gear` is a complete equipment-hire screen that nothing linked to,
@@ -114,7 +113,6 @@ const NAV: Record<string, NavItem[]> = {
     { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false },
     { to: "/manager/prices", label: tk("Pricing"), icon: Settings, more: true, dock: false },
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, more: true, dock: false },
-    { to: "/desk/day-passes", label: tk("Day passes"), icon: Ticket, more: true, dock: false },
     { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, more: true, dock: false },
     { to: "/manager/invoices", label: tk("E-invoices"), icon: FileText, more: true, dock: false },
     { to: "/desk/maintenance", label: tk("Maintenance"), icon: Wrench, more: true, dock: false },

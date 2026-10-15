@@ -1,6 +1,5 @@
 import { withTx } from "./tx";
 import { elapsedAtLeast, ictDateString } from "./time";
-import { flagOn } from "./flags";
 
 export async function expireHolds() {
   return withTx(async (sql) => {

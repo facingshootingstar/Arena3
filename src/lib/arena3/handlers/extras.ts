@@ -20,7 +20,7 @@ import { one } from "../tx";
 import { bookingsCancel } from "./bookings";
 
 /**
- * The extras the scope benchmark asked for: fixed weekly bookings, day passes,
+ * The extras the scope benchmark asked for: fixed weekly bookings,
  * loyalty points, coach commission, maintenance work orders and e-invoice
  * export. Every money flow here still ends in a `payments` row and an invoice,
  * and every court a customer takes still goes through `occupancies`.
@@ -366,124 +366,6 @@ export async function seriesCancel(sql: Sql, id: string, request: Request, user:
   return { status: 200, body: { cancelled: rows.length, refunded_vnd: refunded, fee_vnd: fees } };
 }
 
-/* ───────────────────────────── Day pass ───────────────────────────── */
-
-export async function dayPassSell(sql: Sql, request: Request, user: PublicUser) {
-  requireRole(user, ["receptionist", "manager"]);
-  const b = await readJson(request);
-  const method = pickMethod(b.method);
-  const phoneRaw = str(b.phone);
-  const settings = await getSettings(sql);
-  const validOn = str(b.valid_on) ?? ictDateString();
-  if (!DATE_RE.test(validOn)) throw err.field("valid_on", "Pick a date.");
-  if (validOn < ictDateString()) throw err.field("valid_on", "A day pass cannot be for a past day.");
-  let userId: string | null = null;
-  let phone: string | null = null;
-  let name = str(b.guest_name);
-  if (phoneRaw) {
-    phone = normalizePhone(phoneRaw);
-    if (!isValidVnPhone(phone)) throw err.field("phone", "That phone number is not valid.");
-    const m = await one<{ id: string; full_name: string }>(sql, `select id, full_name from users where phone = $1 and role = 'member'`, [phone]);
-    if (m) {
-      userId = m.id;
-      name = m.full_name;
-    }
-  }
-  if (!name) throw err.field("guest_name", "Enter the customer's name.");
-  const shiftId = await openShift(sql, user);
-  const price = settings.day_pass_vnd;
-  const code = await nextCode(sql, "DPS");
-  const dp = await one<{ id: string }>(
-    sql,
-    `insert into day_passes (code, user_id, guest_name, guest_phone, valid_on, price_vnd, issued_by)
-     values ($1,$2,$3,$4,$5::date,$6,$7) returning id`,
-    [code, userId, name, phone, validOn, price, user.id],
-  );
-  let paymentId: string | null = null;
-  let invoiceId: string | null = null;
-  if (price > 0) {
-    const pay = await one<{ id: string }>(
-      sql,
-      `insert into payments (code, user_id, shift_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
-       values ($1,$2,$3,$4,$5,$6,'posted','day_pass',$7,$8) returning id`,
-      [await nextCode(sql, "PAY"), userId, shiftId, method, price, Number(settings.vat_rate), dp!.id, user.id],
-    );
-    paymentId = pay!.id;
-    invoiceId = await issueInvoice(sql, {
-      paymentId,
-      buyerName: name,
-      buyerPhone: userId ? null : phone,
-      amountVnd: price,
-      vatRate: Number(settings.vat_rate ?? 0),
-      description: `Vé ngày vào trung tâm — ${validOn.split("-").reverse().join("/")}`,
-      unit: "vé",
-      settings,
-    });
-    await enqueueReceipt(sql, userId, { payment_id: paymentId, invoice_id: invoiceId, amount_vnd: price, method });
-    await sql.query(`update day_passes set payment_id = $2 where id = $1`, [dp!.id, paymentId]);
-  }
-  await audit(sql, user.id, "sell_day_pass", "day_pass", dp!.id);
-  const pass = await one(sql, `select * from day_passes where id = $1`, [dp!.id]);
-  return { status: 201, body: { pass, invoice_id: invoiceId } };
-}
-
-export async function dayPassList(sql: Sql, request: Request, user: PublicUser) {
-  requireRole(user, ["receptionist", "manager"]);
-  const date = new URL(request.url).searchParams.get("date") ?? ictDateString();
-  if (!DATE_RE.test(date)) throw err.validation("date YYYY-MM-DD.");
-  const items = await sql.query(
-    `select d.id, d.code, d.guest_name, d.guest_phone, d.valid_on::text as valid_on, d.price_vnd, d.status,
-            d.issued_at, d.used_at, p.method
-       from day_passes d left join payments p on p.id = d.payment_id
-      where d.valid_on = $1::date
-      order by d.issued_at desc limit 200`,
-    [date],
-  );
-  const sum = await one<{ sold: number; revenue: number }>(
-    sql,
-    `select count(*) filter (where status <> 'void')::int as sold,
-            coalesce(sum(price_vnd) filter (where status <> 'void'), 0)::int as revenue
-       from day_passes where valid_on = $1::date`,
-    [date],
-  );
-  const settings = await getSettings(sql);
-  return { status: 200, body: { date, items, sold: sum?.sold ?? 0, revenue_vnd: sum?.revenue ?? 0, price_vnd: settings.day_pass_vnd } };
-}
-
-export async function dayPassUse(sql: Sql, id: string, user: PublicUser) {
-  requireRole(user, ["receptionist", "manager"]);
-  const dp = await one<{ status: string; valid_on: string }>(sql, `select status, valid_on::text as valid_on from day_passes where id = $1 for update`, [id]);
-  if (!dp) throw err.notFound();
-  if (dp.status !== "issued") throw err.conflictState("That pass has already been used or voided.");
-  if (dp.valid_on !== ictDateString()) throw err.conflictState(`That pass is only valid on ${dp.valid_on}.`);
-  await sql.query(`update day_passes set status = 'used', used_at = now() where id = $1`, [id]);
-  await audit(sql, user.id, "use_day_pass", "day_pass", id);
-  return { status: 200, body: { ok: true } };
-}
-
-export async function dayPassVoid(sql: Sql, id: string, user: PublicUser) {
-  requireRole(user, ["receptionist", "manager"]);
-  const dp = await one<{ status: string; price_vnd: number; user_id: string | null; payment_id: string | null }>(
-    sql,
-    `select status, price_vnd, user_id, payment_id from day_passes where id = $1 for update`,
-    [id],
-  );
-  if (!dp) throw err.notFound();
-  if (dp.status !== "issued") throw err.conflictState("Only an unused pass can be voided.");
-  await sql.query(`update day_passes set status = 'void' where id = $1`, [id]);
-  if (dp.price_vnd > 0) {
-    const settings = await getSettings(sql);
-    const needMgr = dp.price_vnd >= settings.refund_manager_vnd;
-    await sql.query(
-      `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
-       values ($1,$2,'cash',$3,0,$4,'day_pass',$5,$6)`,
-      [await nextCode(sql, "PAY"), dp.user_id, -dp.price_vnd, needMgr ? "refund_pending" : "posted", id, user.id],
-    );
-  }
-  await audit(sql, user.id, "void_day_pass", "day_pass", id);
-  return { status: 200, body: { ok: true, refunded_vnd: dp.price_vnd } };
-}
-
 /* ───────────────────────────── Loyalty ───────────────────────────── */
 
 const TIERS = [
@@ -498,6 +380,7 @@ export async function loyaltyBalance(sql: Sql, userId: string) {
     sql,
     `select coalesce((select sum(amount_vnd) from payments
                        where user_id = $1 and status in ('posted','refund_pending')
+                         -- 'day_pass' stays: day passes are no longer sold, but what a member already paid for them still counts toward loyalty.
                          and ref_type in ('booking','subscription','day_pass')), 0)::int as net,
             coalesce((select sum(points) from loyalty_adjustments where user_id = $1), 0)::int as spent`,
     [userId],
@@ -954,8 +837,13 @@ export async function invoiceXmlOne(sql: Sql, id: string, user: PublicUser) {
   return xmlResponse(`${inv.code}.xml`, invoiceXml(inv, lines));
 }
 
-function csvCell(v: unknown): string {
-  const s = String(v ?? "");
+export function csvCell(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "number") return String(v);
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) {
+    s = `'${s}`;
+  }
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

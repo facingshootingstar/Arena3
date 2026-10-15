@@ -36,7 +36,6 @@ import { Route as DeskIndexRouteImport } from './routes/desk.index'
 import { Route as DeskAtRiskRouteImport } from './routes/desk.at-risk'
 import { Route as DeskClassesRouteImport } from './routes/desk.classes'
 import { Route as DeskCourtsRouteImport } from './routes/desk.courts'
-import { Route as DeskDayPassesRouteImport } from './routes/desk.day-passes'
 import { Route as DeskGateRouteImport } from './routes/desk.gate'
 import { Route as DeskGearRouteImport } from './routes/desk.gear'
 import { Route as DeskMaintenanceRouteImport } from './routes/desk.maintenance'
@@ -194,11 +193,6 @@ const DeskCourtsRoute = DeskCourtsRouteImport.update({
   path: '/courts',
   getParentRoute: () => DeskRoute,
 } as any)
-const DeskDayPassesRoute = DeskDayPassesRouteImport.update({
-  id: '/day-passes',
-  path: '/day-passes',
-  getParentRoute: () => DeskRoute,
-} as any)
 const DeskGateRoute = DeskGateRouteImport.update({
   id: '/gate',
   path: '/gate',
@@ -330,7 +324,6 @@ export interface FileRoutesByFullPath {
   '/desk/at-risk': typeof DeskAtRiskRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
-  '/desk/day-passes': typeof DeskDayPassesRoute
   '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/maintenance': typeof DeskMaintenanceRoute
@@ -377,7 +370,6 @@ export interface FileRoutesByTo {
   '/desk/at-risk': typeof DeskAtRiskRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
-  '/desk/day-passes': typeof DeskDayPassesRoute
   '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/maintenance': typeof DeskMaintenanceRoute
@@ -429,7 +421,6 @@ export interface FileRoutesById {
   '/desk/at-risk': typeof DeskAtRiskRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
-  '/desk/day-passes': typeof DeskDayPassesRoute
   '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/maintenance': typeof DeskMaintenanceRoute
@@ -482,7 +473,6 @@ export interface FileRouteTypes {
     | '/desk/at-risk'
     | '/desk/classes'
     | '/desk/courts'
-    | '/desk/day-passes'
     | '/desk/gate'
     | '/desk/gear'
     | '/desk/maintenance'
@@ -529,7 +519,6 @@ export interface FileRouteTypes {
     | '/desk/at-risk'
     | '/desk/classes'
     | '/desk/courts'
-    | '/desk/day-passes'
     | '/desk/gate'
     | '/desk/gear'
     | '/desk/maintenance'
@@ -580,7 +569,6 @@ export interface FileRouteTypes {
     | '/desk/at-risk'
     | '/desk/classes'
     | '/desk/courts'
-    | '/desk/day-passes'
     | '/desk/gate'
     | '/desk/gear'
     | '/desk/maintenance'
@@ -813,13 +801,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskCourtsRouteImport
       parentRoute: typeof DeskRoute
     }
-    '/desk/day-passes': {
-      id: '/desk/day-passes'
-      path: '/day-passes'
-      fullPath: '/desk/day-passes'
-      preLoaderRoute: typeof DeskDayPassesRouteImport
-      parentRoute: typeof DeskRoute
-    }
     '/desk/gate': {
       id: '/desk/gate'
       path: '/gate'
@@ -1018,7 +999,6 @@ interface DeskRouteChildren {
   DeskAtRiskRoute: typeof DeskAtRiskRoute
   DeskClassesRoute: typeof DeskClassesRoute
   DeskCourtsRoute: typeof DeskCourtsRoute
-  DeskDayPassesRoute: typeof DeskDayPassesRoute
   DeskGateRoute: typeof DeskGateRoute
   DeskGearRoute: typeof DeskGearRoute
   DeskMaintenanceRoute: typeof DeskMaintenanceRoute
@@ -1032,7 +1012,6 @@ const DeskRouteChildren: DeskRouteChildren = {
   DeskAtRiskRoute: DeskAtRiskRoute,
   DeskClassesRoute: DeskClassesRoute,
   DeskCourtsRoute: DeskCourtsRoute,
-  DeskDayPassesRoute: DeskDayPassesRoute,
   DeskGateRoute: DeskGateRoute,
   DeskGearRoute: DeskGearRoute,
   DeskMaintenanceRoute: DeskMaintenanceRoute,

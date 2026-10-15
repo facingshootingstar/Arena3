@@ -308,14 +308,12 @@ export const VI_SERVER_EXACT: Record<string, string> = {
   "A template is not published to students.": "Mẫu không được đăng cho học viên.",
   "That template does not exist.": "Mẫu này không tồn tại.",
   "That session already has results — a plan can no longer be added.": "Buổi này đã có kết quả — không thể thêm giáo án nữa.",
-  // ── deposits, fixed bookings, day passes, points, commission, maintenance
+  // ── deposits, fixed bookings, points, commission, maintenance
   "None of those weeks is free.": "Không có tuần nào còn trống.",
   "A month can be closed only after it has ended.": "Chỉ chốt được tháng đã kết thúc.",
   "Close the month first.": "Hãy chốt tháng trước.",
-  "Only an unused pass can be voided.": "Chỉ hủy được vé chưa dùng.",
   "That fixed booking is already cancelled.": "Lịch cố định này đã bị hủy.",
   "That month is already paid.": "Tháng này đã được trả.",
-  "That pass has already been used or voided.": "Vé này đã được dùng hoặc đã bị hủy.",
   "A later cancellation cannot be refunded more than an earlier one.": "Hủy muộn hơn không được hoàn nhiều hơn hủy sớm.",
   "A refund must be a whole percentage from 0 to 100.": "Mức hoàn phải là số nguyên từ 0 đến 100 (%).",
   "Add between 1 and 6 cancellation steps.": "Hãy thêm từ 1 đến 6 mức hủy.",
@@ -335,7 +333,6 @@ export const VI_SERVER_EXACT: Record<string, string> = {
   "Pick a start time like 19:00.": "Chọn giờ bắt đầu, ví dụ 19:00.",
   "Keep the title under 160 characters.": "Tiêu đề không quá 160 ký tự.",
   "Say what is broken.": "Hãy cho biết cái gì bị hỏng.",
-  "A day pass cannot be for a past day.": "Vé ngày không thể là ngày đã qua.",
   "Pick a date.": "Hãy chọn ngày.",
   "No such coach.": "Không có huấn luyện viên này.",
   "Pick a valid date range.": "Hãy chọn khoảng ngày hợp lệ.",

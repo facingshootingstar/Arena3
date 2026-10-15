@@ -202,8 +202,8 @@ function Page() {
   useEffect(() => setReceiptOffset(0), [payMethod, days, receiptQuery]);
   const receiptPage = receipts.slice(receiptOffset, receiptOffset + RECEIPT_PAGE);
   // Per-row flooring, not a floor on the total: one over-paid order must not
-  // quietly cancel out what another member still owes.
-  const owed = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
+  // quietly cancel out what another member still has to pay.
+  const toCollect = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
 
   // A receptionist without an open till cannot post anything; saying so once at
   // the top beats a row of buttons that each fail the same way when pressed.
@@ -349,10 +349,10 @@ function Page() {
         className="mb-6 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]"
         from="down"
       >
-        {/* "0 waiting · 0đ owed" is a claim; until the queue has answered there is nothing to claim. */}
+        {/* "0 waiting · 0đ to collect" is a claim; until the queue has answered there is nothing to claim. */}
         {data ? (
           <Badge tone={orders.length ? "accent" : "muted"}>
-            {t("{n} waiting · {amount} owed", { n: orders.length, amount: money(owed) })}
+            {t("{n} waiting · {amount} to collect", { n: orders.length, amount: money(toCollect) })}
           </Badge>
         ) : read.error ? null : (
           <Skeleton className="h-6 w-40" />
@@ -584,7 +584,7 @@ function Page() {
         </Stagger>
       ) : (
         <div className="mt-3">
-          <EmptyState title={t("Nothing owed")} hint={t("Every plan ordered in the app has been paid for.")} />
+          <EmptyState title={t("Nothing to collect")} hint={t("Every plan ordered in the app has been paid for.")} />
         </div>
       )}
 

@@ -95,7 +95,7 @@ async function managedTarget(sql: Sql, id: string, manager: PublicUser): Promise
 }
 
 export async function revoke(sql: Sql, userId: string): Promise<number> {
-  const gone = await q<{ id: string }>(sql, `delete from sessions_auth where user_id = $1 returning id`, [userId]);
+  const gone = await q<{ id: string }>(sql, `update sessions_auth set revoked_at = now() where user_id = $1 and revoked_at is null returning id`, [userId]);
   return gone.length;
 }
 

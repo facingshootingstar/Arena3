@@ -16,7 +16,7 @@ import { depositFor, dueNow, quoteCancel } from "../policy";
 import { applyDiscount, lookupPrice, memberDiscount } from "../pricing";
 import { quotePromo, redeemForBooking, restoreIfFullyRefunded } from "../promos";
 import { requireRole, type PublicUser } from "../session";
-import { addDays, ictClock, ictDateString, ictDateTime, ictStamp, roundVnd } from "../time";
+import { addDays, ictClock, ictDateString, ictDateTime, ictMinutes, ictStamp, roundVnd } from "../time";
 import { one } from "../tx";
 
 async function courtById(sql: Sql, id: string) {
@@ -35,6 +35,36 @@ function slotBounds(startAt: Date, slotMin: number) {
   return { start: startAt, end };
 }
 
+export function assertSlotGrid(
+  start: Date,
+  settings: { slot_minutes: number; open_time: string; close_time: string },
+) {
+  if (Number.isNaN(start.getTime())) {
+    throw err.field("start_at", "That time is not valid.");
+  }
+  const date = ictDateString(start);
+  const open = ictDateTime(date, settings.open_time.slice(0, 5));
+  const close = ictDateTime(date, settings.close_time.slice(0, 5));
+  if (start < open || start >= close) {
+    throw err.br("BR-06", "That is outside opening hours.");
+  }
+  const [oh, om] = settings.open_time.split(":").map(Number);
+  const openMinutes = oh * 60 + (om || 0);
+  const startMin = ictMinutes(start);
+
+  if (
+    start.getUTCSeconds() !== 0 ||
+    start.getUTCMilliseconds() !== 0 ||
+    Math.abs(startMin - openMinutes) % settings.slot_minutes !== 0
+  ) {
+    throw err.field("start_at", "Start time must be aligned to the slot grid.");
+  }
+  const end = new Date(start.getTime() + settings.slot_minutes * 60_000);
+  if (end > close) {
+    throw err.field("start_at", "Slot would end after closing time.");
+  }
+}
+
 async function assertBookWindow(
   sql: Sql,
   start: Date,
@@ -46,10 +76,7 @@ async function assertBookWindow(
     const remain = (start.getTime() + opts.settings.slot_minutes * 60_000 - now.getTime()) / 60_000;
     if (remain < 20) throw err.br("BR-07", "Walk-ins need at least 20 minutes left in the slot.");
   }
-  const date = ictDateString(start);
-  const open = ictDateTime(date, opts.settings.open_time.slice(0, 5));
-  const close = ictDateTime(date, opts.settings.close_time.slice(0, 5));
-  if (start < open || start >= close) throw err.br("BR-06", "That is outside opening hours.");
+  assertSlotGrid(start, opts.settings);
   if (!opts.walkIn) {
     const ahead = opts.settings.book_ahead_days;
     const max = new Date(now.getTime() + ahead * 86400000);
@@ -406,6 +433,7 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
   if (!courtId || !startAt) throw err.validation("court_id and start_at are required.");
   const settings = await getSettings(sql);
   const start = new Date(startAt);
+  if (Number.isNaN(start.getTime())) throw err.field("start_at", "That time is not valid.");
   const { end } = slotBounds(start, settings.slot_minutes);
   await assertBookWindow(sql, start, { walkIn: false, settings });
   const court = await courtById(sql, courtId);
@@ -812,6 +840,7 @@ type CancelRow = {
  * for something that is not their doing.
  */
 export async function bookingsCancelQuote(sql: Sql, id: string, request: Request, user: PublicUser) {
+  requireRole(user, ["member", "receptionist", "manager"]);
   const booking = await one<CancelRow>(sql, `select * from court_bookings where id = $1`, [id]);
   if (!booking) throw err.notFound();
   if (user.role === "member" && booking.user_id !== user.id) throw err.forbidden();
@@ -834,6 +863,7 @@ export async function bookingsCancelQuote(sql: Sql, id: string, request: Request
 }
 
 export async function bookingsCancel(sql: Sql, id: string, user: PublicUser, request?: Request) {
+  requireRole(user, ["member", "receptionist", "manager"]);
   const body = request ? await readJson(request) : {};
   const booking = await one<CancelRow>(sql, `select * from court_bookings where id = $1 for update`, [id]);
   if (!booking) throw err.notFound();
@@ -1113,10 +1143,15 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
   if (!courtId || !startAt || !guest_name || !guest_phone_raw) {
     throw err.validation("Court, time, name or phone is missing.");
   }
+  const ALLOWED_WALKIN_METHODS = ["cash", "card", "transfer"] as const;
+  if (!ALLOWED_WALKIN_METHODS.includes(method as any)) {
+    throw err.field("method", `Payment method must be one of ${ALLOWED_WALKIN_METHODS.join(", ")}.`);
+  }
   const guest_phone = normalizePhone(guest_phone_raw);
-  if (!isValidVnPhone(guest_phone)) throw err.validation("That phone number is not valid.");
+  if (!isValidVnPhone(guest_phone)) throw err.validation("That phone number is not valid.", { field: "phone" });
   const settings = await getSettings(sql);
   const start = new Date(startAt);
+  if (Number.isNaN(start.getTime())) throw err.field("start_at", "That time is not valid.");
   const { end } = slotBounds(start, settings.slot_minutes);
   await assertBookWindow(sql, start, { walkIn: true, settings });
   const court = await courtById(sql, courtId);
@@ -1147,22 +1182,22 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
   const bookingId = (await one<{ id: string }>(sql, `select gen_random_uuid() as id`))!.id;
   let occId: string;
   try {
-    const occ = await one<{ booking_replace_hold: string }>(
+    const occ = await one<{ id: string }>(
       sql,
-      `select booking_replace_hold($1::uuid, $2, $3::uuid, $4::timestamptz, $5::timestamptz, $6::uuid) as booking_replace_hold`,
-      [member?.id ?? null, guest_phone, courtId, start.toISOString(), end.toISOString(), bookingId],
+      `select occupancy_attach($1::uuid, $2::timestamptz, $3::timestamptz, 'booking'::occ_kind, $4::uuid) as id`,
+      [courtId, start.toISOString(), end.toISOString(), bookingId],
     );
-    occId = occ!.booking_replace_hold;
+    occId = occ!.id;
   } catch (e) {
-    if (isConflictSlot(e)) throw err.conflictSlot();
+    if (isConflictSlot(e)) throw err.conflictSlot("Someone just took that slot.");
     throw e;
   }
   const code = await nextCode(sql, "CRT");
   await sql.query(
     `insert into court_bookings
        (id, code, court_id, user_id, guest_name, guest_phone, start_at, end_at, status, channel,
-        price_vnd, discount_pct, vat_rate, occupancy_id)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,'hold','walkin',$9,$10,$11,$12)`,
+        price_vnd, discount_pct, vat_rate, occupancy_id, paid_vnd)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,'confirmed','walkin',$9,$10,$11,$12,$13)`,
     [
       bookingId,
       code,
@@ -1176,15 +1211,11 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
       discount,
       Number(settings.vat_rate),
       occId,
+      price,
     ],
   );
-  await sql.query(`select occupancy_confirm_hold($1::uuid)`, [occId]);
-  await sql.query(
-    `update court_bookings set status = 'confirmed', hold_until = null, paid_vnd = price_vnd where id = $1`,
-    [bookingId],
-  );
   const payCode = await nextCode(sql, "PAY");
-  const shiftId = user.role === "receptionist" ? (b as { _shift?: string })._shift : str(b.shift_id);
+  const shiftId = user.role === "receptionist" ? ((b as { _shift?: string })._shift ?? null) : null;
   const pay = await one<{ id: string }>(
     sql,
     `insert into payments (code, user_id, shift_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
@@ -1217,6 +1248,7 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
 }
 
 export async function bookingGet(sql: Sql, id: string, user: PublicUser) {
+  requireRole(user, ["member", "receptionist", "manager"]);
   const b = await one(sql, `select * from court_bookings where id = $1`, [id]);
   if (!b) throw err.notFound();
   const row = b as { user_id: string | null };

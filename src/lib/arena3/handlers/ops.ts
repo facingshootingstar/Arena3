@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
-import { err, isConflictSlot } from "../errors";
-import { flagOn, flagsMap, requireFlag, type FlagKey } from "../flags";
-import { audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, num, readJson, str } from "../helpers";
+import { err } from "../errors";
+import { flagsMap, requireFlag, type FlagKey } from "../flags";
+import { audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
@@ -49,8 +49,15 @@ export async function flagsPatch(sql: Sql, request: Request, user: PublicUser) {
 
 export async function subscriptionFreeze(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager", "receptionist"]);
-  const days = num((await readJson(request)).days) ?? 7;
-  if (days < 1 || days > 90) throw err.validation("Freeze length must be 1–90 days.");
+  const b = await readJson(request);
+  const raw = b.days;
+  let days: number;
+  if (raw === undefined || raw === null || raw === "") {
+    days = 7;
+  } else {
+    days = parseInteger("days", "Freeze length", raw, -Infinity, Infinity);
+    if (days < 1 || days > 90) throw err.validation("Freeze length must be 1–90 days.");
+  }
   const settings = await getSettings(sql);
   const sub = await one<{
     id: string;
@@ -70,20 +77,46 @@ export async function subscriptionFreeze(sql: Sql, id: string, request: Request,
     [id, days, end],
   );
   await audit(sql, user.id, "freeze_sub", "subscription", id, sub, { days, end });
-  return { status: 200, body: await one(sql, `select * from subscriptions where id = $1`, [id]) };
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
 export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUser) {
   requireRole(user, ["manager", "receptionist"]);
-  const sub = await one<{ status: string }>(sql, `select status from subscriptions where id = $1 for update`, [id]);
+  const sub = await one<{ id: string; status: string; end_on: string; frozen_days: number }>(
+    sql,
+    `select id, status, end_on::text, frozen_days from subscriptions where id = $1 for update`,
+    [id],
+  );
   if (!sub) throw err.notFound();
   if (sub.status !== "frozen") throw err.conflictState("That plan is not frozen.");
-  await sql.query(`update subscriptions set status = 'active' where id = $1`, [id]);
-  await audit(sql, user.id, "unfreeze_sub", "subscription", id);
-  return { status: 200, body: await one(sql, `select * from subscriptions where id = $1`, [id]) };
+
+  const lastFreeze = await one<{ at: string; before: any; after: any }>(
+    sql,
+    `select at::text, before, after from audit_logs
+      where action = 'freeze_sub' and entity = 'subscription' and entity_id = $1
+      order by at desc limit 1`,
+    [id],
+  );
+
+  let newEndOn = sub.end_on;
+  if (lastFreeze && lastFreeze.before?.end_on && lastFreeze.after?.days) {
+    const freezeDate = String(lastFreeze.at).slice(0, 10);
+    const today = ictDateString();
+    const dFreeze = new Date(freezeDate);
+    const dToday = new Date(today);
+    const maxDays = Number(lastFreeze.after.days) || 0;
+    const actualDays = Math.min(maxDays, Math.max(0, Math.round((dToday.getTime() - dFreeze.getTime()) / (86400 * 1000))));
+    const originalEndOn = String(lastFreeze.before.end_on).slice(0, 10);
+    newEndOn = addDays(originalEndOn, actualDays);
+  }
+
+  await sql.query(`update subscriptions set status = 'active', end_on = $2 where id = $1`, [id, newEndOn]);
+  await audit(sql, user.id, "unfreeze_sub", "subscription", id, sub, { end_on: newEndOn });
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
 export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser) {
+  requireRole(user, ["member"]);
   const offer = await one<{
     id: string;
     enrollment_id: string;
@@ -363,6 +396,10 @@ export async function sessionAttendancePost(sql: Sql, sessionId: string, request
     );
     if (!enrolled) throw err.field("user_id", `Row ${i + 1}: that student is not in this class.`, { index: i });
     marks.set(uid, result);
+  }
+
+  if (new Date(session.start_at).getTime() > Date.now()) {
+    throw err.field("session_id", "Cannot mark attendance for a session that has not started.");
   }
 
   const before: Record<string, string | null> = {};

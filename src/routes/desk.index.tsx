@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Dumbbell, Repeat, Ticket, UserMinus, Wrench } from "lucide-react";
+import { Dumbbell, Repeat, UserMinus, Wrench } from "lucide-react";
 import { SectionTitle } from "@/components/section";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -225,7 +225,6 @@ function Page() {
       <nav aria-label={t("Quick links")} className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {(
           [
-            { to: "/desk/day-passes" as const, label: t("Day passes"), Icon: Ticket },
             { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },
             { to: "/desk/gear" as const, label: t("Gear"), Icon: Dumbbell },
             { to: "/desk/maintenance" as const, label: t("Maintenance"), Icon: Wrench },

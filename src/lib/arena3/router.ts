@@ -335,21 +335,6 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "POST" && p0 === "series" && p1 && p2 === "cancel") {
     return authed((sql, user) => xH.seriesCancel(sql, p1, request, user));
   }
-  // Day passes.
-  if (method === "GET" && p0 === "day-passes" && !p1) {
-    return authedRead((sql, user) => xH.dayPassList(sql, request, user));
-  }
-  if (method === "POST" && p0 === "day-passes" && !p1) {
-    return authed((sql, user) =>
-      withIdempotency(sql, request, user.id, false, () => xH.dayPassSell(sql, request, user)),
-    );
-  }
-  if (method === "POST" && p0 === "day-passes" && p1 && p2 === "use") {
-    return authed((sql, user) => xH.dayPassUse(sql, p1, user));
-  }
-  if (method === "POST" && p0 === "day-passes" && p1 && p2 === "void") {
-    return authed((sql, user) => xH.dayPassVoid(sql, p1, user));
-  }
   // Loyalty points.
   if (method === "GET" && p0 === "me" && p1 === "points") {
     return authedRead((sql, user) => xH.meLoyalty(sql, user));
@@ -611,7 +596,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
 
   if (method === "DELETE" && p0 === "payments") {
-    throw err.forbidden("Payments cannot be deleted — issue a refund instead.");
+    return authed(async () => {
+      throw err.forbidden("Payments cannot be deleted — issue a refund instead.");
+    });
   }
 
   void staffRoles;
