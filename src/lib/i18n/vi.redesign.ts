@@ -120,4 +120,6 @@ export const redesign: Record<string, string> = {
   "Scan with your banking app, or type the details in by hand. Keep the reference exactly as it is, so reception can find your transfer.": "Quét bằng ứng dụng ngân hàng, hoặc nhập tay các thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để lễ tân tìm được khoản tiền của bạn.",
   "A transfer is not a payment until reception finds it in the bank. Your court stays held meanwhile.": "Chuyển khoản chỉ được tính là đã trả khi lễ tân thấy tiền trong tài khoản. Sân của bạn vẫn được giữ trong lúc chờ.",
   "Transfer details": "Thông tin chuyển khoản",
+  "Use plan hours ({n} left)": "Dùng giờ trong gói (còn {n})",
+  "Paying in the app is not set up yet. Book this court at the front desk instead.": "Thanh toán trong app chưa được cài đặt. Hãy đặt sân này tại quầy lễ tân.",
 };

@@ -493,6 +493,9 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
       due_now_vnd: deposit > 0 ? deposit : price,
       list_price: list.price_vnd,
       promo: promo ? { code: promo.code, name: promo.name, discount_vnd: promo.discount_vnd } : null,
+      // Court hours the member can spend on this slot right now (BR-12, BR-13): the same plan
+      // the confirm step would charge, so the card offers "Use plan hours" only when it will work.
+      plan_hours_left: Number(disc.court_hours_left) || 0,
     },
   };
 }

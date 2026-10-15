@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Landmark } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
 import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
@@ -72,6 +72,8 @@ type Hold = {
   court_code?: string;
   hour?: number;
   promo?: { code: string; name: string; discount_vnd: number } | null;
+  /** Court hours on a plan that covers this sport and is live today (BR-12, BR-13). */
+  plan_hours_left?: number;
 };
 
 /** A hold that was refused, and — when another hour would help — where to go instead. */
@@ -662,35 +664,65 @@ function Page() {
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StarBorder speed={4}>
-                      <Button disabled={busy} onClick={() => void confirmPay("quota")}>
-                        {t("Use plan hours")}
-                      </Button>
-                    </StarBorder>
-                    {/* Online payment settles the slot at once (payOS confirms the money first). A bank
-                        transfer only promises it: the court stays on hold until reception finds it. */}
-                    {onlineOn ? (
-                      <PayOnlineButton
-                        refType="booking"
-                        refId={hold.booking.id}
-                        label={t("Pay online")}
-                        size="md"
-                        variant="outline"
-                        onPaid={() => {
-                          setHold(null);
-                          load();
-                          toast.success(t("Paid. Your court is confirmed and the receipt is in your account."));
-                        }}
-                      />
-                    ) : null}
-                    {/* Opens the account, QR and reference first; "I have transferred" comes after. */}
-                    {bankOn ? (
-                      <Button variant="outline" disabled={busy} onClick={() => setTransferOpen("hold")}>
-                        {t("Bank transfer")}
-                      </Button>
-                    ) : null}
-                  </div>
+                  {(() => {
+                    // Only the ways this member can actually pay are offered (B-4), and only the first
+                    // of them, the one most people take, gets the bright border.
+                    const hours = hold.plan_hours_left ?? 0;
+                    const primary = hours >= 1 ? "quota" : onlineOn ? "online" : bankOn ? "transfer" : null;
+                    const lift = (key: string, node: ReactNode) =>
+                      key === primary ? <StarBorder speed={4} key={key}>{node}</StarBorder> : <span key={key}>{node}</span>;
+                    if (!primary) {
+                      return (
+                        <p className="max-w-sm text-sm text-muted">
+                          {t("Paying in the app is not set up yet. Book this court at the front desk instead.")}
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {hours >= 1
+                          ? lift(
+                              "quota",
+                              <Button disabled={busy} onClick={() => void confirmPay("quota")}>
+                                {t("Use plan hours ({n} left)", { n: hours })}
+                              </Button>,
+                            )
+                          : null}
+                        {/* Online payment settles the slot at once (payOS confirms the money first). A bank
+                            transfer only promises it: the court stays on hold until reception finds it. */}
+                        {onlineOn
+                          ? lift(
+                              "online",
+                              <PayOnlineButton
+                                refType="booking"
+                                refId={hold.booking.id}
+                                label={t("Pay online")}
+                                size="md"
+                                variant={primary === "online" ? "primary" : "outline"}
+                                onPaid={() => {
+                                  setHold(null);
+                                  load();
+                                  toast.success(t("Paid. Your court is confirmed and the receipt is in your account."));
+                                }}
+                              />,
+                            )
+                          : null}
+                        {/* Opens the account, QR and reference first; "I have transferred" comes after. */}
+                        {bankOn
+                          ? lift(
+                              "transfer",
+                              <Button
+                                variant={primary === "transfer" ? "primary" : "outline"}
+                                disabled={busy}
+                                onClick={() => setTransferOpen("hold")}
+                              >
+                                {t("Bank transfer")}
+                              </Button>,
+                            )
+                          : null}
+                      </div>
+                    );
+                  })()}
                 </Card>
               </motion.div>
             ) : null}
