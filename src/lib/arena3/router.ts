@@ -146,7 +146,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authedRead((sql, user) => bookH.occupancyDetail(sql, request, user));
   }
   if (method === "GET" && p0 === "availability" && !p1) {
-    return authedRead((sql) => bookH.availabilityGet(sql, request));
+    return authedRead((sql, user) => bookH.availabilityGet(sql, request, user));
   }
   if (method === "GET" && p0 === "occupancy" && !p1) {
     return authedRead((sql) => bookH.occupancyGet(sql, request));

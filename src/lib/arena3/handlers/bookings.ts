@@ -131,7 +131,7 @@ export async function occupancyGet(sql: Sql, request: Request) {
  * of how many there are, and whether the day is inside the booking horizon.
  * Counts only — who holds what stays on the day view.
  */
-export async function availabilityGet(sql: Sql, request: Request) {
+export async function availabilityGet(sql: Sql, request: Request, user?: PublicUser | null) {
   const params = new URL(request.url).searchParams;
   const today = ictDateString();
   const from = params.get("from") ?? today;
@@ -163,7 +163,21 @@ export async function availabilityGet(sql: Sql, request: Request) {
   const now = Date.now();
   const horizon = now + settings.book_ahead_days * 86400000;
   const step = settings.slot_minutes * 60_000;
-  const out: { date: string; free: number; total: number; bookable: boolean }[] = [];
+  // For a signed-in member, how many courts they already hold each day, counted exactly as the
+  // hold counts them (countSlotsToday), so the day strip can say "you have 2" before the tap
+  // instead of "84 free" and a refusal after it (BR-05).
+  const mine = new Map<string, number>();
+  if (user?.role === "member") {
+    const rows = await sql.query<{ d: string; n: number }>(
+      `select (start_at at time zone 'Asia/Ho_Chi_Minh')::date::text as d, count(*)::int as n
+         from court_bookings
+        where user_id = $1 and status in ('confirmed','in_use') and start_at >= $2 and start_at < $3
+        group by 1`,
+      [user.id, rangeStart.toISOString(), rangeEnd.toISOString()],
+    );
+    for (const r of rows) mine.set(r.d, Number(r.n));
+  }
+  const out: { date: string; free: number; total: number; bookable: boolean; mine?: number }[] = [];
   for (let i = 0; i < days; i++) {
     const date = addDays(first, i);
     const open = ictDateTime(date, settings.open_time.slice(0, 5)).getTime();
@@ -178,9 +192,18 @@ export async function availabilityGet(sql: Sql, request: Request) {
         if (!taken) free++;
       }
     }
-    out.push({ date, free, total, bookable: Boolean(total) && date <= ictDateString(new Date(horizon)) });
+    out.push({
+      date,
+      free,
+      total,
+      bookable: Boolean(total) && date <= ictDateString(new Date(horizon)),
+      ...(user?.role === "member" ? { mine: mine.get(date) ?? 0 } : {}),
+    });
   }
-  return { status: 200, body: { from: first, sport: sport ?? null, days: out } };
+  return {
+    status: 200,
+    body: { from: first, sport: sport ?? null, days: out, cap: settings.max_slots_per_day },
+  };
 }
 
 /**

@@ -94,6 +94,7 @@ export function ScheduleScene({
           </div>
         ) : (
           <CourtGrid
+            startedIsPast
             date={sched.date}
             courts={sched.courts}
             slots={sched.slots}

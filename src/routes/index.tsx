@@ -91,8 +91,9 @@ function Landing() {
   }, [schedDate, sched.date]);
 
   const freeBySport = (s: string) =>
-    freeHours(sched.courts.filter((c) => c.sport === s), sched.slots, sched.date, now).length;
-  const schedFree = freeHours(sched.courts, sched.slots, sched.date, now).length;
+    freeHours(sched.courts.filter((c) => c.sport === s), sched.slots, sched.date, now, true).length;
+  // Guests book like members: an hour that has started is no longer on offer (BR-07).
+  const schedFree = freeHours(sched.courts, sched.slots, sched.date, now, true).length;
   const schedDay =
     sched.date === availability.date
       ? t("today")
@@ -113,7 +114,7 @@ function Landing() {
   useEffect(() => {
     if (!now) return;
     if (schedDate !== availability.date) return;
-    if (freeHours(availability.courts, availability.slots, availability.date, now).length > 0) return;
+    if (freeHours(availability.courts, availability.slots, availability.date, now, true).length > 0) return;
     setSchedDate(addDaysISO(availability.date, 1));
   }, [now, schedDate, availability]);
 

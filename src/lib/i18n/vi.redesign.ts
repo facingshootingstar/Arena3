@@ -122,4 +122,5 @@ export const redesign: Record<string, string> = {
   "Transfer details": "Thông tin chuyển khoản",
   "Use plan hours ({n} left)": "Dùng giờ trong gói (còn {n})",
   "Paying in the app is not set up yet. Book this court at the front desk instead.": "Thanh toán trong app chưa được cài đặt. Hãy đặt sân này tại quầy lễ tân.",
+  "You have {n}": "Bạn đã đủ {n} lượt",
 };

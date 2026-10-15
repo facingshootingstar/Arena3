@@ -35,7 +35,7 @@ function nearestFree(
   date: string,
 ) {
   const sameSport = data.courts.filter((c) => c.sport === wanted.sport);
-  return freeHours(sameSport, data.slots, date, Date.now())
+  return freeHours(sameSport, data.slots, date, Date.now(), true)
     .sort(
       (a, b) =>
         Math.abs(a.hour - hour) - Math.abs(b.hour - hour) ||
@@ -763,6 +763,10 @@ function Page() {
                 slots={data.slots}
                 sport={sport || undefined}
                 onPick={(c, h) => void (moving ? moveTo(c, h) : holdSlot(c, h))}
+                // A member cannot hold an hour that has started, and the header reads the same count
+                // as the day strip above it (B-3).
+                startedIsPast
+                freeCount={avail?.[date]?.free}
                 // A sold-out sport hands back the two controls at the top of this page.
                 onPickSport={setSport}
                 onPickDate={setDate}

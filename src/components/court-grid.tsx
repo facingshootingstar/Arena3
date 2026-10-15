@@ -124,8 +124,10 @@ function hourStart(date: string, hour: number) {
  * is still live at 14:30, and the desk can still sell the tail of it as a
  * walk-in.
  */
-function isPast(date: string, hour: number, now: number) {
-  return hourStart(date, hour) + 3_600_000 <= now;
+function isPast(date: string, hour: number, now: number, startedIsPast = false) {
+  // A member or a guest cannot hold an hour that has started (BR-07), so on their grids the hour
+  // is gone the moment it begins; the desk's grid keeps it until it ends, to sell the tail.
+  return hourStart(date, hour) + (startedIsPast ? 0 : 3_600_000) <= now;
 }
 
 /** Is this the hour the clock is in right now? */
@@ -141,8 +143,9 @@ export function slotState(
   date: string,
   hour: number,
   now: number,
+  startedIsPast = false,
 ): SlotState {
-  if (isPast(date, hour, now)) return "past";
+  if (isPast(date, hour, now, startedIsPast)) return "past";
   // A court out of service is out of service for the whole day, whatever the
   // occupancy table says — the row for a booking taken before it broke is
   // history reception has to ring about, not an hour anyone can buy.
@@ -161,11 +164,12 @@ export function freeHours(
   slots: OccSlot[],
   date: string,
   now: number,
+  startedIsPast = false,
 ): { court: Court; hour: number }[] {
   const out: { court: Court; hour: number }[] = [];
   for (const h of HOURS) {
     for (const c of courts) {
-      if (slotState(c, occAt(slots, c.id, date, h), date, h, now) === "free") {
+      if (slotState(c, occAt(slots, c.id, date, h), date, h, now, startedIsPast) === "free") {
         out.push({ court: c, hour: h });
       }
     }
@@ -345,6 +349,8 @@ export function CourtGrid({
   onPickDate,
   legendCompact = false,
   selected,
+  startedIsPast = false,
+  freeCount,
 }: {
   date: string;
   courts: Court[];
@@ -358,17 +364,24 @@ export function CourtGrid({
   /** Offered when the whole day is sold out. */
   onPickDate?: (date: string) => void;
   legendCompact?: boolean;
+  /** Member and guest grids: an hour that has started can no longer be held (BR-07). */
+  startedIsPast?: boolean;
+  /**
+   * The free count from the server's availability for this day, so the header says the same
+   * number as the day strip above it (B-3). Falls back to counting the cells.
+   */
+  freeCount?: number;
   /** The hour the caller is currently asking about, marked on the grid. */
   selected?: { courtId: string; hour: number } | null;
 }) {
   const now = useNowMinute();
   const [showPast, setShowPast] = useState(false);
   const list = sport ? courts.filter((c) => c.sport === sport) : courts;
-  const freeList = freeHours(list, slots, date, now);
-  const free = freeList.length;
+  const freeList = freeHours(list, slots, date, now, startedIsPast);
+  const free = freeCount ?? freeList.length;
   // Finished hours fold away, so the first row on screen is an hour you can still play.
-  const pastHours = HOURS.filter((h) => isPast(date, h, now));
-  const hours = showPast ? HOURS : HOURS.filter((h) => !isPast(date, h, now));
+  const pastHours = HOURS.filter((h) => isPast(date, h, now, startedIsPast));
+  const hours = showPast ? HOURS : HOURS.filter((h) => !isPast(date, h, now, startedIsPast));
   // Time first: most people want "a court at seven", not "court nine".
   const byHour = HOURS.map((h) => ({ hour: h, open: freeList.filter((f) => f.hour === h).map((f) => f.court) })).filter(
     (x) => x.open.length > 0,
@@ -382,7 +395,7 @@ export function CourtGrid({
           .filter((s) => s !== sport)
           .map((s) => ({
             sport: s,
-            count: freeHours(courts.filter((c) => c.sport === s), slots, date, now).length,
+            count: freeHours(courts.filter((c) => c.sport === s), slots, date, now, startedIsPast).length,
           }))
           .filter((a) => a.count > 0)
           .sort((a, b) => b.count - a.count)
@@ -411,7 +424,7 @@ export function CourtGrid({
         <NoFreeSlots
           date={date}
           sport={sport}
-          dayOver={HOURS.every((h) => isPast(date, h, now))}
+          dayOver={HOURS.every((h) => isPast(date, h, now, startedIsPast))}
           alternatives={alternatives}
           onPickSport={onPickSport}
           onPickDate={onPickDate}
@@ -457,7 +470,7 @@ export function CourtGrid({
             <div className="grid grid-cols-4 gap-1.5">
               {hours.map((h) => {
                 const occ = occAt(slots, c.id, date, h);
-                const state = slotState(c, occ, date, h, now);
+                const state = slotState(c, occ, date, h, now, startedIsPast);
                 const label = String(h).padStart(2, "0");
                 const title = cellTitle(state, occ);
                 // Past hours are shown, never offered — seeing the whole day is
@@ -558,6 +571,7 @@ export function CourtGrid({
               onInspect={onInspect}
               selected={selected}
               now={now}
+              startedIsPast={startedIsPast}
             />
           ))}
         </div>
@@ -594,6 +608,7 @@ function HourRow({
   onInspect,
   selected,
   now,
+  startedIsPast = false,
 }: {
   hour: number;
   list: Court[];
@@ -603,8 +618,9 @@ function HourRow({
   onInspect?: (court: Court, hour: number, occ: OccSlot & { ref: string }) => void;
   selected?: { courtId: string; hour: number } | null;
   now: number;
+  startedIsPast?: boolean;
 }) {
-  const past = isPast(date, hour, now);
+  const past = isPast(date, hour, now, startedIsPast);
   const live = isNow(date, hour, now);
   return (
     <>
@@ -619,7 +635,7 @@ function HourRow({
       </div>
       {list.map((c) => {
         const occ = occAt(slots, c.id, date, hour);
-        const state = slotState(c, occ, date, hour, now);
+        const state = slotState(c, occ, date, hour, now, startedIsPast);
         const title = cellTitle(state, occ);
         const clickable = onPick && (isBookable(state));
         const cls = cn(
