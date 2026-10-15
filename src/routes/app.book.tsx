@@ -1,18 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Landmark, Receipt as ReceiptIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
 import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
-import { Cover, HoldProgress, HoldTimer, MediaCaption, media, sportPhoto } from "@/components/media";
+import { HoldProgress, HoldTimer } from "@/components/media";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, money, when } from "@/components/shell";
-import { Badge, Button, Card, DateField, Input, LoadError, Seg, Skeleton, StatusBadge } from "@/components/ui";
-import { GlareHover, StarBorder } from "@/components/fx";
+import { Button, Card, DateField, Input, LoadError, Seg, Skeleton, StatusBadge } from "@/components/ui";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
-import { todayISO, sportLabel } from "@/lib/arena3/labels";
+import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
@@ -87,6 +86,9 @@ function Page() {
   const [hold, setHold] = useState<Hold | null>(null);
   // Typed before tapping a slot: the hold is priced when it is made, so the code goes with it.
   const [promoCode, setPromoCode] = useState("");
+  const [promoOpen, setPromoOpen] = useState(false);
+  // Refusals and clash warnings appear above the grid; a tap deep in the grid must still see them.
+  const notices = useRef<HTMLDivElement>(null);
   const [overlap, setOverlap] = useState<{ court: Court; hour: number; message: string } | null>(null);
   // Week strip or whole month — both show how many slots each day has left.
   const [view, setView] = useState<"week" | "month">("week");
@@ -111,6 +113,9 @@ function Page() {
   }
   const [taken, setTaken] = useState<Taken | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (taken || overlap) notices.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [taken, overlap]);
   // Leave the online button out entirely when the centre has no payOS set up,
   // rather than offering one that errors.
   const [onlineOn, setOnlineOn] = useState(false);
@@ -288,380 +293,405 @@ function Page() {
   ).split("{timer}");
   const [keptBefore, keptAfter] = t("It is also kept in {link}.").split("{link}");
 
-  return (
-    <Shell
-      role="member"
-      title={t("Book a court")}
-      subtitle={t("Pick a date and sport, then tap a free slot — we hold it for five minutes.")}
-    >
-      <GlareHover className="mb-4 block rounded-[var(--radius-xl)]" duration={1.1}>
-        <Cover
-          src={sport ? sportPhoto(sport) : media.hallCourts}
-          alt=""
-          scrim="none"
-          className="h-36 rounded-[var(--radius-xl)] md:h-44"
-        >
-          <MediaCaption>
-            <p className="font-display text-2xl">
-              {t("{sport} · 60′ slots", { sport: sport ? sportLabel(sport) : t("All 3 sports") })}
-            </p>
-          </MediaCaption>
-        </Cover>
-      </GlareHover>
-      <div className="mb-4 grid gap-3">
-        {view === "week" ? (
-          <DateStrip value={date} onChange={setDate} avail={avail} />
-        ) : (
-          <MonthCalendar value={date} onChange={setDate} avail={avail} />
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-            placeholder={t("Promo code (optional)")}
-            aria-label={t("Promo code")}
-            autoCapitalize="characters"
-            maxLength={32}
-            className="h-11 w-full sm:h-9 sm:w-44"
-          />
-          <Seg
-            value={view}
-            onChange={(v) => setView(v === "month" ? "month" : "week")}
-            options={[
-              { value: "week", label: t("Week") },
-              { value: "month", label: t("Month") },
-            ]}
-          />
-          <Seg
-            value={sport}
-            onChange={setSport}
-            options={[
-              { value: "", label: t("All") },
-              { value: "badminton", label: sportLabel("badminton") },
-              { value: "basketball", label: sportLabel("basketball") },
-              { value: "volleyball", label: sportLabel("volleyball") },
-            ]}
-          />
-          <DateField
-            required
-            value={date}
-            onChange={setDate}
-            invalid={error?.refused === true}
-            aria-label={t("Pick another date")}
-          />
-        </div>
+  // How many courts the member already has on the day on screen: said before they tap, not after.
+  const dayKey = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(iso));
+  const onThisDay = (mine ?? []).filter(
+    (b) => (b.status === "confirmed" || b.status === "in_use" || b.status === "hold") && dayKey(b.start_at) === date,
+  ).length;
+
+  const myCourts = mine?.length && !moving ? (
+    <Card className="p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold">{t("Your upcoming courts")}</h2>
+        <span className="text-xs tabular-nums text-muted">{mine.length}</span>
       </div>
-      {moving ? (
-        <Card className="mb-4 border border-accent/30 bg-accent/5">
-          <p className="text-sm font-medium">
-            {t("Moving {code} — now {court}, {when}", {
-              code: moving.code,
-              court: moving.court_code,
-              when: when(moving.start_at),
-            })}
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            {t(
-              "Tap a free slot below. You keep the same sport and price; the old hour is freed the moment the new one is yours.",
+      <ul className="divide-y divide-line">
+        {(showAllMine ? mine : mine.slice(0, 4)).map((b) => (
+          <li key={b.id} className="py-2.5" title={b.code}>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-sm">
+                <span className="font-semibold">{b.court_code}</span>
+                <span className="block text-muted">{when(b.start_at)}</span>
+              </span>
+              {/* Confirmed is the normal case; only a state that needs attention gets a badge. */}
+              {b.status !== "confirmed" ? <StatusBadge status={b.status} /> : null}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3">
+              {b.can_move ? (
+                <button type="button" onClick={() => startMove(b)} className="hit text-sm font-medium text-accent-2 hover:underline">
+                  {t("Change time")}
+                </button>
+              ) : b.status === "confirmed" ? (
+                <span className="text-xs text-muted">{t("Within {n}h, can't move", { n: windowHours })}</span>
+              ) : null}
+              {b.status === "confirmed" || b.status === "hold" ? (
+                <button type="button" onClick={() => setCancelId(b.id)} className="hit text-sm text-muted hover:text-danger">
+                  {t("Cancel")}
+                </button>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {mine.length > 4 ? (
+        <button
+          type="button"
+          onClick={() => setShowAllMine((v) => !v)}
+          className="hit mt-1 text-sm font-medium text-accent-2 hover:underline"
+        >
+          {showAllMine ? t("Show fewer") : t("Show all {n}", { n: mine.length })}
+        </button>
+      ) : null}
+    </Card>
+  ) : null;
+
+  return (
+    <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for five minutes while you pay.")}>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
+        <div className="min-w-0">
+          <div className="grid gap-3">
+            {view === "week" ? (
+              <DateStrip value={date} onChange={setDate} avail={avail} />
+            ) : (
+              <MonthCalendar value={date} onChange={setDate} avail={avail} />
             )}
-          </p>
-          {moveError ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
-              {moveError}
-            </p>
-          ) : null}
-          <div className="mt-3">
-            <Button size="sm" variant="outline" onClick={() => (setMoving(null), setMoveError(""))}>
-              {t("Keep it where it is")}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-      {mine?.length && !moving ? (
-        <Card className="mb-4">
-          <p className="mb-2 font-display text-lg">{t("Your upcoming courts")}</p>
-          <div className="grid gap-2">
-            {(showAllMine ? mine : mine.slice(0, 3)).map((b) => (
-              <div
-                key={b.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] bg-wood/50 px-3 py-2"
+            <div className="flex flex-wrap items-center gap-2">
+              <Seg
+                value={sport}
+                onChange={setSport}
+                options={[
+                  { value: "", label: t("All") },
+                  { value: "badminton", label: sportLabel("badminton") },
+                  { value: "basketball", label: sportLabel("basketball") },
+                  { value: "volleyball", label: sportLabel("volleyball") },
+                ]}
+              />
+              <Seg
+                value={view}
+                onChange={(v) => setView(v === "month" ? "month" : "week")}
+                options={[
+                  { value: "week", label: t("Week") },
+                  { value: "month", label: t("Month") },
+                ]}
+              />
+              <DateField
+                required
+                value={date}
+                onChange={setDate}
+                invalid={error?.refused === true}
+                aria-label={t("Pick another date")}
+                className="hidden sm:flex"
+              />
+            </div>
+            {promoOpen || promoCode ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder={t("Promo code (optional)")}
+                  aria-label={t("Promo code")}
+                  autoCapitalize="characters"
+                  maxLength={32}
+                  className="h-11 w-full sm:h-9 sm:w-48"
+                />
+                <span className="text-xs text-muted">{t("Applied to the next hour you hold.")}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPromoOpen(true)}
+                className="hit w-fit text-sm font-medium text-accent-2 hover:underline"
               >
-                <span className="text-sm">
-                  <span className="font-medium">{b.court_code}</span> · {when(b.start_at)}{" "}
-                  <span className="font-mono text-xs text-muted">{b.code}</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <StatusBadge status={b.status} />
-                  {b.can_move ? (
-                    <Button size="sm" variant="outline" onClick={() => startMove(b)}>
-                      {t("Change time")}
-                    </Button>
-                  ) : b.status === "confirmed" ? (
-                    <Badge tone="muted">{t("Within {n}h — can't move", { n: windowHours })}</Badge>
-                  ) : null}
-                  {b.status === "confirmed" || b.status === "hold" ? (
-                    <Button size="sm" variant="ghost" onClick={() => setCancelId(b.id)}>
-                      {t("Cancel")}
-                    </Button>
-                  ) : null}
-                </span>
-              </div>
-            ))}
+                {t("Have a promo code?")}
+              </button>
+            )}
           </div>
-          {mine.length > 3 ? (
-            <button
-              type="button"
-              onClick={() => setShowAllMine((v) => !v)}
-              className="hit mt-2 text-sm text-accent-2 underline-offset-2 hover:underline"
-            >
-              {showAllMine ? t("Show fewer") : t("Show all {n}", { n: mine.length })}
-            </button>
-          ) : null}
-        </Card>
-      ) : null}
-      <AnimatePresence>
-        {pending ? (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card className="mb-4 border border-hold/30 bg-hold/5">
-              <div className="flex flex-wrap items-center gap-3">
-                <Landmark className="size-5 shrink-0 text-hold" strokeWidth={1.75} />
-                <div className="min-w-[12rem] flex-1">
-                  <p className="text-sm font-medium">
-                    {t("Transfer {amount} — your court is held meanwhile.", { amount: money(pending.amount) })}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {heldBefore}
-                    <HoldTimer until={pending.until} onExpire={() => setPending(null)} />
-                    {heldAfter}
-                  </p>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => setPending(null)} aria-label={t("Dismiss")}>
-                  {t("Got it")}
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        ) : null}
-        {receipt ? (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card className="mb-4 flex flex-wrap items-center gap-3 border border-accent/30 bg-accent/5">
-              <ReceiptIcon className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
-              <div className="min-w-[10rem] flex-1">
-                <p className="text-sm font-medium">{t("Booking confirmed — your receipt is ready.")}</p>
-                <p className="text-xs text-muted">
-                  {keptBefore}
-                  <Link to="/account" className="text-accent-2 underline">
-                    {t("Account settings → Receipts")}
-                  </Link>
-                  {keptAfter}
-                </p>
-              </div>
-              <Button size="sm" onClick={() => void openInvoice(receipt)}>
-                {t("Open receipt")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setReceipt(null)} aria-label={t("Dismiss")}>
-                {t("Dismiss")}
-              </Button>
-            </Card>
-          </motion.div>
-        ) : null}
-        {taken ? (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card className="mb-4 border border-hold/30 bg-hold/5">
-              <p className="text-sm font-medium">{taken.message}</p>
-              {!taken.canRetry ? (
-                <>
-                  <p className="mt-1 text-xs text-muted">
-                    {t("Another court will not get past this one — the desk can sort it out while you are here.")}
-                  </p>
-                  <div className="mt-3">
-                    <Button size="sm" variant="ghost" onClick={() => setTaken(null)}>
-                      {t("Dismiss")}
-                    </Button>
-                  </div>
-                </>
-              ) : taken.alts.length ? (
-                <>
-                  <p className="mt-1 text-xs text-muted">
-                    {t("Nearest hours still open on this sport — tap one to hold it.")}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {taken.alts.map((a) => (
-                      <Button
-                        key={`${a.court.id}-${a.hour}`}
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => void holdSlot(a.court, a.hour)}
-                      >
-                        {a.court.court_code} · {String(a.hour).padStart(2, "0")}:00
-                      </Button>
-                    ))}
-                    <Button size="sm" variant="ghost" onClick={() => setTaken(null)}>
-                      {t("Dismiss")}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="mt-1 text-xs text-muted">
-                    {t("Nothing else is free for this sport today. Try another date above, or another sport.")}
-                  </p>
-                  <div className="mt-3">
-                    <Button size="sm" variant="ghost" onClick={() => setTaken(null)}>
-                      {t("Dismiss")}
-                    </Button>
-                  </div>
-                </>
-              )}
-            </Card>
-          </motion.div>
-        ) : null}
-        {overlap ? (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <Card className="mb-4 border border-hold/30 bg-hold/5">
-              <p className="text-sm">{overlap.message}</p>
-              <p className="mt-1 text-xs text-muted">
-                {t("Your class enrolment stays put — this is only a clash warning.")}
+
+          <div ref={notices} className="scroll-mt-20">
+            {onThisDay > 0 && !moving ? (
+              <p className="mt-3 text-sm text-muted">
+                {onThisDay === 1
+                  ? t("You already have 1 court on this day.")
+                  : t("You already have {n} courts on this day.", { n: onThisDay })}
               </p>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void (moving
-                      ? moveTo(overlap.court, overlap.hour, true)
-                      : holdSlot(overlap.court, overlap.hour, true))
-                  }
-                >
-                  {moving ? t("Move it anyway") : t("Hold it anyway")}
-                </Button>
-                <Button variant="outline" onClick={() => setOverlap(null)}>
-                  {t("Never mind")}
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-      <AnimatePresence>
-        {hold ? (
-          <motion.div
-            initial={{ opacity: 0, y: -8, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: "auto" }}
-            exit={{ opacity: 0, y: -8, height: 0 }}
-            className="overflow-hidden"
-          >
-            {/* Sticky: the countdown is the one thing on this page that stops
-                being true while you look away from it, and scrolling the grid
-                for another court used to push it off screen. */}
-            <Card className="sticky top-2 z-20 mb-4 flex flex-wrap items-center justify-between gap-4 border border-accent/30 bg-surface">
-              <div className="min-w-[13rem] flex-1">
-                <HoldProgress until={hold.hold_until} onExpire={() => setHold(null)} />
-                <p className="mt-2 text-sm text-muted">
-                  {hold.court_code ? (
-                    <span className="font-medium text-fg">
-                      {hold.court_code}
-                      {hold.hour != null ? ` · ${String(hold.hour).padStart(2, "0")}:00` : ""}
-                    </span>
-                  ) : (
-                    <span className="font-medium text-fg">{hold.booking.code}</span>
-                  )}{" "}
-                  · <span className="font-display text-lg tabular-nums text-fg">{money(hold.price)}</span>
-                  {hold.promo ? (
-                    <span className="ml-2 text-xs text-accent">
-                      {hold.promo.code}: −{money(hold.promo.discount_vnd)}
-                    </span>
-                  ) : null}
+            ) : null}
+            {moving ? (
+              <Card className="mt-4 border border-accent/30 bg-accent/5">
+                <p className="text-sm font-medium">
+                  {t("Moving {code}, now {court}, {when}", {
+                    code: moving.code,
+                    court: moving.court_code,
+                    when: when(moving.start_at),
+                  })}
                 </p>
-                {hold.due_now_vnd != null && hold.due_now_vnd < hold.price ? (
-                  <p className="mt-1 text-xs text-muted">
-                    {t("Peak hour: pay a {deposit} deposit now, the other {rest} at the desk when you arrive.", {
-                      deposit: money(hold.due_now_vnd),
-                      rest: money(hold.price - hold.due_now_vnd),
-                    })}
+                <p className="mt-1 text-xs text-muted">
+                  {t(
+                    "Tap a free slot below. You keep the same sport and price; the old hour is freed the moment the new one is yours.",
+                  )}
+                </p>
+                {moveError ? (
+                  <p role="alert" className="mt-2 text-sm text-danger">
+                    {moveError}
                   </p>
                 ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <StarBorder speed={4}>
-                  <Button disabled={busy} onClick={() => void confirmPay("quota")}>
-                    {t("Use plan hours")}
+                <div className="mt-3">
+                  <Button size="sm" variant="outline" onClick={() => (setMoving(null), setMoveError(""))}>
+                    {t("Keep it where it is")}
                   </Button>
-                </StarBorder>
-                {/*
-                  Paying online settles the slot immediately, because payOS
-                  confirms the money before the booking is confirmed. Bank
-                  transfer below only promises it: the court stays on hold and
-                  reception has to find the money on a statement first.
-                */}
-                {onlineOn ? (
-                  <PayOnlineButton
-                    refType="booking"
-                    refId={hold.booking.id}
-                    label={t("Pay online")}
-                    size="md"
-                    variant="outline"
-                    onPaid={() => {
-                      setHold(null);
-                      load();
-                      toast.success(t("Paid — your court is confirmed and the receipt is in your account."));
-                    }}
-                  />
-                ) : null}
-                <Button variant="outline" disabled={busy} onClick={() => void confirmPay("transfer")}>
-                  {t("Bank transfer")}
-                </Button>
+                </div>
+              </Card>
+            ) : null}
+            <AnimatePresence>
+              {pending ? (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <Card className="mt-4 border border-hold/30 bg-hold/5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Landmark className="size-5 shrink-0 text-hold" strokeWidth={1.75} />
+                      <div className="min-w-[12rem] flex-1">
+                        <p className="text-sm font-medium">
+                          {t("Transfer {amount}, your court is held meanwhile.", { amount: money(pending.amount) })}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {heldBefore}
+                          <HoldTimer until={pending.until} onExpire={() => setPending(null)} />
+                          {heldAfter}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => setPending(null)} aria-label={t("Dismiss")}>
+                        {t("Got it")}
+                      </Button>
+                    </div>
+                  </Card>
+                </motion.div>
+              ) : null}
+              {receipt ? (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <Card className="mt-4 flex flex-wrap items-center gap-3 border border-accent/30 bg-accent/5">
+                    <ReceiptIcon className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
+                    <div className="min-w-[10rem] flex-1">
+                      <p className="text-sm font-medium">{t("Booking confirmed, your receipt is ready.")}</p>
+                      <p className="text-xs text-muted">
+                        {keptBefore}
+                        <Link to="/account" className="text-accent-2 underline">
+                          {t("Account settings → Receipts")}
+                        </Link>
+                        {keptAfter}
+                      </p>
+                    </div>
+                    <Button size="sm" onClick={() => void openInvoice(receipt)}>
+                      {t("Open receipt")}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setReceipt(null)} aria-label={t("Dismiss")}>
+                      {t("Dismiss")}
+                    </Button>
+                  </Card>
+                </motion.div>
+              ) : null}
+              {taken ? (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <Card className="mt-4 border border-hold/30 bg-hold/5" role="alert">
+                    <p className="text-sm font-medium">{taken.message}</p>
+                    {!taken.canRetry ? (
+                      <>
+                        <p className="mt-1 text-xs text-muted">
+                          {t("Pick another day, or ask the front desk when you are at the centre.")}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => (setTaken(null), setDate(addDaysISO(date, 1)))}>
+                            {t("Next day")}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setTaken(null)}>
+                            {t("Dismiss")}
+                          </Button>
+                        </div>
+                      </>
+                    ) : taken.alts.length ? (
+                      <>
+                        <p className="mt-1 text-xs text-muted">
+                          {t("Nearest hours still open on this sport, tap one to hold it.")}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {taken.alts.map((a) => (
+                            <Button
+                              key={`${a.court.id}-${a.hour}`}
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() => void holdSlot(a.court, a.hour)}
+                            >
+                              {a.court.court_code} · {String(a.hour).padStart(2, "0")}:00
+                            </Button>
+                          ))}
+                          <Button size="sm" variant="ghost" onClick={() => setTaken(null)}>
+                            {t("Dismiss")}
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-xs text-muted">
+                          {t("Nothing else is free for this sport today. Try another date above, or another sport.")}
+                        </p>
+                        <div className="mt-3">
+                          <Button size="sm" variant="ghost" onClick={() => setTaken(null)}>
+                            {t("Dismiss")}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </Card>
+                </motion.div>
+              ) : null}
+              {overlap ? (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <Card className="mt-4 border border-hold/30 bg-hold/5" role="alert">
+                    <p className="text-sm">{overlap.message}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {t("Your class enrolment stays put, this is only a clash warning.")}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void (moving
+                            ? moveTo(overlap.court, overlap.hour, true)
+                            : holdSlot(overlap.court, overlap.hour, true))
+                        }
+                      >
+                        {moving ? t("Move it anyway") : t("Hold it anyway")}
+                      </Button>
+                      <Button variant="outline" onClick={() => setOverlap(null)}>
+                        {t("Never mind")}
+                      </Button>
+                    </div>
+                  </Card>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
+
+          <AnimatePresence>
+            {hold ? (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="sticky top-16 z-20 mt-4"
+              >
+                {/* Sticky: the countdown is the one thing on this page that stops being true while
+                    you look away, so scrolling the grid for another court must not push it off screen. */}
+                <Card className="flex flex-wrap items-center justify-between gap-4 border border-accent/40 shadow-[var(--shadow-soft)]">
+                  <div className="min-w-[13rem] flex-1">
+                    <HoldProgress until={hold.hold_until} onExpire={() => setHold(null)} />
+                    <p className="mt-2 text-sm text-muted">
+                      {hold.court_code ? (
+                        <span className="font-semibold text-fg">
+                          {hold.court_code}
+                          {hold.hour != null ? ` · ${String(hold.hour).padStart(2, "0")}:00` : ""}
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-fg">{hold.booking.code}</span>
+                      )}{" "}
+                      · <span className="text-lg font-semibold tabular-nums text-fg">{money(hold.price)}</span>
+                      {hold.promo ? (
+                        <span className="ml-2 text-xs text-accent-2">
+                          {hold.promo.code}: −{money(hold.promo.discount_vnd)}
+                        </span>
+                      ) : null}
+                    </p>
+                    {hold.due_now_vnd != null && hold.due_now_vnd < hold.price ? (
+                      <p className="mt-1 text-xs text-muted">
+                        {t("Peak hour: pay a {deposit} deposit now, the other {rest} at the desk when you arrive.", {
+                          deposit: money(hold.due_now_vnd),
+                          rest: money(hold.price - hold.due_now_vnd),
+                        })}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button disabled={busy} onClick={() => void confirmPay("quota")}>
+                      {t("Use plan hours")}
+                    </Button>
+                    {/* Online payment settles the slot at once (payOS confirms the money first). A bank
+                        transfer only promises it: the court stays on hold until reception finds it. */}
+                    {onlineOn ? (
+                      <PayOnlineButton
+                        refType="booking"
+                        refId={hold.booking.id}
+                        label={t("Pay online")}
+                        size="md"
+                        variant="outline"
+                        onPaid={() => {
+                          setHold(null);
+                          load();
+                          toast.success(t("Paid, your court is confirmed and the receipt is in your account."));
+                        }}
+                      />
+                    ) : null}
+                    <Button variant="outline" disabled={busy} onClick={() => void confirmPay("transfer")}>
+                      {t("Bank transfer")}
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <div className="mt-4">
+            {error ? (
+              <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
+            ) : data ? (
+              <CourtGrid
+                date={date}
+                courts={data.courts}
+                slots={data.slots}
+                sport={sport || undefined}
+                onPick={(c, h) => void (moving ? moveTo(c, h) : holdSlot(c, h))}
+                // A sold-out sport hands back the two controls at the top of this page.
+                onPickSport={setSport}
+                onPickDate={setDate}
+              />
+            ) : (
+              <div className="grid gap-2">
+                <Skeleton className="h-16" />
+                <Skeleton className="h-72" />
               </div>
-            </Card>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+            )}
+          </div>
+
+          <div className="mt-6 lg:hidden">{myCourts}</div>
+        </div>
+
+        <aside className="hidden lg:block">
+          <div className="sticky top-20">{myCourts}</div>
+        </aside>
+      </div>
       <CancelBookingDialog
         bookingId={cancelId}
         open={cancelId != null}
         onClose={() => setCancelId(null)}
         onDone={load}
       />
-      {error ? (
-        <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
-      ) : data ? (
-        <CourtGrid
-          date={date}
-          courts={data.courts}
-          slots={data.slots}
-          sport={sport || undefined}
-          onPick={(c, h) => void (moving ? moveTo(c, h) : holdSlot(c, h))}
-          // A sold-out sport should hand back the two controls at the top of
-          // this page rather than make the member go and find them again.
-          onPickSport={setSport}
-          onPickDate={setDate}
-        />
-      ) : (
-        <div className="grid gap-2">
-          <Skeleton className="h-16" />
-          <Skeleton className="h-72" />
-        </div>
-      )}
     </Shell>
   );
 }

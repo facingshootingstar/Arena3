@@ -36,7 +36,7 @@ const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: str
   { role: "coach", phone: "0901110011", name: "Coach Khoa", note: tk("Badminton classes") },
   { role: "member", phone: "0901230101", name: "Nam", note: tk("All-access plan · court booked today") },
   { role: "member", phone: "0901230102", name: "Linh", note: tk("Plan expires in ~4 days") },
-  { role: "member", phone: "0901230106", name: "Ha", note: tk("Expired — needs a renewal") },
+  { role: "member", phone: "0901230106", name: "Ha", note: tk("Expired: needs a renewal") },
 ];
 
 function Login() {
@@ -131,7 +131,7 @@ function Login() {
         <h1 className="font-display text-4xl">{t("Sign in")}</h1>
         <p className="mt-1 text-sm text-muted">
           {DEMO_LOGINS_ON
-            ? t("Sign in with your phone or email — or tap a demo account below.")
+            ? t("Sign in with your phone or email, or tap a demo account below.")
             : t("Sign in with your phone number or email.")}
         </p>
         {/* The live region is always there, so the line is read out when it appears. */}
@@ -218,7 +218,7 @@ function Login() {
               }}
               className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_10px_24px_-18px_rgba(27,31,29,0.6)] active:scale-95"
             >
-              <span className="text-2xs font-semibold text-accent">{roleLabel(d.role)}</span>
+              <span className="text-2xs font-semibold text-accent-text">{roleLabel(d.role)}</span>
               <span className="ml-2 text-sm font-medium">{d.name}</span>
             </button>
             </StaggerItem>

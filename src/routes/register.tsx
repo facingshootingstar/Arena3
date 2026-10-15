@@ -44,8 +44,10 @@ function Register() {
     // without it there is no way to reach the person signing up.
     email: "",
     password: "",
-    dob: "1998-01-15",
-    pii_consent: true,
+    // Both start empty. A pre-filled birthday let anyone under 18 skip the guardian step by not
+    // touching it, and a pre-ticked box is not consent under Decree 13/2023: the person has to tick it.
+    dob: "",
+    pii_consent: false,
   });
   /** Opens when the date of birth makes this a minor — the server decides the age, so the form asks only then. */
   const [askGuardian, setAskGuardian] = useState(false);
@@ -85,7 +87,7 @@ function Register() {
       setSentTo(res.sent_to ?? null);
       setStep("otp");
       toast.message(
-        res.sent_to ? t("Code sent to {email}", { email: res.sent_to }) : t("Code generated — check with the front desk."),
+        res.sent_to ? t("Code sent to {email}", { email: res.sent_to }) : t("Code generated. Check with the front desk."),
       );
     } catch (err) {
       const field = err instanceof ApiClientError ? (err.body.field ?? null) : null;
@@ -197,7 +199,7 @@ function Register() {
                   required
                   type="email"
                   autoComplete="email"
-                  placeholder="ban@example.com"
+                  placeholder="you@example.com"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
@@ -275,7 +277,7 @@ function Register() {
               <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
                 <Button
                   type="submit"
-                  disabled={busy || mismatch || tooWeak || !form.password || !form.email}
+                  disabled={busy || mismatch || tooWeak || !form.password || !form.email || !form.dob || !form.pii_consent}
                   className="w-full"
                 >
                   {busy ? t("Sending…") : t("Send OTP")}
@@ -307,7 +309,7 @@ function Register() {
               </p>
               {shown ? (
                 <p className="rounded-[var(--radius-md)] border border-hold/40 px-3 py-2 text-sm text-hold">
-                  {slot(t("Demo build — the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{shown}</span>)}
+                  {slot(t("Demo build: the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{shown}</span>)}
                 </p>
               ) : null}
               <Field label={t("6-digit OTP")}>

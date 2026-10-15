@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, ChevronRight, ClipboardCheck, MapPin, Users } from "lucide-react";
 import { sessionDay } from "@/components/class-detail";
 import { ArenaIcon, SportIcon } from "@/components/arena-icons";
-import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm } from "@/components/shell";
 import {
   Badge,
@@ -93,7 +92,6 @@ function Page() {
         />
       ) : (
         <div className="mx-auto grid max-w-3xl gap-8">
-          <PhotoBanner src={media.coachWhistle} focus="50% 22%" />
           {next ? (
             <section aria-label={t("Next session")}>
               <p className="mb-2 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-2">
@@ -110,7 +108,7 @@ function Page() {
                 <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
                   <p className="figure text-4xl tabular-nums sm:text-5xl">
                     {hhmm(next.start_at)}
-                    <span className="text-muted">–{hhmm(next.end_at)}</span>
+                    <span className="text-muted">-{hhmm(next.end_at)}</span>
                   </p>
                   <div className="flex items-center gap-2">
                     <Badge tone="accent">

@@ -68,7 +68,7 @@ function Page() {
                   <p className="mt-1 text-xs text-muted">
                     {d.next_tier
                       ? t("{n} more points to {tier}", { n: d.next_tier.need, tier: tierName(d.next_tier.key) })
-                      : t("Top tier — thank you for playing here.")}
+                      : t("Top tier, thank you for playing here.")}
                   </p>
                 </div>
               </div>
@@ -90,7 +90,7 @@ function Page() {
             </div>
             {code ? (
               <div className="mt-4 rounded-[var(--radius-md)] bg-accent/10 p-4">
-                <p className="text-xs text-muted">{t("Your code — {amount} off one booking or plan, valid 60 days. Type it at checkout.", { amount: money(code.value) })}</p>
+                <p className="text-xs text-muted">{t("Your code, {amount} off one booking or plan, valid 60 days. Type it at checkout.", { amount: money(code.value) })}</p>
                 <p className="mt-1 select-all font-mono text-2xl tracking-wider">{code.code}</p>
               </div>
             ) : null}

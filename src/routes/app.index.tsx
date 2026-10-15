@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SectionTitle } from "@/components/section";
 import { Map, Star, Ticket, Wallet } from "lucide-react";
 import { AssistantMark } from "@/components/mark";
 import { useEffect, useState } from "react";
@@ -8,10 +7,8 @@ import { PassCard } from "@/components/media";
 import { NotificationList, type Notification } from "@/components/notifications";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
-import { Shell, hhmm, money, when } from "@/components/shell";
-import { Button, ButtonLink, Card, EmptyState, LoadError, Skeleton, StatusBadge } from "@/components/ui";
-import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
-import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
+import { Shell, hhmm } from "@/components/shell";
+import { Badge, Button, ButtonLink, Card, LoadError, Skeleton, StatusBadge } from "@/components/ui";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
 import { formatDate, levelLabel, planBenefits, sportLabel, todayISO } from "@/lib/arena3/labels";
 import { t, tk, tData } from "@/lib/i18n";
@@ -108,23 +105,9 @@ function Page() {
   return (
     <Shell role="member">
       <div className="mb-6 flex items-end justify-between gap-3">
-        <div>
-          <ShinyText
-            className="shiny-muted mb-1 block text-xs font-semibold"
-            speed={6}
-          >
-            {t("Member")}
-          </ShinyText>
-          <SplitText
-            as="h1"
-            text={t("Welcome back, {name}", { name: greet })}
-            stagger={0.02}
-            duration={0.6}
-            className="font-display text-3xl font-medium tracking-tight sm:text-4xl"
-          />
-        </div>
+        <h1 className="font-display text-2xl font-bold sm:text-[1.75rem]">{t("Welcome back, {name}", { name: greet })}</h1>
         {u?.member_code ? (
-          <span className="rounded-[var(--radius-sm)] border border-line bg-surface px-2.5 py-1 font-mono text-xs font-semibold text-muted">
+          <span className="shrink-0 rounded-[var(--radius-sm)] border border-line bg-surface px-2.5 py-1 font-mono text-xs font-semibold text-muted">
             {u.member_code}
           </span>
         ) : null}
@@ -161,7 +144,7 @@ function Page() {
         <Card className="mb-4">
           <p className="text-sm font-medium">{t("Frozen plans")}</p>
           <p className="mt-1 text-sm text-muted">
-            {t("{plans} — ask the desk to unfreeze.", {
+            {t("{plans}, ask the desk to unfreeze.", {
               plans: frozen
                 .map((s) => t("{plan} · new end date {date}", { plan: tData(s.plan_name), date: formatDate(s.end_on) }))
                 .join(" · "),
@@ -174,10 +157,10 @@ function Page() {
         <Card className="mb-4 border border-hold/30 bg-hold/5">
           <p className="text-sm font-medium text-fg">{t("Plans expiring soon")}</p>
           <p className="mt-1 text-sm text-muted">
-            {t("{plans} — renew to keep your class seats.", {
+            {t("{plans}, renew to keep your class seats.", {
               plans: expiring
                 .map((s) =>
-                  t("{plan} — {n} days left (until {date})", {
+                  t("{plan}-{n} days left (until {date})", {
                     plan: tData(s.plan_name),
                     n: daysUntil(s.end_on),
                     date: formatDate(s.end_on),
@@ -201,27 +184,91 @@ function Page() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          <Reveal className="order-1">
-            {first ? (
-              <GlareHover className="rounded-[var(--radius-xl)]" duration={1.1}>
-                <PassCard
-                  plan={first.plan_name}
-                  sport={sportLabel(first.sport_scope)}
-                  endOn={formatDate(first.end_on)}
-                  benefits={planBenefits(first)}
-                  code={u?.member_code}
-                />
-              </GlareHover>
+          {/* Today comes first: it is the one thing on this page that changes what you do next. */}
+          <Card className="h-full">
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              <h2 className="text-lg font-semibold">{t("Today")}</h2>
+              <span className="text-xs text-muted">
+                {events.length === 1 ? t("1 session booked") : t("{n} sessions booked", { n: events.length })}
+              </span>
+            </div>
+            {events.length ? (
+              <ul className="grid gap-2">
+                {events.map((ev) => (
+                  <li key={ev.id} className="rounded-[var(--radius-md)] bg-wood/60 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-lg font-semibold tabular-nums tracking-tight">
+                        {hhmm(ev.start)} <span className="font-medium text-muted">· {ev.title}</span>
+                      </p>
+                      <span className="flex items-center gap-1.5">
+                        <Badge tone="accent">{t(ev.kind)}</Badge>
+                        {ev.status !== "confirmed" ? <StatusBadge status={ev.status} /> : null}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex min-h-8 items-center justify-between gap-2">
+                      <p className="font-mono text-xs text-muted">{ev.meta}</p>
+                      <span className="flex items-center gap-2">
+                        {/* A held court can be paid for from here, not only from the booking screen,
+                            which keeps the hold in component state and forgets it on a refresh. */}
+                        {onlineOn && ev.bookingId && ev.status === "hold" ? (
+                          <PayOnlineButton refType="booking" refId={ev.bookingId} label={t("Pay online")} onPaid={reload} />
+                        ) : null}
+                        {ev.bookingId && (ev.status === "hold" || ev.status === "confirmed") ? (
+                          <button
+                            type="button"
+                            onClick={() => setCancelId(ev.bookingId ?? null)}
+                            className="hit text-sm text-muted hover:text-danger"
+                          >
+                            {t("Cancel")}
+                          </button>
+                        ) : null}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <EmptyState title={t("No active plan")} hint={t("Buy a plan to enrol in classes and book courts.")}>
-                <ButtonLink to="/app/plans">{t("Browse plans")}</ButtonLink>
-              </EmptyState>
+              <div>
+                <p className="text-sm text-muted">{t("Nothing on the calendar.")}</p>
+                <div className="mt-3 flex gap-2">
+                  <ButtonLink to="/app/book" size="sm">
+                    {t("Book a court")}
+                  </ButtonLink>
+                  <ButtonLink to="/app/classes" size="sm" variant="outline">
+                    {t("Join a class")}
+                  </ButtonLink>
+                </div>
+              </div>
             )}
-          </Reveal>
+          </Card>
 
-          <div className="order-2 hidden md:order-3 md:col-span-2 md:block">
-            <SectionTitle text={t("Quick actions")} className="font-display text-lg tracking-tight" />
-            <Stagger className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5" gap={0.06}>
+          {first ? (
+            <PassCard
+              plan={first.plan_name}
+              sport={sportLabel(first.sport_scope)}
+              endOn={formatDate(first.end_on)}
+              benefits={planBenefits(first)}
+              code={u?.member_code}
+            />
+          ) : (
+            <Card className="flex h-full flex-col justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] bg-accent/10 text-accent-2">
+                  <Wallet className="size-5" strokeWidth={1.8} />
+                </span>
+                <div>
+                  <h2 className="text-lg font-semibold">{t("No active plan")}</h2>
+                  <p className="mt-0.5 text-sm text-muted">{t("Buy a plan to enrol in classes and book courts.")}</p>
+                </div>
+              </div>
+              <ButtonLink to="/app/plans" className="w-fit">
+                {t("Browse plans")}
+              </ButtonLink>
+            </Card>
+          )}
+
+          <nav aria-label={t("Quick actions")} className="hidden md:col-span-2 md:block">
+            <ul className="grid grid-cols-5 gap-3">
               {(
                 [
                   { to: "/app/book" as const, label: t("Book a court"), Icon: Map },
@@ -231,130 +278,47 @@ function Page() {
                   { to: "/app/assistant" as const, label: t("Ask AI"), Icon: AssistantMark },
                 ] as const
               ).map((a) => (
-                <StaggerItem key={a.to}>
-                  <Lift>
-                    <SpotlightCard className="h-full rounded-[var(--radius-md)]" size={200} strength={0.12}>
-                      <Link
-                        to={a.to}
-                        className="group relative z-[2] flex h-full flex-col items-center justify-center rounded-[var(--radius-md)] border border-line bg-surface/85 px-2 py-4 text-center transition-colors duration-200 hover:border-accent/40"
-                      >
-                        <span className="mb-2.5 grid size-12 place-items-center rounded-[var(--radius-sm)] bg-wood text-accent transition-colors duration-200 group-hover:bg-accent group-hover:text-accent-fg">
-                          <a.Icon className="size-6" strokeWidth={1.75} />
-                        </span>
-                        <span className="text-xs font-semibold tracking-tight text-fg">{a.label}</span>
-                      </Link>
-                    </SpotlightCard>
-                  </Lift>
-                </StaggerItem>
+                <li key={a.to}>
+                  <Link
+                    to={a.to}
+                    className="group flex h-full items-center gap-3 rounded-[var(--radius-lg)] border border-line bg-surface px-4 py-3 transition-colors duration-150 hover:border-accent/50"
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-wood text-accent transition-colors duration-150 group-hover:bg-accent group-hover:text-accent-fg">
+                      <a.Icon className="size-5" strokeWidth={1.75} />
+                    </span>
+                    <span className="text-sm font-semibold text-fg">{a.label}</span>
+                  </Link>
+                </li>
               ))}
-            </Stagger>
-          </div>
-
-          <Reveal className="order-3 md:order-2" delay={0.08}>
-            <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.1}>
-            <Card className="relative z-[2] h-full">
-              <div className="mb-3 flex items-baseline justify-between">
-                <p className="font-display text-xl">{t("Today")}</p>
-                <span className="text-xs text-muted">
-                  {events.length === 1 ? t("1 session booked") : t("{n} sessions booked", { n: events.length })}
-                </span>
-              </div>
-              {events.length ? (
-                <Stagger className="grid gap-3" gap={0.06}>
-                  {events.map((ev) => (
-                    <StaggerItem key={ev.id}>
-                      <div className="rounded-[var(--radius-md)] bg-wood/50 px-4 py-3 transition-colors duration-200 hover:bg-wood">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="rounded-full bg-accent px-2.5 py-0.5 text-2xs font-semibold text-accent-fg">
-                            {t(ev.kind)}
-                          </span>
-                          <StatusBadge status={ev.status} />
-                        </div>
-                        <p className="mt-2 font-display text-xl tracking-tight">
-                          {hhmm(ev.start)} · {ev.title}
-                        </p>
-                        {/* The action shares the reference line rather than
-                            claiming a row of its own. A court booking and a
-                            class sitting next to each other used to differ by
-                            a whole button in height purely because one of them
-                            can be cancelled. */}
-                        <div className="mt-1 flex min-h-8 items-center justify-between gap-2">
-                          <p className="font-mono text-xs text-muted">{ev.meta}</p>
-                          {/*
-                            A held court can be paid for from here, not only
-                            from the screen it was booked on. The booking page
-                            keeps the hold in component state, so refreshing or
-                            walking away left the member with a court they
-                            could see, could cancel, and had no way to pay for
-                            — it simply sat blocking the slot until it expired.
-                          */}
-                          {onlineOn && ev.bookingId && ev.status === "hold" ? (
-                            <PayOnlineButton
-                              refType="booking"
-                              refId={ev.bookingId}
-                              label={t("Pay online")}
-                              onPaid={reload}
-                            />
-                          ) : null}
-                          {ev.bookingId && (ev.status === "hold" || ev.status === "confirmed") ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setCancelId(ev.bookingId ?? null)}
-                            >
-                              {t("Cancel")}
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </StaggerItem>
-                  ))}
-                </Stagger>
-              ) : (
-                <div className="mt-2">
-                  <p className="text-sm text-muted">{t("Nothing on the calendar.")}</p>
-                  <div className="mt-3 flex gap-2">
-                    <ButtonLink to="/app/book" size="sm">
-                      {t("Book a court")}
-                    </ButtonLink>
-                    <ButtonLink to="/app/classes" size="sm" variant="outline">
-                      {t("Join a class")}
-                    </ButtonLink>
-                  </div>
-                </div>
-              )}
-            </Card>
-            </SpotlightCard>
-          </Reveal>
+            </ul>
+          </nav>
         </div>
       )}
 
       {live.length > 1 ? (
-        <Stagger className="mt-4 grid gap-3 md:grid-cols-3" gap={0.07}>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           {live.slice(1).map((s) => {
             // Each pack opens the screen it is spent on, already narrowed to its
             // sport: court hours go to the court map, class sessions to classes.
             const sport = s.sport_scope === "all" ? undefined : s.sport_scope;
             const forCourts = s.plan_court_hours > 0 || s.plan_session_quota == null;
             return (
-              <StaggerItem key={s.id}>
-                <Link to={forCourts ? "/app/book" : "/app/classes"} search={{ sport }} className="block h-full">
-                  <Card interactive className="h-full">
-                    <p className="text-2xs text-muted">{sportLabel(s.sport_scope)}</p>
-                    <p className="mt-1 font-medium text-fg">{tData(s.plan_name)}</p>
-                    <p className="text-sm text-muted">{t("Until {date}", { date: formatDate(s.end_on) })}</p>
-                    <p className="text-sm text-muted">{planBenefits(s).join(" · ")}</p>
-                  </Card>
-                </Link>
-              </StaggerItem>
+              <Link key={s.id} to={forCourts ? "/app/book" : "/app/classes"} search={{ sport }} className="block h-full">
+                <Card interactive className="h-full">
+                  <p className="text-2xs text-muted">{sportLabel(s.sport_scope)}</p>
+                  <p className="mt-1 font-medium text-fg">{tData(s.plan_name)}</p>
+                  <p className="text-sm text-muted">{t("Until {date}", { date: formatDate(s.end_on) })}</p>
+                  <p className="text-sm text-muted">{planBenefits(s).join(" · ")}</p>
+                </Card>
+              </Link>
             );
           })}
-        </Stagger>
+        </div>
       ) : null}
 
       <div className="mt-8 flex items-end justify-between gap-3">
-        <SectionTitle text={t("Notifications")} className="font-display text-2xl" />
-        <Link to="/app/notifications" className="hit text-sm underline">
+        <h2 className="text-lg font-semibold">{t("Notifications")}</h2>
+        <Link to="/app/notifications" className="hit text-sm font-medium text-accent-2 hover:underline">
           {t("Open inbox")}
         </Link>
       </div>

@@ -135,7 +135,7 @@ function Profile({ user }: { user: SessionUser | null }) {
             <Field
               label={t("Health notes")}
               tone="muted"
-              hint={t("Coaches see this before a session — injuries, asthma, anything they should know.")}
+              hint={t("Coaches see this before a session, injuries, asthma, anything they should know.")}
             >
               <Textarea
                 rows={3}
@@ -163,7 +163,7 @@ function Profile({ user }: { user: SessionUser | null }) {
       <Card className="h-fit p-6">
         <Label>{t("Cannot be changed here")}</Label>
         <dl className="mt-4 grid gap-4">
-          <Row label={t("Phone")} value={user.phone} note={t("Ask the desk — changing it needs an OTP.")} />
+          <Row label={t("Phone")} value={user.phone} note={t("Ask the desk, changing it needs an OTP.")} />
           <Row label={t("Email")} value={user.email ?? t("Not set")} />
           <Row
             label={t("Date of birth")}
@@ -238,7 +238,7 @@ function Security({ forced }: { forced: boolean }) {
         {forced ? (
           <p className="mb-4 rounded-[var(--radius-md)] bg-wood px-3 py-2 text-sm">
             {t(
-              "You signed in with a temporary password. Choose your own to continue — enter the temporary one as the current password.",
+              "You signed in with a temporary password. Choose your own to continue, enter the temporary one as the current password.",
             )}
           </p>
         ) : null}
@@ -475,7 +475,7 @@ function Receipts() {
     return (
       <EmptyState
         title={t("No receipts yet")}
-        hint={t("Every payment you make — court, class or membership — lands here as a PDF you can download.")}
+        hint={t("Every payment you make, court, class or membership, lands here as a PDF you can download.")}
       />
     );
   }

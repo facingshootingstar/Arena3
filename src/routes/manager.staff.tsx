@@ -138,7 +138,7 @@ function Page() {
                   </p>
                   <p className="text-xs text-muted">
                     {s.issued_at
-                      ? t("Issued by {name} · {when}", { name: s.issued_by ?? "—", when: when(s.issued_at) })
+                      ? t("Issued by {name} · {when}", { name: s.issued_by ?? "-", when: when(s.issued_at) })
                       : t("Seeded account")}{" "}
                     · {s.open_sessions === 1 ? t("1 open session") : t("{n} open sessions", { n: s.open_sessions })}
                   </p>
@@ -236,7 +236,7 @@ function SportPicker({ value, onChange }: { value: string[]; onChange: (v: strin
             type="button"
             aria-pressed={on}
             onClick={() => onChange(on ? value.filter((x) => x !== s) : [...value, s])}
-            className={`rounded-full px-3 py-1 text-sm ${on ? "bg-accent text-white" : "bg-wood text-muted"}`}
+            className={`rounded-full px-3 py-1 text-sm ${on ? "bg-accent text-accent-fg" : "bg-wood text-muted"}`}
           >
             {s === "all" ? t("Any sport") : sportLabel(s)}
           </button>

@@ -34,7 +34,7 @@ type Report = {
   students: Array<Counts & { user_id: string; full_name: string; member_code: string | null; class_code: string; sport: string }>;
 };
 
-const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
+const pct = (v: number | null) => (v === null ? "-" : `${v}%`);
 
 /**
  * Attendance rate = (present + late) ÷ (sessions marked − excused). Excused
@@ -203,7 +203,7 @@ const SORTS: Array<{ value: RiskSort; label: string }> = [
   { value: "priority", label: tk("Most urgent first") },
   { value: "plan_end", label: tk("Plan ends soonest") },
   { value: "last_seen", label: tk("Away the longest") },
-  { value: "name", label: tk("Name A–Z") },
+  { value: "name", label: tk("Name A-Z") },
 ];
 
 /** The short word a receptionist reads in a table cell; the long sentence stays in the tooltip. */
@@ -329,8 +329,8 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
         <summary className="cursor-pointer py-3 font-medium marker:text-muted sm:py-0.5">{t("Who ends up on this list?")}</summary>
         <p className="mt-2 text-muted">
           {t(
-            "Three things put someone here: absent three sessions running, no visit for {n}+ days on a live plan, or a plan ending soon with low attendance. Contacting them is a courtesy call — never a penalty.",
-            { n: idleDays ?? "—" },
+            "Three things put someone here: absent three sessions running, no visit for {n}+ days on a live plan, or a plan ending soon with low attendance. Contacting them is a courtesy call, never a penalty.",
+            { n: idleDays ?? "-" },
           )}
         </p>
       </details>
@@ -415,7 +415,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
                   {m.last_contact ? (
                     <p className="text-xs text-muted md:col-span-4">
                       {formatDate(m.last_contact.at)} · {m.last_contact.by}: {outcomeLabel(m.last_contact.outcome)}
-                      {m.last_contact.note ? ` — ${m.last_contact.note}` : ""}
+                      {m.last_contact.note ? ` · ${m.last_contact.note}` : ""}
                     </p>
                   ) : null}
                 </li>

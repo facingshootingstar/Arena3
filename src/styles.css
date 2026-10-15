@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Be Vietnam Pro served from the app itself (Vietnamese and Latin subsets), weights 400-800. */
+@import "@fontsource/be-vietnam-pro/400.css";
+@import "@fontsource/be-vietnam-pro/500.css";
+@import "@fontsource/be-vietnam-pro/600.css";
+@import "@fontsource/be-vietnam-pro/700.css";
+@import "@fontsource/be-vietnam-pro/800.css";
+
 @theme {
   --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
   --font-display: "Be Vietnam Pro", system-ui, sans-serif;
@@ -21,6 +28,11 @@
   --color-accent: #1e4fd8;
   --color-accent-fg: #ffffff;
   --color-accent-2: #15348f;
+  /* Hover fill for the primary button, and the solid fill for a court in use right now. */
+  --color-accent-hover: #15348f;
+  --color-accent-strong: #15348f;
+  /* A class on the court grid. */
+  --color-slot-class: #0b1230;
   --color-hold: #9a5200;
   --color-danger: #b4232a;
   --color-ink: #0b1230;
@@ -31,6 +43,12 @@
   --color-pass-fg: #ffffff;
   --color-pass-muted: #c3d0f5;
   --color-volt: #c8f31d;
+  /* The brand navy in both schemes, for what sits on a photo rather than on the page: the label
+     of a white button over footage, the scrim behind the stats band. `fg` turns pale in dark,
+     which put pale text on those white buttons. */
+  --color-night: #0b1230;
+  /* The accent as small text: the same blue in light, lifted in dark to read on navy. */
+  --color-accent-text: #1e4fd8;
 
   /* Semantic roles. The palette above is named after what things look like
      (wood, ink, pass); these name what they mean, so a status colour is chosen
@@ -77,10 +95,40 @@
 /* Plain-CSS handles for the status roles, for code that reads custom properties
    directly (canvas, inline styles, third-party widgets) rather than Tailwind. */
 :root {
+  color-scheme: light;
   --primary: var(--color-primary);
   --error: var(--color-error);
   --success: var(--color-success);
   --warning: var(--color-warning);
+}
+
+/* Dark: follows the device. Same cobalt, lifted so it still reads on navy; effects keep working. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-bg: #0a0f1d;
+    --color-fg: #e6eaf2;
+    --color-surface: #111829;
+    --color-muted: #a7b0c4;
+    --color-subtle: #8e98ae;
+    --color-line: #232d45;
+    --color-line-strong: #36425f;
+    --color-accent: #3a6af2;
+    --color-accent-text: #7b9bff;
+    --color-accent-fg: #fcfcfd;
+    --color-accent-2: #a9c1ff;
+    --color-accent-hover: #2f5ee0;
+    --color-accent-strong: #2448b8;
+    --color-hold: #f0a24a;
+    --color-danger: #f47b74;
+    --color-ink: #e6eaf2;
+    --color-wood: #19223a;
+    --color-pass: #132257;
+    --color-slot-class: #67738f;
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -14px rgba(0, 0, 0, 0.6);
+    --shadow-border: 0 0 0 1px rgba(166, 180, 214, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-accent: 0 1px 2px rgba(0, 0, 0, 0.4);
+  }
 }
 
 @keyframes enter {
@@ -378,6 +426,31 @@ select[aria-invalid="true"] {
   animation-play-state: paused;
 }
 
+/* ── GSAP scenes (landing) ───────────────────────────────────────── */
+
+/* The hero's copy waits, hidden, for its timeline, so the server-rendered page never shows it for
+   a frame before GSAP hides it again. Only when motion is allowed: under reduced motion or the
+   pause button nothing hides and nothing waits. The timeline sets `visibility: visible` itself. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-calm="1"]) [data-enter] {
+    visibility: hidden;
+  }
+}
+
+/* A card lifts a little under the pointer: the CSS twin of `Lift` in motion.tsx, for GSAP scenes,
+   which must not mix in motion components on the same element. */
+.lift {
+  transition:
+    transform 0.35s var(--ease-smooth),
+    box-shadow 0.35s var(--ease-smooth);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  html:not([data-calm="1"]) .lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-soft);
+  }
+}
+
 /* ── Ambient washes ──────────────────────────────────────────────── */
 
 /* Blurred colour blob; parent must be relative + overflow-hidden. */
@@ -558,6 +631,11 @@ select[aria-invalid="true"] {
   overflow: hidden;
   isolation: isolate;
 }
+/* A control that cannot be pressed should not be advertised: no orbiting light behind a
+   disabled button (its 50% opacity let the arc show through as a dark smear). */
+.star-border:has(:disabled)::before {
+  display: none;
+}
 .star-border::before {
   content: "";
   position: absolute;
@@ -698,10 +776,12 @@ select[aria-invalid="true"] {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+/* The tick that confirms an attendance mark: grows in, settles once. The swell lives in the
+   keyframes, so the timing curve stays the house ease-out instead of an overshooting curve. */
 @keyframes ai-pop {
-  0% { transform: scale(0.4) rotate(-20deg); }
-  60% { transform: scale(1.35) rotate(6deg); }
-  100% { transform: scale(1) rotate(0); }
+  0% { transform: scale(0.6) rotate(-12deg); opacity: 0; }
+  65% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 @keyframes ai-draw {
   from { stroke-dashoffset: 1; }
@@ -716,7 +796,7 @@ select[aria-invalid="true"] {
 .ai-wiggle { animation: ai-wiggle 3.4s ease-in-out infinite; transform-origin: 40% 60%; }
 .ai-swing { animation: ai-swing 2.8s ease-in-out infinite; transform-origin: 50% 10%; }
 .ai-float { animation: ai-float 3s ease-in-out infinite; }
-.ai-pop { animation: ai-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.ai-pop { animation: ai-pop 0.32s var(--ease-out-soft) both; }
 .ai-draw { stroke-dasharray: 1; animation: ai-draw 0.55s 0.1s ease-out both; }
 .ai-scan {
   position: absolute;

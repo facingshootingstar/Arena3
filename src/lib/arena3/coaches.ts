@@ -16,7 +16,7 @@ export const COACHES: CoachCard[] = [
     sport: "badminton",
     title: "Head badminton coach",
     blurb:
-      "Runs the beginner and advanced ladders. Footwork first, controlled smashes second — no shoulders burned out in week one.",
+      "Runs the beginner and advanced ladders. Footwork first, controlled smashes second. No shoulders burned out in week one.",
     creds: ["Beginner Mon/Wed/Fri 18:00", "Advanced Sat 08:00", "Courts CL-01 · CL-05"],
     photo: media.coachKhoa,
   },
@@ -43,7 +43,7 @@ export const COACHES: CoachCard[] = [
     sport: "volleyball",
     title: "Head volleyball coach",
     blurb:
-      "Intermediate on BC-01. Digs, serves and team reading — built for players moving off the sand into a structured side.",
+      "Intermediate on BC-01. Digs, serves and team reading, built for players moving off the sand into a structured side.",
     creds: ["Intermediate Sat 16:00", "Court BC-01", "Rotations · reflexes"],
     photo: media.coachViet,
   },

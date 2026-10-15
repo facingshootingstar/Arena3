@@ -2,11 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { Shell, money } from "@/components/shell";
 import { Button, Card, EmptyState, Input, LoadError, Skeleton } from "@/components/ui";
-import { Lift, Stagger, StaggerItem } from "@/components/motion";
-import { GlareHover, SpotlightCard } from "@/components/fx";
 import { apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 import { t, tData } from "@/lib/i18n";
@@ -56,11 +53,11 @@ function Page() {
       setOrdered((o) => ({ ...o, [p.id]: res.preview_end }));
       toast.success(
         res.renewal
-          ? t("Renewed through {date} — pay at the desk", { date: res.preview_end })
-          : t("Order placed, valid through {date} — pay at the desk", { date: res.preview_end }),
+          ? t("Renewed through {date}, pay at the desk", { date: res.preview_end })
+          : t("Order placed, valid through {date}, pay at the desk", { date: res.preview_end }),
         {
           description: res.promo
-            ? t("{code} takes {off} off — you pay {total}.", {
+            ? t("{code} takes {off} off, you pay {total}.", {
                 code: res.promo.code,
                 off: money(res.promo.discount_vnd),
                 total: money(res.amount_due_vnd),
@@ -79,7 +76,7 @@ function Page() {
     <Shell
       role="member"
       title={t("Membership plans")}
-      subtitle={t("Order here, pay at the desk — you see the new end date before anything is charged.")}
+      subtitle={t("Order here, pay at the desk, you see the new end date before anything is charged.")}
     >
       {error ? (
         <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
@@ -101,45 +98,31 @@ function Page() {
             maxLength={32}
           />
         </div>
-        <Stagger className="grid gap-3 md:grid-cols-3" gap={0.08}>
-          {items.map((p) => (
-            <StaggerItem key={p.id} className="h-full">
-            <Lift className="h-full">
-            <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.11}>
-            <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
-              <GlareHover>
-                <Cover src={sportPhoto(p.sport_scope)} alt="" scrim="none" className="h-36">
-                  <MediaCaption>
-                    <p className="text-2xs">{sportLabel(p.sport_scope)}</p>
-                  </MediaCaption>
-                </Cover>
-              </GlareHover>
-              <div className="flex flex-1 flex-col p-5">
-                <h2 className="font-display text-2xl">{tData(p.name)}</h2>
-                <p className="mt-3 font-display text-3xl tabular-nums">{money(p.price_vnd)}</p>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((p) => {
+            // Only what the plan actually gives: "0 court hours" with a tick is not a benefit.
+            const perks = [
+              p.duration_days ? t("{n} days", { n: p.duration_days }) : t("Per session"),
+              p.session_quota ? t("{n} class sessions", { n: p.session_quota }) : null,
+              p.court_hours > 0 ? t("{n} court hours", { n: p.court_hours }) : null,
+              p.court_discount_pct > 0 ? t("{n}% off court rental", { n: p.court_discount_pct }) : null,
+            ].filter((x): x is string => Boolean(x));
+            return (
+              <Card key={p.id} className="flex h-full flex-col">
+                <p className="text-xs font-medium text-muted">{sportLabel(p.sport_scope)}</p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <h2 className="text-lg font-semibold">{tData(p.name)}</h2>
+                  <p className="shrink-0 text-xl font-bold tabular-nums tracking-tight">{money(p.price_vnd)}</p>
+                </div>
                 <ul className="mt-4 grid gap-2 text-sm text-muted">
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-accent" strokeWidth={1.75} />
-                    {p.duration_days ? t("{n} days", { n: p.duration_days }) : t("Per session")}
-                  </li>
-                  {p.session_quota ? (
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-accent" strokeWidth={1.75} />
-                      {t("{n} class sessions", { n: p.session_quota })}
+                  {perks.map((perk) => (
+                    <li key={perk} className="flex items-center gap-2">
+                      <Check className="size-4 shrink-0 text-accent" strokeWidth={2} />
+                      {perk}
                     </li>
-                  ) : null}
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-accent" strokeWidth={1.75} />
-                    {t("{n} court hours", { n: p.court_hours })}
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="size-4 text-accent" strokeWidth={1.75} />
-                    {t("{n}% off court rental", { n: p.court_discount_pct })}
-                  </li>
+                  ))}
                 </ul>
-                {/* Pinned to the bottom of the card: plans carry a different
-                    number of benefit lines each, so laying the buttons out
-                    under their own lists put them at three heights in a row. */}
+                {/* Pinned to the bottom of the card, so buttons line up across a row. */}
                 <div className="mt-auto pt-5">
                   <Button
                     className="w-full"
@@ -149,21 +132,18 @@ function Page() {
                     {busy === p.id
                       ? t("Placing order…")
                       : ordered[p.id]
-                        ? t("Ordered — pay at the desk")
+                        ? t("Ordered, pay at the desk")
                         : t("Buy or renew")}
                   </Button>
                   {ordered[p.id] ? (
                     <p className="mt-2 text-center text-xs text-muted">{t("Valid through {date}", { date: ordered[p.id] })}</p>
                   ) : null}
                 </div>
-              </div>
-            </Card>
-            </SpotlightCard>
-            </Lift>
-            </StaggerItem>
-          ))}
+              </Card>
+            );
+          })}
           {!items.length ? <EmptyState title={t("No plans on sale right now")} /> : null}
-        </Stagger>
+        </div>
         </>
       )}
     </Shell>

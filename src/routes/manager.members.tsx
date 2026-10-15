@@ -130,7 +130,7 @@ function Page() {
                         <span className="break-words">{m.full_name}</span>
                         {m.status !== "active" ? <StatusBadge status={m.status} /> : null}
                       </p>
-                      <p className="text-xs tabular-nums text-muted">{m.member_code ?? "—"}</p>
+                      <p className="text-xs tabular-nums text-muted">{m.member_code ?? "-"}</p>
                     </div>
                     <p className="text-sm tabular-nums text-muted">{m.phone}</p>
                     <div className="flex flex-wrap items-center gap-2 text-sm">

@@ -30,29 +30,17 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      // The same green the manifest and the palette use. It was a lighter one
-      // here, so the phone chrome did not match the header it sat above.
+      // The same cobalt the manifest and the palette use, so the phone chrome matches the brand.
       { name: "theme-color", content: "#1e4fd8" },
       {
         name: "description",
         content:
-          "Arena3 — one sports centre, one schedule: memberships, classes, court hire and the front desk.",
+          "Arena3: book badminton, basketball and volleyball courts, coached classes and memberships at an indoor sports centre in Ho Chi Minh City.",
       },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
-      // The stylesheet and the font files come from two different hosts, so
-      // without these the browser opens the second connection only after it has
-      // parsed the first response. That delay is the flash of fallback type
-      // every heading does on a cold load — the page is not badly set, it is
-      // briefly set in the wrong faces.
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap",
-      },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
     ],
@@ -65,10 +53,10 @@ export const Route = createRootRoute({
       <body className="bg-bg text-fg">
         <PreviewHostBridge />
         <AuthProvider>
-          {/* One shared canvas for click feedback across every route; it parks
-              its rAF loop whenever there is nothing left to draw. */}
           <LangProvider>
             <SkipLink />
+            {/* One shared canvas for click feedback across every route; it parks
+                its rAF loop whenever there is nothing left to draw. */}
             <ClickSpark />
             <RetryOutlet />
           </LangProvider>

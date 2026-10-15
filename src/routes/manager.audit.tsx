@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SectionTitle } from "@/components/section";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Input, LoadError, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, DateField, EmptyState, Input, LoadError, Skeleton } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { roleLabel } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
@@ -156,11 +156,18 @@ const ENTITY_LABEL: Record<string, string> = {
   ticket: tk("ticket"),
   user: tk("user"),
   work_order: tk("work order"),
+  // Older rows (and the seeded history) were written with the table's own name.
+  price_rule: tk("price rules"),
+  cashier_shift: tk("shift"),
+  equipment_loan: tk("equipment loan"),
+  court_booking: tk("booking"),
+  membership_plan: tk("plan"),
 };
 
+/** A word a manager would use, never a table name: unknown ones lose their underscores. */
 function entityLabel(e: string): string {
   const known = ENTITY_LABEL[e];
-  return known ? t(known) : e;
+  return known ? t(known) : e.replace(/_/g, " ");
 }
 
 /**
@@ -319,23 +326,11 @@ function Page() {
         </select>
         <label className="grid gap-0.5 text-2xs text-muted">
           {t("From")}
-          <input
-            type="date"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => pick(setFrom)(e.target.value)}
-            className={selectCls}
-          />
+          <DateField value={from} max={to || undefined} onChange={(v) => pick(setFrom)(v)} aria-label={t("From")} className="sm:h-10" />
         </label>
         <label className="grid gap-0.5 text-2xs text-muted">
           {t("To")}
-          <input
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => pick(setTo)(e.target.value)}
-            className={selectCls}
-          />
+          <DateField value={to} min={from || undefined} onChange={(v) => pick(setTo)(v)} aria-label={t("To")} className="sm:h-10" />
         </label>
         <Input
           value={q}
@@ -409,14 +404,16 @@ function Page() {
                     {e.actor_role ? (
                       <span className="text-2xs text-muted">{roleLabel(e.actor_role)}</span>
                     ) : null}
-                    <span className="text-sm text-muted">
-                      {entityLabel(e.entity)}
-                      {e.entity_id ? <span className="tabular-nums"> · {e.entity_id.slice(0, 8)}</span> : null}
-                    </span>
+                    <span className="text-sm text-muted">{entityLabel(e.entity)}</span>
                     <span className="ml-auto text-xs tabular-nums text-muted">{when(e.at)}</span>
                   </button>
                   {isOpen ? (
                     <div className="grid gap-2 border-t border-line px-3 py-2 text-xs">
+                      {e.entity_id ? (
+                        <p className="text-muted">
+                          {t("Record")}: <span className="font-mono">{e.entity_id}</span>
+                        </p>
+                      ) : null}
                       {before || after ? (
                         <div className="grid gap-2 md:grid-cols-2">
                           {before ? (
