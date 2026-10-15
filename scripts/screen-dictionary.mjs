@@ -279,6 +279,18 @@ const S = [
     [A("Bật hoặc tắt tính năng"), A("Đổi trạng thái từng sân"), A("Cuộn xuống: sửa thông tin trung tâm rồi lưu")],
     "C7: Thay đổi giờ mở cửa trung tâm sẽ cập nhật khung giờ trên lưới sân. Thay đổi áp dụng cho giao dịch mới trong vòng một phút.",
     "Cuộn xuống: sân và thông tin trung tâm"],
+
+  // ── Legal & Public (S44 - S45)
+  ["public", "/terms", "Điều khoản sử dụng", "Chân trang hoặc trang tạo tài khoản",
+    "Quy định khi dùng app Arena3 và sử dụng dịch vụ tại trung tâm: tài khoản, đặt sân, lớp học, thanh toán và hoàn tiền.",
+    "Bất kỳ ai vào website.",
+    [A("Đọc quy định sử dụng dịch vụ"), A("Bấm «Quay lại đăng ký» để tiếp tục tạo tài khoản", "Quay lại đăng ký"), A("Bấm «Thông báo về dữ liệu cá nhân» để đọc chính sách bảo mật", "Thông báo về dữ liệu cá nhân")],
+    "Trang văn bản pháp lý."],
+  ["public", "/privacy", "Thông báo về dữ liệu cá nhân", "Chân trang hoặc trang tạo tài khoản",
+    "Thông báo xử lý dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP: các dữ liệu thu thập, mục đích sử dụng, thời gian lưu trữ và quyền của chủ thể dữ liệu.",
+    "Bất kỳ ai vào website.",
+    [A("Đọc thông báo dữ liệu cá nhân"), A("Bấm «Quay lại đăng ký» để tiếp tục tạo tài khoản", "Quay lại đăng ký"), A("Bấm «Điều khoản sử dụng» để đọc điều khoản", "Điều khoản sử dụng")],
+    "Trang văn bản pháp lý."],
 ];
 
 const VP = { d: { width: 1440, height: 900 }, m: { width: 390, height: 844 } };

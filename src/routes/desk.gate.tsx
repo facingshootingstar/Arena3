@@ -3,11 +3,13 @@ import { SectionTitle } from "@/components/section";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
+import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm, useSessionUser } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Select, Seg, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer, tData } from "@/lib/i18n";
+import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/desk/gate")({ component: Page });
@@ -52,7 +54,7 @@ const OVERRIDE_REASONS = [
   { value: "renewing", label: tk("Renewing right now") },
   { value: "guest_pass", label: tk("Guest pass") },
   { value: "manager_ok", label: tk("Manager approved") },
-  { value: "expired_ok", label: tk("Just expired, grace") },
+  { value: "expired_ok", label: tk("Just expired (grace)") },
   { value: "other", label: tk("Other") },
 ];
 
@@ -77,7 +79,11 @@ function Page() {
   const [pending, setPending] = useState<Pending | null>(null);
   const [overrideReason, setOverrideReason] = useState("renewing");
   const [error, setError] = useState<string | null>(null);
-  const todayRead = useRead<{ items: Entry[] }>("/desk/gate-checkins");
+  const gatePage = usePageState("desk.gate", 25);
+  const todayRead = useRead<{ items: Entry[]; total: number }>(
+    `/desk/gate-checkins?limit=${gatePage.pageSize}&offset=${gatePage.offset}`,
+    { keepPrevious: true },
+  );
   const today = todayRead.data?.items ?? null;
 
   const refocus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 0);
@@ -139,6 +145,7 @@ function Page() {
       title={t("Gate")}
       subtitle={t("Scan a member's code to let them in. Type a phone number only when the code can't be used.")}
     >
+      <PhotoBanner src={media.deskGate} focus="50% 30%" className="mb-4" />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
         <div className="grid content-start gap-4">
           <Card className="grid gap-3">
@@ -265,7 +272,7 @@ function Page() {
               {result.needs_override && pending ? (
                 <div className="grid gap-3 rounded-[var(--radius-md)] border border-line p-3">
                   <p className="text-sm">
-                    {t("There is no live plan, booking or class for them today. Let them in anyway only with a reason, it is recorded and the manager sees it.")}
+                    {t("There is no live plan, booking or class for them today. Let them in anyway only with a reason: it is recorded and the manager sees it.")}
                   </p>
                   <Field label={t("Reason")}>
                     <Select value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}>
@@ -329,6 +336,14 @@ function Page() {
             ))
           )}
         </div>
+        <Pagination
+          offset={gatePage.offset}
+          total={todayRead.data?.total ?? 0}
+          pageSize={gatePage.pageSize}
+          onChange={gatePage.setOffset}
+          onPageSizeChange={gatePage.setPageSize}
+          label={t("Check-in pages")}
+        />
       </div>
     </Shell>
   );
@@ -384,7 +399,7 @@ function CameraScanner({ onCode }: { onCode: (code: string) => void }) {
         };
         void loop();
       } catch {
-        toast.error(t("The camera is not available, use the scanner box instead."));
+        toast.error(t("The camera is not available. Use the scanner box instead."));
         setOn(false);
       }
     })();

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/manager/settings")({
 
 const FLAG_META: { key: string; label: string; hint: string }[] = [
   { key: "F4", label: tk("Register & session plans"), hint: tk("Coaches take attendance and hand out drills.") },
-  { key: "F5", label: tk("Plan suggestions"), hint: tk("Drill templates per sport, a coach still has to approve.") },
+  { key: "F5", label: tk("Plan suggestions"), hint: tk("Drill templates per sport. A coach still has to approve.") },
   { key: "F6", label: tk("Member assistant"), hint: tk("Gemini Q&A, grounded in the timetable, plans and coaches.") },
 ];
 
@@ -152,7 +152,7 @@ function Page() {
       )}
       <SectionTitle text={tk("Courts")} className="mb-1 font-display text-2xl" />
       <p className="mb-3 text-sm text-muted">
-        {t("Taking a court out of service stops new bookings on it. Anything already booked stays, the desk sorts those out.")}
+        {t("Taking a court out of service stops new bookings on it. Anything already booked stays, and the desk sorts those out.")}
       </p>
       <Courts />
 
@@ -252,7 +252,7 @@ function Page() {
                 body.open_time = String(s.open_time ?? "").slice(0, 5);
                 body.close_time = String(s.close_time ?? "").slice(0, 5);
                 setS(await apiPatch("/settings", body));
-                toast.success(t("Saved, new transactions use these now"));
+                toast.success(t("Saved: new transactions use these now"));
               } catch (e) {
                 if (e instanceof ApiClientError && e.body.field) {
                   setFieldErrors({ [e.body.field]: tServer(e.message) });
@@ -309,8 +309,8 @@ function Courts() {
       toast.success(
         status !== "ready" && res.upcoming > 0
           ? res.upcoming === 1
-            ? t("{code} → {label}. 1 booking still stands, tell the desk.", { code, label })
-            : t("{code} → {label}. {n} bookings still stand, tell the desk.", { code, label, n: res.upcoming })
+            ? t("{code} → {label}. 1 booking still stands. Tell the desk.", { code, label })
+            : t("{code} → {label}. {n} bookings still stand. Tell the desk.", { code, label, n: res.upcoming })
           : t("{code} → {label}", { code, label }),
       );
     } catch (e) {

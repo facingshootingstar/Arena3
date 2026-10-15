@@ -9,6 +9,8 @@ import { t } from "@/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 import { priceFor, wdLabel } from "./util";
+import { useVenue } from "./util";
+import { hoursOf } from "@/lib/venue";
 
 export type Picked = { court: GridCourt; hour: number };
 
@@ -38,6 +40,7 @@ export function ScheduleScene({
   onPick: (p: Picked | null) => void;
   prices: CatalogPrice[];
 }) {
+  const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
     if (motion && root.current) rise(root.current, "[data-rise]", { stagger: 0.07 });
@@ -52,7 +55,9 @@ export function ScheduleScene({
         <SplitHeading text={t("When is a court free?")} />
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("Every hour in the hall, exactly as it stands. Tap a free one and it is yours for five minutes while you sign in. No card up front, no phone call.")}
+        {t("Every hour in the hall, exactly as it stands. Tap a free one and it is yours for {n} minutes while you sign in. No card up front, no phone call.", {
+          n: venue.holdMinutes,
+        })}
       </p>
 
       <div className="mt-7 grid gap-3">
@@ -94,6 +99,8 @@ export function ScheduleScene({
           </div>
         ) : (
           <CourtGrid
+            startedIsPast
+            hours={hoursOf(venue)}
             date={sched.date}
             courts={sched.courts}
             slots={sched.slots}
@@ -129,6 +136,7 @@ function PickedCard({
   prices: CatalogPrice[];
   onClear: () => void;
 }) {
+  const venue = useVenue();
   const root = useRef<HTMLDivElement>(null);
   useScene(root, ({ motion }) => {
     const el = root.current;
@@ -152,7 +160,7 @@ function PickedCard({
           </p>
           <p className="mt-1 text-sm text-muted">
             {p ? t("{price} for the hour", { price: money(p) }) : t("Priced at the desk")} ·{" "}
-            {t("held five minutes once you sign in")}
+            {t("held {n} minutes once you sign in", { n: venue.holdMinutes })}
           </p>
         </div>
         <div data-pick-part className="flex flex-wrap gap-2">

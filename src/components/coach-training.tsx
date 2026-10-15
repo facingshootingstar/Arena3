@@ -434,8 +434,8 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
               : t("Copied {n} plans as drafts.", { n: r.copied })
           : skipped
             ? skipped === 1
-              ? t("Nothing copied, 1 session already planned, past or missing.")
-              : t("Nothing copied, {n} sessions already planned, past or missing.", { n: skipped })
+              ? t("Nothing copied: 1 session already planned, past or missing.")
+              : t("Nothing copied: {n} sessions already planned, past or missing.", { n: skipped })
             : t("Last week had no plans to copy."),
       );
       plansRead.reload();
@@ -459,8 +459,8 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
     <div>
       <SectionTitle text={t("Session plan")} className="font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">
-        {t("Plan this session block by block, what to do, how hard, with what, and what good looks like.")}{" "}
-        {f5 ? `${t("The AI only suggests, you decide what students see.")} ` : ""}
+        {t("Plan this session block by block: what to do, how hard, with what, and what good looks like.")}{" "}
+        {f5 ? `${t("The AI only suggests. You decide what students see.")} ` : ""}
         {t("Published plans appear under My progress for everyone in the class.")}
       </p>
       <Reveal>
@@ -469,7 +469,7 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hold/10 px-3 py-2 text-sm">
               <span>
                 {editing.published
-                  ? t("Editing “{title}”, students will be told it changed and the old version is kept.", {
+                  ? t("Editing “{title}”. Students will be told it changed and the old version is kept.", {
                       title: editing.title || t("plan"),
                     })
                   : t("Editing “{title}”.", { title: editing.title || t("plan") })}

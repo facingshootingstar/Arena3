@@ -108,7 +108,7 @@ export function PassCard({
       <div className="relative flex flex-col gap-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <span className="inline-block rounded-[var(--radius-sm)] border border-pass-fg/20 bg-accent px-2.5 py-1 text-xs font-bold text-accent-fg">
+            <span className="inline-block rounded-[var(--radius-sm)] border border-pass-fg/20 bg-volt/15 px-2.5 py-1 text-xs font-bold text-volt">
               {t("Membership pass")}
             </span>
             <p className="mt-3 font-display text-2xl tracking-tight">{plan}</p>
@@ -144,6 +144,13 @@ export function PassCard({
 }
 
 const BootReady = createContext<(() => void) | null>(null);
+// True once the cover is gone. Outside a BootGate there is no cover, so it is always open.
+const BootOpen = createContext(true);
+
+/** Whether the BootGate around this component has lifted, for intros that must be seen. */
+export function useBootOpen() {
+  return useContext(BootOpen);
+}
 
 /**
  * Covers the page until the hero video can play. The cover is a blank ground
@@ -171,9 +178,11 @@ export function BootGate({ children }: { children: ReactNode }) {
 
   return (
     <BootReady.Provider value={signal}>
-      <div aria-hidden={ready ? undefined : true} inert={ready ? undefined : true}>
-        {children}
-      </div>
+      <BootOpen.Provider value={ready}>
+        <div aria-hidden={ready ? undefined : true} inert={ready ? undefined : true}>
+          {children}
+        </div>
+      </BootOpen.Provider>
       {ready ? null : (
         <div className="fixed inset-0 z-[60] bg-bg" aria-busy="true">
           {slow ? (
@@ -321,82 +330,6 @@ export function HeroVideo({
 
 function secsLeft(until: string) {
   return Math.max(0, Math.floor((new Date(until).getTime() - Date.now()) / 1000));
-}
-
-/**
- * A hold, drawn as something running out.
- *
- * "We hold it for five minutes" is a promise the interface has to keep
- * visibly: a member who cannot see the time left does not know whether the
- * court is theirs, so they either rush a decision they should think about or
- * sit on an expired hold believing they are safe. The bar is the honest part —
- * a number counting down is read as a warning only once you are already
- * reading it, while a draining bar is seen without looking.
- *
- * The total is measured at mount rather than assumed to be five minutes, so
- * this stays right if the centre changes the hold window.
- */
-export function HoldProgress({
-  until,
-  onExpire,
-  className,
-}: {
-  until: string;
-  onExpire?: () => void;
-  className?: string;
-}) {
-  const [left, setLeft] = useState(() => secsLeft(until));
-  const total = useRef(0);
-  const fired = useRef(false);
-  const expireRef = useRef(onExpire);
-  expireRef.current = onExpire;
-
-  useEffect(() => {
-    fired.current = false;
-    total.current = Math.max(1, secsLeft(until));
-    const tick = () => {
-      const n = secsLeft(until);
-      setLeft(n);
-      if (n <= 0 && !fired.current) {
-        fired.current = true;
-        expireRef.current?.();
-      }
-    };
-    tick();
-    const id = setInterval(tick, 250);
-    return () => clearInterval(id);
-  }, [until]);
-
-  const pct = Math.max(0, Math.min(100, (left / (total.current || 1)) * 100));
-  // The last minute is the one where a member needs to be told, not informed.
-  const urgent = left <= 60;
-  const m = Math.floor(left / 60);
-  const s = String(left % 60).padStart(2, "0");
-
-  return (
-    <div className={className}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="kicker text-2xs text-muted">
-          {urgent ? "Hold expiring" : "Holding your court"}
-        </span>
-        <span
-          className={`font-display text-xl tabular-nums ${urgent ? "text-danger" : "text-accent-2"}`}
-          role="timer"
-          aria-live={urgent ? "polite" : "off"}
-        >
-          {m}:{s}
-        </span>
-      </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
-        <div
-          className={`h-full rounded-full transition-[width] duration-300 ease-linear ${
-            urgent ? "bg-danger" : "bg-accent"
-          }`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
 }
 
 export function HoldTimer({ until, onExpire }: { until: string; onExpire?: () => void }) {

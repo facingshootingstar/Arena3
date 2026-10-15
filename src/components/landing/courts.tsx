@@ -61,7 +61,10 @@ export function CourtsScene({
           const openNow = freeBySport(s.id);
           return (
             <div key={s.id} data-rise className="h-full">
-              <Card className="lift flex h-full flex-col overflow-hidden p-0">
+              <Card
+                className="lift flex h-full flex-col overflow-hidden p-0"
+                style={{ borderTop: `3px solid var(--color-sport-${s.id})` }}
+              >
                 <GlareHover>
                   <Cover
                     src={s.photo}
@@ -71,6 +74,12 @@ export function CourtsScene({
                     imgClassName="transition-transform duration-[900ms] ease-[var(--ease-smooth)] group-hover:scale-[1.07]"
                   >
                     <MediaCaption>
+                      <span
+                        className="mb-1.5 inline-flex items-center rounded-[var(--radius-pill)] px-2.5 py-0.5 text-2xs font-bold text-white shadow-sm"
+                        style={{ backgroundColor: `var(--color-sport-${s.id})` }}
+                      >
+                        {sportLabel(s.id)}
+                      </span>
                       <p className="athletic text-3xl sm:text-4xl">{sportLabel(s.id)}</p>
                       <p className="mt-1 text-sm text-on-media-muted">
                         {s.count === 1

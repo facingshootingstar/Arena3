@@ -8,6 +8,7 @@ import {
   issueInvoice,
   nextCode,
   num,
+  pageOf,
   readJson,
   str,
 } from "../helpers";
@@ -17,6 +18,7 @@ import { applyDiscount, lookupPrice, memberDiscount } from "../pricing";
 import { requireRole, type PublicUser } from "../session";
 import { ictClock, ictDateString, ictDateTime, ictStamp, roundVnd } from "../time";
 import { one } from "../tx";
+import { pageParams } from "../validate";
 import { bookingsCancel } from "./bookings";
 
 /**
@@ -314,25 +316,30 @@ export async function seriesCreate(sql: Sql, request: Request, user: PublicUser)
   };
 }
 
-export async function seriesList(sql: Sql, user: PublicUser) {
+export async function seriesList(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["receptionist", "manager", "member"]);
   const mine = user.role === "member";
-  const items = await sql.query(
+  const { limit, offset } = pageParams(request, { def: 100, max: 100 });
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select s.id, s.code, s.weekday, s.start_local::text as start_local, s.weeks, s.starts_on::text as starts_on,
             s.discount_pct, s.status, c.court_code,
             coalesce(u.full_name, s.guest_name) as customer, coalesce(u.phone, s.guest_phone) as phone,
             (select count(*)::int from court_bookings b where b.series_id = s.id and b.status in ('confirmed','in_use') and b.start_at > now()) as remaining,
             (select count(*)::int from court_bookings b where b.series_id = s.id and b.status in ('confirmed','in_use','completed')) as booked,
-            (select min(b.start_at) from court_bookings b where b.series_id = s.id and b.status = 'confirmed' and b.start_at > now()) as next_at
+            (select min(b.start_at) from court_bookings b where b.series_id = s.id and b.status = 'confirmed' and b.start_at > now()) as next_at,
+            count(*) over ()::int as total
        from booking_series s
        join courts c on c.id = s.court_id
        left join users u on u.id = s.user_id
       where ($1::uuid is null or s.user_id = $1)
       order by s.status, s.created_at desc
-      limit 100`,
-    [mine ? user.id : null],
+      limit $2 offset $3`,
+    [mine ? user.id : null, limit, offset],
   );
-  return { status: 200, body: { items } };
+  const body = await pageOf(rows, { limit, offset }, async () =>
+    ((await one<{ n: number }>(sql, `select count(*)::int as n from booking_series where ($1::uuid is null or user_id = $1)`, [mine ? user.id : null]))?.n ?? 0),
+  );
+  return { status: 200, body };
 }
 
 /**
@@ -405,16 +412,22 @@ export async function loyaltyBalance(sql: Sql, userId: string) {
   };
 }
 
-export async function meLoyalty(sql: Sql, user: PublicUser) {
+/** The balance, and the history a page at a time (`?limit=&offset=`, newest first). */
+export async function meLoyalty(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["member"]);
+  const { limit, offset } = pageParams(request, { def: 30, max: 100 });
   const bal = await loyaltyBalance(sql, user.id);
-  const history = await sql.query(
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select id, points, reason, note, created_at, promo_id,
-            (select code from promotions p where p.id = la.promo_id) as promo_code
-       from loyalty_adjustments la where user_id = $1 order by created_at desc limit 30`,
-    [user.id],
+            (select code from promotions p where p.id = la.promo_id) as promo_code,
+            count(*) over ()::int as total
+       from loyalty_adjustments la where user_id = $1 order by created_at desc limit $2 offset $3`,
+    [user.id, limit, offset],
   );
-  return { status: 200, body: { ...bal, history } };
+  const page = await pageOf(rows, { limit, offset }, async () =>
+    ((await one<{ n: number }>(sql, `select count(*)::int as n from loyalty_adjustments where user_id = $1`, [user.id]))?.n ?? 0),
+  );
+  return { status: 200, body: { ...bal, history: page.items, history_total: page.total, limit, offset } };
 }
 
 export async function memberLoyalty(sql: Sql, memberId: string, user: PublicUser) {
@@ -659,17 +672,25 @@ async function syncCourtBlock(sql: Sql, courtId: string | null) {
 export async function workOrdersList(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["receptionist", "manager", "coach"]);
   const status = new URL(request.url).searchParams.get("status");
-  const items = await sql.query(
+  // "active" is the desk's default view: open or in progress.
+  const statusFilter = status === "active" || (status && WO_STATUS.includes(status)) ? status : null;
+  const { limit, offset } = pageParams(request, { def: 200, max: 200 });
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select w.id, w.code, w.court_id, c.court_code, w.title, w.description, w.priority, w.status, w.blocks_court,
-            w.assignee, w.cost_vnd, w.resolution, w.created_at, w.closed_at, u.full_name as reporter
+            w.assignee, w.cost_vnd, w.resolution, w.created_at, w.closed_at, u.full_name as reporter,
+            count(*) over ()::int as total
        from work_orders w
        left join courts c on c.id = w.court_id
        left join users u on u.id = w.reported_by
-      where ($1::text is null or w.status = $1)
+      where ($1::text is null or w.status = $1 or ($1 = 'active' and w.status in ('open','in_progress')))
       order by (w.status in ('done','cancelled')), (w.priority = 'urgent') desc, w.created_at desc
-      limit 200`,
-    [status && WO_STATUS.includes(status) ? status : null],
+      limit $2 offset $3`,
+    [statusFilter, limit, offset],
   );
+  const page = await pageOf(rows, { limit, offset }, async () =>
+    ((await one<{ n: number }>(sql, `select count(*)::int as n from work_orders where ($1::text is null or status = $1 or ($1 = 'active' and status in ('open','in_progress')))`, [statusFilter]))?.n ?? 0),
+  );
+  const items = page.items;
   const sum = await one<{ open: number; urgent: number; cost: number }>(
     sql,
     `select count(*) filter (where status in ('open','in_progress'))::int as open,
@@ -677,7 +698,10 @@ export async function workOrdersList(sql: Sql, request: Request, user: PublicUse
             coalesce(sum(cost_vnd) filter (where status = 'done' and closed_at >= date_trunc('month', now())), 0)::int as cost
        from work_orders`,
   );
-  return { status: 200, body: { items, open: sum?.open ?? 0, urgent: sum?.urgent ?? 0, cost_month_vnd: sum?.cost ?? 0 } };
+  return {
+    status: 200,
+    body: { items, total: page.total, limit, offset, open: sum?.open ?? 0, urgent: sum?.urgent ?? 0, cost_month_vnd: sum?.cost ?? 0 },
+  };
 }
 
 export async function workOrdersCreate(sql: Sql, request: Request, user: PublicUser) {
@@ -859,13 +883,14 @@ function rangeFromRequest(request: Request) {
 export async function invoiceExportList(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const { from, to } = rangeFromRequest(request);
+  const { limit, offset } = pageParams(request, { def: 500, max: 500 });
   const items = await sql.query(
     `select i.id, i.code, i.issued_at::text as issued_at, i.buyer_name, i.buyer_tax_code, i.total_vnd, i.vat_vnd,
             i.exported_at::text as exported_at, p.status::text as status
        from invoices i join payments p on p.id = i.payment_id
       where (i.issued_at at time zone 'Asia/Ho_Chi_Minh')::date between $1::date and $2::date
-      order by i.issued_at desc limit 500`,
-    [from, to],
+      order by i.issued_at desc limit $3 offset $4`,
+    [from, to, limit, offset],
   );
   const sum = await one<{ n: number; total: number; vat: number; pending: number }>(
     sql,
@@ -874,7 +899,8 @@ export async function invoiceExportList(sql: Sql, request: Request, user: Public
        from invoices where (issued_at at time zone 'Asia/Ho_Chi_Minh')::date between $1::date and $2::date`,
     [from, to],
   );
-  return { status: 200, body: { from, to, items, ...sum } };
+  // `n` is the row count to page through; `total` in the summary is money (the sum of totals).
+  return { status: 200, body: { from, to, items, limit, offset, ...sum } };
 }
 
 export async function invoiceExport(sql: Sql, request: Request, user: PublicUser) {

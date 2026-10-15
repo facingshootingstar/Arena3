@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import { flagsMap, requireFlag, type FlagKey } from "../flags";
-import { audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, readJson, str } from "../helpers";
+import { audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
@@ -13,12 +13,17 @@ import { openShift, pickMethod } from "./extras";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
 import { payosConfigured } from "../payos";
-import { parseInteger } from "../validate";
+import { centreBank } from "../bank";
+import { pageParams, parseInteger } from "../validate";
 
 export async function flagsGet(sql: Sql) {
+  const settings = await getSettings(sql);
   return {
     status: 200,
     body: {
+      // Opening hours and the hold length as the manager set them, for the copy and grids that
+      // used to write "06:00-22:00" and "five minutes" in by hand. Not personal, not secret.
+      venue: { open_time: settings.open_time, close_time: settings.close_time, hold_minutes: settings.hold_minutes },
       flags: await flagsMap(sql),
       /*
        * Whether online payment can be offered at all.
@@ -29,8 +34,23 @@ export async function flagsGet(sql: Sql) {
        * only the answer crosses the wire; the keys themselves never leave the
        * server.
        */
-      capabilities: { online_payment: payosConfigured() },
+      capabilities: { online_payment: payosConfigured(), bank_transfer: centreBank() !== null },
     },
+  };
+}
+
+/**
+ * The centre's bank account for a VietQR transfer, for signed-in people only: the booking card
+ * shows it to the member who is paying, the desk box to the customer at the counter.
+ */
+export async function bankTransferGet(user: PublicUser) {
+  requireRole(user, ["member", "receptionist", "manager"]);
+  const bank = centreBank();
+  return {
+    status: 200,
+    body: bank
+      ? { configured: true, bin: bank.bin, account_no: bank.accountNo, account_name: bank.accountName, bank_name: bank.bankName }
+      : { configured: false },
   };
 }
 
@@ -670,18 +690,22 @@ export async function ticketsCreate(sql: Sql, request: Request, user: PublicUser
  * desk replies would mean the reply is only ever seen if the member happens to
  * be looking when the notification lands.
  */
-export async function ticketsMine(sql: Sql, user: PublicUser) {
-  const items = await sql.query(
+export async function ticketsMine(sql: Sql, request: Request, user: PublicUser) {
+  const { limit: take, offset } = pageParams(request, { def: 50, max: 100 });
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select t.id, t.body, t.status, t.created_at, t.reply, t.replied_at,
-            s.full_name as replied_by_name
+            s.full_name as replied_by_name, count(*) over ()::int as total
        from tickets t
        left join users s on s.id = t.replied_by
       where t.user_id = $1
       order by t.created_at desc
-      limit 50`,
-    [user.id],
+      limit $2 offset $3`,
+    [user.id, take, offset],
   );
-  return { status: 200, body: { items } };
+  const body = await pageOf(rows, { limit: take, offset }, async () =>
+    ((await one<{ n: number }>(sql, `select count(*)::int as n from tickets where user_id = $1`, [user.id]))?.n ?? 0),
+  );
+  return { status: 200, body };
 }
 
 export async function ticketsList(sql: Sql, request: Request, user: PublicUser) {
@@ -689,19 +713,23 @@ export async function ticketsList(sql: Sql, request: Request, user: PublicUser) 
   // The desk works the open queue, but wants to be able to read back what it
   // told somebody last week without opening the database.
   const all = new URL(request.url).searchParams.get("status") === "all";
-  const items = await sql.query(
+  const { limit: take, offset } = pageParams(request, { def: 50, max: 100 });
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select t.id, t.body, t.status, t.created_at, t.reply, t.replied_at,
             u.full_name, u.phone, u.member_code,
-            s.full_name as replied_by_name
+            s.full_name as replied_by_name, count(*) over ()::int as total
        from tickets t
        left join users u on u.id = t.user_id
        left join users s on s.id = t.replied_by
       where ($1::bool or t.status = 'open')
       order by t.status = 'open' desc, t.created_at desc
-      limit 50`,
-    [all],
+      limit $2 offset $3`,
+    [all, take, offset],
   );
-  return { status: 200, body: { items } };
+  const body = await pageOf(rows, { limit: take, offset }, async () =>
+    ((await one<{ n: number }>(sql, `select count(*)::int as n from tickets where ($1::bool or status = 'open')`, [all]))?.n ?? 0),
+  );
+  return { status: 200, body };
 }
 
 /**

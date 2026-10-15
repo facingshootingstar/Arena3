@@ -135,7 +135,7 @@ function Page() {
     <Shell
       role="receptionist"
       title={t("Gear")}
-      subtitle={t("Rent to a member's account or to a guest by phone, stock comes down on the way out, back up on return.")}
+      subtitle={t("Rent to a member's account or to a guest by phone. The hire is charged to the till, stock comes down on the way out and back up on return.")}
     >
       {equipmentRead.error ? (
         <div className="mb-4">

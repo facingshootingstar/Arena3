@@ -33,8 +33,8 @@ import { useCalm } from "@/lib/calm";
  *
  * Every primitive here degrades to a plain, fully-visible element when the
  * visitor asks for reduced motion — content never depends on an animation
- * having run. (The pause button in `@/lib/calm` does not swap elements: see
- * `MotionProvider`.)
+ * having run. (`useCalm()` in `@/lib/calm` follows the same device setting live
+ * without swapping elements: see `MotionProvider`.)
  */
 
 /**
@@ -53,27 +53,13 @@ export function useReducedMotionAfterMount(): boolean {
   return mounted && !!reduced;
 }
 
-/** Set by the app shell: scroll reveals and cascades render statically below it. */
-const QuietCtx = createContext(false);
-
-export function QuietMotion({ children }: { children: ReactNode }) {
-  return <QuietCtx.Provider value>{children}</QuietCtx.Provider>;
-}
-
-/** Still when the device asks for reduced motion, or anywhere inside the signed-in app. */
-function useStill() {
-  const reduced = useReducedMotionAfterMount();
-  const quiet = useContext(QuietCtx);
-  return reduced || quiet;
-}
-
 export const EASE_SMOOTH = [0.22, 1, 0.36, 1] as const;
 export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 /** Wrap a subtree so every nested transition shares the house easing. */
 export function MotionProvider({ children }: { children: ReactNode }) {
-  // "always" is what the pause button asks for; "user" leaves it to the device setting. Slides
-  // become fades either way and nothing remounts, so pressing the button never costs typed text.
+  // "always" once the device asks for reduced motion (read live by useCalm), "user" otherwise.
+  // Slides become fades and nothing remounts, so the setting changing never costs typed text.
   const calm = useCalm();
   return (
     <MotionConfig reducedMotion={calm ? "always" : "user"} transition={{ duration: 0.5, ease: EASE_SMOOTH }}>
@@ -107,7 +93,7 @@ export function Reveal({
   repeat = false,
   as = "div",
 }: RevealProps) {
-  const reduced = useStill();
+  const reduced = useReducedMotionAfterMount();
   const Tag = motion[as as "div"] ?? motion.div;
 
   const offset =
@@ -174,7 +160,7 @@ export function Stagger({
   delay?: number;
   gap?: number;
 }) {
-  const reduced = useStill();
+  const reduced = useReducedMotionAfterMount();
   const ref = useRef<HTMLDivElement>(null);
   // `amount: 0` because most of these lists are filled by a fetch: the
   // container is empty and therefore zero-height when the observer first
@@ -220,7 +206,7 @@ export function StaggerItem({
   className,
   ...rest
 }: { children: ReactNode; className?: string } & MotionProps) {
-  const reduced = useStill();
+  const reduced = useReducedMotionAfterMount();
   const { inView, delay } = useContext(StaggerCtx);
   if (reduced) return <div className={className}>{children}</div>;
   return (

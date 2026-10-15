@@ -132,9 +132,9 @@ export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
                   <p className="kicker text-2xs text-muted">{sportLabel(c.sport)}</p>
                   <p className="font-display text-xl">{levelLabel(c.level)}</p>
                   <p className="text-sm text-muted">
-                    {c.coach_name} · {c.court_code} · {c.duration_min}′
+                    {c.coach_name} · {c.court_code}
                   </p>
-                  <p className="text-sm">{rruleLabel(c.rrule)}</p>
+                  <p className="text-sm">{rruleLabel(c.rrule, c.duration_min)}</p>
                   <div className="mt-2.5 flex items-center gap-2">
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-wood">
                       <span

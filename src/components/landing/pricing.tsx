@@ -7,17 +7,18 @@ import { sportLabel } from "@/lib/arena3/labels";
 import { gsap, useScene } from "@/lib/gsap";
 import { t } from "@/lib/i18n";
 import { rise } from "./tweens";
-import { CLOSE_HOUR, OPEN_HOUR } from "./util";
+import { useVenue } from "./util";
 
 /**
  * Peak and off-peak, shown as a day rather than only told.
  *
- * Above the price table sits the opening day, 06:00 to 22:00, drawn from the centre's own price
+ * Above the price table sits the opening day (the centre's hours from its settings), drawn from its price
  * sheet: the off-peak stretch fills first, then the peak stretch in the accent colour, and a
  * light runs along it once. "Off-peak until 17:00" becomes something you can see at a glance.
  */
 export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
   const root = useRef<HTMLElement>(null);
+  const { open: OPEN_HOUR, close: CLOSE_HOUR } = useVenue();
   const peakRule = weekday.find((p) => p.is_peak);
   const peakFrom = peakRule ? Number(peakRule.start_local.slice(0, 2)) : 17;
   const peakTo = peakRule ? Number(peakRule.end_local.slice(0, 2)) : CLOSE_HOUR;

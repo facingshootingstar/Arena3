@@ -101,7 +101,7 @@ export const getPublicAvailability = createServerFn({ method: "POST" })
 export const getPublicCatalog = createServerFn({ method: "POST" }).handler(async () => {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
-  const [plans, classes, prices] = await Promise.all([
+  const [plans, classes, prices, venueRows] = await Promise.all([
     sql.query<CatalogPlan>(
       `select id, name, sport_scope, duration_days, session_quota, court_hours,
               court_discount_pct, price_vnd
@@ -128,6 +128,10 @@ export const getPublicCatalog = createServerFn({ method: "POST" }).handler(async
          from price_rules
         order by sport, day_kind, start_local`,
     ),
+    sql.query<{ open_time: string; close_time: string; hold_minutes: number }>(
+      `select open_time::text, close_time::text, hold_minutes from center_settings where id = 1`,
+    ),
   ]);
-  return { plans, classes, prices };
+  // Opening hours and hold length for the landing's copy and grid (see src/lib/venue.ts).
+  return { plans, classes, prices, venue: venueRows[0] ?? null };
 });

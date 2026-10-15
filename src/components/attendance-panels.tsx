@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePageState } from "@/lib/use-page-state";
 import { toast } from "sonner";
 import {
   Badge,
@@ -194,7 +195,6 @@ const outcomeLabel = (v: string) => {
   return l ? t(l) : v;
 };
 
-const RISK_PAGE = 20;
 type RiskKind = "streak" | "idle" | "expiring";
 type RiskFilter = "todo" | "done" | "all" | RiskKind;
 type RiskSort = "priority" | "plan_end" | "last_seen" | "name";
@@ -224,7 +224,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
   const [filter, setFilter] = useState<RiskFilter>("todo");
   const [sort, setSort] = useState<RiskSort>("priority");
   const [q, setQ] = useState("");
-  const [offset, setOffset] = useState(0);
+  const { offset, setOffset, pageSize, setPageSize, reset } = usePageState("at-risk", 25);
   const top = useRef<HTMLDivElement>(null);
 
   const [loadError, setLoadError] = useState<ReadError | null>(null);
@@ -296,8 +296,8 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
   }, [items, filter, sort, q]);
 
   // A new search, filter or sort starts from the first page; a stale offset would show an empty one.
-  useEffect(() => setOffset(0), [filter, sort, q]);
-  const page = shown.slice(offset, offset + RISK_PAGE);
+  useEffect(reset, [filter, sort, q, reset]);
+  const page = shown.slice(offset, offset + pageSize);
   const goTo = (o: number) => {
     setOffset(o);
     top.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
@@ -422,7 +422,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
               ))}
             </ul>
           </Card>
-          <Pagination offset={offset} total={shown.length} pageSize={RISK_PAGE} onChange={goTo} />
+          <Pagination offset={offset} total={shown.length} pageSize={pageSize} onChange={goTo} onPageSizeChange={setPageSize} label={t("At-risk pages")} />
         </>
       )}
 

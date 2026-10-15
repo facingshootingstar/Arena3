@@ -1,4 +1,4 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { useRetryKey } from "@/lib/connection";
 import { LangProvider, t } from "@/lib/i18n";
@@ -55,9 +55,9 @@ export const Route = createRootRoute({
         <AuthProvider>
           <LangProvider>
             <SkipLink />
-            {/* One shared canvas for click feedback across every route; it parks
-                its rAF loop whenever there is nothing left to draw. */}
-            <ClickSpark />
+            {/* Click feedback on the public pages only; it parks its rAF loop whenever there is
+                nothing left to draw. */}
+            <PublicClickSpark />
             <RetryOutlet />
           </LangProvider>
           {/* Below the 56px header on both sizes: sonner's phone default of 16px sat on top of it, and
@@ -83,3 +83,15 @@ export const Route = createRootRoute({
     </html>
   ),
 });
+
+/**
+ * The working screens (member, desk, coach, manager) are tools used many times a day, and the
+ * review asked for fewer effects there (X-4). The spark stays where it greets people: the
+ * landing, sign-in, sign-up and the public pages.
+ */
+const WORK_PREFIXES = ["/app", "/desk", "/manager", "/coach", "/account", "/alerts"];
+function PublicClickSpark() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (WORK_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
+  return <ClickSpark />;
+}

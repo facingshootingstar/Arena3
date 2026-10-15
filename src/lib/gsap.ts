@@ -42,7 +42,7 @@ if (client) {
 export { gsap, ScrollTrigger, useGSAP };
 
 export type SceneFlags = {
-  /** Animate at all. False under reduced motion or the pause button: show the end state instead. */
+  /** Animate at all. False under reduced motion: show the end state instead. */
   motion: boolean;
   /** Wide enough for pinning and sideways scrubbing (768px and up). */
   desktop: boolean;
@@ -85,6 +85,6 @@ export function useScene(
   );
 }
 
-/** `true` when nothing may move by itself: the device asked, or the person pressed pause. */
+/** `true` when nothing may move by itself: the device asked for reduced motion. */
 export const motionOff = (calm: boolean) =>
   calm || (client && window.matchMedia(QUERIES.reduce).matches);

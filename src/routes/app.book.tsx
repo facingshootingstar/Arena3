@@ -1,19 +1,25 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Landmark, Receipt as ReceiptIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Landmark } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
 import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
-import { HoldProgress, HoldTimer } from "@/components/media";
+import { Cover, HoldTimer, MediaCaption, media, sportPhoto } from "@/components/media";
+import { HoldCountdown } from "@/components/moments/hold-countdown";
+import { PaidMark, ScrambleCode } from "@/components/moments/paid";
+import { SportGlyph } from "@/components/moments/sport-glyph";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
+import { MemberTransferModal, useCentreBank, type CentreBank } from "@/components/transfer-qr-modal";
 import { Shell, money, when } from "@/components/shell";
 import { Button, Card, DateField, Input, LoadError, Seg, Skeleton, StatusBadge } from "@/components/ui";
+import { GlareHover, StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
 import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
 
 export const Route = createFileRoute("/app/book")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
@@ -28,9 +34,10 @@ function nearestFree(
   wanted: Court,
   hour: number,
   date: string,
+  hours: readonly number[],
 ) {
   const sameSport = data.courts.filter((c) => c.sport === wanted.sport);
-  return freeHours(sameSport, data.slots, date, Date.now())
+  return freeHours(sameSport, data.slots, date, Date.now(), true, hours)
     .sort(
       (a, b) =>
         Math.abs(a.hour - hour) - Math.abs(b.hour - hour) ||
@@ -67,6 +74,8 @@ type Hold = {
   court_code?: string;
   hour?: number;
   promo?: { code: string; name: string; discount_vnd: number } | null;
+  /** Court hours on a plan that covers this sport and is live today (BR-12, BR-13). */
+  plan_hours_left?: number;
 };
 
 /** A hold that was refused, and — when another hour would help — where to go instead. */
@@ -119,16 +128,26 @@ function Page() {
   // Leave the online button out entirely when the centre has no payOS set up,
   // rather than offering one that errors.
   const [onlineOn, setOnlineOn] = useState(false);
+  // The centre's hours and hold length come with the same answer, for the grid and the copy.
+  const [venue, setVenue] = useState<Venue>(DEFAULT_VENUE);
   useEffect(() => {
-    void apiGet<{ capabilities?: { online_payment?: boolean } }>("/flags")
-      .then((r) => setOnlineOn(Boolean(r.capabilities?.online_payment)))
+    void apiGet<{ capabilities?: { online_payment?: boolean }; venue?: VenueRaw }>("/flags")
+      .then((r) => {
+        setOnlineOn(Boolean(r.capabilities?.online_payment));
+        setVenue(venueFrom(r.venue));
+      })
       .catch(() => setOnlineOn(false));
   }, []);
   // Sticks around after the toast has gone. A receipt people paid for should
   // not be something you have four seconds to notice.
   const [receipt, setReceipt] = useState<string | null>(null);
   // A transfer the member has promised but reception has not yet found.
-  const [pending, setPending] = useState<{ amount: number; until: string } | null>(null);
+  const [pending, setPending] = useState<{ amount: number; until: string; code: string } | null>(null);
+  // The centre's own account for VietQR. Without one the transfer option is left out entirely,
+  // rather than asking for money with nowhere to send it (B-5).
+  const { bank } = useCentreBank();
+  const bankOn = bank?.configured === true;
+  const [transferOpen, setTransferOpen] = useState<"hold" | "pending" | null>(null);
 
   /** Ask again for the day on screen and for everything counted from it. */
   function load() {
@@ -234,7 +253,7 @@ function Page() {
         if (aboutTheSlot) reload();
         setTaken({
           message,
-          alts: fresh ? nearestFree(fresh, court, hour, date) : [],
+          alts: fresh ? nearestFree(fresh, court, hour, date, hoursOf(venue)) : [],
           canRetry: aboutTheSlot,
         });
       }
@@ -261,7 +280,7 @@ function Page() {
       // be the app telling a member their court is theirs while reception has
       // not found a single dong of it in the bank.
       if (res.awaiting_transfer) {
-        setPending({ amount: hold.due_now_vnd ?? hold.price, until: res.hold_until ?? hold.hold_until });
+        setPending({ amount: hold.due_now_vnd ?? hold.price, until: res.hold_until ?? hold.hold_until, code: hold.booking.code });
         toast.success(t("Transfer noted"), {
           description: t("Your court is held while reception checks the bank."),
         });
@@ -322,7 +341,7 @@ function Page() {
                   {t("Change time")}
                 </button>
               ) : b.status === "confirmed" ? (
-                <span className="text-xs text-muted">{t("Within {n}h, can't move", { n: windowHours })}</span>
+                <span className="text-xs text-muted">{t("Within {n}h: can't move", { n: windowHours })}</span>
               ) : null}
               {b.status === "confirmed" || b.status === "hold" ? (
                 <button type="button" onClick={() => setCancelId(b.id)} className="hit text-sm text-muted hover:text-danger">
@@ -346,7 +365,22 @@ function Page() {
   ) : null;
 
   return (
-    <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for five minutes while you pay.")}>
+    <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for {n} minutes while you pay.", { n: venue.holdMinutes })}>
+      <GlareHover className="mb-4 block rounded-[var(--radius-xl)]" duration={1.1}>
+        <Cover
+          src={sport ? sportPhoto(sport) : media.hallCourts}
+          alt=""
+          scrim="none"
+          className="h-32 rounded-[var(--radius-xl)] md:h-40"
+        >
+          <MediaCaption>
+            <p className="font-display text-2xl">
+              <SportGlyph sport={sport || "all"} className="mr-2.5 inline-block size-8 align-[-0.3em]" />
+              {t("{sport} · 60′ slots", { sport: sport ? sportLabel(sport) : t("All 3 sports") })}
+            </p>
+          </MediaCaption>
+        </Cover>
+      </GlareHover>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="min-w-0">
           <div className="grid gap-3">
@@ -418,7 +452,7 @@ function Page() {
             {moving ? (
               <Card className="mt-4 border border-accent/30 bg-accent/5">
                 <p className="text-sm font-medium">
-                  {t("Moving {code}, now {court}, {when}", {
+                  {t("Moving {code} (now {court}, {when})", {
                     code: moving.code,
                     court: moving.court_code,
                     when: when(moving.start_at),
@@ -454,7 +488,7 @@ function Page() {
                       <Landmark className="size-5 shrink-0 text-hold" strokeWidth={1.75} />
                       <div className="min-w-[12rem] flex-1">
                         <p className="text-sm font-medium">
-                          {t("Transfer {amount}, your court is held meanwhile.", { amount: money(pending.amount) })}
+                          {t("Transfer {amount}. Your court is held meanwhile.", { amount: money(pending.amount) })}
                         </p>
                         <p className="text-xs text-muted">
                           {heldBefore}
@@ -462,6 +496,11 @@ function Page() {
                           {heldAfter}
                         </p>
                       </div>
+                      {bankOn ? (
+                        <Button size="sm" variant="outline" onClick={() => setTransferOpen("pending")}>
+                          {t("Transfer details")}
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="ghost" onClick={() => setPending(null)} aria-label={t("Dismiss")}>
                         {t("Got it")}
                       </Button>
@@ -477,9 +516,9 @@ function Page() {
                   className="overflow-hidden"
                 >
                   <Card className="mt-4 flex flex-wrap items-center gap-3 border border-accent/30 bg-accent/5">
-                    <ReceiptIcon className="size-5 shrink-0 text-accent" strokeWidth={1.75} />
+                    <PaidMark />
                     <div className="min-w-[10rem] flex-1">
-                      <p className="text-sm font-medium">{t("Booking confirmed, your receipt is ready.")}</p>
+                      <p className="text-sm font-medium">{t("Booking confirmed. Your receipt is ready.")}</p>
                       <p className="text-xs text-muted">
                         {keptBefore}
                         <Link to="/account" className="text-accent-2 underline">
@@ -523,7 +562,7 @@ function Page() {
                     ) : taken.alts.length ? (
                       <>
                         <p className="mt-1 text-xs text-muted">
-                          {t("Nearest hours still open on this sport, tap one to hold it.")}
+                          {t("Nearest hours still open on this sport. Tap one to hold it.")}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {taken.alts.map((a) => (
@@ -567,7 +606,7 @@ function Page() {
                   <Card className="mt-4 border border-hold/30 bg-hold/5" role="alert">
                     <p className="text-sm">{overlap.message}</p>
                     <p className="mt-1 text-xs text-muted">
-                      {t("Your class enrolment stays put, this is only a clash warning.")}
+                      {t("Your class enrolment stays put. This is only a clash warning.")}
                     </p>
                     <div className="mt-3 flex gap-2">
                       <Button
@@ -602,16 +641,20 @@ function Page() {
                     you look away, so scrolling the grid for another court must not push it off screen. */}
                 <Card className="flex flex-wrap items-center justify-between gap-4 border border-accent/40 shadow-[var(--shadow-soft)]">
                   <div className="min-w-[13rem] flex-1">
-                    <HoldProgress until={hold.hold_until} onExpire={() => setHold(null)} />
+                    <HoldCountdown until={hold.hold_until} onExpire={() => setHold(null)} />
                     <p className="mt-2 text-sm text-muted">
                       {hold.court_code ? (
                         <span className="font-semibold text-fg">
                           {hold.court_code}
                           {hold.hour != null ? ` · ${String(hold.hour).padStart(2, "0")}:00` : ""}
                         </span>
-                      ) : (
-                        <span className="font-semibold text-fg">{hold.booking.code}</span>
-                      )}{" "}
+                      ) : null}{" "}
+                      {/* The booking code is born here; it decodes into place. */}
+                      {hold.booking.code ? (
+                        <>
+                          · <ScrambleCode code={hold.booking.code} className="text-xs text-subtle" />{" "}
+                        </>
+                      ) : null}
                       · <span className="text-lg font-semibold tabular-nums text-fg">{money(hold.price)}</span>
                       {hold.promo ? (
                         <span className="ml-2 text-xs text-accent-2">
@@ -628,34 +671,94 @@ function Page() {
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button disabled={busy} onClick={() => void confirmPay("quota")}>
-                      {t("Use plan hours")}
-                    </Button>
-                    {/* Online payment settles the slot at once (payOS confirms the money first). A bank
-                        transfer only promises it: the court stays on hold until reception finds it. */}
-                    {onlineOn ? (
-                      <PayOnlineButton
-                        refType="booking"
-                        refId={hold.booking.id}
-                        label={t("Pay online")}
-                        size="md"
-                        variant="outline"
-                        onPaid={() => {
-                          setHold(null);
-                          load();
-                          toast.success(t("Paid, your court is confirmed and the receipt is in your account."));
-                        }}
-                      />
-                    ) : null}
-                    <Button variant="outline" disabled={busy} onClick={() => void confirmPay("transfer")}>
-                      {t("Bank transfer")}
-                    </Button>
-                  </div>
+                  {(() => {
+                    // Only the ways this member can actually pay are offered (B-4), and only the first
+                    // of them, the one most people take, gets the bright border.
+                    const hours = hold.plan_hours_left ?? 0;
+                    const primary = hours >= 1 ? "quota" : onlineOn ? "online" : bankOn ? "transfer" : null;
+                    const lift = (key: string, node: ReactNode) =>
+                      key === primary ? <StarBorder speed={4} key={key}>{node}</StarBorder> : <span key={key}>{node}</span>;
+                    if (!primary) {
+                      return (
+                        <p className="max-w-sm text-sm text-muted">
+                          {t("Paying in the app is not set up yet. Book this court at the front desk instead.")}
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {hours >= 1
+                          ? lift(
+                              "quota",
+                              <Button disabled={busy} onClick={() => void confirmPay("quota")}>
+                                {t("Use plan hours ({n} left)", { n: hours })}
+                              </Button>,
+                            )
+                          : null}
+                        {/* Online payment settles the slot at once (payOS confirms the money first). A bank
+                            transfer only promises it: the court stays on hold until reception finds it. */}
+                        {onlineOn
+                          ? lift(
+                              "online",
+                              <PayOnlineButton
+                                refType="booking"
+                                refId={hold.booking.id}
+                                label={t("Pay online")}
+                                size="md"
+                                variant={primary === "online" ? "primary" : "outline"}
+                                onPaid={() => {
+                                  setHold(null);
+                                  load();
+                                  toast.success(t("Paid. Your court is confirmed and the receipt is in your account."));
+                                }}
+                              />,
+                            )
+                          : null}
+                        {/* Opens the account, QR and reference first; "I have transferred" comes after. */}
+                        {bankOn
+                          ? lift(
+                              "transfer",
+                              <Button
+                                variant={primary === "transfer" ? "primary" : "outline"}
+                                disabled={busy}
+                                onClick={() => setTransferOpen("hold")}
+                              >
+                                {t("Bank transfer")}
+                              </Button>,
+                            )
+                          : null}
+                      </div>
+                    );
+                  })()}
                 </Card>
               </motion.div>
             ) : null}
           </AnimatePresence>
+
+          {bankOn && transferOpen === "hold" && hold ? (
+            <MemberTransferModal
+              open
+              onClose={() => setTransferOpen(null)}
+              bank={bank as CentreBank & { configured: true }}
+              amountVnd={hold.due_now_vnd ?? hold.price}
+              bookingCode={hold.booking.code}
+              busy={busy}
+              onTransferred={() => {
+                setTransferOpen(null);
+                void confirmPay("transfer");
+              }}
+            />
+          ) : null}
+          {bankOn && transferOpen === "pending" && pending ? (
+            <MemberTransferModal
+              open
+              onClose={() => setTransferOpen(null)}
+              bank={bank as CentreBank & { configured: true }}
+              amountVnd={pending.amount}
+              bookingCode={pending.code}
+              busy={false}
+            />
+          ) : null}
 
           <div className="mt-4">
             {error ? (
@@ -667,6 +770,11 @@ function Page() {
                 slots={data.slots}
                 sport={sport || undefined}
                 onPick={(c, h) => void (moving ? moveTo(c, h) : holdSlot(c, h))}
+                // A member cannot hold an hour that has started, and the header reads the same count
+                // as the day strip above it (B-3).
+                startedIsPast
+                freeCount={avail?.[date]?.free}
+                hours={hoursOf(venue)}
                 // A sold-out sport hands back the two controls at the top of this page.
                 onPickSport={setSport}
                 onPickDate={setDate}

@@ -45,7 +45,7 @@ export function SiteHeader() {
     const el = root.current;
     if (!el) return;
     // The progress bar is a reading of the scroll position, not motion of its own, so it stays on
-    // when animations are paused; it just stops easing.
+    // under reduced motion; it just stops easing.
     gsap.fromTo(
       bar.current,
       { scaleX: 0 },
@@ -53,7 +53,7 @@ export function SiteHeader() {
     );
     if (!motion) return;
     let hidden = false;
-    // Made now, inside the scene, so reverting it (pause button, unmount) always returns the header.
+    // Made now, inside the scene, so reverting it (breakpoint, unmount) always returns the header.
     const slide = gsap.quickTo(el, "yPercent", { duration: 0.32, ease: "arena" });
     const show = (next: boolean) => {
       if (next === hidden) return;

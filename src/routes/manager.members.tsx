@@ -6,6 +6,7 @@ import { formatDate, sportLabel } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
 import { locale, t, tk, tData } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { usePageState } from "@/lib/use-page-state";
 
 export const Route = createFileRoute("/manager/members")({
   component: Page,
@@ -24,8 +25,6 @@ type Row = {
   classes: number;
 };
 
-const PAGE = 25;
-
 const PLAN_LABEL: Record<Row["plan_state"], string> = {
   active: tk("Plan active"),
   expiring: tk("Ends within a week"),
@@ -39,7 +38,7 @@ function Page() {
   const [status, setStatus] = useState("");
   const [sport, setSport] = useState("");
   const [plan, setPlan] = useState("");
-  const [offset, setOffset] = useState(0);
+  const { offset, setOffset, pageSize, setPageSize, reset } = usePageState("manager.members", 25);
 
   // Typing waits a beat so one search is one request, and any filter change goes back to page one.
   const [term, setTerm] = useState("");
@@ -47,9 +46,9 @@ function Page() {
     const timer = setTimeout(() => setTerm(q.trim()), 250);
     return () => clearTimeout(timer);
   }, [q]);
-  useEffect(() => setOffset(0), [term, status, sport, plan]);
+  useEffect(reset, [term, status, sport, plan, reset]);
 
-  const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
   if (term) params.set("q", term);
   if (status) params.set("status", status);
   if (sport) params.set("sport", sport);
@@ -152,7 +151,7 @@ function Page() {
               ))}
             </ul>
           </Card>
-          <Pagination offset={offset} total={total} pageSize={PAGE} onChange={setOffset} />
+          <Pagination offset={offset} total={total} pageSize={pageSize} onChange={setOffset} onPageSizeChange={setPageSize} label={t("Member pages")} />
         </>
       )}
       </div>

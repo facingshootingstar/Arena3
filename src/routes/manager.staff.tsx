@@ -2,11 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Shell, when } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Pagination } from "@/components/ui";
 import { ApiClientError, apiPost, apiPatch } from "@/lib/arena3/client";
 import { roleLabel, sportLabel } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
 import { t, tServer, tData } from "@/lib/i18n";
+import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/manager/staff")({ component: Page });
@@ -49,8 +50,12 @@ function Page() {
   if (status) qs.set("status", status);
   if (term) qs.set("q", term);
   const filtered = !!(role || status || term);
+  const { offset, setOffset, pageSize, setPageSize, reset } = usePageState("manager.staff", 25);
+  useEffect(reset, [role, status, term, reset]);
+  qs.set("limit", String(pageSize));
+  qs.set("offset", String(offset));
   // The list on screen stays (dimmed) while a new filter loads; a failed read replaces it with the reason.
-  const read = useRead<{ items: Staff[] }>(`/staff${qs.size ? `?${qs}` : ""}`, { keepPrevious: true });
+  const read = useRead<{ items: Staff[]; total: number }>(`/staff?${qs}`, { keepPrevious: true });
   const items = read.data?.items ?? null;
 
   async function act(s: Staff, what: "lock" | "unlock" | "reset" | "revoke") {
@@ -175,6 +180,14 @@ function Page() {
           })}
         </div>
       )}
+      <Pagination
+        offset={offset}
+        total={read.data?.total ?? 0}
+        pageSize={pageSize}
+        onChange={setOffset}
+        onPageSizeChange={setPageSize}
+        label={t("Staff pages")}
+      />
       </div>
 
       <CreateModal

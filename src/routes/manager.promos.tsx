@@ -138,7 +138,7 @@ function Page() {
   async function toggle(p: Promo) {
     try {
       await apiPatch(`/promotions/${p.id}`, { status: p.status === "active" ? "paused" : "active" });
-      toast.success(p.status === "active" ? t("Paused, new orders can't use it") : t("Back on"));
+      toast.success(p.status === "active" ? t("Paused: new orders can't use it") : t("Back on"));
       read.reload();
     } catch (e) {
       toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
@@ -306,7 +306,7 @@ function Page() {
       <Modal
         open={history !== null}
         onClose={() => setHistory(null)}
-        title={history ? t("{code}, who used it", { code: history.promo.code }) : ""}
+        title={history ? t("{code}: who used it", { code: history.promo.code }) : ""}
       >
         {history && !history.rows.length ? <p className="text-sm text-muted">{t("Nobody yet.")}</p> : null}
         <ul className="grid gap-2">

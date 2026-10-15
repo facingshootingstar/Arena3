@@ -10,6 +10,7 @@ import {
   issueInvoice,
   nextCode,
   num,
+  pageOf,
   readJson,
   str,
 } from "../helpers";
@@ -21,7 +22,7 @@ import { validatePriceRules } from "../rules";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
-import { checkOpeningHours, parseInteger, parseSettingsPatch } from "../validate";
+import { checkOpeningHours, pageParams, parseInteger, parseSettingsPatch } from "../validate";
 
 export async function shiftOpen(sql: Sql, user: PublicUser) {
   requireRole(user, ["receptionist"]);
@@ -593,7 +594,6 @@ export async function paymentsRejectRefund(sql: Sql, id: string, request: Reques
 }
 
 /** How many receipts the reconciliation list will show at once. */
-const RECEIPT_CAP = 60;
 
 /**
  * Everything at the desk that is still waiting on money.
@@ -698,32 +698,40 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
    * `taken_by` comes along because with cash in the list the obvious next
    * question is whose till it went into.
    */
-  const receipts = await sql.query(
-    `select p.id, p.code, p.method, p.amount_vnd, p.created_at, p.ref_type, p.ref_id,
-            p.capture_mode, p.provider,
-            coalesce(u.full_name, i.buyer_name) as member_name, u.member_code,
-            i.buyer_phone,
-            s.full_name as taken_by,
-            i.id as invoice_id
-       from payments p
-       left join users u on u.id = p.user_id
-       left join users s on s.id = p.created_by
-       left join invoices i on i.payment_id = p.id
-      where p.status = 'posted'
-        and p.created_at >= now() - ($1::int * interval '1 day')
-      order by p.created_at desc
-      limit $2`,
-    [days, RECEIPT_CAP + 1],
-  );
-
-  // One row over the cap is fetched purely to answer "is there more?" — the
-  // desk reads this list back against a bank statement, so a silently truncated
-  // list is worse than a short one that admits it is short.
-  const capped = receipts.length > RECEIPT_CAP;
+  //
+  // Paged and searched here, across the whole window: a statement read back against the bank
+  // needs every row reachable, not the newest sixty.
+  const page = pageParams(request, { def: 25, max: 100, prefix: "receipt_" });
+  const rq = sp.get("receipt_q")?.trim() || null;
+  const needle = rq ? `%${rq.replace(/[\\%_]/g, (c) => "\\" + c)}%` : null;
+  const method = sp.get("receipt_method") || null;
+  const receiptRows = (lim: number, off: number) =>
+    sql.query<{ total: number } & Record<string, unknown>>(
+      `select p.id, p.code, p.method, p.amount_vnd, p.created_at, p.ref_type, p.ref_id,
+              p.capture_mode, p.provider,
+              coalesce(u.full_name, i.buyer_name) as member_name, u.member_code,
+              i.buyer_phone,
+              s.full_name as taken_by,
+              i.id as invoice_id,
+              count(*) over ()::int as total
+         from payments p
+         left join users u on u.id = p.user_id
+         left join users s on s.id = p.created_by
+         left join invoices i on i.payment_id = p.id
+        where p.status = 'posted'
+          and p.created_at >= now() - ($1::int * interval '1 day')
+          and ($4::text is null or p.method::text = $4)
+          and ($5::text is null or concat_ws(' ', coalesce(u.full_name, i.buyer_name), u.member_code, i.buyer_phone, p.code) ilike $5)
+        order by p.created_at desc
+        limit $2 offset $3`,
+      [days, lim, off, method, needle],
+    );
+  const rows = await receiptRows(page.limit, page.offset);
+  const receipts = await pageOf(rows, page, async () => Number((await receiptRows(1, 0))[0]?.total ?? 0));
 
   return {
     status: 200,
-    body: { awaiting, orders, refunds, receipts: receipts.slice(0, RECEIPT_CAP), days, capped },
+    body: { awaiting, orders, refunds, receipts: receipts.items, receipts_total: receipts.total, days },
   };
 }
 
@@ -768,19 +776,26 @@ export async function subscriptionDecline(sql: Sql, id: string, user: PublicUser
  */
 export async function invoicesMine(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["member", "receptionist", "manager"]);
-  const sp = new URL(request.url).searchParams;
-  const take = Math.min(100, Math.max(1, Number(sp.get("limit") ?? 30) || 30));
-  const items = await sql.query(
+  const { limit, offset } = pageParams(request, { def: 30, max: 100 });
+  const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select i.id, i.code, i.issued_at::text as issued_at,
-            p.code as payment_code, p.method, p.amount_vnd, p.status, p.ref_type
+            p.code as payment_code, p.method, p.amount_vnd, p.status, p.ref_type,
+            count(*) over ()::int as total
        from invoices i
        join payments p on p.id = i.payment_id
       where p.user_id = $1
       order by i.issued_at desc
-      limit $2`,
-    [user.id, take],
+      limit $2 offset $3`,
+    [user.id, limit, offset],
   );
-  return { status: 200, body: { items } };
+  const body = await pageOf(rows, { limit, offset }, async () =>
+    ((await one<{ n: number }>(
+      sql,
+      `select count(*)::int as n from invoices i join payments p on p.id = i.payment_id where p.user_id = $1`,
+      [user.id],
+    ))?.n ?? 0),
+  );
+  return { status: 200, body };
 }
 
 export async function invoicePdf(sql: Sql, id: string, request: Request, user: PublicUser) {
@@ -1141,23 +1156,31 @@ export async function auditList(sql: Sql, request: Request, user: PublicUser) {
   if (from && to && from > to) throw err.field("to", "The end date is before the start date.");
   const actor = sp.get("actor");
   if (actor && !/^[0-9a-f-]{36}$/i.test(actor)) throw err.field("actor", "Unknown person.");
-  const limit = sp.get("limit") === null ? 50 : parseInteger("limit", "Page size", sp.get("limit"), 1, 200);
+  const { limit, offset } = pageParams(request, { def: 50, max: 200 });
+  // One search over who, what and which record, across every page; underscores in the stored
+  // action and entity names match the spaces people type.
+  const q = sp.get("q")?.trim() || null;
+  const needle = q ? `%${q.replace(/[\\%_]/g, (c) => "\\" + c)}%` : null;
   // Days are the centre's days: 23:30 on the 31st is still the 31st here.
-  const items = await sql.query<Record<string, unknown>>(
-    `select a.id, a.at, a.actor_id, u.full_name as actor_name, u.role as actor_role,
-            a.action, a.entity, a.entity_id, a.before, a.after
-       from audit_logs a
-       left join users u on u.id = a.actor_id
-      where ($1::text is null or a.action = $1)
-        and ($2::uuid is null or a.actor_id = $2::uuid)
-        and ($3::text is null or a.entity = $3)
-        and ($4::date is null or (a.at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
-        and ($5::date is null or (a.at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)
-      order by a.at desc, a.id desc
-      limit $6`,
-    [sp.get("action"), actor, sp.get("entity"), from, to, limit + 1],
-  );
-  const more = items.length > limit;
+  const page = (lim: number, off: number) =>
+    sql.query<{ total: number } & Record<string, unknown>>(
+      `select a.id, a.at, a.actor_id, u.full_name as actor_name, u.role as actor_role,
+              a.action, a.entity, a.entity_id, a.before, a.after, count(*) over ()::int as total
+         from audit_logs a
+         left join users u on u.id = a.actor_id
+        where ($1::text is null or a.action = $1)
+          and ($2::uuid is null or a.actor_id = $2::uuid)
+          and ($3::text is null or a.entity = $3)
+          and ($4::date is null or (a.at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
+          and ($5::date is null or (a.at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)
+          and ($8::text is null or concat_ws(' ', u.full_name, replace(a.action, '_', ' '), replace(a.entity, '_', ' '), a.entity_id::text) ilike $8)
+        order by a.at desc, a.id desc
+        limit $6 offset $7`,
+      [sp.get("action"), actor, sp.get("entity"), from, to, lim, off, needle],
+    );
+  const rows = await page(limit, offset);
+  const { items, total } = await pageOf(rows, { limit, offset }, async () => Number((await page(1, 0))[0]?.total ?? 0));
+  const more = offset + items.length < total;
   // What the filters can offer: only what actually exists, so the pickers never
   // drift from the handlers that write the log.
   const actions = await sql.query<{ action: string }>(`select distinct action from audit_logs order by action`);
@@ -1168,8 +1191,11 @@ export async function auditList(sql: Sql, request: Request, user: PublicUser) {
   return {
     status: 200,
     body: {
-      items: more ? items.slice(0, limit) : items,
+      items,
       more,
+      total,
+      limit,
+      offset,
       actions: actions.map((a) => a.action),
       entities: entities.map((e) => e.entity),
       actors,

@@ -326,7 +326,7 @@ function RegisterPanel({
               })
             : t("This register closed after the session.")}{" "}
           {isManager
-            ? t("You can still correct it, say why below.")
+            ? t("You can still correct it: say why below.")
             : t("Ask a manager to correct it.")}
         </p>
       ) : null}
