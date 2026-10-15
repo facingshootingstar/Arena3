@@ -124,7 +124,7 @@ function Register() {
           <GLBackground
             variant="threads"
             className="opacity-50 mix-blend-screen"
-            color="#dbe5ff"
+            color="#e6eed9"
             amplitude={1}
             speed={0.45}
             opacity={0.28}

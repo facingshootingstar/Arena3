@@ -19,7 +19,7 @@ export function PlansScene({ plans }: { plans: CatalogPlan[] }) {
   return (
     <section ref={root} id="plans" className="relative mx-auto max-w-6xl scroll-mt-20 overflow-hidden px-4 pb-20">
       {/* Folded-cloth sheen at very low opacity, so the cards do not float on flat cream. */}
-      <GLBackground variant="silk" className="-z-[1] opacity-70" color="#1e4fd8" speed={0.5} scale={1.7} opacity={0.13} />
+      <GLBackground variant="silk" className="-z-[1] opacity-70" color="#3f7d20" speed={0.5} scale={1.7} opacity={0.13} />
       <p data-rise className="kicker text-2xs text-muted">
         {t("Memberships")}
       </p>

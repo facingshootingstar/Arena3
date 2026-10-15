@@ -627,7 +627,6 @@ function DeskNow() {
   const hour = Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", hour12: false }).format(new Date(now)),
   );
-  const code = (id: string) => data.courts.find((c) => c.id === id)?.court_code ?? "";
   const live = (s: OccSlot) => s.kind === "booking" || s.kind === "session";
   const playing = data.slots.filter((s) => live(s) && Date.parse(s.start) <= now && Date.parse(s.end) > now);
   const soon = data.slots
@@ -659,14 +658,21 @@ function DeskNow() {
       </dl>
       {soon.length ? (
         <ul className="mt-3 grid gap-1 text-sm">
-          {soon.slice(0, 4).map((s) => (
-            <li key={`${s.court_id}-${s.start}`} className="flex justify-between gap-2">
-              <span className="font-medium">{code(s.court_id)}</span>
-              <span className="tabular-nums text-muted">
-                {hhmm(s.start)} · {s.kind === "session" ? t("Class") : t("Court")}
-              </span>
-            </li>
-          ))}
+          {soon.slice(0, 4).map((s) => {
+            const court = data.courts.find((c) => c.id === s.court_id);
+            const cCode = court?.court_code ?? "";
+            const sport = court ? sportLabel(court.sport) : "";
+            return (
+              <li key={`${s.court_id}-${s.start}`} className="flex justify-between gap-2">
+                <span className="font-medium">
+                  {cCode ? `${t("Court")} ${cCode}` : t("Court")}
+                </span>
+                <span className="tabular-nums text-muted">
+                  {hhmm(s.start)} · {s.kind === "session" ? t("Class") : sport || t("Court")}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </Card>

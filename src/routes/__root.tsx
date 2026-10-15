@@ -30,8 +30,8 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      // The same cobalt the manifest and the palette use, so the phone chrome matches the brand.
-      { name: "theme-color", content: "#1e4fd8" },
+      // The same sprout green the manifest and the palette use, so the phone chrome matches the brand.
+      { name: "theme-color", content: "#3f7d20" },
       {
         name: "description",
         content:

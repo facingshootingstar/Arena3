@@ -130,7 +130,7 @@ export function Hero({
       <GLBackground
         variant="threads"
         className="opacity-60 mix-blend-screen"
-        color="#dbe5ff"
+        color="#e6eed9"
         amplitude={1.2}
         speed={0.55}
         opacity={0.32}
@@ -338,7 +338,7 @@ export function StatsBand({ freeHours, day }: { freeHours: number; day: string }
     <section ref={root} className="grain relative overflow-hidden bg-night text-on-media">
       <GLBackground
         variant="aurora"
-        colors={["#1e4fd8", "#5b86ff", "#c8f31d"]}
+        colors={["#3f7d20", "#8bc34a", "#b5e04a"]}
         amplitude={1.15}
         speed={0.85}
         opacity={0.6}
