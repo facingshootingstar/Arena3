@@ -73,9 +73,9 @@ export function ScheduleScene({
             }}
             options={[
               { value: "", label: t("All") },
-              { value: "badminton", label: sportLabel("badminton") },
-              { value: "basketball", label: sportLabel("basketball") },
-              { value: "volleyball", label: sportLabel("volleyball") },
+              ...["badminton", "basketball", "volleyball"]
+                .filter((s) => sched.courts.some((c) => c.sport === s))
+                .map((s) => ({ value: s, label: sportLabel(s) })),
             ]}
           />
         </div>

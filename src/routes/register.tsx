@@ -3,7 +3,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
-import { Cover, media } from "@/components/media";
+import { Cover } from "@/components/media";
 import { Button, Card, Check, DateField, Field, Input } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { Reveal } from "@/components/motion";
@@ -143,7 +143,7 @@ function Register() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-dvh lg:grid lg:grid-cols-2">
       <div className="grain relative hidden overflow-hidden lg:block">
-        <Cover src={media.athlete} alt="" className="h-full min-h-dvh" scrim="hero">
+        <Cover slot="auth.register.image" alt="" className="h-full min-h-dvh" scrim="hero">
           <GLBackground
             variant="threads"
             className="opacity-50 mix-blend-screen"

@@ -154,7 +154,7 @@ export async function staffCreate(sql: Sql, request: Request, user: PublicUser) 
     phone,
     email,
   ]);
-  if (dup) throw err.br("BR-01", "That phone or email already has an account.");
+  if (dup) throw err.br("BR-01", "That phone or email already has an account.", { field: "phone" });
 
   const tmp = tempPassword();
   const row = await one<{ id: string }>(
@@ -165,6 +165,18 @@ export async function staffCreate(sql: Sql, request: Request, user: PublicUser) 
   );
   for (const s of sports) {
     await sql.query(`insert into coach_sports (user_id, sport) values ($1, $2::sport_kind)`, [row!.id, s]);
+  }
+  if (role === "coach") {
+    await sql.query(
+      `insert into site_assets (slot, kind, alt_en, alt_vi, enabled, version)
+       values ($1, 'image', $2, $3, true, 1)
+       on conflict (slot) do nothing`,
+      [
+        `coach.${row!.id}`,
+        `Photo of coach ${full_name}`,
+        `Ảnh HLV ${full_name}`,
+      ],
+    );
   }
   await audit(sql, user.id, "create_staff", "user", row!.id, null, { role, phone, sports });
   return { status: 201, body: { staff: await loadStaff(sql, row!.id), temp_password: tmp } };
@@ -223,6 +235,16 @@ export async function staffPatch(sql: Sql, id: string, request: Request, user: P
       for (const s of sports) {
         await sql.query(`insert into coach_sports (user_id, sport) values ($1, $2::sport_kind)`, [id, s]);
       }
+      await sql.query(
+        `insert into site_assets (slot, kind, alt_en, alt_vi, enabled, version)
+         values ($1, 'image', $2, $3, true, 1)
+         on conflict (slot) do nothing`,
+        [
+          `coach.${id}`,
+          `Photo of coach ${target.full_name}`,
+          `Ảnh HLV ${target.full_name}`,
+        ],
+      );
     } else {
       await sql.query(`delete from coach_sports where user_id = $1`, [id]);
     }

@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Flip } from "gsap/Flip";
 import { Cover, MediaCaption } from "@/components/media";
 import { Button, ButtonAnchor, Card, Modal, Seg } from "@/components/ui";
 import { GlareHover, SpotlightCard } from "@/components/fx";
+import { initials } from "@/components/shell";
 import { COACHES, type CoachCard } from "@/lib/arena3/coaches";
 import { sportLabel } from "@/lib/arena3/labels";
 import { gsap, motionOff, registerGsap, useScene } from "@/lib/gsap";
@@ -21,7 +22,11 @@ registerGsap(Flip);
  * A card carries the three things that decide whether you want to read more (face, sport,
  * role); the rest is one click away in the dialog.
  */
-export function CoachesScene() {
+export function CoachesScene({
+  dbCoaches,
+}: {
+  dbCoaches?: Array<{ id: string; name: string; sports: string[] }>;
+} = {}) {
   const root = useRef<HTMLElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const [sport, setSport] = useState("");
@@ -29,7 +34,32 @@ export function CoachesScene() {
   const flipState = useRef<Flip.FlipState | null>(null);
   const flipHeight = useRef(0);
   const calm = useCalm();
-  const coaches = COACHES.filter((c) => !sport || c.sport === sport);
+
+  const allCoaches = useMemo<CoachCard[]>(() => {
+    if (!dbCoaches || !dbCoaches.length) return COACHES;
+    return dbCoaches.map((dbc) => {
+      const match = COACHES.find((c) => c.userId === dbc.id || c.name === dbc.name);
+      if (match) {
+        return {
+          ...match,
+          userId: dbc.id,
+          slot: `coach.${dbc.id}`,
+        };
+      }
+      const sp = dbc.sports[0] ?? "badminton";
+      return {
+        name: dbc.name,
+        sport: sp,
+        title: `${sportLabel(sp)} Coach`,
+        blurb: "Dedicated coach at Arena3.",
+        creds: dbc.sports.map((s) => sportLabel(s)),
+        userId: dbc.id,
+        slot: `coach.${dbc.id}`,
+      };
+    });
+  }, [dbCoaches]);
+
+  const coaches = allCoaches.filter((c) => !sport || c.sport === sport);
 
   useScene(root, ({ motion }) => {
     if (motion && root.current) rise(root.current);
@@ -105,7 +135,9 @@ export function CoachesScene() {
               <Card interactive className="group flex h-full flex-col overflow-hidden p-0">
                 <GlareHover>
                   <Cover
-                    src={c.photo}
+                    slot={c.slot}
+                    fallbackInitials={initials(c.name)}
+                    initialsClassName="text-3xl font-bold"
                     alt={c.name}
                     scrim="none"
                     className="aspect-[3/4]"
@@ -146,7 +178,14 @@ export function CoachesScene() {
       >
         {open ? (
           <div className="grid gap-4 sm:grid-cols-[9rem_1fr]">
-            <Cover src={open.photo} alt={open.name} scrim="none" className="aspect-[3/4] rounded-[var(--radius-lg)]" />
+            <Cover
+              slot={open.slot}
+              fallbackInitials={initials(open.name)}
+              initialsClassName="text-3xl font-bold"
+              alt={open.name}
+              scrim="none"
+              className="aspect-[3/4] rounded-[var(--radius-lg)]"
+            />
             <div>
               <p className="kicker text-2xs text-muted">{sportLabel(open.sport)}</p>
               <p className="mt-1 text-sm font-medium">{t(open.title)}</p>

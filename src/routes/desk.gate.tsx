@@ -3,7 +3,7 @@ import { SectionTitle } from "@/components/section";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { PhotoBanner, media } from "@/components/media";
+import { PhotoBanner } from "@/components/media";
 import { Shell, hhmm, useSessionUser } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
@@ -145,7 +145,7 @@ function Page() {
       title={t("Gate")}
       subtitle={t("Scan a member's code to let them in. Type a phone number only when the code can't be used.")}
     >
-      <PhotoBanner src={media.deskGate} focus="50% 30%" className="mb-4" />
+      <PhotoBanner slot="banner.gate" focus="50% 30%" className="mb-4" />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
         <div className="grid content-start gap-4">
           <Card className="grid gap-3">

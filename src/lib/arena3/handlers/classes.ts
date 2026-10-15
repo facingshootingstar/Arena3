@@ -80,8 +80,12 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   );
   if (!sportOk) throw err.br("BR-25", "That coach is not assigned to this sport.");
 
-  const court = await one<{ sport: string }>(sql, `select sport::text as sport from courts where id = $1`, [court_id]);
-  if (!court) throw err.field("court_id", "That court does not exist.");
+  const court = await one<{ sport: string; retired_at: string | null }>(
+    sql,
+    `select sport::text as sport, retired_at from courts where id = $1`,
+    [court_id],
+  );
+  if (!court || court.retired_at) throw err.field("court_id", "That court does not exist.");
   if (court.sport !== sport) {
     throw err.field("court_id", "Court sport must match class sport.");
   }

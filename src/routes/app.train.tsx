@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SectionTitle } from "@/components/section";
+import { sessionDay } from "@/components/class-detail";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { sessionDay } from "@/components/class-detail";
-import { PhotoBanner, media } from "@/components/media";
+import { PhotoBanner } from "@/components/media";
 import { Shell, hhmm } from "@/components/shell";
 import { Badge, Card, Check, EmptyState, LoadError, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
@@ -124,7 +124,7 @@ function Page() {
         <Skeleton className="h-40" />
       ) : (
         <div className="grid gap-10">
-          <PhotoBanner src={media.trainProgress} focus="50% 38%" />
+          <PhotoBanner slot="banner.train" focus="50% 38%" />
           <Card className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="kicker text-2xs text-muted">{t("Your goal")}</p>

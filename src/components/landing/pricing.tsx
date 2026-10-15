@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Cover, HeroVideo, media } from "@/components/media";
+import { Cover, HeroVideo } from "@/components/media";
 import { SpotlightCard } from "@/components/fx";
 import { money } from "@/components/shell";
 import type { CatalogPrice } from "@/lib/arena3/catalog";
@@ -126,9 +126,9 @@ export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
         </div>
 
         <div data-rise>
-          <Cover src={media.courtDetail} alt="" className="min-h-64 rounded-[var(--radius-xl)] md:min-h-full">
+          <Cover slot="landing.pricing.image" alt="" className="min-h-64 rounded-[var(--radius-xl)] md:min-h-full">
             {/* Half-way down the page: it must not compete with the hero for bandwidth on first load. */}
-            <HeroVideo src={media.smash} poster={media.courtDetail} />
+            <HeroVideo slot="landing.pricing.video" posterSlot="landing.pricing.image" />
           </Cover>
         </div>
       </div>

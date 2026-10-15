@@ -48,9 +48,9 @@ function Page() {
             onChange={setSport}
             options={[
               { value: "", label: t("All") },
-              { value: "badminton", label: t("Badminton") },
-              { value: "basketball", label: t("Basketball") },
-              { value: "volleyball", label: t("Volleyball") },
+              ...["badminton", "basketball", "volleyball"]
+                .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s))
+                .map((s) => ({ value: s, label: sportLabel(s) })),
             ]}
           />
           <DateField required value={date} onChange={setDate} invalid={error?.refused === true} />

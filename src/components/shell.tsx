@@ -10,6 +10,8 @@ import {
   Ellipsis,
   FileText,
   HandCoins,
+  Image,
+  LandPlot,
   LayoutGrid,
   LogOut,
   Map,
@@ -118,12 +120,14 @@ const NAV: Record<string, NavItem[]> = {
     // Refund sign-off lives on the payments screen, which has always taken a
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet },
-    { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false },
+    { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false, group: G_SYSTEM },
     { to: "/manager/prices", label: tk("Pricing"), icon: Coins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/invoices", label: tk("E-invoices"), icon: FileText, more: true, dock: false, group: G_BUSINESS },
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, more: true, dock: false, group: G_OPS },
     { to: "/desk/maintenance", label: tk("Maintenance"), icon: Wrench, more: true, dock: false, group: G_OPS },
+    { to: "/manager/courts", label: tk("Courts"), icon: LandPlot, more: true, dock: false, group: G_OPS },
+    { to: "/manager/media", label: tk("Media"), icon: Image, more: true, dock: false, group: G_SYSTEM },
     { to: "/manager/audit", label: tk("Audit"), icon: ScrollText, more: true, dock: false, group: G_SYSTEM },
     { to: "/manager/settings", label: tk("Settings"), icon: Settings, more: true, dock: false, group: G_SYSTEM },
   ],
@@ -140,7 +144,7 @@ function navActive(pathname: string, to: string, items: { to: string }[]) {
   return best?.to === to;
 }
 
-function initials(name: string | undefined) {
+export function initials(name: string | undefined) {
   const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "A3";
   // Vietnamese names put the given name last, and that is the one people answer

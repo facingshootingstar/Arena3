@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { ScrambleTextPlugin } from "gsap/ScrambleTextPlugin";
 import { SplitText } from "gsap/SplitText";
-import { HeroVideo, media, useBootOpen } from "@/components/media";
+import { HeroVideo, useBootOpen } from "@/components/media";
 import { ButtonAnchor } from "@/components/ui";
 import { GLBackground, ShinyText } from "@/components/fx";
 import { money } from "@/components/shell";
@@ -13,6 +13,7 @@ import { t } from "@/lib/i18n";
 import { CountTo } from "./kit";
 import { mark, rich, useVenue } from "./util";
 import { hhmm } from "@/lib/venue";
+import type { CatalogCourt } from "@/lib/arena3/catalog";
 
 registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
 
@@ -128,7 +129,7 @@ export function Hero({
     <section ref={root} className="grain relative min-h-[88dvh] overflow-hidden">
       {/* Taller than the frame and slowed by the smoother, so the hall lags behind the copy. */}
       <div data-media data-speed="auto" className="absolute inset-x-0 -top-[8%] h-[116%]">
-        <HeroVideo src={media.hallVideo} poster={media.hallCourts} priority />
+        <HeroVideo slot="landing.hero.video" posterSlot="landing.hero.image" priority />
       </div>
       <div className="hero-scrim pointer-events-none absolute inset-0" />
       <GLBackground
@@ -324,7 +325,7 @@ function Shuttle() {
  * that makes it checkable, and the first is today's live count. The numbers count up as the band
  * arrives; the cells rise in one after another.
  */
-export function StatsBand({ freeHours, day }: { freeHours: number; day: string }) {
+export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: string; courts?: CatalogCourt[] }) {
   const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
@@ -337,9 +338,16 @@ export function StatsBand({ freeHours, day }: { freeHours: number; day: string }
       scrollTrigger: { trigger: root.current, start: "top 85%", once: true },
     });
   });
+  const liveCourts = courts ? courts.filter((c) => c.status !== "retired") : [];
+  const totalCourts = liveCourts.length || 16;
+  const badm = liveCourts.length ? liveCourts.filter((c) => c.sport === "badminton").length : 12;
+  const bball = liveCourts.length ? liveCourts.filter((c) => c.sport === "basketball").length : 2;
+  const vball = liveCourts.length ? liveCourts.filter((c) => c.sport === "volleyball").length : 2;
+  const courtsNote = t("{b} badminton · {k} basketball · {v} volleyball", { b: badm, k: bball, v: vball });
+
   const stats = [
     { to: freeHours, suffix: "", label: t("Court hours free"), note: t("Live from the booking grid · {day}", { day }), href: "#schedule" },
-    { to: 16, suffix: "", label: t("Courts & bays"), note: t("12 badminton · 2 basketball · 2 volleyball"), href: "#courts" },
+    { to: totalCourts, suffix: "", label: t("Courts & bays"), note: courtsNote, href: "#courts" },
     { to: venue.close - venue.open, suffix: "h", label: t("Open every day"), note: t("{open}-{close}, no closing day", { open: hhmm(venue.open), close: hhmm(venue.close) }), href: "#schedule" },
     { to: 4, suffix: "", label: t("Head coaches"), note: t("One per sport, classes on the same calendar"), href: "#coaches" },
   ];

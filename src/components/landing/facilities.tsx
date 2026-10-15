@@ -1,10 +1,11 @@
 import { useRef } from "react";
-import { Cover, MediaCaption, media } from "@/components/media";
+import { Cover, MediaCaption } from "@/components/media";
 import { GlareHover } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { gsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
 import { t } from "@/lib/i18n";
+import type { CatalogCourt } from "@/lib/arena3/catalog";
 import { rise } from "./tweens";
 
 /**
@@ -15,30 +16,42 @@ import { rise } from "./tweens";
  * volleyball, the desk), each caption arriving as its photo reaches the middle. On a phone, and
  * with motion off, it is a plain grid: the page itself never scrolls sideways (DESIGN.md, Layout).
  */
-export function FacilitiesScene() {
+export function FacilitiesScene({ courts }: { courts?: CatalogCourt[] } = {}) {
   const root = useRef<HTMLElement>(null);
   const still = useCalm();
+
+  const getCode = (sport: string) => {
+    if (!courts) return "";
+    const sorted = courts
+      .filter((c) => c.sport === sport && c.status !== "retired")
+      .map((c) => c.court_code)
+      .sort();
+    if (sorted.length === 0) return "";
+    return sorted.length > 2 ? `${sorted[0]}…${sorted[sorted.length - 1]}` : sorted.join(", ");
+  };
+
+  const totalCourts = courts ? courts.filter((c) => c.status !== "retired").length : 16;
 
   // Named against the court codes and gear the schedule actually uses, so the page and the grid
   // describe the same building.
   const facilities = [
     {
-      code: "CL-01…12",
+      code: getCode("badminton"),
       name: t("Badminton courts"),
-      photo: media.badmintonCourt,
+      slot: "landing.facilities.badminton",
       note: t("Twelve bays on sprung wood. Feather-grade shuttles are issued at the counter, not sold from a machine."),
     },
-    { code: "BR-01, BR-02", name: t("Basketball courts"), photo: media.basketballCourt, note: t("Full-size hardwood with breakaway rims.") },
+    { code: getCode("basketball"), name: t("Basketball courts"), slot: "landing.facilities.basketball", note: t("Full-size hardwood with breakaway rims.") },
     {
-      code: "BC-01, BC-02",
+      code: getCode("volleyball"),
       name: t("Volleyball courts"),
-      photo: media.volleyballCourt,
+      slot: "landing.facilities.volleyball",
       note: t("Competition net height with a referee stand on the side and a ten-second reset between sets."),
     },
     {
       code: t("Reception"),
       name: t("Front desk"),
-      photo: media.reception,
+      slot: "landing.facilities.reception",
       note: t("Staffed the whole time we are open. Rackets, shuttle tubes and match balls go out on your tab and settle with the court."),
     },
   ];
@@ -104,7 +117,7 @@ export function FacilitiesScene() {
           <div data-panel className={cn("sm:col-span-2", still ? "lg:col-span-4" : "md:w-[min(46rem,70vw)] md:shrink-0")}>
             <GlareHover className="h-full rounded-[var(--radius-xl)]" duration={1.1}>
               <Cover
-                src={media.hallCourts}
+                slot="landing.facilities.hall"
                 alt={t("The main hall at Arena3")}
                 className={cn(
                   "group rounded-[var(--radius-xl)] shadow-[var(--shadow-border)]",
@@ -115,7 +128,9 @@ export function FacilitiesScene() {
                 <MediaCaption>
                   <div data-caption>
                     <p className="kicker text-2xs text-on-media-muted">{t("Main hall")}</p>
-                    <p className="athletic mt-1.5 text-4xl sm:text-5xl">{t("Sixteen playing surfaces")}</p>
+                    <p className="athletic mt-1.5 text-4xl sm:text-5xl">
+                      {totalCourts === 16 ? t("Sixteen playing surfaces") : t("{count} playing surfaces", { count: totalCourts })}
+                    </p>
                     <p className="mt-2 max-w-md text-sm text-on-media-muted">
                       {t("A nine-metre ceiling, sprung wood underfoot and lighting rated for evening play right through to close.")}
                     </p>
@@ -127,7 +142,7 @@ export function FacilitiesScene() {
           {facilities.map((f) => (
             <div key={f.name} data-panel className={cn(!still && "md:w-[19rem] md:shrink-0")}>
               <Cover
-                src={f.photo}
+                slot={f.slot}
                 alt={f.name}
                 scrim="media"
                 className={cn(

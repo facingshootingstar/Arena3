@@ -19,6 +19,8 @@ import * as checkinH from "./handlers/checkin";
 import * as promoH from "./handlers/promos";
 import * as attH from "./handlers/attendance";
 import * as xH from "./handlers/extras";
+import * as assetsH from "./handlers/assets";
+import * as courtH from "./handlers/courts";
 
 type Result = { status: number; body: unknown };
 
@@ -96,6 +98,14 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "price-rules" && !p1) {
     const sql = await getSql();
     return deskH.priceRulesGet(sql);
+  }
+  if (method === "GET" && p0 === "site-assets" && !p1) {
+    const sql = await getSql();
+    return assetsH.siteAssetsList(sql);
+  }
+  if (method === "GET" && p0 === "site-assets" && p1 && p2 === "file") {
+    const sql = await getSql();
+    return assetsH.siteAssetGetFile(sql, p1);
   }
 
   // Authenticated
@@ -602,6 +612,57 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed(async () => {
       throw err.forbidden("Payments cannot be deleted — issue a refund instead.");
     });
+  }
+
+  // Manager site assets
+  if (method === "GET" && p0 === "manager" && p1 === "site-assets" && p2 === "library") {
+    return authedRead((_sql, user) => assetsH.managerMediaLibrary(user));
+  }
+  if (method === "GET" && p0 === "manager" && p1 === "site-assets" && !p2) {
+    return authedRead((sql, user) => assetsH.managerAssetsList(sql, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "site-assets" && p2 === "upload") {
+    return authed((sql, user) => assetsH.managerAssetUpload(sql, request, user));
+  }
+  if ((method === "PUT" || method === "POST") && p0 === "manager" && p1 === "site-assets" && p2 && !parts[3]) {
+    return authed((sql, user) => assetsH.managerAssetUpload(sql, request, user, p2));
+  }
+  if (method === "PATCH" && p0 === "manager" && p1 === "site-assets" && p2 && !parts[3]) {
+    return authed((sql, user) => assetsH.managerAssetPatch(sql, request, user, p2));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "site-assets" && p2 && parts[3] === "revert") {
+    return authed((sql, user) => assetsH.managerAssetRevert(sql, request, user, p2));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "site-assets" && p2 && parts[3] === "reset") {
+    return authed((sql, user) =>
+      assetsH.managerAssetRevert(
+        sql,
+        new Request(request.url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ to: "default" }),
+        }),
+        user,
+        p2,
+      ),
+    );
+  }
+
+  // Manager courts
+  if (method === "GET" && p0 === "manager" && p1 === "courts" && !p2) {
+    return authedRead((sql, user) => courtH.managerCourtsList(sql, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "courts" && !p2) {
+    return authed((sql, user) => courtH.managerCourtCreate(sql, request, user));
+  }
+  if (method === "PATCH" && p0 === "manager" && p1 === "courts" && p2 && !parts[3]) {
+    return authed((sql, user) => bookH.courtsPatch(sql, p2, request, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "courts" && p2 && parts[3] === "retire") {
+    return authed((sql, user) => courtH.managerCourtRetire(sql, p2, request, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "courts" && p2 && parts[3] === "restore") {
+    return authed((sql, user) => courtH.managerCourtRestore(sql, p2, user));
   }
 
   void staffRoles;

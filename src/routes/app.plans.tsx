@@ -108,7 +108,7 @@ function Page() {
             <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.11}>
             <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
               <GlareHover>
-                <Cover src={sportPhoto(p.sport_scope)} alt="" scrim="none" className="h-36">
+                <Cover slot={sportPhoto(p.sport_scope)} alt="" scrim="none" className="h-36">
                   <MediaCaption>
                     <p className="text-2xs">{sportLabel(p.sport_scope)}</p>
                   </MediaCaption>

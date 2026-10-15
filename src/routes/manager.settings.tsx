@@ -1,13 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { SectionTitle } from "@/components/section";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
-import { Button, Card, Check, Field, Input, LoadError, MoneyInput, Seg, Skeleton } from "@/components/ui";
+import { Button, Card, Check, Field, Input, LoadError, MoneyInput, Skeleton } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { cn } from "@/lib/cn";
 import { ApiClientError, apiPatch } from "@/lib/arena3/client";
-import { sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
@@ -154,7 +152,14 @@ function Page() {
       <p className="mb-3 text-sm text-muted">
         {t("Taking a court out of service stops new bookings on it. Anything already booked stays, and the desk sorts those out.")}
       </p>
-      <Courts />
+      <div className="mb-6">
+        <Link
+          to="/manager/courts"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+        >
+          {t("Manage courts →")}
+        </Link>
+      </div>
 
       <SectionTitle text={tk("Centre details")} className="mb-3 mt-8 font-display text-2xl" />
       <Reveal>
@@ -271,127 +276,5 @@ function Page() {
       </Card>
       </Reveal>
     </Shell>
-  );
-}
-
-type Court = { id: string; court_code: string; sport: string; status: string };
-
-const STATUSES = [
-  { value: "ready", label: tk("Open"), tone: "accent" as const },
-  { value: "maintenance", label: tk("Maintenance"), tone: "hold" as const },
-  { value: "closed", label: tk("Closed"), tone: "danger" as const },
-];
-
-function Courts() {
-  const read = useRead<{ items: Court[] }>("/courts");
-  const [items, setItems] = useState<Court[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [sport, setSport] = useState("");
-
-  // The list starts from the server's answer; a status change moves its pill at once and the server confirms.
-  useEffect(() => {
-    if (read.data) setItems(read.data.items);
-  }, [read.data]);
-
-  async function set(court: Court, status: string) {
-    if (court.status === status || busy) return;
-    setBusy(court.id);
-    // Optimistic: the pill is the only feedback, and waiting ~300ms for the
-    // round trip before it moves makes the control feel unresponsive. Rolled
-    // back below if the server disagrees.
-    setItems((list) => (list ?? []).map((c) => (c.id === court.id ? { ...c, status } : c)));
-    try {
-      const res = await apiPatch<{ court: Court; upcoming: number }>(`/courts/${court.id}`, { status });
-      setItems((list) => (list ?? []).map((c) => (c.id === court.id ? res.court : c)));
-      const found = STATUSES.find((s) => s.value === status)?.label;
-      const label = found ? t(found) : status;
-      const code = court.court_code;
-      toast.success(
-        status !== "ready" && res.upcoming > 0
-          ? res.upcoming === 1
-            ? t("{code} → {label}. 1 booking still stands. Tell the desk.", { code, label })
-            : t("{code} → {label}. {n} bookings still stand. Tell the desk.", { code, label, n: res.upcoming })
-          : t("{code} → {label}", { code, label }),
-      );
-    } catch (e) {
-      setItems((list) => (list ?? []).map((c) => (c.id === court.id ? { ...c, status: court.status } : c)));
-      toast.error(e instanceof Error ? tServer(e.message) : t("Could not change that court"));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  if (read.error) return <LoadError message={read.error.message} onRetry={read.error.refused ? undefined : read.reload} />;
-  if (!items) return <Skeleton className="h-40" />;
-
-  const shown = sport ? items.filter((c) => c.sport === sport) : items;
-  const down = items.filter((c) => c.status !== "ready").length;
-
-  return (
-    <div className="mb-2 grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Seg
-          value={sport}
-          onChange={setSport}
-          options={[
-            { value: "", label: t("All") },
-            { value: "badminton", label: t("Badminton") },
-            { value: "basketball", label: t("Basketball") },
-            { value: "volleyball", label: t("Volleyball") },
-          ]}
-        />
-        <p className="text-xs tabular-nums text-muted">
-          {t("{n} of {total} open", { n: items.length - down, total: items.length })}
-        </p>
-      </div>
-      <Stagger className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" gap={0.03}>
-        {shown.map((c) => (
-          <StaggerItem key={c.id}>
-            <Card className="flex h-full flex-wrap items-center justify-between gap-3 p-4">
-              <div>
-                <p className="font-medium">
-                  {c.court_code}
-                </p>
-                <p className="text-xs text-muted">{sportLabel(c.sport)}</p>
-              </div>
-              <div
-                role="group"
-                aria-label={t("Status for {code}", { code: c.court_code })}
-                className="inline-flex rounded-[var(--radius-md)] bg-wood p-1"
-              >
-                {STATUSES.map((st) => {
-                  const on = c.status === st.value;
-                  return (
-                    <button
-                      key={st.value}
-                      type="button"
-                      aria-pressed={on}
-                      disabled={busy === c.id}
-                      onClick={() => void set(c, st.value)}
-                      className={cn(
-                        "relative min-h-11 rounded-[var(--radius-sm)] px-3 text-2xs font-semibold transition-colors duration-200 disabled:opacity-60 sm:min-h-8",
-                        on ? "text-bg" : "text-muted hover:text-fg",
-                      )}
-                    >
-                      {on ? (
-                        <motion.span
-                          layoutId={`court-status-${c.id}`}
-                          className={cn(
-                            "absolute inset-0 rounded-[var(--radius-sm)]",
-                            st.tone === "accent" ? "bg-accent" : st.tone === "hold" ? "bg-hold" : "bg-danger",
-                          )}
-                          transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                        />
-                      ) : null}
-                      <span className="relative z-[1]">{t(st.label)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
-          </StaggerItem>
-        ))}
-      </Stagger>
-    </div>
   );
 }

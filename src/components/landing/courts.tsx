@@ -1,8 +1,8 @@
 import { useRef } from "react";
-import { Cover, MediaCaption, media } from "@/components/media";
+import { Cover, MediaCaption } from "@/components/media";
 import { Button, Card } from "@/components/ui";
 import { GlareHover } from "@/components/fx";
-import type { CatalogPrice } from "@/lib/arena3/catalog";
+import type { CatalogCourt, CatalogPrice } from "@/lib/arena3/catalog";
 import { sportLabel } from "@/lib/arena3/labels";
 import { useScene } from "@/lib/gsap";
 import { t } from "@/lib/i18n";
@@ -19,11 +19,13 @@ export function CourtsScene({
   freeBySport,
   day,
   onShowTimes,
+  courts,
 }: {
   weekday: CatalogPrice[];
   freeBySport: (sport: string) => number;
   day: string;
   onShowTimes: (sport: string) => void;
+  courts?: CatalogCourt[];
 }) {
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
@@ -31,13 +33,11 @@ export function CourtsScene({
   });
 
   const sports = [
-    { id: "badminton", photo: media.badminton, count: 12, codes: "CL-01…12", note: t("Feather-grade shuttles, 9m ceiling, wood sprung floor.") },
-    { id: "basketball", photo: media.basketball, count: 2, codes: "BR-01, BR-02", note: t("Full-size hardwood with breakaway rims.") },
+    { id: "badminton", slot: "landing.courts.badminton", note: t("Feather-grade shuttles, 9m ceiling, wood sprung floor.") },
+    { id: "basketball", slot: "landing.courts.basketball", note: t("Full-size hardwood with breakaway rims.") },
     {
       id: "volleyball",
-      photo: media.volleyball,
-      count: 2,
-      codes: "BC-01, BC-02",
+      slot: "landing.courts.volleyball",
       note: t("Competition net height, referee stand, ten-second reset between sets."),
     },
   ];
@@ -59,6 +59,14 @@ export function CourtsScene({
           const off = weekday.find((p) => p.sport === s.id && !p.is_peak);
           const peak = weekday.find((p) => p.sport === s.id && p.is_peak);
           const openNow = freeBySport(s.id);
+          const sportCourts = courts
+            ? courts.filter((c) => c.sport === s.id && c.status !== "retired")
+            : [];
+          const count = sportCourts.length;
+          const sortedCodes = sportCourts.map((c) => c.court_code).sort();
+          const codes = sortedCodes.length > 2
+            ? `${sortedCodes[0]}…${sortedCodes[sortedCodes.length - 1]}`
+            : sortedCodes.join(", ");
           return (
             <div key={s.id} data-rise className="h-full">
               <Card
@@ -67,7 +75,7 @@ export function CourtsScene({
               >
                 <GlareHover>
                   <Cover
-                    src={s.photo}
+                    slot={s.slot}
                     alt={sportLabel(s.id)}
                     scrim="none"
                     className="group aspect-[4/3]"
@@ -82,9 +90,9 @@ export function CourtsScene({
                       </span>
                       <p className="athletic text-3xl sm:text-4xl">{sportLabel(s.id)}</p>
                       <p className="mt-1 text-sm text-on-media-muted">
-                        {s.count === 1
-                          ? t("1 court · {codes}", { codes: s.codes })
-                          : t("{n} courts · {codes}", { n: s.count, codes: s.codes })}
+                        {count === 1
+                          ? t("1 court · {codes}", { codes })
+                          : t("{n} courts · {codes}", { n: count, codes })}
                       </p>
                     </MediaCaption>
                   </Cover>

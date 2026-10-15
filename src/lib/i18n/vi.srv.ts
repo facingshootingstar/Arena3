@@ -198,6 +198,14 @@ export const VI_SERVER_EXACT: Record<string, string> = {
   "Court, time, name or phone is missing.": "Thiếu sân, giờ, tên hoặc số điện thoại.",
   "Open a till shift before taking payment.": "Hãy mở ca thu ngân trước khi thu tiền.",
 
+  // ── courts.ts
+  "Cannot retire court with upcoming bookings or sessions.": "Không thể ngừng sân còn lượt đặt hoặc buổi học.",
+  "Court is not retired.": "Sân chưa bị ngừng.",
+  "Court code already exists.": "Mã sân này đã tồn tại.",
+  "Invalid court code format. Use 2-4 uppercase letters, hyphen, 2 digits (e.g. CL-01).": "Định dạng mã sân không hợp lệ. Vui lòng dùng 2-4 chữ hoa, dấu gạch nối và 2 chữ số (ví dụ: CL-01).",
+  "Cannot change court sport while it has upcoming bookings or classes.": "Không thể đổi môn thi đấu khi sân còn lượt đặt hoặc lớp học.",
+  "Cannot retire the only court for a sport with active plans.": "Không thể ngừng sân duy nhất của môn đang có gói hội viên hoạt động.",
+
   // ── classes.ts / ops.ts (waitlist, gear, registers, support)
   "Class details are incomplete.": "Thông tin lớp chưa đầy đủ.",
   "That coach is not valid.": "HLV này không hợp lệ.",

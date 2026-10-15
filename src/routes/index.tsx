@@ -60,7 +60,7 @@ function Home() {
  * its own scene with its own GSAP timeline, and none of them use `motion` (CLAUDE.md, rule 3).
  */
 function Landing() {
-  const { plans, classes, prices, availability, venue: venueRaw } = Route.useLoaderData();
+  const { plans, classes, prices, availability, venue: venueRaw, coaches: dbCoaches } = Route.useLoaderData();
   // The centre's own hours and hold length, for every section's copy and the grid.
   const venue = useMemo(() => venueFrom(venueRaw), [venueRaw]);
   const { scrollToId } = useLandingScroll();
@@ -131,8 +131,8 @@ function Landing() {
   return (
     <VenueProvider value={venue}>
       <Hero isOpen={isOpen} freeHours={schedFree} day={schedDay} cheapestHour={cheapestHour} />
-      <StatsBand freeHours={schedFree} day={schedDay} />
-      <CourtsScene weekday={weekday} freeBySport={freeBySport} day={schedDay} onShowTimes={showTimes} />
+      <StatsBand freeHours={schedFree} day={schedDay} courts={sched.courts} />
+      <CourtsScene weekday={weekday} freeBySport={freeBySport} day={schedDay} onShowTimes={showTimes} courts={sched.courts} />
       <ScheduleScene
         sched={sched}
         date={schedDate}
@@ -147,8 +147,8 @@ function Landing() {
       {classes.length ? <ClassTicker classes={classes} /> : null}
       <Manifesto />
       <StepsScene />
-      <CoachesScene />
-      <FacilitiesScene />
+      <CoachesScene dbCoaches={dbCoaches} />
+      <FacilitiesScene courts={sched.courts} />
       <PricingScene weekday={weekday} />
       <PlansScene plans={plans} />
       <ClassesScene classes={classes} />

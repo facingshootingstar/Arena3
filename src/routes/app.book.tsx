@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
 import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
-import { Cover, HoldTimer, MediaCaption, media, sportPhoto } from "@/components/media";
+import { Cover, HoldTimer, MediaCaption, sportPhoto } from "@/components/media";
 import { HoldCountdown } from "@/components/moments/hold-countdown";
 import { PaidMark, ScrambleCode } from "@/components/moments/paid";
 import { SportGlyph } from "@/components/moments/sport-glyph";
@@ -368,7 +368,7 @@ function Page() {
     <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for {n} minutes while you pay.", { n: venue.holdMinutes })}>
       <GlareHover className="mb-4 block rounded-[var(--radius-xl)]" duration={1.1}>
         <Cover
-          src={sport ? sportPhoto(sport) : media.hallCourts}
+          slot={sport ? sportPhoto(sport) : "banner.book"}
           alt=""
           scrim="none"
           className="h-32 rounded-[var(--radius-xl)] md:h-40"
@@ -395,9 +395,9 @@ function Page() {
                 onChange={setSport}
                 options={[
                   { value: "", label: t("All") },
-                  { value: "badminton", label: sportLabel("badminton") },
-                  { value: "basketball", label: sportLabel("basketball") },
-                  { value: "volleyball", label: sportLabel("volleyball") },
+                  ...["badminton", "basketball", "volleyball"]
+                    .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s))
+                    .map((s) => ({ value: s, label: sportLabel(s) })),
                 ]}
               />
               <Seg

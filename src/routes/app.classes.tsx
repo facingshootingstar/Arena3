@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cover, MediaCaption, PhotoBanner, media, sportPhoto } from "@/components/media";
+import { Cover, MediaCaption, PhotoBanner, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell, when } from "@/components/shell";
 import { Badge, Button, ButtonLink, Card, EmptyState, LoadError, Modal, Seg, ShowMore, Skeleton } from "@/components/ui";
@@ -94,7 +94,7 @@ function Page() {
       title={t("Classes")}
       subtitle={t("Enrol by sport. When a class is full you join a first-come waitlist.")}
     >
-      <PhotoBanner src={media.classGroup} focus="50% 40%" className="mb-4" />
+      <PhotoBanner slot="banner.classes" focus="50% 40%" className="mb-4" />
       {offers.length ? (
         <Card className="mb-4 border border-hold/30 bg-hold/5">
           <p className="text-sm font-medium">{t("A waitlist seat opened up")}</p>
@@ -161,7 +161,7 @@ function Page() {
               <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.11}>
               <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
                 <GlareHover>
-                  <Cover src={sportPhoto(c.sport)} alt="" scrim="none" className="h-24 sm:h-28">
+                  <Cover slot={sportPhoto(c.sport)} alt="" scrim="none" className="h-24 sm:h-28">
                     <MediaCaption className="flex items-end justify-between">
                       <Badge tone="accent" className="bg-surface text-fg">
                         {sportLabel(c.sport)}

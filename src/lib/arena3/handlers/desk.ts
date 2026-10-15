@@ -731,7 +731,7 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
 
   return {
     status: 200,
-    body: { awaiting, orders, refunds, receipts: receipts.items, receipts_total: receipts.total, days },
+    body: { awaiting, orders, refunds, receipts: receipts.items, receipts_total: receipts.total, days, capped: false },
   };
 }
 
@@ -776,7 +776,14 @@ export async function subscriptionDecline(sql: Sql, id: string, user: PublicUser
  */
 export async function invoicesMine(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["member", "receptionist", "manager"]);
-  const { limit, offset } = pageParams(request, { def: 30, max: 100 });
+  const url = new URL(request.url);
+  const rawLimit = url.searchParams.get("limit");
+  let req = request;
+  if (rawLimit && Number(rawLimit) > 100) {
+    url.searchParams.set("limit", "100");
+    req = new Request(url.toString(), request);
+  }
+  const { limit, offset } = pageParams(req, { def: 30, max: 100 });
   const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select i.id, i.code, i.issued_at::text as issued_at,
             p.code as payment_code, p.method, p.amount_vnd, p.status, p.ref_type,
@@ -1042,6 +1049,7 @@ export async function reportsOccupancy(sql: Sql, request: Request, user: PublicU
        from courts c
        left join occupancies o
          on o.court_id = c.id and o.start_at < $2 and o.end_at > $1
+       where c.retired_at is null or o.id is not null
       group by c.id, c.court_code
       order by c.court_code`,
     [`${date}T06:00:00+07:00`, `${date}T22:00:00+07:00`],

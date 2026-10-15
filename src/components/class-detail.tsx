@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge } from "@/components/ui";
-import { hhmm, money, when } from "@/components/shell";
+import { hhmm, initials, money, when } from "@/components/shell";
+import { Cover } from "@/components/media";
 import { apiPatch, apiPost } from "@/lib/arena3/client";
 import { formatDate, kindLabel, levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 import { scrollBehavior } from "@/lib/calm";
@@ -112,21 +113,30 @@ export function ClassDetailModal({
         <Skeleton className="h-40" />
       ) : (
         <div className="grid gap-5">
-          <div className="grid gap-1 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium tabular-nums">{c.code}</span>
-              <StatusBadge status={c.status} />
-              <Badge tone="muted">
-                {t("{n}/{cap} enrolled", { n: c.enrolled_count, cap: c.capacity })}
-              </Badge>
+          <div className="flex items-center gap-3">
+            <Cover
+              slot={"coach." + c.coach_id}
+              fallbackInitials={initials(c.coach_name)}
+              className="size-12 shrink-0 rounded-full border border-line"
+              initialsClassName="text-sm font-bold"
+              alt={c.coach_name}
+            />
+            <div className="min-w-0 grid gap-1 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium tabular-nums">{c.code}</span>
+                <StatusBadge status={c.status} />
+                <Badge tone="muted">
+                  {t("{n}/{cap} enrolled", { n: c.enrolled_count, cap: c.capacity })}
+                </Badge>
+              </div>
+              <p className="text-muted">
+                {t("Coach {name}", { name: c.coach_name })}
+                {c.assistant_name ? ` · ${t("assisted by {name}", { name: c.assistant_name })}` : ""} · {c.court_code}
+              </p>
+              <p className="text-muted">
+                {rruleLabel(c.rrule, c.duration_min)} · {formatDate(c.start_on)} - {formatDate(c.end_on)}
+              </p>
             </div>
-            <p className="text-muted">
-              {t("Coach {name}", { name: c.coach_name })}
-              {c.assistant_name ? ` · ${t("assisted by {name}", { name: c.assistant_name })}` : ""} · {c.court_code}
-            </p>
-            <p className="text-muted">
-              {rruleLabel(c.rrule, c.duration_min)} · {formatDate(c.start_on)} - {formatDate(c.end_on)}
-            </p>
           </div>
 
           <section>

@@ -5,6 +5,8 @@ import {
   FileText,
   HandCoins,
   Hourglass,
+  Image,
+  LandPlot,
   Layers,
   PiggyBank,
   Repeat,
@@ -12,6 +14,8 @@ import {
   Tag,
   TrendingUp,
   Undo2,
+  UserCog,
+  UserPlus,
   Wallet,
   Wrench,
 } from "lucide-react";
@@ -37,10 +41,10 @@ const CHART_METHOD_COLORS = [
   "var(--color-chart-4)",
 ];
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
-import { Cover, MediaCaption, media } from "@/components/media";
+import { Cover, MediaCaption } from "@/components/media";
 import { Shell, money, when } from "@/components/shell";
 import { CapacityPanel, ExportButtons, MembersPanel } from "@/components/report-panels";
-import { Button, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
+import { Button, ButtonAnchor, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
 import { t } from "@/lib/i18n";
@@ -150,10 +154,16 @@ function Page() {
   // refuses leaves them standing.
   const occRead = useRead<Occ>(`/reports/occupancy?date=${to}`);
   const mapRead = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${to}`);
+  const staffRead = useRead<{ items: Array<{ role: string; status: string }> }>("/staff?limit=100");
   const rev = revRead.data;
   const prev = rev?.prev ?? null;
   const occ = occRead.data;
   const map = mapRead.data;
+  const activeReceptionists = staffRead.data?.items.filter((s) => s.role === "receptionist" && s.status === "active") ?? [];
+  const activeCoaches = staffRead.data?.items.filter((s) => s.role === "coach" && s.status === "active") ?? [];
+  const hasLoadedStaff = !!staffRead.data;
+  const missingReceptionist = hasLoadedStaff && activeReceptionists.length === 0;
+  const missingCoach = hasLoadedStaff && activeCoaches.length === 0;
   // A window the server refuses (backwards, far too long) is said once, where the numbers would
   // be, with the date box it is about marked. Asking again gets the same words, so there is no
   // "Try again", and nothing counted from the window is shown as if it were zero.
@@ -211,31 +221,84 @@ function Page() {
         opacity={0.22}
       />
       <GlareHover className="mb-5 hidden rounded-[var(--radius-xl)] sm:block" duration={1.1}>
-        <Cover src={media.hallCourts} alt="" scrim="none" className="h-32 rounded-[var(--radius-xl)]">
+        <Cover slot="banner.manager" alt="" scrim="none" className="h-32 rounded-[var(--radius-xl)]">
           <MediaCaption>
             <p className="font-display text-2xl">{t("Close the books for this period")}</p>
           </MediaCaption>
         </Cover>
       </GlareHover>
+      {missingReceptionist ? (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-warn/30 bg-warn/10 p-4">
+          <div className="flex items-center gap-3">
+            <UserPlus className="size-5 shrink-0 text-warn" />
+            <div>
+              <p className="font-semibold text-fg">{t("No active receptionist, add one now")}</p>
+              <p className="text-xs text-muted">
+                {t("Add a receptionist now so the front desk can operate and check players in.")}
+              </p>
+            </div>
+          </div>
+          <ButtonAnchor
+            href="/manager/staff?create=1&role=receptionist"
+            variant="outline"
+            size="sm"
+            className="border-warn/40 text-fg hover:bg-warn/20"
+          >
+            {t("Add staff")}
+          </ButtonAnchor>
+        </Card>
+      ) : null}
+      {missingCoach ? (
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-warn/30 bg-warn/10 p-4">
+          <div className="flex items-center gap-3">
+            <UserPlus className="size-5 shrink-0 text-warn" />
+            <div>
+              <p className="font-semibold text-fg">{t("No active coaches, add one now")}</p>
+              <p className="text-xs text-muted">
+                {t("Add a coach now to schedule classes and assign students.")}
+              </p>
+            </div>
+          </div>
+          <ButtonAnchor
+            href="/manager/staff?create=1&role=coach"
+            variant="outline"
+            size="sm"
+            className="border-warn/40 text-fg hover:bg-warn/20"
+          >
+            {t("Add staff")}
+          </ButtonAnchor>
+        </Card>
+      ) : null}
       {/* Everything the manager runs besides the numbers. Phones reach the same pages from the
           bottom bar's More sheet, so the strip is for screens with room for it. */}
       <nav aria-label={t("Quick links")} className="mb-5 hidden flex-wrap gap-2 md:flex">
         {(
           [
-            { to: "/manager/plans", label: t("Plans"), Icon: Wallet },
-            { to: "/manager/promos", label: t("Promos"), Icon: Tag },
-            { to: "/manager/prices", label: t("Pricing"), Icon: Settings },
-            { to: "/desk/series", label: t("Fixed bookings"), Icon: Repeat },
-            { to: "/manager/commission", label: t("Commission"), Icon: HandCoins },
-            { to: "/manager/invoices", label: t("E-invoices"), Icon: FileText },
-            { to: "/desk/maintenance", label: t("Maintenance"), Icon: Wrench },
+            { to: "/manager/courts" as const, label: t("Courts"), Icon: LandPlot },
+            { to: "/manager/media" as const, label: t("Media"), Icon: Image },
+            { to: "/manager/staff" as const, label: t("Staff"), Icon: UserCog },
+            { href: "/manager/staff?create=1", label: t("Add staff"), Icon: UserPlus },
+            { to: "/manager/plans" as const, label: t("Plans"), Icon: Wallet },
+            { to: "/manager/promos" as const, label: t("Promos"), Icon: Tag },
+            { to: "/manager/prices" as const, label: t("Pricing"), Icon: Settings },
+            { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },
+            { to: "/manager/commission" as const, label: t("Commission"), Icon: HandCoins },
+            { to: "/manager/invoices" as const, label: t("E-invoices"), Icon: FileText },
+            { to: "/desk/maintenance" as const, label: t("Maintenance"), Icon: Wrench },
           ] as const
-        ).map((a) => (
-          <ButtonLink key={a.to} to={a.to} variant="outline" size="sm">
-            <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-            {a.label}
-          </ButtonLink>
-        ))}
+        ).map((a) =>
+          "href" in a ? (
+            <ButtonAnchor key={a.label} href={a.href} variant="outline" size="sm">
+              <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
+              {a.label}
+            </ButtonAnchor>
+          ) : (
+            <ButtonLink key={a.label} to={a.to} variant="outline" size="sm">
+              <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
+              {a.label}
+            </ButtonLink>
+          ),
+        )}
       </nav>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Seg

@@ -48,7 +48,9 @@ import { Route as ManagerAttendanceRouteImport } from './routes/manager.attendan
 import { Route as ManagerAuditRouteImport } from './routes/manager.audit'
 import { Route as ManagerClassesRouteImport } from './routes/manager.classes'
 import { Route as ManagerCommissionRouteImport } from './routes/manager.commission'
+import { Route as ManagerCourtsRouteImport } from './routes/manager.courts'
 import { Route as ManagerInvoicesRouteImport } from './routes/manager.invoices'
+import { Route as ManagerMediaRouteImport } from './routes/manager.media'
 import { Route as ManagerMembersRouteImport } from './routes/manager.members'
 import { Route as ManagerPlansRouteImport } from './routes/manager.plans'
 import { Route as ManagerPricesRouteImport } from './routes/manager.prices'
@@ -255,9 +257,19 @@ const ManagerCommissionRoute = ManagerCommissionRouteImport.update({
   path: '/commission',
   getParentRoute: () => ManagerRoute,
 } as any)
+const ManagerCourtsRoute = ManagerCourtsRouteImport.update({
+  id: '/courts',
+  path: '/courts',
+  getParentRoute: () => ManagerRoute,
+} as any)
 const ManagerInvoicesRoute = ManagerInvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
+  getParentRoute: () => ManagerRoute,
+} as any)
+const ManagerMediaRoute = ManagerMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
   getParentRoute: () => ManagerRoute,
 } as any)
 const ManagerMembersRoute = ManagerMembersRouteImport.update({
@@ -347,7 +359,9 @@ export interface FileRoutesByFullPath {
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/commission': typeof ManagerCommissionRoute
+  '/manager/courts': typeof ManagerCourtsRoute
   '/manager/invoices': typeof ManagerInvoicesRoute
+  '/manager/media': typeof ManagerMediaRoute
   '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
@@ -395,7 +409,9 @@ export interface FileRoutesByTo {
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/commission': typeof ManagerCommissionRoute
+  '/manager/courts': typeof ManagerCourtsRoute
   '/manager/invoices': typeof ManagerInvoicesRoute
+  '/manager/media': typeof ManagerMediaRoute
   '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
@@ -448,7 +464,9 @@ export interface FileRoutesById {
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/commission': typeof ManagerCommissionRoute
+  '/manager/courts': typeof ManagerCourtsRoute
   '/manager/invoices': typeof ManagerInvoicesRoute
+  '/manager/media': typeof ManagerMediaRoute
   '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
@@ -502,7 +520,9 @@ export interface FileRouteTypes {
     | '/manager/audit'
     | '/manager/classes'
     | '/manager/commission'
+    | '/manager/courts'
     | '/manager/invoices'
+    | '/manager/media'
     | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
@@ -550,7 +570,9 @@ export interface FileRouteTypes {
     | '/manager/audit'
     | '/manager/classes'
     | '/manager/commission'
+    | '/manager/courts'
     | '/manager/invoices'
+    | '/manager/media'
     | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
@@ -602,7 +624,9 @@ export interface FileRouteTypes {
     | '/manager/audit'
     | '/manager/classes'
     | '/manager/commission'
+    | '/manager/courts'
     | '/manager/invoices'
+    | '/manager/media'
     | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
@@ -911,11 +935,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManagerCommissionRouteImport
       parentRoute: typeof ManagerRoute
     }
+    '/manager/courts': {
+      id: '/manager/courts'
+      path: '/courts'
+      fullPath: '/manager/courts'
+      preLoaderRoute: typeof ManagerCourtsRouteImport
+      parentRoute: typeof ManagerRoute
+    }
     '/manager/invoices': {
       id: '/manager/invoices'
       path: '/invoices'
       fullPath: '/manager/invoices'
       preLoaderRoute: typeof ManagerInvoicesRouteImport
+      parentRoute: typeof ManagerRoute
+    }
+    '/manager/media': {
+      id: '/manager/media'
+      path: '/media'
+      fullPath: '/manager/media'
+      preLoaderRoute: typeof ManagerMediaRouteImport
       parentRoute: typeof ManagerRoute
     }
     '/manager/members': {
@@ -1068,7 +1106,9 @@ interface ManagerRouteChildren {
   ManagerAuditRoute: typeof ManagerAuditRoute
   ManagerClassesRoute: typeof ManagerClassesRoute
   ManagerCommissionRoute: typeof ManagerCommissionRoute
+  ManagerCourtsRoute: typeof ManagerCourtsRoute
   ManagerInvoicesRoute: typeof ManagerInvoicesRoute
+  ManagerMediaRoute: typeof ManagerMediaRoute
   ManagerMembersRoute: typeof ManagerMembersRoute
   ManagerPlansRoute: typeof ManagerPlansRoute
   ManagerPricesRoute: typeof ManagerPricesRoute
@@ -1083,7 +1123,9 @@ const ManagerRouteChildren: ManagerRouteChildren = {
   ManagerAuditRoute: ManagerAuditRoute,
   ManagerClassesRoute: ManagerClassesRoute,
   ManagerCommissionRoute: ManagerCommissionRoute,
+  ManagerCourtsRoute: ManagerCourtsRoute,
   ManagerInvoicesRoute: ManagerInvoicesRoute,
+  ManagerMediaRoute: ManagerMediaRoute,
   ManagerMembersRoute: ManagerMembersRoute,
   ManagerPlansRoute: ManagerPlansRoute,
   ManagerPricesRoute: ManagerPricesRoute,

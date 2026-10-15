@@ -91,13 +91,13 @@ async function readSeriesInput(sql: Sql, b: Record<string, unknown>): Promise<Se
   if (weeks == null || !Number.isInteger(weeks) || weeks < settings.series_min_weeks || weeks > settings.series_max_weeks) {
     throw err.field("weeks", `A fixed booking runs ${settings.series_min_weeks}–${settings.series_max_weeks} weeks.`);
   }
-  const court = await one<{ id: string; court_code: string; sport: string; status: string }>(
+  const court = await one<{ id: string; court_code: string; sport: string; status: string; retired_at: string | null }>(
     sql,
-    `select id, court_code, sport::text as sport, status::text as status from courts where id = $1`,
+    `select id, court_code, sport::text as sport, status::text as status, retired_at from courts where id = $1`,
     [courtId],
   );
   if (!court) throw err.notFound("No such court.");
-  if (court.status !== "ready") throw err.br("BR-06", "That court is not available.");
+  if (court.retired_at || court.status !== "ready") throw err.br("BR-06", "That court is not available.");
   return { courtId, firstDate, startLocal: startLocal.padStart(5, "0"), weeks, court };
 }
 
@@ -713,7 +713,7 @@ export async function workOrdersCreate(sql: Sql, request: Request, user: PublicU
   const priority = str(b.priority) ?? "normal";
   if (!WO_PRIORITY.includes(priority)) throw err.field("priority", "Pick low, normal or urgent.");
   const courtId = str(b.court_id) || null;
-  if (courtId) await one(sql, `select 1 from courts where id = $1`, [courtId]).then((r) => { if (!r) throw err.notFound("No such court."); });
+  if (courtId) await one(sql, `select 1 from courts where id = $1 and retired_at is null`, [courtId]).then((r) => { if (!r) throw err.notFound("No such court."); });
   const blocks = b.blocks_court === true && !!courtId;
   const code = await nextCode(sql, "WO");
   const row = await one<{ id: string }>(

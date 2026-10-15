@@ -1,5 +1,5 @@
 import type { Sql } from "@/lib/db";
-import { err, isConflictSlot } from "../errors";
+import { ApiError, err, isConflictSlot } from "../errors";
 import {
   audit,
   bookingBuyer,
@@ -8,6 +8,7 @@ import {
   getSettings,
   issueInvoice,
   nextCode,
+  num,
   readJson,
   str,
 } from "../helpers";
@@ -25,7 +26,10 @@ async function courtById(sql: Sql, id: string) {
     court_code: string;
     sport: string;
     status: string;
-  }>(sql, `select id, court_code, sport, status from courts where id = $1`, [id]);
+    display_name: string | null;
+    sort_order: number | null;
+    retired_at: string | null;
+  }>(sql, `select id, court_code, sport, status, display_name, sort_order, retired_at from courts where id = $1`, [id]);
   if (!c) throw err.notFound("No such court.");
   return c;
 }
@@ -130,7 +134,7 @@ export async function occupancyGet(sql: Sql, request: Request) {
     [start.toISOString(), end.toISOString()],
   );
   const courts = await sql.query(
-    `select id, court_code, sport, status from courts order by court_code`,
+    `select id, court_code, sport, status, display_name, sort_order from courts where retired_at is null order by sort_order nulls last, court_code`,
   );
   return {
     status: 200,
@@ -172,7 +176,7 @@ export async function availabilityGet(sql: Sql, request: Request, user?: PublicU
   const first = from < today ? today : from;
   const settings = await getSettings(sql);
   const courts = await sql.query<{ id: string }>(
-    `select id from courts where status = 'ready' and ($1::text is null or sport::text = $1) order by id`,
+    `select id from courts where status = 'ready' and retired_at is null and ($1::text is null or sport::text = $1) order by sort_order nulls last, court_code`,
     [sport],
   );
   const rangeStart = ictDateTime(first, "00:00");
@@ -408,41 +412,188 @@ export async function occupancyDetail(sql: Sql, request: Request, user: PublicUs
 }
 
 export async function courtsList(sql: Sql) {
-  const items = await sql.query(`select id, court_code, sport, status from courts order by court_code`);
+  const items = await sql.query(
+    `select id, court_code, sport, status, display_name, sort_order, retired_at
+       from courts
+      where retired_at is null
+      order by sort_order nulls last, court_code`,
+  );
   return { status: 200, body: { items } };
 }
 
 const COURT_STATUSES = ["ready", "maintenance", "closed"] as const;
 
 /**
- * Take a court out of service, or put it back.
- *
- * Closing a court does not cancel what is already on it: bookings that were
- * paid for stay honoured, and the desk sorts those out with the members
- * directly. The status only gates *new* holds — `bookingsHold` refuses
- * anything that is not `ready`. Surfacing the count of live occupancies in the
- * response lets the manager see what they have just committed the desk to.
+ * Take a court out of service, put it back, or update court metadata.
  */
 export async function courtsPatch(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const b = await readJson(request);
-  const status = str(b.status);
-  if (!status || !(COURT_STATUSES as readonly string[]).includes(status)) {
-    throw err.validation(`status must be one of ${COURT_STATUSES.join(", ")}.`);
-  }
   const cur = await courtById(sql, id);
-  if (cur.status === status) return { status: 200, body: { court: cur, upcoming: 0 } };
-  const reason = str(b.reason) ?? null;
-  await sql.query(`update courts set status = $2 where id = $1`, [id, status]);
+
+  const status = str(b.status);
+
+  const hasExtraFields =
+    b.court_code !== undefined ||
+    b.display_name !== undefined ||
+    b.sort_order !== undefined ||
+    b.sport !== undefined;
+
+  // Preserve exact original behavior if only status is being patched (or no extra fields)
+  if (!hasExtraFields) {
+    if (!status || !(COURT_STATUSES as readonly string[]).includes(status)) {
+      throw err.validation(`status must be one of ${COURT_STATUSES.join(", ")}.`);
+    }
+    if (cur.status === status) return { status: 200, body: { court: cur, upcoming: 0 } };
+
+    if (status === "closed" && cur.status !== "closed") {
+      const remaining = await one<{ cnt: number }>(
+        sql,
+        `select count(*)::int as cnt from courts where sport = $1 and retired_at is null and status <> 'closed' and id <> $2`,
+        [cur.sport, id],
+      );
+      if (!remaining || remaining.cnt === 0) {
+        const activeSubs = await one<{ cnt: number }>(
+          sql,
+          `select count(*)::int as cnt
+             from subscriptions s
+             join plans p on p.id = s.plan_id
+            where s.status = 'active' and (p.sport_scope = $1 or p.sport_scope = 'all')`,
+          [cur.sport],
+        );
+        const activeClasses = await one<{ cnt: number }>(
+          sql,
+          `select count(*)::int as cnt from classes where sport = $1 and status = 'published'`,
+          [cur.sport],
+        );
+        if ((activeSubs?.cnt ?? 0) > 0 || (activeClasses?.cnt ?? 0) > 0) {
+          throw new ApiError(
+            409,
+            "CONFLICT_STATE",
+            "Cannot close the last available court for a sport with active plans or classes.",
+          );
+        }
+      }
+    }
+
+    const reason = str(b.reason) ?? null;
+    await sql.query(`update courts set status = $2 where id = $1`, [id, status]);
+    const live = await one<{ n: number }>(
+      sql,
+      `select count(*)::int as n from occupancies where court_id = $1 and end_at > now()`,
+      [id],
+    );
+    await audit(sql, user.id, "patch_court", "court", id, { from: cur.status, to: status, reason });
+    const court = await one(
+      sql,
+      `select id, court_code, sport, status, display_name, sort_order, retired_at from courts where id = $1`,
+      [id],
+    );
+    return { status: 200, body: { court, upcoming: live?.n ?? 0 } };
+  }
+
+  if (b.status !== undefined) {
+    if (!status || !(COURT_STATUSES as readonly string[]).includes(status)) {
+      throw err.validation(`status must be one of ${COURT_STATUSES.join(", ")}.`);
+    }
+  }
+
+  let nextCourtCode = cur.court_code;
+  if (b.court_code !== undefined) {
+    const rawCode = str(b.court_code)?.trim().toUpperCase() || "";
+    if (rawCode.length > 8 || !/^[A-Z]{2}-\d{2,3}$/.test(rawCode)) {
+      throw err.field(
+        "court_code",
+        "Court code must match format like CL-01 or BR-12 (2 capital letters, dash, 2-3 digits).",
+      );
+    }
+    if (rawCode !== cur.court_code) {
+      const dup = await one(
+        sql,
+        `select 1 from courts where lower(court_code) = lower($1) and id <> $2`,
+        [rawCode, id],
+      );
+      if (dup) {
+        throw err.conflictSlot("That court code is already in use.");
+      }
+      nextCourtCode = rawCode;
+    }
+  }
+
+  let nextSport = cur.sport;
+  if (b.sport !== undefined) {
+    const s = str(b.sport);
+    if (!s || !["badminton", "basketball", "volleyball"].includes(s)) {
+      throw err.field("sport", "Sport must be badminton, basketball, or volleyball.");
+    }
+    if (s !== cur.sport) {
+      const futureOccupancies = await one<{ cnt: number }>(
+        sql,
+        `select count(*)::int as cnt from (
+           select 1 from occupancies where court_id = $1 and end_at > now()
+           union all
+           select 1 from court_bookings where court_id = $1 and end_at > now() and status::text in ('hold', 'confirmed', 'in_use', 'paid')
+         ) t`,
+        [id],
+      );
+      if (futureOccupancies && futureOccupancies.cnt > 0) {
+        throw new ApiError(
+          409,
+          "CONFLICT_STATE",
+          "Cannot change court sport while it has upcoming bookings or classes.",
+          { affected: futureOccupancies.cnt },
+        );
+      }
+      nextSport = s;
+    }
+  }
+
+  const nextStatus = status || cur.status;
+  const nextDisplayName =
+    b.display_name !== undefined ? str(b.display_name)?.trim() || null : cur.display_name;
+  if (nextDisplayName && nextDisplayName.length > 40) {
+    throw err.field("display_name", "Display name cannot exceed 40 characters.");
+  }
+  const nextSortOrder = b.sort_order !== undefined ? num(b.sort_order) ?? null : cur.sort_order;
+
+  await sql.query(
+    `update courts
+        set court_code = $1, sport = $2, status = $3, display_name = $4, sort_order = $5
+      where id = $6`,
+    [nextCourtCode, nextSport, nextStatus, nextDisplayName, nextSortOrder, id],
+  );
+
   const live = await one<{ n: number }>(
     sql,
     `select count(*)::int as n from occupancies where court_id = $1 and end_at > now()`,
     [id],
   );
-  await audit(sql, user.id, "patch_court", "court", id, { from: cur.status, to: status, reason });
+
+  await audit(
+    sql,
+    user.id,
+    "patch_court",
+    "court",
+    id,
+    {
+      court_code: cur.court_code,
+      sport: cur.sport,
+      status: cur.status,
+      display_name: cur.display_name,
+      sort_order: cur.sort_order,
+    },
+    {
+      court_code: nextCourtCode,
+      sport: nextSport,
+      status: nextStatus,
+      display_name: nextDisplayName,
+      sort_order: nextSortOrder,
+    },
+  );
+
   const court = await one(
     sql,
-    `select id, court_code, sport, status from courts where id = $1`,
+    `select id, court_code, sport, status, display_name, sort_order, retired_at from courts where id = $1`,
     [id],
   );
   return { status: 200, body: { court, upcoming: live?.n ?? 0 } };
