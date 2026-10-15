@@ -7,6 +7,7 @@ import { addDays, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes
 import { ApiError, mapDbError } from "./errors.ts";
 import { checkOpeningHours, pageParams, parseSettingsPatch } from "./validate.ts";
 import { alignOffset, lastPageOffset, pageWindow } from "../paging.ts";
+import { crc16, readTlv, transferReference, validBankAccount, vietQrPayload } from "../vietqr.ts";
 import {
   absentStreak,
   attendanceLocked,
@@ -451,5 +452,52 @@ describe("paging", () => {
     assert.throws(() => pageParams(req("?limit=101"), { def: 25, max: 100 }));
     assert.throws(() => pageParams(req("?offset=-1"), { def: 25, max: 100 }));
     assert.throws(() => pageParams(req("?limit=abc"), { def: 25, max: 100 }));
+  });
+});
+
+describe("vietqr", () => {
+  const mb = { bin: "970422", accountNo: "0123456789" };
+
+  it("uses CRC16-CCITT-FALSE (check value of 123456789 is 29B1)", () => {
+    assert.equal(crc16("123456789"), "29B1");
+  });
+
+  it("ends with a checksum over everything before it, 6304 included", () => {
+    const p = vietQrPayload(mb, 80000, "ARENA3 CRT-20261014-U0306");
+    assert.match(p, /6304[0-9A-F]{4}$/);
+    assert.equal(p.slice(-4), crc16(p.slice(0, -4)));
+  });
+
+  it("carries the NAPAS account, the amount, VND, VN and the reference", () => {
+    const f = readTlv(vietQrPayload(mb, 80000, "ARENA3 CRT-1"));
+    assert.equal(f["00"], "01");
+    assert.equal(f["01"], "12");
+    const merchant = readTlv(f["38"]!);
+    assert.equal(merchant["00"], "A000000727");
+    assert.deepEqual(readTlv(merchant["01"]!), { "00": "970422", "01": "0123456789" });
+    assert.equal(merchant["02"], "QRIBFTTA");
+    assert.equal(f["53"], "704");
+    assert.equal(f["54"], "80000");
+    assert.equal(f["58"], "VN");
+    assert.equal(readTlv(f["62"]!)["08"], "ARENA3 CRT 1");
+  });
+
+  it("leaves the amount out and marks the code static when there is none", () => {
+    const f = readTlv(vietQrPayload(mb));
+    assert.equal(f["01"], "11");
+    assert.equal(f["54"], undefined);
+    assert.equal(f["62"], undefined);
+  });
+
+  it("keeps the reference to bank-safe ASCII, 25 characters at most", () => {
+    assert.equal(transferReference("Đặt sân CL-07 · tối nay"), "DAT SAN CL 07 TOI NAY");
+    assert.equal(transferReference("ARENA3 CRT-20261014-U0306-EXTRA").length <= 25, true);
+  });
+
+  it("refuses an account it cannot encode", () => {
+    assert.equal(validBankAccount({ bin: "97042", accountNo: "0123" }), false);
+    assert.equal(validBankAccount({ bin: "970422", accountNo: "" }), false);
+    assert.equal(validBankAccount(mb), true);
+    assert.throws(() => vietQrPayload({ bin: "x", accountNo: "1" }, 1000));
   });
 });

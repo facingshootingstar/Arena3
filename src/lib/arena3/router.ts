@@ -602,6 +602,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "POST" && p0 === "tickets" && p1 && p2 === "close") {
     return authed((sql, user) => opsH.ticketClose(sql, p1, user));
   }
+  if (method === "GET" && p0 === "bank-transfer" && !p1) {
+    return authedRead((_sql, user) => opsH.bankTransferGet(user));
+  }
   if (method === "GET" && p0 === "flags") {
     const sql = await getSql();
     return opsH.flagsGet(sql);

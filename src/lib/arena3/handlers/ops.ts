@@ -13,6 +13,7 @@ import { openShift, pickMethod } from "./extras";
 import { addDays, ictDateString } from "../time";
 import { one } from "../tx";
 import { payosConfigured } from "../payos";
+import { centreBank } from "../bank";
 import { pageParams, parseInteger } from "../validate";
 
 export async function flagsGet(sql: Sql) {
@@ -29,8 +30,23 @@ export async function flagsGet(sql: Sql) {
        * only the answer crosses the wire; the keys themselves never leave the
        * server.
        */
-      capabilities: { online_payment: payosConfigured() },
+      capabilities: { online_payment: payosConfigured(), bank_transfer: centreBank() !== null },
     },
+  };
+}
+
+/**
+ * The centre's bank account for a VietQR transfer, for signed-in people only: the booking card
+ * shows it to the member who is paying, the desk box to the customer at the counter.
+ */
+export async function bankTransferGet(user: PublicUser) {
+  requireRole(user, ["member", "receptionist", "manager"]);
+  const bank = centreBank();
+  return {
+    status: 200,
+    body: bank
+      ? { configured: true, bin: bank.bin, account_no: bank.accountNo, account_name: bank.accountName, bank_name: bank.bankName }
+      : { configured: false },
   };
 }
 

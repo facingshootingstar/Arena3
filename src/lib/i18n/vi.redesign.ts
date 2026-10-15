@@ -107,4 +107,17 @@ export const redesign: Record<string, string> = {
   "Ticket pages": "Các trang phiếu bảo trì",
   "Invoice pages": "Các trang hoá đơn",
   "Staff pages": "Các trang nhân viên",
+  // ── VietQR transfer (B-5) ──
+  "{what} copied": "Đã sao chép {what}",
+  "Could not copy. Select the text and copy it instead.": "Không sao chép được. Hãy bôi đen và sao chép thủ công.",
+  "Copy the account number": "Sao chép số tài khoản",
+  "Copy the reference": "Sao chép nội dung chuyển khoản",
+  "This code comes from payOS: the bank details are inside it, and the payment confirms itself.": "Mã này do payOS tạo: thông tin ngân hàng nằm sẵn trong mã, và thanh toán sẽ tự xác nhận.",
+  "The centre's bank account is not set up": "Chưa cài đặt tài khoản ngân hàng của trung tâm",
+  "Ask the manager to add it before taking transfers. Cash and card still work.": "Nhờ quản lý thêm tài khoản trước khi nhận chuyển khoản. Tiền mặt và thẻ vẫn dùng được.",
+  "Pay by bank transfer": "Thanh toán bằng chuyển khoản",
+  "I have transferred": "Tôi đã chuyển khoản",
+  "Scan with your banking app, or type the details in by hand. Keep the reference exactly as it is, so reception can find your transfer.": "Quét bằng ứng dụng ngân hàng, hoặc nhập tay các thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để lễ tân tìm được khoản tiền của bạn.",
+  "A transfer is not a payment until reception finds it in the bank. Your court stays held meanwhile.": "Chuyển khoản chỉ được tính là đã trả khi lễ tân thấy tiền trong tài khoản. Sân của bạn vẫn được giữ trong lúc chờ.",
+  "Transfer details": "Thông tin chuyển khoản",
 };

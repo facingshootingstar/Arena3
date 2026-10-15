@@ -11,6 +11,7 @@ import { PaidMark, ScrambleCode } from "@/components/moments/paid";
 import { SportGlyph } from "@/components/moments/sport-glyph";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
+import { MemberTransferModal, useCentreBank, type CentreBank } from "@/components/transfer-qr-modal";
 import { Shell, money, when } from "@/components/shell";
 import { Button, Card, DateField, Input, LoadError, Seg, Skeleton, StatusBadge } from "@/components/ui";
 import { GlareHover, StarBorder } from "@/components/fx";
@@ -132,7 +133,12 @@ function Page() {
   // not be something you have four seconds to notice.
   const [receipt, setReceipt] = useState<string | null>(null);
   // A transfer the member has promised but reception has not yet found.
-  const [pending, setPending] = useState<{ amount: number; until: string } | null>(null);
+  const [pending, setPending] = useState<{ amount: number; until: string; code: string } | null>(null);
+  // The centre's own account for VietQR. Without one the transfer option is left out entirely,
+  // rather than asking for money with nowhere to send it (B-5).
+  const { bank } = useCentreBank();
+  const bankOn = bank?.configured === true;
+  const [transferOpen, setTransferOpen] = useState<"hold" | "pending" | null>(null);
 
   /** Ask again for the day on screen and for everything counted from it. */
   function load() {
@@ -265,7 +271,7 @@ function Page() {
       // be the app telling a member their court is theirs while reception has
       // not found a single dong of it in the bank.
       if (res.awaiting_transfer) {
-        setPending({ amount: hold.due_now_vnd ?? hold.price, until: res.hold_until ?? hold.hold_until });
+        setPending({ amount: hold.due_now_vnd ?? hold.price, until: res.hold_until ?? hold.hold_until, code: hold.booking.code });
         toast.success(t("Transfer noted"), {
           description: t("Your court is held while reception checks the bank."),
         });
@@ -481,6 +487,11 @@ function Page() {
                           {heldAfter}
                         </p>
                       </div>
+                      {bankOn ? (
+                        <Button size="sm" variant="outline" onClick={() => setTransferOpen("pending")}>
+                          {t("Transfer details")}
+                        </Button>
+                      ) : null}
                       <Button size="sm" variant="ghost" onClick={() => setPending(null)} aria-label={t("Dismiss")}>
                         {t("Got it")}
                       </Button>
@@ -673,14 +684,42 @@ function Page() {
                         }}
                       />
                     ) : null}
-                    <Button variant="outline" disabled={busy} onClick={() => void confirmPay("transfer")}>
-                      {t("Bank transfer")}
-                    </Button>
+                    {/* Opens the account, QR and reference first; "I have transferred" comes after. */}
+                    {bankOn ? (
+                      <Button variant="outline" disabled={busy} onClick={() => setTransferOpen("hold")}>
+                        {t("Bank transfer")}
+                      </Button>
+                    ) : null}
                   </div>
                 </Card>
               </motion.div>
             ) : null}
           </AnimatePresence>
+
+          {bankOn && transferOpen === "hold" && hold ? (
+            <MemberTransferModal
+              open
+              onClose={() => setTransferOpen(null)}
+              bank={bank as CentreBank & { configured: true }}
+              amountVnd={hold.due_now_vnd ?? hold.price}
+              bookingCode={hold.booking.code}
+              busy={busy}
+              onTransferred={() => {
+                setTransferOpen(null);
+                void confirmPay("transfer");
+              }}
+            />
+          ) : null}
+          {bankOn && transferOpen === "pending" && pending ? (
+            <MemberTransferModal
+              open
+              onClose={() => setTransferOpen(null)}
+              bank={bank as CentreBank & { configured: true }}
+              amountVnd={pending.amount}
+              bookingCode={pending.code}
+              busy={false}
+            />
+          ) : null}
 
           <div className="mt-4">
             {error ? (
