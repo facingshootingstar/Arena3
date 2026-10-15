@@ -11,6 +11,7 @@ import { apiPost, openInvoice } from "@/lib/arena3/client";
 import { todayISO } from "@/lib/arena3/labels";
 import { t, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { hoursOf, venueFrom, type VenueRaw } from "@/lib/venue";
 
 export const Route = createFileRoute("/desk/courts")({
   component: Page,
@@ -20,6 +21,9 @@ function Page() {
   const [date, setDate] = useState(todayISO);
   const [sport, setSport] = useState("");
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);
+  // The centre's opening hours from its settings, so the map's rows match what can be sold.
+  const flags = useRead<{ venue?: VenueRaw }>("/flags");
+  const dayHours = hoursOf(venueFrom(flags.data?.venue));
   const [pick, setPick] = useState<{ court: Court; hour: number } | null>(null);
   const [form, setForm] = useState({ guest_name: "", guest_phone: "", method: "cash" });
   // The taken hour whose owner the desk is looking up, and the class it may lead to.
@@ -129,6 +133,7 @@ function Page() {
       ) : data ? (
         <CourtGrid
           defaultShowPast
+          hours={dayHours}
           date={date}
           courts={data.courts}
           slots={data.slots}

@@ -1,5 +1,5 @@
 import { Navigate, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { freeHours, useNowMinute } from "@/components/court-grid";
 import { ClassTicker } from "@/components/landing/ticker";
 import { ClassesScene, PlansScene } from "@/components/landing/plans";
@@ -15,7 +15,8 @@ import { ScheduleScene, type Picked } from "@/components/landing/schedule";
 import { SiteHeader } from "@/components/landing/header";
 import { StepsScene } from "@/components/landing/steps";
 import { Testimonials } from "@/components/landing/testimonials";
-import { CLOSE_HOUR, OPEN_HOUR, useVenueHour, wdLabel } from "@/components/landing/util";
+import { VenueProvider, useVenueHour, wdLabel } from "@/components/landing/util";
+import { hoursOf, venueFrom } from "@/lib/venue";
 import { getStoredUser, getToken, homeFor } from "@/lib/arena3/client";
 import { getPublicAvailability, getPublicCatalog } from "@/lib/arena3/catalog";
 import { addDaysISO } from "@/lib/arena3/labels";
@@ -59,10 +60,12 @@ function Home() {
  * its own scene with its own GSAP timeline, and none of them use `motion` (CLAUDE.md, rule 3).
  */
 function Landing() {
-  const { plans, classes, prices, availability } = Route.useLoaderData();
+  const { plans, classes, prices, availability, venue: venueRaw } = Route.useLoaderData();
+  // The centre's own hours and hold length, for every section's copy and the grid.
+  const venue = useMemo(() => venueFrom(venueRaw), [venueRaw]);
   const { scrollToId } = useLandingScroll();
   const hour = useVenueHour();
-  const isOpen = hour == null ? null : hour >= OPEN_HOUR && hour < CLOSE_HOUR;
+  const isOpen = hour == null ? null : hour >= venue.open && hour < venue.close;
 
   // ── Today's schedule, live on the page ──────────────────────────────
   const [schedSport, setSchedSport] = useState("badminton");
@@ -91,9 +94,9 @@ function Landing() {
   }, [schedDate, sched.date]);
 
   const freeBySport = (s: string) =>
-    freeHours(sched.courts.filter((c) => c.sport === s), sched.slots, sched.date, now, true).length;
+    freeHours(sched.courts.filter((c) => c.sport === s), sched.slots, sched.date, now, true, hoursOf(venue)).length;
   // Guests book like members: an hour that has started is no longer on offer (BR-07).
-  const schedFree = freeHours(sched.courts, sched.slots, sched.date, now, true).length;
+  const schedFree = freeHours(sched.courts, sched.slots, sched.date, now, true, hoursOf(venue)).length;
   const schedDay =
     sched.date === availability.date
       ? t("today")
@@ -114,9 +117,9 @@ function Landing() {
   useEffect(() => {
     if (!now) return;
     if (schedDate !== availability.date) return;
-    if (freeHours(availability.courts, availability.slots, availability.date, now, true).length > 0) return;
+    if (freeHours(availability.courts, availability.slots, availability.date, now, true, hoursOf(venue)).length > 0) return;
     setSchedDate(addDaysISO(availability.date, 1));
-  }, [now, schedDate, availability]);
+  }, [now, schedDate, availability, venue]);
 
   /** Jump to the schedule already filtered to the sport they tapped. */
   const showTimes = (s: string) => {
@@ -126,7 +129,7 @@ function Landing() {
   };
 
   return (
-    <>
+    <VenueProvider value={venue}>
       <Hero isOpen={isOpen} freeHours={schedFree} day={schedDay} cheapestHour={cheapestHour} />
       <StatsBand freeHours={schedFree} day={schedDay} />
       <CourtsScene weekday={weekday} freeBySport={freeBySport} day={schedDay} onShowTimes={showTimes} />
@@ -152,6 +155,6 @@ function Landing() {
       <Testimonials />
       <ClosingCta />
       <SiteFooter />
-    </>
+    </VenueProvider>
   );
 }

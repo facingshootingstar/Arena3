@@ -165,9 +165,10 @@ export function freeHours(
   date: string,
   now: number,
   startedIsPast = false,
+  hours: readonly number[] = HOURS,
 ): { court: Court; hour: number }[] {
   const out: { court: Court; hour: number }[] = [];
-  for (const h of HOURS) {
+  for (const h of hours) {
     for (const c of courts) {
       if (slotState(c, occAt(slots, c.id, date, h), date, h, now, startedIsPast) === "free") {
         out.push({ court: c, hour: h });
@@ -352,6 +353,7 @@ export function CourtGrid({
   startedIsPast = false,
   freeCount,
   defaultShowPast = false,
+  hours: dayHours = HOURS,
 }: {
   date: string;
   courts: Court[];
@@ -374,19 +376,21 @@ export function CourtGrid({
   freeCount?: number;
   /** Staff grids open with the finished hours showing: the morning's bookings are still work. */
   defaultShowPast?: boolean;
+  /** The hours the centre is open, from its settings (src/lib/venue.ts). */
+  hours?: readonly number[];
   /** The hour the caller is currently asking about, marked on the grid. */
   selected?: { courtId: string; hour: number } | null;
 }) {
   const now = useNowMinute();
   const [showPast, setShowPast] = useState(defaultShowPast);
   const list = sport ? courts.filter((c) => c.sport === sport) : courts;
-  const freeList = freeHours(list, slots, date, now, startedIsPast);
+  const freeList = freeHours(list, slots, date, now, startedIsPast, dayHours);
   const free = freeCount ?? freeList.length;
   // Finished hours fold away, so the first row on screen is an hour you can still play.
-  const pastHours = HOURS.filter((h) => isPast(date, h, now, startedIsPast));
-  const hours = showPast ? HOURS : HOURS.filter((h) => !isPast(date, h, now, startedIsPast));
+  const pastHours = dayHours.filter((h) => isPast(date, h, now, startedIsPast));
+  const hours = showPast ? [...dayHours] : dayHours.filter((h) => !isPast(date, h, now, startedIsPast));
   // Time first: most people want "a court at seven", not "court nine".
-  const byHour = HOURS.map((h) => ({ hour: h, open: freeList.filter((f) => f.hour === h).map((f) => f.court) })).filter(
+  const byHour = dayHours.map((h) => ({ hour: h, open: freeList.filter((f) => f.hour === h).map((f) => f.court) })).filter(
     (x) => x.open.length > 0,
   );
   const hasClass = slots.some((s) => s.kind === "session" && list.some((c) => c.id === s.court_id));
@@ -398,7 +402,7 @@ export function CourtGrid({
           .filter((s) => s !== sport)
           .map((s) => ({
             sport: s,
-            count: freeHours(courts.filter((c) => c.sport === s), slots, date, now, startedIsPast).length,
+            count: freeHours(courts.filter((c) => c.sport === s), slots, date, now, startedIsPast, dayHours).length,
           }))
           .filter((a) => a.count > 0)
           .sort((a, b) => b.count - a.count)
@@ -427,7 +431,7 @@ export function CourtGrid({
         <NoFreeSlots
           date={date}
           sport={sport}
-          dayOver={HOURS.every((h) => isPast(date, h, now, startedIsPast))}
+          dayOver={dayHours.every((h) => isPast(date, h, now, startedIsPast))}
           alternatives={alternatives}
           onPickSport={onPickSport}
           onPickDate={onPickDate}

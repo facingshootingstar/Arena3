@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useContext, createContext, useEffect, useState, type ReactNode } from "react";
+import { DEFAULT_VENUE, type Venue } from "@/lib/venue";
 import type { CatalogPrice } from "@/lib/arena3/catalog";
 import { weekdayShort } from "@/lib/arena3/labels";
 import { t, tk } from "@/lib/i18n";
@@ -28,8 +29,10 @@ export const wdLabel = (iso: string) => {
   return t(WD_SHORT[w] ?? w);
 };
 
-export const OPEN_HOUR = 6;
-export const CLOSE_HOUR = 22;
+/** Opening hours and hold length for every landing section; the page provides the real ones. */
+const VenueCtx = createContext<Venue>(DEFAULT_VENUE);
+export const VenueProvider = VenueCtx.Provider;
+export const useVenue = () => useContext(VenueCtx);
 
 /** Current wall-clock hour at the centre (ICT), or null until the client mounts. */
 export function useVenueHour() {

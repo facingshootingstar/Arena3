@@ -150,4 +150,14 @@ export const redesign: Record<string, string> = {
   "terms of use": "điều khoản sử dụng",
   "personal data notice": "thông báo về dữ liệu cá nhân",
   "Arena3 home": "Trang chủ Arena3",
+  // ── venue hours and hold length from the settings ──
+  "{open}-{close} · seven days": "{open}-{close} · cả tuần",
+  "{open}-{close}, seven days": "{open}-{close}, cả tuần",
+  "Badminton, basketball, volleyball. Open {open}-{close}, every day. Book a court in five minutes; the desk closes you out in three taps.": "Cầu lông, bóng rổ, bóng chuyền. Mở cửa {open}-{close} mỗi ngày. Đặt sân trong năm phút, thanh toán tại quầy chỉ với ba thao tác.",
+  "{n} court hours still free {day} · from {price}/hr · held {hold} minutes while you decide.": "Còn {n} giờ sân trống {day} · từ {price}/giờ · giữ chỗ {hold} phút để bạn quyết định.",
+  "{open}-{close}, no closing day": "{open}-{close}, không nghỉ ngày nào",
+  "Every hour in the hall, exactly as it stands. Tap a free one and it is yours for {n} minutes while you sign in. No card up front, no phone call.": "Từng giờ trong nhà thi đấu, đúng như hiện tại. Chạm vào giờ còn trống, chỗ sẽ được giữ cho bạn {n} phút trong lúc đăng nhập, không cần thẻ, không cần gọi điện.",
+  "held {n} minutes once you sign in": "giữ chỗ {n} phút sau khi bạn đăng nhập",
+  "Hold it for {n} minutes": "Giữ chỗ {n} phút",
+  "Tap a free hour. We hold it for {n} minutes while you pay.": "Chạm vào một giờ còn trống. Sân được giữ {n} phút trong lúc bạn thanh toán.",
 };

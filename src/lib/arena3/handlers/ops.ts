@@ -17,9 +17,13 @@ import { centreBank } from "../bank";
 import { pageParams, parseInteger } from "../validate";
 
 export async function flagsGet(sql: Sql) {
+  const settings = await getSettings(sql);
   return {
     status: 200,
     body: {
+      // Opening hours and the hold length as the manager set them, for the copy and grids that
+      // used to write "06:00-22:00" and "five minutes" in by hand. Not personal, not secret.
+      venue: { open_time: settings.open_time, close_time: settings.close_time, hold_minutes: settings.hold_minutes },
       flags: await flagsMap(sql),
       /*
        * Whether online payment can be offered at all.

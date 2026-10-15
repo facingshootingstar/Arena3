@@ -19,6 +19,7 @@ import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/clien
 import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
 
 export const Route = createFileRoute("/app/book")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
@@ -33,9 +34,10 @@ function nearestFree(
   wanted: Court,
   hour: number,
   date: string,
+  hours: readonly number[],
 ) {
   const sameSport = data.courts.filter((c) => c.sport === wanted.sport);
-  return freeHours(sameSport, data.slots, date, Date.now(), true)
+  return freeHours(sameSport, data.slots, date, Date.now(), true, hours)
     .sort(
       (a, b) =>
         Math.abs(a.hour - hour) - Math.abs(b.hour - hour) ||
@@ -126,9 +128,14 @@ function Page() {
   // Leave the online button out entirely when the centre has no payOS set up,
   // rather than offering one that errors.
   const [onlineOn, setOnlineOn] = useState(false);
+  // The centre's hours and hold length come with the same answer, for the grid and the copy.
+  const [venue, setVenue] = useState<Venue>(DEFAULT_VENUE);
   useEffect(() => {
-    void apiGet<{ capabilities?: { online_payment?: boolean } }>("/flags")
-      .then((r) => setOnlineOn(Boolean(r.capabilities?.online_payment)))
+    void apiGet<{ capabilities?: { online_payment?: boolean }; venue?: VenueRaw }>("/flags")
+      .then((r) => {
+        setOnlineOn(Boolean(r.capabilities?.online_payment));
+        setVenue(venueFrom(r.venue));
+      })
       .catch(() => setOnlineOn(false));
   }, []);
   // Sticks around after the toast has gone. A receipt people paid for should
@@ -246,7 +253,7 @@ function Page() {
         if (aboutTheSlot) reload();
         setTaken({
           message,
-          alts: fresh ? nearestFree(fresh, court, hour, date) : [],
+          alts: fresh ? nearestFree(fresh, court, hour, date, hoursOf(venue)) : [],
           canRetry: aboutTheSlot,
         });
       }
@@ -358,7 +365,7 @@ function Page() {
   ) : null;
 
   return (
-    <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for five minutes while you pay.")}>
+    <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for {n} minutes while you pay.", { n: venue.holdMinutes })}>
       <GlareHover className="mb-4 block rounded-[var(--radius-xl)]" duration={1.1}>
         <Cover
           src={sport ? sportPhoto(sport) : media.hallCourts}
@@ -767,6 +774,7 @@ function Page() {
                 // as the day strip above it (B-3).
                 startedIsPast
                 freeCount={avail?.[date]?.free}
+                hours={hoursOf(venue)}
                 // A sold-out sport hands back the two controls at the top of this page.
                 onPickSport={setSport}
                 onPickDate={setDate}

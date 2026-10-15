@@ -4,6 +4,7 @@ import { gsap, useScene } from "@/lib/gsap";
 import { t } from "@/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
+import { useVenue } from "./util";
 
 /**
  * How booking works, told as you scroll.
@@ -14,6 +15,7 @@ import { rise } from "./tweens";
  * finished picture (every step lit, the line drawn), which is what reduced motion gets.
  */
 export function StepsScene() {
+  const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   const steps = [
     {
@@ -21,7 +23,7 @@ export function StepsScene() {
       title: t("Pick your slot"),
       body: t("Live court map, hour by hour. What you see is what is actually free: holds expire in front of you."),
     },
-    { n: "02", title: t("Hold it for five minutes"), body: t("The slot is yours while you decide. No card up front, no phone call.") },
+    { n: "02", title: t("Hold it for {n} minutes", { n: venue.holdMinutes }), body: t("The slot is yours while you decide. No card up front, no phone call.") },
     {
       n: "03",
       title: t("Pay at the desk"),

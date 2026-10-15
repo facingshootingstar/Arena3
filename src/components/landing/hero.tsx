@@ -11,7 +11,8 @@ import { ScrollTrigger, gsap, registerGsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
 import { t } from "@/lib/i18n";
 import { CountTo } from "./kit";
-import { CLOSE_HOUR, OPEN_HOUR, mark, rich } from "./util";
+import { mark, rich, useVenue } from "./util";
+import { hhmm } from "@/lib/venue";
 
 registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
 
@@ -42,12 +43,13 @@ export function Hero({
   const calm = useCalm();
   // The intro plays once the boot cover lifts; run under the cover, nobody would see it.
   const open = useBootOpen();
+  const venue = useVenue();
   const status =
     isOpen == null
       ? t("Indoor sports centre")
       : isOpen
-        ? t("Open now · until {time}", { time: `${CLOSE_HOUR}:00` })
-        : t("Closed · opens {time}", { time: `${String(OPEN_HOUR).padStart(2, "0")}:00` });
+        ? t("Open now · until {time}", { time: hhmm(venue.close) })
+        : t("Closed · opens {time}", { time: hhmm(venue.open) });
 
   useScene(root, ({ motion }) => {
     const el = root.current;
@@ -170,7 +172,10 @@ export function Hero({
           </h1>
 
           <p data-enter data-sub className="mt-5 max-w-lg text-on-media-muted">
-            {t("Badminton, basketball, volleyball. Open 06:00-22:00, every day. Book a court in five minutes; the desk closes you out in three taps.")}
+            {t("Badminton, basketball, volleyball. Open {open}-{close}, every day. Book a court in five minutes; the desk closes you out in three taps.", {
+              open: hhmm(venue.open),
+              close: hhmm(venue.close),
+            })}
           </p>
 
           {/* The order is the funnel: see a free hour, take it, come back. Membership is the third visit. */}
@@ -197,7 +202,8 @@ export function Hero({
           {/* The live number is the argument for the button above. */}
           <p data-enter data-free className="mt-4 text-sm text-on-media-muted">
             {rich(
-              t("{n} court hours still free {day} · from {price}/hr · held five minutes while you decide.", {
+              t("{n} court hours still free {day} · from {price}/hr · held {hold} minutes while you decide.", {
+                hold: venue.holdMinutes,
                 n: mark("n"),
                 day,
                 price: mark("price"),
@@ -319,6 +325,7 @@ function Shuttle() {
  * arrives; the cells rise in one after another.
  */
 export function StatsBand({ freeHours, day }: { freeHours: number; day: string }) {
+  const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
     if (!motion || !root.current) return;
@@ -333,7 +340,7 @@ export function StatsBand({ freeHours, day }: { freeHours: number; day: string }
   const stats = [
     { to: freeHours, suffix: "", label: t("Court hours free"), note: t("Live from the booking grid · {day}", { day }), href: "#schedule" },
     { to: 16, suffix: "", label: t("Courts & bays"), note: t("12 badminton · 2 basketball · 2 volleyball"), href: "#courts" },
-    { to: 16, suffix: "h", label: t("Open every day"), note: t("06:00-22:00, no closing day"), href: "#schedule" },
+    { to: venue.close - venue.open, suffix: "h", label: t("Open every day"), note: t("{open}-{close}, no closing day", { open: hhmm(venue.open), close: hhmm(venue.close) }), href: "#schedule" },
     { to: 4, suffix: "", label: t("Head coaches"), note: t("One per sport, classes on the same calendar"), href: "#coaches" },
   ];
   return (

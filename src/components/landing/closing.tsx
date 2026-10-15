@@ -6,9 +6,12 @@ import { ButtonLink } from "@/components/ui";
 import { gsap, useScene } from "@/lib/gsap";
 import { t } from "@/lib/i18n";
 import { rise } from "./tweens";
+import { useVenue } from "./util";
+import { hhmm } from "@/lib/venue";
 
 /** The last ask: opening hours and the two ways in, over the frontage at dusk. */
 export function ClosingCta() {
+  const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
     const el = root.current;
@@ -29,7 +32,7 @@ export function ClosingCta() {
       <Cover src={media.exterior} alt={t("The Arena3 frontage at dusk")} className="min-h-[26rem]" scrim="hero">
         <div className="relative flex min-h-[26rem] flex-col justify-end p-6 sm:p-12">
           <p data-rise className="athletic max-w-md text-5xl text-on-media on-media sm:text-6xl">
-            {t("06:00-22:00 · seven days")}
+            {t("{open}-{close} · seven days", { open: hhmm(venue.open), close: hhmm(venue.close) })}
           </p>
           <p data-rise className="mt-3 max-w-sm text-on-media-muted on-media">
             {t("Reception is staffed the whole time we are open. Walk-ins never need an account.")}
@@ -55,6 +58,7 @@ export function ClosingCta() {
 }
 
 export function SiteFooter() {
+  const venue = useVenue();
   return (
     <footer className="border-t border-line bg-surface/60">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-[1.4fr_1fr_1fr]">
@@ -73,7 +77,7 @@ export function SiteFooter() {
           <ul className="mt-4 grid gap-3 text-sm">
             <li className="flex gap-2.5 text-muted">
               <Clock className="mt-0.5 size-4 shrink-0 text-accent" strokeWidth={1.75} />
-              {t("06:00-22:00, seven days")}
+              {t("{open}-{close}, seven days", { open: hhmm(venue.open), close: hhmm(venue.close) })}
             </li>
             <li className="flex gap-2.5 text-muted">
               <MapPin className="mt-0.5 size-4 shrink-0 text-accent" strokeWidth={1.75} />

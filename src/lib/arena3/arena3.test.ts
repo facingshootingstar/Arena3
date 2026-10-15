@@ -8,6 +8,7 @@ import { ApiError, mapDbError } from "./errors.ts";
 import { checkOpeningHours, pageParams, parseSettingsPatch } from "./validate.ts";
 import { alignOffset, lastPageOffset, pageWindow } from "../paging.ts";
 import { crc16, readTlv, transferReference, validBankAccount, vietQrPayload } from "../vietqr.ts";
+import { DEFAULT_VENUE, hhmm, hoursOf, venueFrom } from "../venue.ts";
 import {
   absentStreak,
   attendanceLocked,
@@ -499,5 +500,35 @@ describe("vietqr", () => {
     assert.equal(validBankAccount({ bin: "970422", accountNo: "" }), false);
     assert.equal(validBankAccount(mb), true);
     assert.throws(() => vietQrPayload({ bin: "x", accountNo: "1" }, 1000));
+  });
+});
+
+describe("venue hours", () => {
+  it("reads the settings, and falls back when they are missing", () => {
+    assert.deepEqual(venueFrom({ open_time: "07:00:00", close_time: "21:00:00", hold_minutes: 10 }), { open: 7, close: 21, holdMinutes: 10 });
+    assert.deepEqual(venueFrom(null), DEFAULT_VENUE);
+    assert.deepEqual(venueFrom({}), DEFAULT_VENUE);
+  });
+
+  it("sells the hour a part-hour close falls in, as the server's availability does", () => {
+    assert.equal(venueFrom({ open_time: "06:00", close_time: "21:30" }).close, 22);
+  });
+
+  it("refuses a close that is not after the open, as a pair", () => {
+    const v = venueFrom({ open_time: "22:00", close_time: "06:00", hold_minutes: 5 });
+    assert.equal(v.open, DEFAULT_VENUE.open);
+    assert.equal(v.close, DEFAULT_VENUE.close);
+  });
+
+  it("ignores a hold length that is not a positive whole number", () => {
+    assert.equal(venueFrom({ hold_minutes: 0 }).holdMinutes, 5);
+    assert.equal(venueFrom({ hold_minutes: 7 }).holdMinutes, 7);
+  });
+
+  it("lists the bookable hours and formats them", () => {
+    assert.deepEqual(hoursOf({ open: 6, close: 9, holdMinutes: 5 }), [6, 7, 8]);
+    assert.equal(hoursOf(DEFAULT_VENUE).length, 16);
+    assert.equal(hhmm(6), "06:00");
+    assert.equal(hhmm(22), "22:00");
   });
 });
