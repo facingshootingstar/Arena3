@@ -103,4 +103,8 @@ export const redesign: Record<string, string> = {
   "{n} entries": "{n} mục",
   "Audit pages": "Các trang nhật ký",
   "Member pages": "Các trang hội viên",
+  "Day pass pages": "Các trang vé ngày",
+  "Ticket pages": "Các trang phiếu bảo trì",
+  "Invoice pages": "Các trang hoá đơn",
+  "Staff pages": "Các trang nhân viên",
 };

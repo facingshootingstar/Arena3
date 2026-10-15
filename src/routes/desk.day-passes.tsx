@@ -3,12 +3,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { SectionTitle } from "@/components/section";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
-import { Badge, Button, Card, DateField, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Stat } from "@/components/ui";
+import { Badge, Button, Card, DateField, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Stat, Pagination } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { TillNotice, useTillOpen } from "@/components/till-notice";
 import { ApiClientError, apiPost, openInvoice } from "@/lib/arena3/client";
 import { todayISO } from "@/lib/arena3/labels";
 import { t, tServer } from "@/lib/i18n";
+import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/desk/day-passes")({ component: Page });
@@ -25,13 +26,17 @@ type Pass = {
   used_at: string | null;
   method: string | null;
 };
-type Day = { date: string; items: Pass[]; sold: number; revenue_vnd: number; price_vnd: number };
+type Day = { date: string; items: Pass[]; total: number; sold: number; revenue_vnd: number; price_vnd: number };
 
 function Page() {
   const user = useSessionUser();
   const role = user?.role === "manager" ? "manager" : "receptionist";
   const [date, setDate] = useState(todayISO());
-  const { data, error, reload } = useRead<Day>(`/day-passes?date=${date}`);
+  const { offset, setOffset, pageSize, setPageSize, reset } = usePageState("desk.day-passes", 25);
+  useEffect(reset, [date, reset]);
+  const { data, error, reload } = useRead<Day>(`/day-passes?date=${date}&limit=${pageSize}&offset=${offset}`, {
+    keepPrevious: true,
+  });
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [method, setMethod] = useState("cash");
@@ -179,6 +184,14 @@ function Page() {
           ))}
         </Stagger>
       )}
+      <Pagination
+        offset={offset}
+        total={data?.total ?? 0}
+        pageSize={pageSize}
+        onChange={setOffset}
+        onPageSizeChange={setPageSize}
+        label={t("Day pass pages")}
+      />
 
       <VoidDialog
         pass={voiding}

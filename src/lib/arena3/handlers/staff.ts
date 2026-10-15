@@ -2,10 +2,11 @@ import { randomInt } from "node:crypto";
 import type { Sql } from "@/lib/db";
 import { hashPassword } from "../crypto";
 import { err } from "../errors";
-import { audit, readJson, str } from "../helpers";
+import { audit, pageOf, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, unaccentVi } from "../phone";
 import { requireRole, type PublicUser } from "../session";
 import { one, q } from "../tx";
+import { pageParams } from "../validate";
 
 /**
  * Staff accounts (R-01…R-03).
@@ -121,12 +122,18 @@ export async function staffList(sql: Sql, request: Request, user: PublicUser) {
     params.push(`%${unaccentVi(text)}%`, `%${text}%`);
     where.push(`(u.name_normalized ilike $${params.length - 1} or u.phone ilike $${params.length} or u.email ilike $${params.length})`);
   }
-  const items = await q<StaffRow>(
+  const { limit, offset } = pageParams(request, { def: 200, max: 200 });
+  const filter = where.join(" and ");
+  const rows = await q<StaffRow & { total: number }>(
     sql,
-    `${STAFF_SELECT} where ${where.join(" and ")} order by u.role, u.full_name limit 200`,
-    params,
+    `${STAFF_SELECT.replace(/^\s*select /, "select count(*) over ()::int as total, ")} where ${filter}
+      order by u.role, u.full_name limit $${params.length + 1} offset $${params.length + 2}`,
+    [...params, limit, offset],
   );
-  return { status: 200, body: { items } };
+  const body = await pageOf(rows, { limit, offset }, async () =>
+    Number((await q<{ n: number }>(sql, `select count(*)::int as n from users u where ${filter}`, params))[0]?.n ?? 0),
+  );
+  return { status: 200, body };
 }
 
 export async function staffCreate(sql: Sql, request: Request, user: PublicUser) {

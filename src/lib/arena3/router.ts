@@ -330,7 +330,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
     );
   }
   if (method === "GET" && p0 === "series" && !p1) {
-    return authedRead((sql, user) => xH.seriesList(sql, user));
+    return authedRead((sql, user) => xH.seriesList(sql, request, user));
   }
   if (method === "POST" && p0 === "series" && p1 && p2 === "cancel") {
     return authed((sql, user) => xH.seriesCancel(sql, p1, request, user));
