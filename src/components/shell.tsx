@@ -19,6 +19,7 @@ import {
   ScrollText,
   Settings,
   Tag,
+  Coins,
   Ticket,
   UserCog,
   UserMinus,
@@ -119,7 +120,7 @@ const NAV: Record<string, NavItem[]> = {
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet },
     { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false },
-    { to: "/manager/prices", label: tk("Pricing"), icon: Tag, more: true, dock: false, group: G_BUSINESS },
+    { to: "/manager/prices", label: tk("Pricing"), icon: Coins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/invoices", label: tk("E-invoices"), icon: FileText, more: true, dock: false, group: G_BUSINESS },
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, more: true, dock: false, group: G_OPS },

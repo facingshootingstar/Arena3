@@ -351,6 +351,7 @@ export function CourtGrid({
   selected,
   startedIsPast = false,
   freeCount,
+  defaultShowPast = false,
 }: {
   date: string;
   courts: Court[];
@@ -371,11 +372,13 @@ export function CourtGrid({
    * number as the day strip above it (B-3). Falls back to counting the cells.
    */
   freeCount?: number;
+  /** Staff grids open with the finished hours showing: the morning's bookings are still work. */
+  defaultShowPast?: boolean;
   /** The hour the caller is currently asking about, marked on the grid. */
   selected?: { courtId: string; hour: number } | null;
 }) {
   const now = useNowMinute();
-  const [showPast, setShowPast] = useState(false);
+  const [showPast, setShowPast] = useState(defaultShowPast);
   const list = sport ? courts.filter((c) => c.sport === sport) : courts;
   const freeList = freeHours(list, slots, date, now, startedIsPast);
   const free = freeCount ?? freeList.length;

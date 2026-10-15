@@ -611,7 +611,7 @@ function Page() {
       </Stagger>
       {map ? (
         <div className="mt-4">
-          <CourtGrid date={to} courts={map.courts} slots={map.slots} />
+          <CourtGrid date={to} courts={map.courts} slots={map.slots} defaultShowPast />
         </div>
       ) : (
         <Skeleton className="mt-4 h-64" />

@@ -128,6 +128,7 @@ function Page() {
         <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
       ) : data ? (
         <CourtGrid
+          defaultShowPast
           date={date}
           courts={data.courts}
           slots={data.slots}
