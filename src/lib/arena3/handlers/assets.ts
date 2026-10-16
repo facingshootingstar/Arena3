@@ -1,11 +1,10 @@
-import fs from "node:fs";
-import path from "node:path";
 import type { Sql } from "@/lib/db";
 import { err, json } from "../errors";
 import { audit } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { findSlotDef } from "../media";
+import { MEDIA_FILES } from "../media-files";
 
 // Dynamically construct media prefix so it never appears as a literal in grep
 const MEDIA_PREFIX = "/" + "media" + "/";
@@ -27,16 +26,8 @@ export type SiteAssetRow = {
   updated_by: string | null;
 };
 
-function getMediaFiles(): string[] {
-  try {
-    const dir = path.join(process.cwd(), "public", "media");
-    if (fs.existsSync(dir)) {
-      return fs.readdirSync(dir).filter((f) => !f.startsWith("."));
-    }
-  } catch {
-    // ignore
-  }
-  return [];
+function getMediaFiles(): readonly string[] {
+  return MEDIA_FILES;
 }
 
 /** Parse image dimensions and mime type from buffer */
