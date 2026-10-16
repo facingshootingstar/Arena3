@@ -1,8 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Archive, Edit2, Plus, RefreshCw } from "lucide-react";
+import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { Shell } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
+import { RowActions } from "@/components/row-actions";
+import { SportBadge } from "@/components/sports-ui";
 import {
   Badge,
   Button,
@@ -236,24 +240,22 @@ function Page() {
     }
   }
 
+  const statItems = [
+    { label: t("Courts in service"), value: readyCount },
+    { label: t("Maintenance"), value: maintCount },
+    { label: t("Retired"), value: retiredCount },
+    { label: t("Total courts"), value: total },
+  ];
+
   return (
-    <Shell
-      role="manager"
-      title={t("Courts")}
-      subtitle={t("Manage courts and sports")}
-    >
-      {/* Summary Bar */}
-      <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
-        <div>
-          <p className="text-sm font-semibold">
-            {t("{total} courts · {ready} ready · {maint} maintenance · {retired} retired", {
-              total,
-              ready: readyCount,
-              maint: maintCount,
-              retired: retiredCount,
-            })}
-          </p>
-        </div>
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Courts")}
+        subtitle={t("Manage courts and sports")}
+      />
+      <StatStrip className="mb-4" items={statItems} />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 size-4" />
@@ -264,7 +266,7 @@ function Page() {
             {t("Refresh")}
           </Button>
         </div>
-      </Card>
+      </div>
 
       {/* Filters */}
       <Card className="mb-4 grid gap-3 p-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
@@ -332,7 +334,7 @@ function Page() {
                       {c.display_name ? (
                         <span className="text-sm font-medium text-fg">{c.display_name}</span>
                       ) : null}
-                      <Badge tone="accent">{sportLabel(c.sport)}</Badge>
+                      <SportBadge sport={c.sport} />
                       {isRetired ? (
                         <Badge tone="muted">{t("Retired")}</Badge>
                       ) : (
@@ -400,30 +402,30 @@ function Page() {
                           })}
                         </div>
 
-                        <Button size="sm" variant="outline" onClick={() => startEdit(c)}>
-                          <Edit2 className="mr-1 size-3.5" />
-                          {t("Edit")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          disabled={actionBusy === c.id}
-                          onClick={() => setRetiring(c)}
-                        >
-                          <Archive className="mr-1 size-3.5" />
-                          {t("Retire court")}
-                        </Button>
+                        <RowActions
+                          primary={{
+                            label: t("Edit"),
+                            onClick: () => startEdit(c),
+                          }}
+                          secondary={[
+                            {
+                              label: t("Retire court"),
+                              danger: true,
+                              confirm: t("Are you sure you want to retire this court?"),
+                              disabled: actionBusy === c.id,
+                              onClick: () => setRetiring(c),
+                            },
+                          ]}
+                        />
                       </>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={actionBusy === c.id}
-                        onClick={() => void handleRestore(c)}
-                      >
-                        <RefreshCw className="mr-1 size-3.5" />
-                        {t("Restore court")}
-                      </Button>
+                      <RowActions
+                        primary={{
+                          label: t("Restore court"),
+                          disabled: actionBusy === c.id,
+                          onClick: () => void handleRestore(c),
+                        }}
+                      />
                     )}
                   </div>
                 </Card>

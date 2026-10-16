@@ -16,7 +16,6 @@ import {
 } from "react";
 import { createLink } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
-import { Spot, type SpotName } from "../illustrations";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -482,29 +481,6 @@ export function Skeleton({ className }: { className?: string }) {
   );
 }
 
-export function EmptyState({
-  title,
-  hint,
-  art,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  /** Picture to show; defaults to the neutral empty tray (the page header already carries the screen's own picture). */
-  art?: SpotName;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="grid place-items-center rounded-[var(--radius-xl)] border border-dashed border-line-strong/70 px-6 py-10 text-center">
-      <div className="mb-3 grid size-16 place-items-center rounded-full bg-wood text-accent-text">
-        <Spot name={art ?? "empty"} className="h-10 w-10 text-accent-text" />
-      </div>
-      <p className="font-medium">{t(title)}</p>
-      {hint ? <p className="mt-1 max-w-sm text-sm text-muted">{t(hint)}</p> : null}
-      {children ? <div className="mt-4">{children}</div> : null}
-    </div>
-  );
-}
 
 /**
  * What a panel shows when its data would not load: the reason, and a button that asks again.
@@ -936,3 +912,10 @@ export function ShowMore({ shown, total, step, onMore }: { shown: number; total:
     </div>
   );
 }
+
+export { PageHero, type PageHeroStat } from "@/components/page-hero";
+export { StatStrip, type StatItem } from "@/components/stat-strip";
+export { EmptyState, type EmptyStateAction } from "@/components/empty-state";
+export { RowActions, type RowActionItem } from "@/components/row-actions";
+export { ContextLayout, ContextCard } from "@/components/context-layout";
+export { useSports, SportBadge, SportDot, SportThumbnail, type SportInfo } from "@/components/sports-ui";

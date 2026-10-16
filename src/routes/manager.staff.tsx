@@ -4,6 +4,10 @@ import { Copy, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Shell, initials, when } from "@/components/shell";
 import { Cover } from "@/components/media";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
+import { RowActions } from "@/components/row-actions";
+import { SportBadge } from "@/components/sports-ui";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Pagination } from "@/components/ui";
 import { ApiClientError, apiPost, apiPatch } from "@/lib/arena3/client";
 import { roleLabel, sportLabel } from "@/lib/arena3/labels";
@@ -63,6 +67,29 @@ function Page() {
   // The list on screen stays (dimmed) while a new filter loads; a failed read replaces it with the reason.
   const read = useRead<{ items: Staff[]; total: number }>(`/staff?${qs}`, { keepPrevious: true });
   const items = read.data?.items ?? null;
+  const allStaffRead = useRead<{ items: Staff[] }>("/staff?limit=100");
+  const allStaff = allStaffRead.data?.items ?? [];
+
+  const roleCounts = {
+    "": allStaff.length,
+    receptionist: allStaff.filter((s) => s.role === "receptionist").length,
+    coach: allStaff.filter((s) => s.role === "coach").length,
+    manager: allStaff.filter((s) => s.role === "manager").length,
+  };
+
+  const ROLES = [
+    { value: "", label: t("All roles"), count: roleCounts[""] },
+    { value: "receptionist", label: t("Receptionist"), count: roleCounts.receptionist },
+    { value: "coach", label: t("Coach"), count: roleCounts.coach },
+    { value: "manager", label: t("Manager"), count: roleCounts.manager },
+  ];
+
+  const statItems = [
+    { label: t("Total coaches"), value: roleCounts.coach },
+    { label: t("Total receptionists"), value: roleCounts.receptionist },
+    { label: t("Must change password"), value: allStaff.filter((s) => s.must_change_password).length },
+    { label: t("Open sessions"), value: allStaff.reduce((sum, s) => sum + s.open_sessions, 0) },
+  ];
 
   async function act(s: Staff, what: "lock" | "unlock" | "reset" | "revoke") {
     try {
@@ -90,25 +117,47 @@ function Page() {
         );
       }
       read.reload();
+      allStaffRead.reload();
     } catch (e) {
       toast.error(e instanceof Error ? tServer(e.message) : t("Something went wrong"));
     }
   }
 
   return (
-    <Shell
-      role="manager"
-      title={t("Staff")}
-      subtitle={t("Receptionist and coach logins are issued here and nowhere else. Members sign themselves up.")}
-    >
-      <Card className="mb-4 grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto]">
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Staff")}
+        subtitle={t("Receptionist and coach logins are issued here and nowhere else. Members sign themselves up.")}
+      />
+      <StatStrip className="mb-6" items={statItems} />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {ROLES.map((r) => (
+          <button
+            key={r.value}
+            type="button"
+            onClick={() => setRole(r.value)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors",
+              role === r.value
+                ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]"
+                : "border border-line bg-surface text-muted hover:bg-wood hover:text-fg",
+            )}
+          >
+            <span>{r.label}</span>
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-0.2 text-2xs font-semibold tabular-nums",
+                role === r.value ? "bg-accent-fg/20 text-accent-fg" : "bg-wood text-muted",
+              )}
+            >
+              {r.count}
+            </span>
+          </button>
+        ))}
+      </div>
+      <Card className="mb-4 grid gap-3 md:grid-cols-[1.8fr_1fr_auto]">
         <Input aria-label={t("Search staff")} placeholder={t("Search name, phone or email")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <Select aria-label={t("Role")} value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="">{t("All roles")}</option>
-          <option value="receptionist">{t("Receptionist")}</option>
-          <option value="coach">{t("Coach")}</option>
-          <option value="manager">{t("Manager")}</option>
-        </Select>
         <Select aria-label={t("Status")} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">{t("Any status")}</option>
           <option value="active">{t("Active")}</option>
@@ -130,20 +179,24 @@ function Page() {
           {!filtered ? <Button onClick={() => setCreating(true)}>{t("Add staff")}</Button> : null}
         </EmptyState>
       ) : (
-        <div className="grid gap-2">
+        <div className="grid gap-3 xl:grid-cols-2">
           {items.map((s) => {
             const managed = s.role === "receptionist" || s.role === "coach";
             return (
               <Card key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3.5 min-w-0">
                   {s.role === "coach" ? (
                     <Cover
                       slot={"coach." + s.id}
                       fallbackInitials={initials(s.full_name)}
-                      className="size-11 shrink-0 rounded-full border border-line"
-                      initialsClassName="text-sm font-bold"
+                      className="size-14 shrink-0 rounded-full border border-line"
+                      initialsClassName="text-base font-bold"
                     />
-                  ) : null}
+                  ) : (
+                    <div className="grid size-14 shrink-0 place-items-center rounded-full border border-line bg-wood text-base font-bold text-fg">
+                      {initials(s.full_name)}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {tData(s.full_name)}
@@ -154,9 +207,15 @@ function Page() {
                     <p className="text-sm tabular-nums text-muted">
                       {s.phone}
                       {s.email ? ` · ${s.email}` : ""}
-                      {s.role === "coach" && s.sports?.length ? ` · ${s.sports.map(sportLabel).join(", ")}` : ""}
                     </p>
-                    <p className="text-xs text-muted">
+                    {s.role === "coach" && s.sports?.length ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {s.sports.map((sp) => (
+                          <SportBadge key={sp} sport={sp} className="text-xs" />
+                        ))}
+                      </div>
+                    ) : null}
+                    <p className="mt-1 text-xs text-muted">
                       {s.issued_at
                         ? t("Issued by {name} · {when}", { name: s.issued_by ?? "-", when: when(s.issued_at) })
                         : t("Seeded account")}{" "}
@@ -165,31 +224,34 @@ function Page() {
                   </div>
                 </div>
                 {managed ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setEditing(s)}>
-                      {t("Role")}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => void act(s, "reset")}>
-                      {t("Reset password")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!s.open_sessions}
-                      onClick={() => void act(s, "revoke")}
-                    >
-                      {t("Sign out everywhere")}
-                    </Button>
-                    {s.status === "active" ? (
-                      <Button size="sm" variant="danger" onClick={() => void act(s, "lock")}>
-                        {t("Lock")}
-                      </Button>
-                    ) : (
-                      <Button size="sm" onClick={() => void act(s, "unlock")}>
-                        {t("Unlock")}
-                      </Button>
-                    )}
-                  </div>
+                  <RowActions
+                    primary={{
+                      label: t("Role"),
+                      onClick: () => setEditing(s),
+                    }}
+                    secondary={[
+                      {
+                        label: t("Reset password"),
+                        onClick: () => void act(s, "reset"),
+                      },
+                      {
+                        label: t("Sign out everywhere"),
+                        disabled: !s.open_sessions,
+                        onClick: () => void act(s, "revoke"),
+                      },
+                      s.status === "active"
+                        ? {
+                            label: t("Lock"),
+                            danger: true,
+                            confirm: t("Are you sure you want to lock this account?"),
+                            onClick: () => void act(s, "lock"),
+                          }
+                        : {
+                            label: t("Unlock"),
+                            onClick: () => void act(s, "unlock"),
+                          },
+                    ]}
+                  />
                 ) : null}
               </Card>
             );

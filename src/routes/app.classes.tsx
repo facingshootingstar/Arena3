@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cover, MediaCaption, PhotoBanner, sportPhoto } from "@/components/media";
+import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell, when } from "@/components/shell";
-import { Badge, Button, ButtonLink, Card, EmptyState, LoadError, Modal, Seg, ShowMore, Skeleton } from "@/components/ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, LoadError, Modal, PageHero, Seg, ShowMore, Skeleton, SportBadge, useSports } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
@@ -60,6 +60,7 @@ function Page() {
     meRead.reload();
   };
 
+  const sports = useSports();
   const [limit, setLimit] = useState(6);
   // The member's own classes come first (C-4): they are what someone opens this page to manage.
   const enrolledIds = new Set(mine.map((e) => e.class_id));
@@ -89,12 +90,28 @@ function Page() {
   }
 
   return (
-    <Shell
-      role="member"
-      title={t("Classes")}
-      subtitle={t("Enrol by sport. When a class is full you join a first-come waitlist.")}
-    >
-      <PhotoBanner slot="banner.classes" focus="50% 40%" className="mb-4" />
+    <Shell role="member">
+      <PageHero
+        slot="banner.classes"
+        title={t("Classes")}
+        subtitle={t("Enrol by sport. When a class is full you join a first-come waitlist.")}
+        fallbackSpot="whistle"
+        stats={[
+          {
+            label: t("Active classes"),
+            value: items?.length ?? 0,
+          },
+          {
+            label: t("Your enrolments"),
+            value: mine.length,
+            live: mine.length > 0,
+          },
+          {
+            label: t("Sports"),
+            value: sports.length,
+          },
+        ]}
+      />
       {offers.length ? (
         <Card className="mb-4 border border-hold/30 bg-hold/5">
           <p className="text-sm font-medium">{t("A waitlist seat opened up")}</p>
@@ -136,9 +153,10 @@ function Page() {
           onChange={setSport}
           options={[
             { value: "", label: t("All") },
-            { value: "badminton", label: sportLabel("badminton") },
-            { value: "basketball", label: sportLabel("basketball") },
-            { value: "volleyball", label: sportLabel("volleyball") },
+            ...sports.map((s) => ({
+              value: s.code,
+              label: locale() === "vi" ? s.name_vi : s.name_en,
+            })),
           ]}
         />
       </div>
@@ -161,31 +179,36 @@ function Page() {
               <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={340} strength={0.11}>
               <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
                 <GlareHover>
-                  <Cover slot={sportPhoto(c.sport)} alt="" scrim="none" className="h-24 sm:h-28">
+                  <Cover slot={sportPhoto(c.sport)} alt="" scrim="none" className="h-28 sm:h-32">
                     <MediaCaption className="flex items-end justify-between">
-                      <Badge tone="accent" className="bg-surface text-fg">
-                        {sportLabel(c.sport)}
-                      </Badge>
-                      <p className="tabular-nums text-sm">{c.enrolled_count}/{c.capacity}</p>
+                      <SportBadge sport={c.sport} className="bg-surface/90 text-fg backdrop-blur-xs" />
+                      <p className="tabular-nums text-sm font-semibold">{c.enrolled_count}/{c.capacity}</p>
                     </MediaCaption>
                   </Cover>
                 </GlareHover>
                 <div className="flex flex-1 flex-col p-5">
-                  <h2 className="font-display text-2xl">{levelLabel(c.level)}</h2>
-                  <p className="mt-1 text-sm text-muted">
-                    {c.coach_name} · {c.court_code}
-                  </p>
-                  <p className="text-sm">{rruleLabel(c.rrule, c.duration_min)}</p>
-                  {/* The bar on its own is a ratio nobody converts in their
-                      head. What decides whether you enrol now or later is the
-                      number of seats, so the bar gets a caption. */}
+                  <div className="flex items-start justify-between gap-2">
+                    <h2 className="font-display text-2xl">{levelLabel(c.level)}</h2>
+                    <span className="rounded-[var(--radius-pill)] border border-line bg-wood/50 px-2 py-0.5 text-2xs font-medium text-muted">
+                      {c.court_code}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2.5 border-t border-line/60 pt-2.5">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/10 font-bold text-xs text-accent-2 border border-accent/20">
+                      {c.coach_name ? c.coach_name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase() : "HLV"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-fg">{c.coach_name}</p>
+                      <p className="text-2xs text-muted">{rruleLabel(c.rrule, c.duration_min)}</p>
+                    </div>
+                  </div>
                   <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs">
                     <span className="text-muted">{full ? t("Full") : t("{n} seats left", { n: c.capacity - c.enrolled_count })}</span>
                     <span className="tabular-nums text-subtle">{pct}%</span>
                   </div>
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
                     <motion.div
-                      className={cn("h-full rounded-full", full ? "bg-hold" : "bg-accent")}
+                      className={cn("h-full rounded-full", full ? "bg-danger" : pct >= 80 ? "bg-hold" : "bg-accent")}
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}

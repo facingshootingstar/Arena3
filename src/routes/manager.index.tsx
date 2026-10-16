@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import {
   Banknote,
   Clock,
@@ -41,12 +41,13 @@ const CHART_METHOD_COLORS = [
   "var(--color-chart-4)",
 ];
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
-import { Cover, MediaCaption } from "@/components/media";
 import { Shell, money, when } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { SportThumbnail } from "@/components/sports-ui";
 import { CapacityPanel, ExportButtons, MembersPanel } from "@/components/report-panels";
 import { Button, ButtonAnchor, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GLBackground, GlareHover, SplitText, SpotlightCard } from "@/components/fx";
+import { GLBackground, SplitText, SpotlightCard } from "@/components/fx";
 import { t } from "@/lib/i18n";
 import { addDaysISO, formatDate, methodLabel, sourceLabel, todayISO } from "@/lib/arena3/labels";
 import { useRead } from "@/lib/use-read";
@@ -205,11 +206,57 @@ function Page() {
   const showTrend = trendData.length > 1;
 
   return (
-    <Shell
-      role="manager"
-      title={t("Reports")}
-      subtitle={t("Revenue = payments taken − refunds. Court usage for {date}.", { date: formatDate(to) })}
-    >
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Reports")}
+        subtitle={t("Revenue = payments taken − refunds. Court usage for {date}.", { date: formatDate(to) })}
+        stats={[
+          { label: t("Revenue"), value: rev ? money(rev.totals.revenue_vnd) : "..." },
+          { label: t("Refunds"), value: rev ? money(rev.totals.refund_vnd ?? 0) : "0 đ" },
+          { label: t("Plan hours used"), value: rev?.totals.quota_hours ?? 0 },
+        ]}
+      />
+      <section aria-label={t("Quick actions")} className="mb-6">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Link
+            to="/manager/courts"
+            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+          >
+            <div className="flex items-center gap-3">
+              <SportThumbnail sport="badminton" className="size-12 shrink-0 rounded-[var(--radius-lg)]" />
+              <div className="min-w-0">
+                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Courts & map")}</p>
+                <p className="truncate text-xs text-muted">{t("Inspect courts & sports")}</p>
+              </div>
+            </div>
+          </Link>
+          <Link
+            to="/manager/staff"
+            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+          >
+            <div className="flex items-center gap-3">
+              <SportThumbnail sport="volleyball" className="size-12 shrink-0 rounded-[var(--radius-lg)]" />
+              <div className="min-w-0">
+                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Staff management")}</p>
+                <p className="truncate text-xs text-muted">{t("Coaches & receptionists")}</p>
+              </div>
+            </div>
+          </Link>
+          <Link
+            to="/manager/media"
+            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
+          >
+            <div className="flex items-center gap-3">
+              <SportThumbnail sport="basketball" className="size-12 shrink-0 rounded-[var(--radius-lg)]" />
+              <div className="min-w-0">
+                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Media & banners")}</p>
+                <p className="truncate text-xs text-muted">{t("Site photos & slots")}</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </section>
       <GLBackground
         variant="dotgrid"
         position="fixed"
@@ -220,13 +267,6 @@ function Page() {
         radius={130}
         opacity={0.22}
       />
-      <GlareHover className="mb-5 hidden rounded-[var(--radius-xl)] sm:block" duration={1.1}>
-        <Cover slot="banner.manager" alt="" scrim="none" className="h-32 rounded-[var(--radius-xl)]">
-          <MediaCaption>
-            <p className="font-display text-2xl">{t("Close the books for this period")}</p>
-          </MediaCaption>
-        </Cover>
-      </GlareHover>
       {missingReceptionist ? (
         <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-warn/30 bg-warn/10 p-4">
           <div className="flex items-center gap-3">

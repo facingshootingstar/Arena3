@@ -7,6 +7,8 @@ import { HoldTimer } from "@/components/media";
 import { PayOnlineButton } from "@/components/pay-online";
 import { TransferQrModal } from "@/components/transfer-qr-modal";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
 import {
   Badge,
   Button,
@@ -169,7 +171,7 @@ function Page() {
   }, []);
   // A manager signs refunds off here and never runs a till, so only the desk asks about one — and
   // only once it is known who is asking.
-  const shiftRead = useRead<{ shift: { id: string } | null }>(me && !isManager ? "/shifts/current?optional=1" : null);
+  const shiftRead = useRead<{ shift: { id: string } | null; totals?: { cash: number } | null }>(me && !isManager ? "/shifts/current?optional=1" : null);
   // undefined = not known (still asking, or the question failed); null = asked, and no till is open.
   const shift = shiftRead.data === null ? undefined : shiftRead.data.shift;
   // Method and busy flag are per-order: the desk works one member at a time,
@@ -335,14 +337,21 @@ function Page() {
     }
   }
 
-  // Managers reach this screen for the refund sign-offs; handing them the desk
-  // nav afterwards would strand them a click away from their own reports.
+  const statItems = [
+    { label: t("Waiting payments"), value: orders.length + awaiting.length },
+    { label: t("Amount to collect"), value: money(toCollect) },
+    { label: t("Current shift"), value: shift ? t("Shift open") : t("No open shift") },
+    { label: t("Cash in till"), value: shiftRead.data?.totals?.cash ? money(shiftRead.data.totals.cash) : "0 đ" },
+  ];
+
   return (
-    <Shell
-      role={isManager ? "manager" : "receptionist"}
-      title={t("Payments")}
-      subtitle={t("Plans ordered in the app and waiting to be paid for, refunds waiting on a manager, and every receipt the centre has issued.")}
-    >
+    <Shell role={isManager ? "manager" : "receptionist"}>
+      <PageHero
+        slot="banner.gate"
+        title={t("Payments & refunds")}
+        subtitle={t("Orders waiting for payment, posted receipts, and audit trail.")}
+      />
+      <StatStrip className="mb-6" items={statItems} />
       <GLBackground
         variant="dotgrid"
         position="fixed"

@@ -3,8 +3,9 @@ import { SectionTitle } from "@/components/section";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { PhotoBanner } from "@/components/media";
-import { Shell, hhmm, useSessionUser } from "@/components/shell";
+import { Shell, hhmm, money, useSessionUser } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
@@ -85,6 +86,9 @@ function Page() {
     { keepPrevious: true },
   );
   const today = todayRead.data?.items ?? null;
+  const shiftRead = useRead<{ shift: { id: string; opened_at: string } | null; totals?: { cash: number } | null }>("/shifts/current?optional=1");
+  const shift = shiftRead.data?.shift ? { shift: shiftRead.data.shift, totals: shiftRead.data.totals ?? undefined } : null;
+  const waiting = useRead<{ waiting: number }>("/payments/pending?brief=1").data?.waiting ?? 0;
 
   const refocus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 0);
 
@@ -140,12 +144,21 @@ function Page() {
   }
 
   return (
-    <Shell
-      role={user?.role === "manager" ? "manager" : "receptionist"}
-      title={t("Gate")}
-      subtitle={t("Scan a member's code to let them in. Type a phone number only when the code can't be used.")}
-    >
-      <PhotoBanner slot="banner.gate" focus="50% 30%" className="mb-4" />
+    <Shell role={user?.role === "manager" ? "manager" : "receptionist"}>
+      <PageHero
+        slot="banner.gate"
+        title={t("Gate & check-in")}
+        subtitle={t("Scan a member's code to let them in. Type a phone number only when the code can't be used.")}
+      />
+      <StatStrip
+        className="mb-6"
+        items={[
+          { label: t("Today's check-ins"), value: todayRead.data?.total ?? 0 },
+          { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
+          { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
+          { label: t("Waiting payments"), value: waiting },
+        ]}
+      />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
         <div className="grid content-start gap-4">
           <Card className="grid gap-3">
@@ -315,7 +328,15 @@ function Page() {
           ) : !today ? (
             <Skeleton className="h-16" />
           ) : !today.length ? (
-            <EmptyState title={t("Nobody yet today")} hint={t("Check-ins appear here as they happen.")} />
+            <EmptyState
+              title={t("Nobody yet today")}
+              hint={t("Check-ins appear here as they happen.")}
+              action={
+                <Button variant="outline" onClick={() => { setMode("manual"); refocus("gate-q"); }}>
+                  {t("Check in without code")}
+                </Button>
+              }
+            />
           ) : (
             today.map((row) => (
               <Card key={row.id} className="flex flex-wrap items-center justify-between gap-2 p-4">

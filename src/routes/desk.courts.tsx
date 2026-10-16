@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CourtGrid, DateStrip, sportLabel, type Court, type OccSlot } from "@/components/court-grid";
+import { CourtGrid, DateStrip, freeHours, sportLabel, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
 import { Shell, money } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
 import { Button, Card, DateField, Field, Input, LoadError, Select, Seg, Skeleton } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { SpotlightCard, StarBorder } from "@/components/fx";
@@ -21,6 +23,11 @@ function Page() {
   const [date, setDate] = useState(todayISO);
   const [sport, setSport] = useState("");
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);
+  const now = useNowMinute();
+  const shiftRead = useRead<{ shift: { id: string; opened_at: string } | null; totals?: { cash: number } | null }>("/shifts/current?optional=1");
+  const shift = shiftRead.data?.shift ? { shift: shiftRead.data.shift, totals: shiftRead.data.totals ?? undefined } : null;
+  const waiting = useRead<{ waiting: number }>("/payments/pending?brief=1").data?.waiting ?? 0;
+
   // The centre's opening hours from its settings, so the map's rows match what can be sold.
   const flags = useRead<{ venue?: VenueRaw }>("/flags");
   const dayHours = hoursOf(venueFrom(flags.data?.venue));
@@ -30,16 +37,30 @@ function Page() {
   const [look, setLook] = useState<{ kind: string; ref: string } | null>(null);
   const [lookClass, setLookClass] = useState<string | null>(null);
 
+  const currentHour = now
+    ? Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", hour12: false }).format(new Date(now)))
+    : 10;
+  const freeNowCount = data && now ? freeHours(data.courts, data.slots, date, now).filter((f) => f.hour === currentHour).length : 0;
+
   function isoAt(hour: number) {
     return `${date}T${String(hour).padStart(2, "0")}:00:00+07:00`;
   }
 
+  const statItems = [
+    { label: t("Courts free this hour"), value: freeNowCount },
+    { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
+    { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
+    { label: t("Waiting payments"), value: waiting },
+  ];
+
   return (
-    <Shell
-      role="receptionist"
-      title={t("Court map")}
-      subtitle={t("Take walk-in payment on the spot.")}
-    >
+    <Shell role="receptionist">
+      <PageHero
+        slot="banner.gate"
+        title={t("Court map")}
+        subtitle={t("Take walk-in payment on the spot.")}
+      />
+      <StatStrip className="mb-4" items={statItems} />
       <div className="mb-4 grid gap-3">
         <DateStrip value={date} onChange={setDate} />
         <div className="flex flex-wrap items-center gap-2">

@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
+import { SportBadge, useSports } from "@/components/sports-ui";
 import { Badge, Button, Card, Check, EmptyState, Field, Input, LoadError, Modal, MoneyInput, Select, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { formatDate, sportLabel } from "@/lib/arena3/labels";
@@ -154,12 +157,31 @@ function Page() {
     }
   }
 
+  const sports = useSports();
+  const totalCodes = items?.length ?? 0;
+  const activeCodes = items?.filter((p) => p.state === "active").length ?? 0;
+  const pausedCodes = items?.filter((p) => p.state === "paused").length ?? 0;
+  const totalGiven = items?.reduce((sum, p) => sum + (p.discount_given_vnd || 0), 0) ?? 0;
+
   return (
-    <Shell
-      role="manager"
-      title={t("Promo codes")}
-      subtitle={t("A code is counted when the money posts, and handed back if the payment is fully refunded.")}
-    >
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Promo codes")}
+        subtitle={t("A code is counted when the money posts, and handed back if the payment is fully refunded.")}
+        className="mb-6"
+      />
+
+      <StatStrip
+        stats={[
+          { label: tk("Active codes"), value: activeCodes },
+          { label: tk("Total codes"), value: totalCodes },
+          { label: tk("Paused"), value: pausedCodes },
+          { label: tk("Discount given"), value: money(totalGiven) },
+        ]}
+        className="mb-6"
+      />
+
       <div className="mb-4">
         <Button onClick={() => setOpen(true)}>{t("New code")}</Button>
       </div>
@@ -169,7 +191,11 @@ function Page() {
       ) : !items ? (
         <Skeleton className="h-40" />
       ) : !items.length ? (
-        <EmptyState title={t("No promo codes yet")} hint={t("Create one and give it to members at the desk or in a campaign.")} />
+        <EmptyState
+          title={t("No promo codes yet")}
+          hint={t("Create one and give it to members at the desk or in a campaign.")}
+          action={<Button onClick={() => setOpen(true)}>{t("New code")}</Button>}
+        />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {items.map((p) => (
@@ -179,7 +205,10 @@ function Page() {
                   <p className="font-display text-2xl tracking-wide">{p.code}</p>
                   <p className="text-sm text-muted">{p.name}</p>
                 </div>
-                <Badge tone={STATE_TONE[p.state]}>{t(STATE_LABEL[p.state])}</Badge>
+                <div className="flex items-center gap-2">
+                  {p.sport ? <SportBadge sport={p.sport} /> : null}
+                  <Badge tone={STATE_TONE[p.state]}>{t(STATE_LABEL[p.state])}</Badge>
+                </div>
               </div>
               <p className="text-sm">
                 <span className="font-medium">{describe(p)}</span>
@@ -277,9 +306,11 @@ function Page() {
           <Field label={t("Sport")}>
             <Select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })}>
               <option value="">{t("Any sport")}</option>
-              <option value="badminton">{t("Badminton")}</option>
-              <option value="basketball">{t("Basketball")}</option>
-              <option value="volleyball">{t("Volleyball")}</option>
+              {sports.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name}
+                </option>
+              ))}
             </Select>
           </Field>
           <Field label={t("Only this plan")} hint={planRead.error?.message}>

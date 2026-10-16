@@ -3,6 +3,8 @@ import { SectionTitle } from "@/components/section";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
 import { Button, Card, Check, Field, Input, LoadError, MoneyInput, Skeleton } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { ApiClientError, apiPatch } from "@/lib/arena3/client";
@@ -96,7 +98,24 @@ function Page() {
     );
   }
   return (
-    <Shell role="manager" title={t("Centre settings")} subtitle={t("New transactions pick these up within a minute.")}>
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Centre settings")}
+        subtitle={t("New transactions pick these up within a minute.")}
+        className="mb-6"
+      />
+
+      <StatStrip
+        stats={[
+          { label: tk("Opens at"), value: String(s.open_time ?? "06:00").slice(0, 5) },
+          { label: tk("Closes at"), value: String(s.close_time ?? "22:00").slice(0, 5) },
+          { label: tk("Hold length (minutes)"), value: Number(s.hold_minutes ?? 5) },
+          { label: tk("Book ahead (days)"), value: Number(s.book_ahead_days ?? 14) },
+        ]}
+        className="mb-6"
+      />
+
       <SectionTitle text={tk("Features")} className="mb-3 font-display text-2xl" />
       {flagsRead.error ? (
         // Switches that cannot be read must not show "off": that would be a guess presented as the state.

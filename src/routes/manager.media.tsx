@@ -9,6 +9,8 @@ import {
 import { useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
 import {
   Badge,
   Button,
@@ -23,7 +25,7 @@ import {
 } from "@/components/ui";
 import { apiPatch, apiPost } from "@/lib/arena3/client";
 import { type MediaAspectRatio, type MediaSlotGroup } from "@/lib/arena3/media";
-import { locale, t } from "@/lib/i18n";
+import { locale, t, tk } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/manager/media")({
@@ -175,12 +177,30 @@ function Page() {
     }
   }
 
+  const totalSlots = items.length;
+  const enabledSlots = items.filter((i) => i.enabled).length;
+  const customSlots = items.filter((i) => i.history_count > 0 || i.version > 1).length;
+  const disabledSlots = totalSlots - enabledSlots;
+
   return (
-    <Shell
-      role="manager"
-      title={t("Site media")}
-      subtitle={t("Hero, banners, sport covers and brand imagery across the app.")}
-    >
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Site media")}
+        subtitle={t("Hero, banners, sport covers and brand imagery across the app.")}
+        className="mb-6"
+      />
+
+      <StatStrip
+        stats={[
+          { label: tk("Total slots"), value: totalSlots },
+          { label: tk("Active slots"), value: enabledSlots },
+          { label: tk("Custom uploads"), value: customSlots },
+          { label: tk("Disabled slots"), value: disabledSlots },
+        ]}
+        className="mb-6"
+      />
+
       <div className="grid gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Seg value={selectedGroup} onChange={setSelectedGroup} options={groups} />
@@ -195,7 +215,17 @@ function Page() {
             ))}
           </div>
         ) : filteredItems.length === 0 ? (
-          <EmptyState title={t("No assets found")} hint="" />
+          <EmptyState
+            title={t("No assets found")}
+            hint={t("No slots match the selected group filter.")}
+            action={
+              selectedGroup !== "all" ? (
+                <Button variant="outline" onClick={() => setSelectedGroup("all")}>
+                  {t("Show all")}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filteredItems.map((asset) => {
