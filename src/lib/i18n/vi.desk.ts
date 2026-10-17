@@ -162,6 +162,8 @@ export const desk: Record<string, string> = {
 
   // ── desk.gear ──
   "Rented out · {amount}": "Đã cho thuê · {amount}",
+  "Rent to a member's account or to a guest by phone, stock comes down on the way out, back up on return.": "Cho thuê vào tài khoản hội viên hoặc cho khách theo số điện thoại, kho giảm khi cho thuê, tăng lại khi trả.",
+  "Rent to a member's account or to a guest by phone — the hire is charged to the till, stock comes down on the way out, back up on return.": "Cho thuê vào tài khoản hội viên hoặc cho khách theo số điện thoại — tiền thuê thu vào ca thu ngân, kho giảm khi cho thuê, tăng lại khi trả.",
   "Rent to a member's account or to a guest by phone. The hire is charged to the till, stock comes down on the way out and back up on return.": "Cho thuê vào tài khoản hội viên hoặc cho khách theo số điện thoại. Tiền thuê thu vào ca thu ngân, kho giảm khi cho thuê và tăng lại khi trả.",
   "Item": "Dụng cụ",
   "{n} left": "còn {n}",
@@ -291,7 +293,7 @@ export const desk: Record<string, string> = {
   "Refund approved": "Đã duyệt hoàn tiền",
   "Refund rejected": "Đã từ chối hoàn tiền",
   "Plans ordered in the app and waiting to be paid for, refunds waiting on a manager, and every receipt the centre has issued.": "Các gói tập đặt trong ứng dụng đang chờ thanh toán, các khoản hoàn tiền chờ quản lý, và mọi biên lai trung tâm đã phát hành.",
-  "{n} waiting · {amount} owed": "{n} đang chờ · còn nợ {amount}",
+  "{n} waiting · {amount} to collect": "{n} đang chờ · cần thu {amount}",
   "{n} transfers to check": "{n} khoản chuyển khoản cần đối soát",
   "{n} refunds to sign off": "{n} khoản hoàn tiền cần duyệt",
   "No shift open. Open one to take payment.": "Chưa mở ca, hãy mở ca để thu tiền",
@@ -319,7 +321,7 @@ export const desk: Record<string, string> = {
   "Take {amount} & print": "Thu {amount} & in biên lai",
   "Online {amount}": "Trực tuyến {amount}",
   "Clear": "Xóa",
-  "Nothing owed": "Không có khoản nợ",
+  "Nothing to collect": "Không có khoản chờ thu",
   "Every plan ordered in the app has been paid for.": "Mọi gói tập đặt trong ứng dụng đều đã được thanh toán.",
   "Refunds waiting for a manager": "Hoàn tiền chờ quản lý",
   "Raised at the desk above the receptionist limit.": "Tạo tại quầy, vượt hạn mức của lễ tân.",

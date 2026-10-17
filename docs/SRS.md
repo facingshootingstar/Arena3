@@ -160,7 +160,7 @@ convenience, not the control.
 | FR-B05 | A slot outside `open_time`–`close_time` cannot be booked. | **BR-35** |
 | FR-B06 | A member may book at most `book_ahead_days` (default 7) days ahead. | **BR-32** |
 | FR-B07 | A member may hold at most `max_slots_per_day` (default 2) slots for any one day. | **BR-32** |
-| FR-B08 | A member owing more than `debt_limit_vnd` cannot book until they settle. | **BR-44** |
+| FR-B08 | *(Removed in v2.4 — no debt in the system; see BR-19.)* | — |
 | FR-B09 | A court not in `ready` status cannot be booked. | **BR-35** |
 | FR-B10 | An unpaid hold is released automatically when its clock runs out, and the slot returns to sale. | `expireHolds` job |
 | FR-B11 | Paying converts the hold to a confirmed booking, posts a payment and issues a receipt — atomically. Either all of it happens or none of it does. | `POST /v1/bookings/:id/confirm` |
@@ -354,7 +354,7 @@ no other moment.* The return URL can be opened by anybody in any order.
 | --- | --- | --- |
 | FR-G01 | A manager creates and edits membership plans and can withdraw one from sale. | `POST/PATCH /v1/plans` |
 | FR-G02 | A manager sets price rules per sport, court class, day type and hour band. | `PUT /v1/price-rules` |
-| FR-G03 | A manager edits centre settings: opening hours, slot and hold length, cancellation windows, debt and refund limits, VAT and rounding. | `PATCH /v1/settings` |
+| FR-G03 | A manager edits centre settings: opening hours, slot and hold length, cancellation windows, refund limits, VAT and rounding. | `PATCH /v1/settings` |
 | FR-G04 | A manager changes a court's status — ready, maintenance, closed. A court out of service cannot be booked. | `PATCH /v1/courts/:id` |
 | FR-G05 | A manager reads revenue for any period, broken down by source (court, plan, refunds) and by till shift, filterable by payment method (cash, transfer, card, gateway, quota; `from` ≤ `to`), **with the change against the preceding period of equal length shown in green when it is good news and red when it is not.** The response carries `prev`. | `GET /v1/reports/revenue` |
 | FR-G06 | The direction of a change is not assumed to be good: revenue up is green, refunds up is red. | `delta(cur, prev, upIsGood)` |
@@ -369,7 +369,7 @@ no other moment.* The return URL can be opened by anybody in any order.
 | FR-G15 | A manager edits a class — capacity, open/closed status — or cancels it. Capacity cannot go below the number already enrolled. Cancelling refunds one session per enrolled member once, cancels upcoming sessions and notifies members and the waitlist. | `PATCH /v1/classes/:id`, **BR-22**, **BR-67**, **BR-26** |
 | FR-G16 | A manager issues staff accounts (receptionist or coach), locks and unlocks them, changes role between those two, resets a password (temporary, change forced at next sign-in) and revokes sessions. There is no public staff sign-up, no admin role, and a manager cannot lock or demote themselves. Every action is audited with who and when. | `GET/POST /v1/staff`, `PATCH /v1/staff/:id`, `POST /v1/staff/:id/reset-password`, `POST /v1/staff/:id/revoke-sessions` |
 | FR-G17 | A manager approves or rejects pending refunds from a queue on the manager side (not only from the desk). | `approve-refund`, `reject-refund` |
-| FR-G18 | A manager sees every member with filters, paging, plan, debt and class count, and opens one. | `GET /v1/directory/members`, `/manager/members` |
+| FR-G18 | A manager sees every member with filters, paging, plan and class count, and opens one. | `GET /v1/directory/members`, `/manager/members` |
 | FR-G19 | A manager opens a plan to see price, duration, court hours or sessions, discount, sport scope, whether it is on sale, and how many members hold it. A plan cannot be hard-deleted; "Stop selling" withdraws it and members who hold it keep using it. | `GET /v1/plans/:id`, `PATCH /v1/plans/:id`, **BR-65** |
 | FR-G20 | A manager reads a **capacity report** for up to 93 days: occupancy by court and by hour as a heatmap, peak against off-peak (from `price_rules.is_peak`), with court revenue kept apart from class fees. | `GET /v1/reports/capacity` (**FR-CRT-09**) |
 | FR-G21 | A manager reads a **members and enrolment report**: new and renewing members (a renewal is a new plan within 30 days of the previous one ending), enrolment per class, and attendance %. Attendance % is hidden when F4 is off or nothing has been marked, rather than printed as 0%. | `GET /v1/reports/members` (**FR-PAY-06**), **BR-62** |
@@ -541,7 +541,7 @@ message }`, so any refusal in the UI can be traced to the line that made it.
 | BR-35 | Opening hours; court must be ready. |
 | BR-38 | Equipment stock. |
 | BR-39 | Occupancy integrity. |
-| BR-44 | Debt limit blocks new bookings. |
+| BR-44 | Money may be taken at the desk only within the receptionist's open cashier shift. |
 | BR-49 | An open till shift is required to take money. |
 | BR-53 | The register closes 2 hours after the session ends or when it is done; only a manager, with a reason, can correct it. |
 | BR-54 | The gate is not the class: gate check-in never fills class attendance. |
@@ -670,3 +670,10 @@ Unit-level rules are covered by `src/lib/arena3/arena3.test.ts` via `npm test`.
 - Product decisions still open: mid-term plan upgrade, member-initiated plan
   cancellation with refund rule, assessment tests and teaching documents,
   and the outbound channel for email.
+
+## Revision history
+
+| Version | Date | Description |
+| --- | --- | --- |
+| v2.4 | 2026-10-14 | Removed day pass (UC-23) and residual debt wording; corrected BR-44 to the open-shift rule. |
+

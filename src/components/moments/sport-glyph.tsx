@@ -49,6 +49,7 @@ export function SportGlyph({ sport, className }: { sport: string; className?: st
       aria-hidden
       focusable="false"
       className={className}
+      style={sport && sport !== "all" ? { color: `var(--color-sport-${sport})` } : undefined}
     >
       <path ref={path} d={d} />
     </svg>

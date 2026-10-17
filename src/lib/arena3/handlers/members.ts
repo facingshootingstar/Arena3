@@ -6,6 +6,7 @@ import { isValidVnPhone, normalizePhone, phoneLast9, unaccentVi } from "../phone
 import { requireRole, toPublic, type PublicUser } from "../session";
 import { one } from "../tx";
 import { revoke, tempPassword } from "./staff";
+import { getActiveSportCodes } from "./sports";
 
 export async function membersSearch(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager", "receptionist", "coach"]);
@@ -112,8 +113,8 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
     // price less any code already on an unpaid order, or the full price for a renewal. The desk sends
     // this number rather than working it out, so a code on the order can never make it come out wrong.
     `select s.id, s.status, s.start_on::text, s.end_on::text, s.sport_scope, s.court_hours_left, s.session_left,
-            s.frozen_days, p.name as plan_name, p.price_vnd,
-            (p.price_vnd - case when s.status::text = 'pending' then coalesce(s.promo_discount_vnd, 0) else 0 end)::int as due_vnd
+            s.frozen_days, p.name as plan_name, coalesce(s.price_vnd, p.price_vnd)::int as price_vnd,
+            (coalesce(s.price_vnd, p.price_vnd) - case when s.status::text = 'pending' then coalesce(s.promo_discount_vnd, 0) else 0 end)::int as due_vnd
        from subscriptions s join membership_plans p on p.id = s.plan_id
       where s.user_id = $1 order by s.end_on desc`,
     [id],
@@ -320,7 +321,7 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
   const status = sp.get("status");
   if (status && !["active", "locked", "disabled"].includes(status)) throw err.field("status", "Unknown status.");
   const sport = sp.get("sport");
-  if (sport && !["badminton", "basketball", "volleyball"].includes(sport)) throw err.field("sport", "Unknown sport.");
+  if (sport && !(await getActiveSportCodes(sql)).includes(sport)) throw err.field("sport", "Unknown sport.");
   const plan = sp.get("plan");
   if (plan && !(PLAN_STATES as readonly string[]).includes(plan)) throw err.field("plan", "Unknown plan state.");
   const intParam = (name: string, fallback: number, min: number, max: number) => {

@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SectionTitle } from "@/components/section";
+import { sessionDay } from "@/components/class-detail";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { sessionDay } from "@/components/class-detail";
-import { PhotoBanner, media } from "@/components/media";
 import { Shell, hhmm } from "@/components/shell";
-import { Badge, Card, Check, EmptyState, LoadError, Select, Skeleton } from "@/components/ui";
+import { Badge, Card, Check, EmptyState, LoadError, PageHero, Select, Skeleton } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
+import { ActivityRings, NextMilestoneCard, SessionCountdown, WorkoutStreak } from "@/components/training-progress";
 import { apiPut } from "@/lib/arena3/client";
-import { formatDate, levelLabel, sportLabel } from "@/lib/arena3/labels";
+import { addDaysISO, formatDate, levelLabel, sportLabel, todayISO } from "@/lib/arena3/labels";
 import { t, tk } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
@@ -113,18 +113,34 @@ function Page() {
   }
 
   return (
-    <Shell
-      role="member"
-      title={t("My progress")}
-      subtitle={t("Your plans, homework and what your coach has noticed. AI only suggests; a coach approves what reaches you.")}
-    >
+    <Shell role="member">
+      <PageHero
+        slot="banner.train"
+        title={t("My progress")}
+        subtitle={t("Your plans, homework and what your coach has noticed. AI only suggests; a coach approves what reaches you.")}
+        fallbackSpot="chart"
+        stats={[
+          {
+            label: t("Completed sessions"),
+            value: d?.results?.length ?? 0,
+          },
+          {
+            label: t("Upcoming sessions"),
+            value: d?.next_sessions?.length ?? 0,
+            live: Boolean(d?.next_sessions?.length),
+          },
+          {
+            label: t("Homework left"),
+            value: d?.homework?.length ?? 0,
+          },
+        ]}
+      />
       {error ? (
         <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
       ) : !d ? (
         <Skeleton className="h-40" />
       ) : (
-        <div className="grid gap-10">
-          <PhotoBanner src={media.trainProgress} focus="50% 38%" />
+        <div className="grid gap-8">
           <Card className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="kicker text-2xs text-muted">{t("Your goal")}</p>
@@ -153,8 +169,57 @@ function Page() {
             </div>
           </Card>
 
+          {/* Activity Ring, Streak, Milestone */}
+          {(() => {
+            const realDone = d.results.length;
+            const sessionDates = new Set(
+              d.results.map((r) => {
+                const dt = new Date(r.start_at);
+                return new Intl.DateTimeFormat("en-CA", {
+                  timeZone: "Asia/Ho_Chi_Minh",
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                }).format(dt);
+              }),
+            );
+            const today = todayISO();
+            const [y, m, dayNum] = today.split("-").map(Number);
+            const todayDt = new Date(Date.UTC(y, (m ?? 1) - 1, dayNum ?? 1));
+            const currentDayOfWeek = (todayDt.getUTCDay() + 6) % 7;
+            const mondayISO = addDaysISO(today, -currentDayOfWeek);
+
+            const activeDays: boolean[] = [];
+            for (let i = 0; i < 7; i++) {
+              const dayStr = addDaysISO(mondayISO, i);
+              activeDays.push(sessionDates.has(dayStr));
+            }
+
+            let streak = 0;
+            let checkDay = today;
+            if (!sessionDates.has(checkDay)) {
+              checkDay = addDaysISO(checkDay, -1);
+            }
+            while (sessionDates.has(checkDay)) {
+              streak++;
+              checkDay = addDaysISO(checkDay, -1);
+            }
+
+            const milestoneTarget = d.levels.length > 0 ? levelLabel(d.levels[0].level) : null;
+
+            return (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Card className="p-0 flex items-center justify-center">
+                  <ActivityRings sessionsDone={realDone} />
+                </Card>
+                <WorkoutStreak days={streak} activeDays={activeDays} />
+                <NextMilestoneCard target={milestoneTarget} />
+              </div>
+            );
+          })()}
+
           <section>
-            <SectionTitle text={t("Up next")}className="font-display text-2xl" />
+            <SectionTitle text={t("Up next")} className="font-display text-2xl" />
             {d.next_sessions.length ? (
               <Stagger className="mt-3 grid gap-3 md:grid-cols-2" gap={0.07}>
                 {d.next_sessions.map((s) => (
@@ -162,9 +227,12 @@ function Page() {
                     <Lift className="h-full">
                       <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
                         <Card interactive className="relative z-[2] h-full">
-                          <p className="text-2xs text-muted">
-                            {sessionDay(s.start_at)} · {hhmm(s.start_at)} · {sportLabel(s.sport)} · {s.court_code}
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-2xs text-muted">
+                              {sessionDay(s.start_at)} · {hhmm(s.start_at)} · {sportLabel(s.sport)} · {s.court_code}
+                            </p>
+                            <SessionCountdown startAt={s.start_at} />
+                          </div>
                           {s.plans.length ? (
                             s.plans.map((p) => (
                               <div key={p.id} className="mt-3">

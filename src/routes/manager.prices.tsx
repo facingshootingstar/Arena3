@@ -2,6 +2,9 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
+import { SportBadge, useSports } from "@/components/sports-ui";
 import { Badge, Button, Card, EmptyState, LoadError, MoneyInput, Skeleton } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { StarBorder } from "@/components/fx";
@@ -38,8 +41,6 @@ type Plan = {
   court_discount_pct: number;
 };
 
-const SPORT_ORDER = ["badminton", "basketball", "volleyball"];
-
 /**
  * Pricing, in the blocks a manager thinks in: what a court costs by sport and
  * hour, what a membership costs, and the VAT that sits on top. Plans and VAT
@@ -47,6 +48,7 @@ const SPORT_ORDER = ["badminton", "basketball", "volleyball"];
  * changed in one place.
  */
 function Page() {
+  const { sports } = useSports();
   const rulesRead = useRead<{ items: Rule[] }>("/price-rules");
   const plansRead = useRead<{ items: Plan[] }>("/plans");
   const vatRead = useRead<{ vat_rate?: string | number }>("/settings");
@@ -78,11 +80,11 @@ function Page() {
       out.set(rule.sport, g);
     });
     const rank = (sport: string) => {
-      const i = SPORT_ORDER.indexOf(sport);
-      return i < 0 ? SPORT_ORDER.length : i;
+      const idx = sports.findIndex((s) => s.code === sport);
+      return idx < 0 ? sports.length : idx;
     };
     return [...out.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
-  }, [items]);
+  }, [items, sports]);
 
   function edit(index: number, value: string) {
     if (!items) return;
@@ -112,12 +114,30 @@ function Page() {
 
   const onSale = (plans ?? []).filter((p) => p.is_on_sale);
 
+  const totalRules = items?.length ?? 0;
+  const peakRules = items?.filter((r) => r.is_peak).length ?? 0;
+  const offPeakRules = totalRules - peakRules;
+  const sportsCount = groups.length;
+
   return (
-    <Shell
-      role="manager"
-      title={t("Pricing")}
-      subtitle={t("A new price only applies to new transactions: bookings and plans already sold keep theirs.")}
-    >
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Pricing")}
+        subtitle={t("A new price only applies to new transactions: bookings and plans already sold keep theirs.")}
+        className="mb-6"
+      />
+
+      <StatStrip
+        stats={[
+          { label: tk("Total rates"), value: totalRules },
+          { label: tk("Peak rules"), value: peakRules },
+          { label: tk("Off-peak rules"), value: offPeakRules },
+          { label: tk("Sports covered"), value: sportsCount },
+        ]}
+        className="mb-6"
+      />
+
       <section aria-labelledby="court-rates">
         <SectionTitle
           id="court-rates"
@@ -137,9 +157,12 @@ function Page() {
             {groups.map(([sport, rows], gi) => (
               <details key={sport} open={gi === 0 || rows.some((x) => x.index === bad)} className="group">
                 <summary className="mb-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--radius-md)] bg-surface px-3 text-sm font-medium text-muted [&::-webkit-details-marker]:hidden">
-                  <span>
-                    {sportLabel(sport)} <span className="normal-case tracking-normal">· {t("{n} rates", { n: rows.length })}</span>
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <SportBadge sport={sport} />
+                    <span>
+                      {sportLabel(sport)} <span className="normal-case tracking-normal">· {t("{n} rates", { n: rows.length })}</span>
+                    </span>
+                  </div>
                   <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
                 </summary>
                 <Stagger className="grid gap-2" gap={0.03}>

@@ -14,9 +14,9 @@ import { requireRole, type PublicUser } from "../session";
 import { getSettings } from "../helpers";
 import { one } from "../tx";
 import { parseInteger } from "../validate";
+import { getActiveSportCodes } from "./sports";
 
 const INT4 = 2_147_483_647;
-const SPORTS = ["badminton", "basketball", "volleyball", "all"];
 // Class sign-ups carry no price in Arena3, so a code can only apply to plans and courts.
 const SCOPES: PromoScope[] = ["plan", "court"];
 const CODE_RE = /^[A-Z0-9_-]{3,24}$/;
@@ -63,7 +63,7 @@ type Parsed = {
   stackable: boolean;
 };
 
-function parseBody(b: Record<string, unknown>, partial: boolean): Partial<Parsed> {
+async function parseBody(sql: Sql, b: Record<string, unknown>, partial: boolean): Promise<Partial<Parsed>> {
   const out: Partial<Parsed> = {};
   const has = (k: string) => b[k] !== undefined;
   if (!partial || has("code")) {
@@ -96,7 +96,8 @@ function parseBody(b: Record<string, unknown>, partial: boolean): Partial<Parsed
   if (!partial || has("applies_to")) out.applies_to = parseScopes(b.applies_to);
   if (!partial || has("sport")) {
     const sport = isBlank(b.sport) ? null : String(b.sport);
-    if (sport && !SPORTS.includes(sport)) throw err.field("sport", "Pick a sport or leave it for all.");
+    const valid = await getActiveSportCodes(sql, true);
+    if (sport && !valid.includes(sport)) throw err.field("sport", "Pick a sport or leave it for all.");
     out.sport = sport === "all" ? null : sport;
   }
   if (!partial || has("plan_id")) out.plan_id = isBlank(b.plan_id) ? null : String(b.plan_id);
@@ -143,7 +144,7 @@ export async function promosList(sql: Sql, user: PublicUser) {
 
 export async function promosCreate(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
-  const p = parseBody(await readJson(request), false) as Parsed;
+  const p = (await parseBody(sql, await readJson(request), false)) as Parsed;
   checkShape(p, p.kind, p.value);
   if (await one(sql, `select 1 as ok from promotions where upper(code) = $1`, [p.code])) {
     throw err.field("code", "That code already exists.");
@@ -156,7 +157,7 @@ export async function promosCreate(sql: Sql, request: Request, user: PublicUser)
     `insert into promotions
        (code, name, kind, value, max_discount_vnd, min_order_vnd, starts_at, ends_at, max_uses, max_per_member,
         applies_to, sport, plan_id, stackable, created_by)
-     values ($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz, now()),$8,$9,$10,$11,$12::sport_kind,$13,$14,$15)
+     values ($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz, now()),$8,$9,$10,$11,$12,$13,$14,$15)
      returning id`,
     [
       p.code, p.name, p.kind, p.value, p.max_discount_vnd, p.min_order_vnd, p.starts_at, p.ends_at,
@@ -185,7 +186,7 @@ export async function promosPatch(sql: Sql, id: string, request: Request, user: 
   );
   if (!cur) throw err.notFound("No such code.");
   const b = await readJson(request);
-  const p = parseBody(b, true);
+  const p = await parseBody(sql, b, true);
   const status = str(b.status);
   if (status && status !== "active" && status !== "paused") throw err.field("status", "Status is active or paused.");
   const used = await one<{ n: number }>(sql, `select count(*)::int as n from promotion_redemptions where promo_id = $1`, [id]);
@@ -213,7 +214,7 @@ export async function promosPatch(sql: Sql, id: string, request: Request, user: 
   };
   for (const [k, v] of Object.entries(p)) {
     if (k === "starts_at" && v === null) continue;
-    add(k, v, k === "sport" ? "::sport_kind" : k.endsWith("_at") ? "::timestamptz" : "");
+    add(k, v, k.endsWith("_at") ? "::timestamptz" : "");
   }
   if (status) add("status", status);
   if (!sets.length) throw err.validation("Nothing to change.");
@@ -272,7 +273,9 @@ export async function promosValidate(sql: Sql, request: Request, user: PublicUse
     const court = await one<{ sport: string }>(sql, `select sport::text as sport from courts where id = $1`, [courtId]);
     if (!court) throw err.notFound("No such court.");
     const settings = await getSettings(sql);
-    const list = await lookupPrice(sql, { sport: court.sport, courtId, start: new Date(startAt) });
+    const start = new Date(startAt);
+    if (Number.isNaN(start.getTime())) throw err.field("start_at", "That time is not valid.");
+    const list = await lookupPrice(sql, { sport: court.sport, courtId, start });
     const disc = await memberDiscount(sql, targetUser, court.sport);
     const order = applyDiscount(list.price_vnd, disc.pct, settings.round_vnd);
     const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: court.sport, orderVnd: order, planDiscountPct: disc.pct, listVnd: list.price_vnd });

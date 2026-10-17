@@ -17,7 +17,6 @@ import {
   ABSENT_STREAK_LIMIT,
   LEVELS,
   PLAN_PHASES,
-  SPORTS,
   TRAINING_GOALS,
   absentStreak,
   homeworkComplete,
@@ -25,7 +24,7 @@ import {
   normalizeDone,
   validateMetrics,
 } from "../rules";
-import { normalizePhone } from "../phone";
+import { getActiveSportCodes } from "./sports";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString, ictDateTime } from "../time";
 import { one } from "../tx";
@@ -206,12 +205,13 @@ export async function studentLevelPut(sql: Sql, id: string, request: Request, us
   await requireFlag(sql, "F4");
   const student = await loadStudent(sql, id, user);
   const b = await readJson(request);
-  const sport = oneOf(SPORTS, b.sport, "sport");
+  const sports = await getActiveSportCodes(sql);
+  const sport = oneOf(sports, b.sport, "sport");
   const level = oneOf(LEVELS, b.level, "level");
-  const before = await one(sql, `select level from member_levels where user_id = $1 and sport = $2::sport_kind`, [student.id, sport]);
+  const before = await one(sql, `select level from member_levels where user_id = $1 and sport = $2`, [student.id, sport]);
   await sql.query(
     `insert into member_levels (user_id, sport, level, assessed_by, updated_at)
-     values ($1, $2::sport_kind, $3, $4, now())
+     values ($1, $2, $3, $4, now())
      on conflict (user_id, sport) do update
        set level = excluded.level, assessed_by = excluded.assessed_by, updated_at = now()`,
     [student.id, sport, level, user.id],
@@ -252,7 +252,8 @@ export async function studentReviewPost(sql: Sql, id: string, request: Request, 
   await requireFlag(sql, "F4");
   const student = await loadStudent(sql, id, user);
   const b = await readJson(request);
-  const sport = oneOf(SPORTS, b.sport, "sport");
+  const sports = await getActiveSportCodes(sql);
+  const sport = oneOf(sports, b.sport, "sport");
   const period = Number(b.period_weeks);
   if (period !== 2 && period !== 4) throw err.field("period_weeks", "A review covers 2 or 4 weeks.");
   const technique = score(b.technique, "technique");
@@ -263,7 +264,7 @@ export async function studentReviewPost(sql: Sql, id: string, request: Request, 
   const row = await one<{ id: string; created_at: string }>(
     sql,
     `insert into progress_reviews (user_id, sport, coach_id, period_weeks, technique, fitness, attitude, comment)
-     values ($1, $2::sport_kind, $3, $4, $5, $6, $7, $8)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
      returning id, created_at`,
     [student.id, sport, user.id, period, technique, fitness, attitude, comment || null],
   );
@@ -738,7 +739,8 @@ export async function trainingCreate(sql: Sql, request: Request, user: PublicUse
   if (isTemplate) {
     if (classId || userId || sessionId) throw err.field("class_id", "A template is not tied to a class, student or session.");
     const pl = (b.payload ?? {}) as Record<string, unknown>;
-    oneOf(SPORTS, pl.sport, "sport");
+    const sports = await getActiveSportCodes(sql);
+    oneOf(sports, pl.sport, "sport");
     oneOf(LEVELS, pl.level, "level");
   } else if (!classId && !userId) {
     throw err.field("class_id", "Choose a class or a student for this plan.");
@@ -754,6 +756,9 @@ export async function trainingCreate(sql: Sql, request: Request, user: PublicUse
     );
     if (!s || s.class_id !== classId) throw err.field("session_id", "That session is not in this class.");
     if (s.status === "cancelled") throw err.conflictState("That session was cancelled.");
+    if (await one(sql, `select 1 as ok from session_results where session_id = $1 limit 1`, [uuidField(sessionId, "session_id")])) {
+      throw err.br("BR-48", "That session already has results - a plan can no longer be added.");
+    }
   }
   const title = (str(b.title) ?? "").trim();
   if (title.length > 120) throw err.field("title", "Keep the title under 120 characters.");
@@ -895,7 +900,8 @@ export async function templateSave(sql: Sql, id: string, request: Request, user:
   }
   const b = await readJson(request);
   const payload = { ...src.payload } as Record<string, unknown>;
-  payload.sport = oneOf(SPORTS, b.sport ?? payload.sport, "sport");
+  const sports = await getActiveSportCodes(sql);
+  payload.sport = oneOf(sports, b.sport ?? payload.sport, "sport");
   payload.level = oneOf(LEVELS, b.level ?? payload.level, "level");
   const title = (str(b.title) ?? src.title ?? "").trim().slice(0, 120);
   const row = await one(

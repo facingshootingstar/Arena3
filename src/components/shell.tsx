@@ -10,6 +10,8 @@ import {
   Ellipsis,
   FileText,
   HandCoins,
+  Image,
+  LandPlot,
   LayoutGrid,
   LogOut,
   Map,
@@ -21,6 +23,7 @@ import {
   Tag,
   Coins,
   Ticket,
+  Trophy,
   UserCog,
   UserMinus,
   Users,
@@ -90,9 +93,8 @@ const NAV: Record<string, NavItem[]> = {
     { to: "/desk/courts", label: tk("Courts"), icon: Map },
     { to: "/desk/classes", label: tk("Classes"), icon: Ticket, more: true, dock: false },
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet },
-    // Selling a day pass and setting up a regular booking are front-desk jobs done every day, so
-    // they come before the retention list. The row shows as many tabs as fit, in this order.
-    { to: "/desk/day-passes", label: tk("Day passes"), icon: Ticket, dock: false },
+    // Setting up a regular booking is a front-desk job done regularly, so
+    // it comes before the retention list. The row shows as many tabs as fit, in this order.
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, dock: false },
     { to: "/desk/at-risk", label: tk("At risk"), icon: UserMinus, dock: false },
     // `/desk/gear` is a complete equipment-hire screen that nothing linked to,
@@ -119,13 +121,15 @@ const NAV: Record<string, NavItem[]> = {
     // Refund sign-off lives on the payments screen, which has always taken a
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet },
-    { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false },
+    { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false, group: G_SYSTEM },
     { to: "/manager/prices", label: tk("Pricing"), icon: Coins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/invoices", label: tk("E-invoices"), icon: FileText, more: true, dock: false, group: G_BUSINESS },
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, more: true, dock: false, group: G_OPS },
-    { to: "/desk/day-passes", label: tk("Day passes"), icon: Ticket, more: true, dock: false, group: G_OPS },
     { to: "/desk/maintenance", label: tk("Maintenance"), icon: Wrench, more: true, dock: false, group: G_OPS },
+    { to: "/manager/courts", label: tk("Courts"), icon: LandPlot, more: true, dock: false, group: G_OPS },
+    { to: "/manager/sports", label: tk("Sports"), icon: Trophy, more: true, dock: false, group: G_OPS },
+    { to: "/manager/media", label: tk("Media"), icon: Image, more: true, dock: false, group: G_SYSTEM },
     { to: "/manager/audit", label: tk("Audit"), icon: ScrollText, more: true, dock: false, group: G_SYSTEM },
     { to: "/manager/settings", label: tk("Settings"), icon: Settings, more: true, dock: false, group: G_SYSTEM },
   ],
@@ -142,7 +146,7 @@ function navActive(pathname: string, to: string, items: { to: string }[]) {
   return best?.to === to;
 }
 
-function initials(name: string | undefined) {
+export function initials(name: string | undefined) {
   const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "A3";
   // Vietnamese names put the given name last, and that is the one people answer

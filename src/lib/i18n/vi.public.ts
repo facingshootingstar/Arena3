@@ -58,6 +58,7 @@ export const pub: Record<string, string> = {
   "Live from the booking grid · {day}": "Cập nhật trực tiếp từ lịch đặt sân · {day}",
   "Courts & bays": "Sân thi đấu",
   "12 badminton · 2 basketball · 2 volleyball": "12 cầu lông · 2 bóng rổ · 2 bóng chuyền",
+  "{b} badminton · {k} basketball · {v} volleyball": "{b} cầu lông · {k} bóng rổ · {v} bóng chuyền",
   "Open every day": "Mở cửa mỗi ngày",
   "06:00-22:00, no closing day": "06:00-22:00, không nghỉ ngày nào",
   "Head coaches": "HLV trưởng",
@@ -299,4 +300,6 @@ export const pub: Record<string, string> = {
   "Checking…": "Đang kiểm tra…",
   "Apply": "Áp dụng",
   "{name}: −{discount} ₫ → pay {total} ₫": "{name}: −{discount} ₫ → thanh toán {total} ₫",
+  "{count} playing surfaces": "{count} mặt sân chơi",
 };
+

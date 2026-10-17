@@ -470,7 +470,10 @@ export function CourtGrid({
           >
             <div className="mb-2 flex items-baseline justify-between gap-2">
               <p className="font-medium">{c.court_code}</p>
-              <p className="text-2xs text-muted">
+              <p
+                className="text-2xs font-medium"
+                style={{ color: c.status === "ready" ? `var(--color-sport-${c.sport})` : "var(--color-hold)" }}
+              >
                 {c.status === "ready" ? sportLabel(c.sport) : slotStateLabel(c.status === "closed" ? "closed" : "maintenance")}
               </p>
             </div>
@@ -560,7 +563,10 @@ export function CourtGrid({
               </div>
               {/* A court out of service says so in its own heading — otherwise
                   the only clue is a column of stripes with nothing naming it. */}
-              <div className={cn("text-2xs", c.status === "ready" ? "text-subtle" : "text-hold")}>
+              <div
+                className="text-2xs font-medium"
+                style={{ color: c.status === "ready" ? `var(--color-sport-${c.sport})` : "var(--color-hold)" }}
+              >
                 {c.status === "ready"
                   ? sportLabel(c.sport)
                   : slotStateLabel(c.status === "closed" ? "closed" : "maintenance")}

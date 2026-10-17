@@ -1,8 +1,11 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/shell";
-import { Badge, Card, EmptyState, FilterChip, Input, LoadError, Pagination, Select, Skeleton, StatusBadge } from "@/components/ui";
-import { formatDate, sportLabel } from "@/lib/arena3/labels";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
+import { SportBadge, useSports } from "@/components/sports-ui";
+import { Badge, Button, Card, EmptyState, FilterChip, Input, LoadError, Pagination, Select, Skeleton, StatusBadge } from "@/components/ui";
+import { formatDate } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
 import { locale, t, tk, tData } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
@@ -67,8 +70,30 @@ function Page() {
     { value: "none", label: t("No plan") },
   ];
 
+  const sports = useSports();
+  const activeCount = data?.items.filter((m) => m.plan_state === "active").length ?? 0;
+  const expiringCount = data?.items.filter((m) => m.plan_state === "expiring").length ?? 0;
+  const noPlanCount = data?.items.filter((m) => m.plan_state === "none").length ?? 0;
+
   return (
-    <Shell role="manager" title={t("Members")} subtitle={t("Everyone with an account. Open a member for their plan, classes, balance and attendance.")}>
+    <Shell role="manager">
+      <PageHero
+        slot="banner.manager"
+        title={t("Members")}
+        subtitle={t("Everyone with an account. Open a member for their plan, classes, balance and attendance.")}
+        className="mb-6"
+      />
+
+      <StatStrip
+        stats={[
+          { label: tk("Total members"), value: total },
+          { label: tk("Plan active"), value: activeCount },
+          { label: tk("Ends within a week"), value: expiringCount },
+          { label: tk("No plan"), value: noPlanCount },
+        ]}
+        className="mb-6"
+      />
+
       <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" role="group" aria-label={t("Plan state")}>
         {PLAN_CHIPS.map((c) => (
           <FilterChip key={c.value || "all"} active={plan === c.value} onClick={() => setPlan(c.value)} label={c.label} />
@@ -89,9 +114,9 @@ function Page() {
         </Select>
         <Select value={sport} onChange={(e) => setSport(e.target.value)} aria-label={t("Sport")}>
           <option value="">{t("Any sport")}</option>
-          {["badminton", "basketball", "volleyball"].map((s) => (
-            <option key={s} value={s}>
-              {sportLabel(s)}
+          {sports.map((s) => (
+            <option key={s.code} value={s.code}>
+              {s.name}
             </option>
           ))}
         </Select>
@@ -103,7 +128,25 @@ function Page() {
       ) : !data ? (
         <Skeleton className="h-48" />
       ) : !data.items.length ? (
-        <EmptyState title={t("No members match")} hint={t("Loosen a filter or check the spelling.")} />
+        <EmptyState
+          title={t("No members match")}
+          hint={t("Loosen a filter or check the spelling.")}
+          action={
+            term || status || sport || plan ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setQ("");
+                  setStatus("");
+                  setSport("");
+                  setPlan("");
+                }}
+              >
+                {t("Clear filters")}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <>
           <p className="mb-2 text-sm text-muted tabular-nums">
@@ -136,6 +179,9 @@ function Page() {
                       <Badge tone={m.plan_state === "active" ? "accent" : m.plan_state === "expiring" ? "hold" : "muted"}>
                         {t(PLAN_LABEL[m.plan_state])}
                       </Badge>
+                      {m.sport_scope ? (
+                        <SportBadge sport={m.sport_scope} />
+                      ) : null}
                       {m.plan_name ? (
                         <span className="break-words text-xs text-muted">
                           {tData(m.plan_name)}

@@ -1,29 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Landmark } from "lucide-react";
+import { Landmark, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
 import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
-import { Cover, HoldTimer, MediaCaption, media, sportPhoto } from "@/components/media";
+import { HoldTimer, sportPhoto } from "@/components/media";
 import { HoldCountdown } from "@/components/moments/hold-countdown";
 import { PaidMark, ScrambleCode } from "@/components/moments/paid";
-import { SportGlyph } from "@/components/moments/sport-glyph";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
 import { MemberTransferModal, useCentreBank, type CentreBank } from "@/components/transfer-qr-modal";
 import { Shell, money, when } from "@/components/shell";
-import { Button, Card, DateField, Input, LoadError, Seg, Skeleton, StatusBadge } from "@/components/ui";
-import { GlareHover, StarBorder } from "@/components/fx";
+import { Button, Card, ContextLayout, DateField, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/components/ui";
+import { StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
 import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
-import { t } from "@/lib/i18n";
+import { locale, t } from "@/lib/i18n";
+import { cn } from "@/lib/cn";
 import { useRead } from "@/lib/use-read";
+import { useSports } from "@/components/sports-ui";
 import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
 
 export const Route = createFileRoute("/app/book")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
-    sport: s.sport === "badminton" || s.sport === "basketball" || s.sport === "volleyball" ? s.sport : undefined,
+    sport: typeof s.sport === "string" && s.sport.trim() ? s.sport.trim() : undefined,
   }),
   component: Page,
 });
@@ -87,8 +88,15 @@ type Taken = {
 };
 
 function Page() {
+  const { sports } = useSports();
+  const searchSport = Route.useSearch().sport;
   const [date, setDate] = useState(todayISO);
-  const [sport, setSport] = useState(Route.useSearch().sport ?? "badminton");
+  const [sport, setSport] = useState(searchSport ?? "");
+  useEffect(() => {
+    if (!sport && sports.length > 0) {
+      setSport(sports[0].code);
+    }
+  }, [sport, sports]);
   // The day on screen. A day the server will not show comes back as `error` (not a grid of grey
   // blocks behind a toast), and a late reply for an earlier date never lands on a later one.
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);
@@ -106,6 +114,14 @@ function Page() {
   const [mine, setMine] = useState<MyBooking[] | null>(null);
   const [windowHours, setWindowHours] = useState(2);
   const [showAllMine, setShowAllMine] = useState(false);
+  type MySub = {
+    plan_name: string;
+    sport_scope: string;
+    court_hours_left: string | number;
+    end_on: string;
+  };
+  const [mySubs, setMySubs] = useState<MySub[]>([]);
+
   // The booking being moved: the grid's next tap lands on it instead of making a new hold.
   const [moving, setMoving] = useState<MyBooking | null>(null);
   const [moveError, setMoveError] = useState("");
@@ -116,8 +132,15 @@ function Page() {
       setMine(r.items);
       setWindowHours(r.window_hours);
     } catch {
-      // Keep the list that is already on screen: a failed refresh is not "you have no bookings".
-      // A connection that is really down is the banner's to report.
+      // Keep the list that is already on screen
+    }
+    try {
+      const me = await apiGet<{ subscriptions?: MySub[] }>("/me");
+      if (Array.isArray(me.subscriptions)) {
+        setMySubs(me.subscriptions);
+      }
+    } catch {
+      // Ignore if /me subscriptions unavailable
     }
   }
   const [taken, setTaken] = useState<Taken | null>(null);
@@ -364,24 +387,149 @@ function Page() {
     </Card>
   ) : null;
 
+  const planQuotaCard = (
+    <Card className="p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold">{t("Plan quota")}</h2>
+        <Link to="/app/plans" className="text-xs font-medium text-accent-2 hover:underline">
+          {t("Order a plan")}
+        </Link>
+      </div>
+      {mySubs.length > 0 ? (
+        <ul className="divide-y divide-line">
+          {mySubs.map((sub, idx) => (
+            <li key={idx} className="py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-fg">{sub.plan_name}</span>
+                <span className="rounded-[var(--radius-pill)] bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent-2">
+                  {sub.court_hours_left} {t("hours")}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-muted">
+                {sportLabel(sub.sport_scope)} · {t("Ends {date}", { date: sub.end_on })}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted leading-relaxed">
+          {t("No active plan. Buy a plan to get free court hours and member discounts.")}
+        </p>
+      )}
+    </Card>
+  );
+
+  const bestFreeDays = Object.entries(avail ?? {})
+    .filter(([d, info]) => d >= todayISO() && info.free > 0)
+    .sort((a, b) => b[1].free - a[1].free)
+    .slice(0, 4);
+
+  const bestFreeHoursCard = bestFreeDays.length > 0 ? (
+    <Card className="p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold">{t("Best free hours this week")}</h2>
+        <span className="text-xs text-muted">{t("Tap to book")}</span>
+      </div>
+      <div className="grid gap-2">
+        {bestFreeDays.map(([d, info]) => {
+          const dateObj = new Date(d);
+          const dayName = new Intl.DateTimeFormat(locale() === "vi" ? "vi-VN" : "en-US", {
+            weekday: "short",
+            month: "numeric",
+            day: "numeric",
+          }).format(dateObj);
+
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDate(d)}
+              className={cn(
+                "flex w-full cursor-pointer items-center justify-between rounded-[var(--radius-md)] border p-2.5 text-left text-xs transition-colors hover:bg-wood/50",
+                date === d ? "border-accent bg-accent/5 font-medium" : "border-line bg-surface",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <SportThumbnail sport={sport || sports[0]?.code || "all"} className="size-7 rounded" />
+                <div>
+                  <span className="font-semibold text-fg capitalize">{dayName}</span>
+                  <span className="block text-2xs text-muted">{sportLabel(sport || "all")}</span>
+                </div>
+              </div>
+              <span className="rounded-[var(--radius-pill)] bg-accent/10 px-2 py-0.5 text-2xs font-semibold text-accent-2">
+                {info.free} {t("free hours")}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  ) : null;
+
+  const tomorrowISO = addDaysISO(todayISO(), 1);
+  const tomorrowFree = avail?.[tomorrowISO]?.free ?? 0;
+  const isTodayNearFull = date === todayISO() && (avail?.[todayISO()]?.free ?? 0) < 4;
+
   return (
-    <Shell role="member" title={t("Book a court")} subtitle={t("Tap a free hour. We hold it for {n} minutes while you pay.", { n: venue.holdMinutes })}>
-      <GlareHover className="mb-4 block rounded-[var(--radius-xl)]" duration={1.1}>
-        <Cover
-          src={sport ? sportPhoto(sport) : media.hallCourts}
-          alt=""
-          scrim="none"
-          className="h-32 rounded-[var(--radius-xl)] md:h-40"
-        >
-          <MediaCaption>
-            <p className="font-display text-2xl">
-              <SportGlyph sport={sport || "all"} className="mr-2.5 inline-block size-8 align-[-0.3em]" />
-              {t("{sport} · 60′ slots", { sport: sport ? sportLabel(sport) : t("All 3 sports") })}
-            </p>
-          </MediaCaption>
-        </Cover>
-      </GlareHover>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
+    <Shell role="member">
+      {(() => {
+        const courtsForSport = (data?.courts ?? []).filter((c) => !sport || c.sport === sport);
+        const freeSlotList = data ? freeHours(courtsForSport, data.slots, date, Date.now(), true, hoursOf(venue)) : [];
+        const nextFreeHour = freeSlotList.length > 0 ? `${String(freeSlotList[0].hour).padStart(2, "0")}:00` : null;
+
+        return (
+          <PageHero
+            slot={sport ? sportPhoto(sport) : "banner.book"}
+            title={t("Book a court")}
+            subtitle={t("Tap a free hour. We hold it for {n} minutes while you pay.", { n: venue.holdMinutes })}
+            fallbackSpot="court"
+            stats={[
+              {
+                label: t("Free hours today"),
+                value: avail?.[date]?.free ?? 0,
+                live: true,
+              },
+              {
+                label: t("Courts in service"),
+                value: data?.courts?.length ?? 0,
+              },
+              {
+                label: t("Next free hour"),
+                value: nextFreeHour ?? t("Full"),
+              },
+            ]}
+          />
+        );
+      })()}
+
+      {isTodayNearFull ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-accent/40 bg-accent/10 p-3.5 shadow-[var(--shadow-soft)]">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="size-5 text-accent-2" />
+            <div>
+              <p className="text-sm font-semibold text-fg">
+                {t("Tomorrow has {n} free hours", { n: tomorrowFree })}
+              </p>
+              <p className="text-xs text-muted">
+                {t("Today is almost fully booked. Book tomorrow for more options.")}
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={() => setDate(tomorrowISO)}>
+            {t("Switch to tomorrow")}
+          </Button>
+        </div>
+      ) : null}
+
+      <ContextLayout
+        context={
+          <>
+            {myCourts}
+            {planQuotaCard}
+            {bestFreeHoursCard}
+          </>
+        }
+      >
         <div className="min-w-0">
           <div className="grid gap-3">
             {view === "week" ? (
@@ -395,9 +543,9 @@ function Page() {
                 onChange={setSport}
                 options={[
                   { value: "", label: t("All") },
-                  { value: "badminton", label: sportLabel("badminton") },
-                  { value: "basketball", label: sportLabel("basketball") },
-                  { value: "volleyball", label: sportLabel("volleyball") },
+                  ...sports
+                    .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s.code))
+                    .map((s) => ({ value: s.code, label: sportLabel(s.code) })),
                 ]}
               />
               <Seg
@@ -786,14 +934,8 @@ function Page() {
               </div>
             )}
           </div>
-
-          <div className="mt-6 lg:hidden">{myCourts}</div>
         </div>
-
-        <aside className="hidden lg:block">
-          <div className="sticky top-20">{myCourts}</div>
-        </aside>
-      </div>
+      </ContextLayout>
       <CancelBookingDialog
         bookingId={cancelId}
         open={cancelId != null}

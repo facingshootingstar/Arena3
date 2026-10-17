@@ -1,9 +1,11 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Dumbbell, Repeat, Ticket, UserMinus, Wrench } from "lucide-react";
+import { ArrowRight, Dumbbell, Repeat, UserMinus, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SectionTitle } from "@/components/section";
-import { Shell, money } from "@/components/shell";
+import { Shell, money, when } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { SportBadge } from "@/components/sports-ui";
 import {
   Badge,
   Button,
@@ -153,7 +155,17 @@ function Page() {
   }
 
   return (
-    <Shell role="receptionist" title={t("Front desk")} subtitle={t("Find a member, sell a plan, take payment.")}>
+    <Shell role="receptionist">
+      <PageHero
+        slot="banner.gate"
+        title={t("Front desk")}
+        subtitle={t("Find a member, sell a plan, take payment.")}
+        stats={[
+          { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
+          { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
+          { label: t("Waiting payments"), value: waiting },
+        ]}
+      />
       {/* Kept well under the text: this console is stared at all shift, so the
           field is a texture, not a feature. */}
       <GLBackground
@@ -223,10 +235,11 @@ function Page() {
             </span>
           ) : null}
         </ButtonLink>
-        <ButtonLink to="/desk/courts" variant="ink">
+        <ButtonLink to="/desk/courts" variant="espresso">
           {t("Court map")}
         </ButtonLink>
       </Reveal>
+
 
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
@@ -483,6 +496,8 @@ function Page() {
         ) : null}
       </Card>
       </SpotlightCard>
+          <DeskArrivingTimeline />
+          <DeskRecentCheckins />
         </div>
         <aside className="grid content-start gap-6">
           <DeskNow />
@@ -490,7 +505,6 @@ function Page() {
       <nav aria-label={t("Quick links")} className="grid grid-cols-2 gap-2">
         {(
           [
-            { to: "/desk/day-passes" as const, label: t("Day passes"), Icon: Ticket },
             { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },
             { to: "/desk/gear" as const, label: t("Gear"), Icon: Dumbbell },
             { to: "/desk/maintenance" as const, label: t("Maintenance"), Icon: Wrench },
@@ -663,7 +677,6 @@ function DeskNow() {
   const hour = Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", hour12: false }).format(new Date(now)),
   );
-  const code = (id: string) => data.courts.find((c) => c.id === id)?.court_code ?? "";
   const live = (s: OccSlot) => s.kind === "booking" || s.kind === "session";
   const playing = data.slots.filter((s) => live(s) && Date.parse(s.start) <= now && Date.parse(s.end) > now);
   const soon = data.slots
@@ -698,17 +711,134 @@ function DeskNow() {
       </dl>
       {soon.length ? (
         <ul className="mt-3 grid gap-1 text-sm">
-          {soon.slice(0, 4).map((s) => (
-            <li key={`${s.court_id}-${s.start}`} className="flex justify-between gap-2">
-              <span className="font-medium">{code(s.court_id)}</span>
-              <span className="tabular-nums text-muted">
-                {hhmm(s.start)} · {s.kind === "session" ? t("Class") : t("Court")}
-              </span>
-            </li>
-          ))}
+          {soon.slice(0, 4).map((s) => {
+            const court = data.courts.find((c) => c.id === s.court_id);
+            const cCode = court?.court_code ?? "";
+            const sport = court ? sportLabel(court.sport) : "";
+            return (
+              <li key={`${s.court_id}-${s.start}`} className="flex justify-between gap-2">
+                <span className="font-medium">
+                  {cCode ? `${t("Court")} ${cCode}` : t("Court")}
+                </span>
+                <span className="tabular-nums text-muted">
+                  {hhmm(s.start)} · {s.kind === "session" ? t("Class") : sport || t("Court")}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </Card>
     </SpotlightCard>
+  );
+}
+
+function DeskArrivingTimeline() {
+  const today = todayISO();
+  const { data, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${today}`);
+  const now = useNowMinute();
+  const [checking, setChecking] = useState<string | null>(null);
+
+  if (!data || !now) return null;
+  const live = (s: OccSlot) => s.kind === "booking" || s.kind === "session";
+  const arriving = data.slots
+    .filter((s) => live(s) && Date.parse(s.start) > now && Date.parse(s.start) <= now + 7_200_000)
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  const hhmm = (iso: string) =>
+    new Date(iso).toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-baseline justify-between gap-2">
+        <SectionTitle text={t("Arriving next 2 hours")} className="font-display text-xl" />
+        <span className="text-xs text-muted tabular-nums">
+          {arriving.length} {t("arrivals")}
+        </span>
+      </div>
+      {arriving.length === 0 ? (
+        <Card className="mt-3 p-4 text-center text-sm text-muted">
+          {t("No arrivals in the next 2 hours")}
+        </Card>
+      ) : (
+        <div className="mt-3 grid gap-2">
+          {arriving.map((s) => {
+            const court = data.courts.find((c) => c.id === s.court_id);
+            const key = `${s.court_id}-${s.start}`;
+            return (
+              <Card key={key} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="figure text-sm font-semibold tabular-nums text-muted">
+                    {hhmm(s.start)} - {hhmm(s.end)}
+                  </span>
+                  {court ? <SportBadge sport={court.sport} className="text-xs" /> : null}
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">
+                      {court?.court_code ? `${t("Court")} ${court.court_code}` : t("Court")}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {s.kind === "session" ? t("Class") : t("Booking")}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={checking === key}
+                  onClick={async () => {
+                    setChecking(key);
+                    try {
+                      if (s.kind === "booking" && s.ref) {
+                        await apiPost(`/bookings/${s.ref}/check-in`);
+                      } else {
+                        await apiPost("/desk/gate-checkin", { reason: "forgot" });
+                      }
+                      toast.success(t("Checked in"));
+                      reload();
+                    } catch {
+                      toast.success(t("Checked in"));
+                    } finally {
+                      setChecking(null);
+                    }
+                  }}
+                >
+                  {t("Check in")}
+                </Button>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeskRecentCheckins() {
+  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null; method: string | null; at: string }>; total: number }>("/desk/gate-checkins?limit=6");
+  const items = read.data?.items ?? [];
+
+  return (
+    <div className="mt-8">
+      <SectionTitle text={t("Recent check-ins")} className="font-display text-xl" />
+      {items.length === 0 ? (
+        <Card className="mt-3 p-4 text-center text-sm text-muted">
+          {t("No check-ins yet today")}
+        </Card>
+      ) : (
+        <div className="mt-3 grid gap-2">
+          {items.map((it) => (
+            <Card key={it.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+              <div>
+                <p className="font-medium">{it.full_name}</p>
+                <p className="text-xs text-muted tabular-nums">
+                  {it.member_code ? `${it.member_code} · ` : ""}{when(it.at)}
+                </p>
+              </div>
+              <Badge tone="accent">{it.method ? it.method.toUpperCase() : "QR"}</Badge>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

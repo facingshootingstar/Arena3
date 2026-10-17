@@ -1,11 +1,12 @@
 import { useRef } from "react";
-import { Cover, HeroVideo, media } from "@/components/media";
+import { Cover, HeroVideo } from "@/components/media";
 import { SpotlightCard } from "@/components/fx";
 import { money } from "@/components/shell";
 import type { CatalogPrice } from "@/lib/arena3/catalog";
 import { sportLabel } from "@/lib/arena3/labels";
 import { gsap, useScene } from "@/lib/gsap";
 import { t } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import { rise } from "./tweens";
 import { useVenue } from "./util";
 
@@ -18,6 +19,7 @@ import { useVenue } from "./util";
  */
 export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
   const root = useRef<HTMLElement>(null);
+  const { sports } = useSports();
   const { open: OPEN_HOUR, close: CLOSE_HOUR } = useVenue();
   const peakRule = weekday.find((p) => p.is_peak);
   const peakFrom = peakRule ? Number(peakRule.start_local.slice(0, 2)) : 17;
@@ -102,7 +104,8 @@ export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {["badminton", "basketball", "volleyball"].map((sport) => {
+                  {sports.map((s) => {
+                    const sport = s.code;
                     const off = weekday.find((p) => p.sport === sport && !p.is_peak);
                     const peak = weekday.find((p) => p.sport === sport && p.is_peak);
                     return (
@@ -126,9 +129,9 @@ export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
         </div>
 
         <div data-rise>
-          <Cover src={media.courtDetail} alt="" className="min-h-64 rounded-[var(--radius-xl)] md:min-h-full">
+          <Cover slot="landing.pricing.image" alt="" className="min-h-64 rounded-[var(--radius-xl)] md:min-h-full">
             {/* Half-way down the page: it must not compete with the hero for bandwidth on first load. */}
-            <HeroVideo src={media.smash} poster={media.courtDetail} />
+            <HeroVideo slot="landing.pricing.video" posterSlot="landing.pricing.image" />
           </Cover>
         </div>
       </div>

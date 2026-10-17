@@ -3,16 +3,18 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import { ScrambleTextPlugin } from "gsap/ScrambleTextPlugin";
 import { SplitText } from "gsap/SplitText";
-import { HeroVideo, media, useBootOpen } from "@/components/media";
+import { HeroVideo, useBootOpen } from "@/components/media";
 import { ButtonAnchor } from "@/components/ui";
 import { GLBackground, ShinyText } from "@/components/fx";
 import { money } from "@/components/shell";
 import { ScrollTrigger, gsap, registerGsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
-import { t } from "@/lib/i18n";
+import { t, useLang } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import { CountTo } from "./kit";
 import { mark, rich, useVenue } from "./util";
 import { hhmm } from "@/lib/venue";
+import type { CatalogCourt } from "@/lib/arena3/catalog";
 
 registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
 
@@ -128,13 +130,13 @@ export function Hero({
     <section ref={root} className="grain relative min-h-[88dvh] overflow-hidden">
       {/* Taller than the frame and slowed by the smoother, so the hall lags behind the copy. */}
       <div data-media data-speed="auto" className="absolute inset-x-0 -top-[8%] h-[116%]">
-        <HeroVideo src={media.hallVideo} poster={media.hallCourts} priority />
+        <HeroVideo slot="landing.hero.video" posterSlot="landing.hero.image" priority />
       </div>
       <div className="hero-scrim pointer-events-none absolute inset-0" />
       <GLBackground
         variant="threads"
         className="opacity-60 mix-blend-screen"
-        color="#dbe5ff"
+        color="#e6eed9"
         amplitude={1.2}
         speed={0.55}
         opacity={0.32}
@@ -172,7 +174,7 @@ export function Hero({
           </h1>
 
           <p data-enter data-sub className="mt-5 max-w-lg text-on-media-muted">
-            {t("Badminton, basketball, volleyball. Open {open}-{close}, every day. Book a court in five minutes; the desk closes you out in three taps.", {
+            {t("Multi-sport centre. Open {open}-{close}, every day. Book a court in five minutes; the desk closes you out in three taps.", {
               open: hhmm(venue.open),
               close: hhmm(venue.close),
             })}
@@ -183,7 +185,7 @@ export function Hero({
             <ButtonAnchor
               href="#schedule"
               size="lg"
-              className="group bg-on-media text-night shadow-[var(--shadow-soft)] hover:bg-on-media hover:shadow-[var(--shadow-soft)]"
+              className="group bg-volt text-night font-semibold shadow-[var(--shadow-soft)] hover:bg-volt/90 hover:shadow-[var(--shadow-soft)]"
             >
               {t("Book a court")}
               <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -324,7 +326,7 @@ function Shuttle() {
  * that makes it checkable, and the first is today's live count. The numbers count up as the band
  * arrives; the cells rise in one after another.
  */
-export function StatsBand({ freeHours, day }: { freeHours: number; day: string }) {
+export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: string; courts?: CatalogCourt[] }) {
   const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
@@ -337,9 +339,21 @@ export function StatsBand({ freeHours, day }: { freeHours: number; day: string }
       scrollTrigger: { trigger: root.current, start: "top 85%", once: true },
     });
   });
+  const { sports } = useSports();
+  const lang = useLang();
+  const liveCourts = courts ? courts.filter((c) => c.status !== "retired") : [];
+  const totalCourts = liveCourts.length || 16;
+  const sportsSummary = sports
+    .map((s) => {
+      const cnt = liveCourts.filter((c) => c.sport === s.code).length;
+      return `${cnt} ${lang === "vi" ? s.name_vi : s.name_en}`;
+    })
+    .join(" · ");
+  const courtsNote = sportsSummary || t("All active courts and halls");
+
   const stats = [
     { to: freeHours, suffix: "", label: t("Court hours free"), note: t("Live from the booking grid · {day}", { day }), href: "#schedule" },
-    { to: 16, suffix: "", label: t("Courts & bays"), note: t("12 badminton · 2 basketball · 2 volleyball"), href: "#courts" },
+    { to: totalCourts, suffix: "", label: t("Courts & bays"), note: courtsNote, href: "#courts" },
     { to: venue.close - venue.open, suffix: "h", label: t("Open every day"), note: t("{open}-{close}, no closing day", { open: hhmm(venue.open), close: hhmm(venue.close) }), href: "#schedule" },
     { to: 4, suffix: "", label: t("Head coaches"), note: t("One per sport, classes on the same calendar"), href: "#coaches" },
   ];
@@ -347,7 +361,7 @@ export function StatsBand({ freeHours, day }: { freeHours: number; day: string }
     <section ref={root} className="grain relative overflow-hidden bg-night text-on-media">
       <GLBackground
         variant="aurora"
-        colors={["#1e4fd8", "#5b86ff", "#c8f31d"]}
+        colors={["#3f7d20", "#8bc34a", "#b5e04a"]}
         amplitude={1.15}
         speed={0.85}
         opacity={0.6}

@@ -12,12 +12,15 @@ Tài liệu này ghi lại các quyết định thiết kế của đợt redesi
 
 | Token | Dùng cho |
 | --- | --- |
-| `accent` `#1e4fd8` | Màu nhấn duy nhất: nút chính, ô sân trống, liên kết |
-| `accent-2` | Chữ màu nhấn trên nền nhạt (tab đang chọn). Tự đổi sáng ở dark mode |
+| `accent` `#3f7d20` | Màu nhấn duy nhất: nút chính, ô sân trống, liên kết (xanh mạ đậm) |
+| `accent-2` `#2f6118` | Chữ màu nhấn trên nền nhạt (tab đang chọn). Tự đổi sáng ở dark mode |
 | `accent-hover`, `accent-strong` | Hover của nút chính; sân đang có người chơi |
+| `earth` `#7a4a24` | Nâu đất: điểm nhấn phụ (huy hiệu, viền thẻ thành tích, trạng thái điểm xuyết) |
+| `pass` `#4a2f17` | Nâu đậm: thẻ hội viên |
 | `hold`, `danger` | Cảnh báo, giữ chỗ / lỗi, huỷ. Chỉ dùng theo nghĩa, không để trang trí |
-| `wood` | Nền phụ trung tính: hàng hover, chip, track |
-| `slot-class` | Ô "Lớp" trên lưới sân |
+| `wood` `#efe5d4` | Nền phụ trung tính: hàng hover, chip, track (nâu gỗ nhạt) |
+| `slot-class` `#6b4423` | Ô "Lớp" trên lưới sân (nâu) |
+| `volt` `#b5e04a` | Xanh mạ sáng (điểm nhấn phát sáng) |
 
 Dark mode tự theo cài đặt của thiết bị (`prefers-color-scheme`). **Không hard-code màu** (`bg-white`, `#hex`, `rgba(...)`) trong component. Thêm token mới vào cả khối sáng lẫn khối tối.
 

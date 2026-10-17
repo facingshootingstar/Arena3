@@ -3,7 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
-import { Cover, HeroVideo, MediaCaption, media } from "@/components/media";
+import { Cover, HeroVideo, MediaCaption } from "@/components/media";
 import { Button, Card, Field, Input } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GLBackground, Magnet, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
@@ -85,12 +85,12 @@ function Login() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-dvh lg:grid lg:grid-cols-2">
       <div className="grain relative hidden min-h-dvh overflow-hidden lg:block">
-        <HeroVideo src={media.receptionVideo} poster={media.reception} />
+        <HeroVideo slot="auth.login.video" posterSlot="auth.login.image" />
         <div className="hero-scrim absolute inset-0" />
         <GLBackground
           variant="threads"
           className="opacity-55 mix-blend-screen"
-          color="#dbe5ff"
+          color="#e6eed9"
           amplitude={1.1}
           speed={0.5}
           opacity={0.3}
@@ -119,7 +119,7 @@ function Login() {
         <div className="absolute right-4 top-2 z-10 flex items-center gap-2 lg:top-4">
           <LangSwitch />
         </div>
-        <Cover src={media.hallCourts} alt="" scrim="none" className="mb-6 h-36 rounded-[var(--radius-xl)] lg:hidden">
+        <Cover slot="auth.login.image" alt="" scrim="none" className="mb-6 h-36 rounded-[var(--radius-xl)] lg:hidden">
           <MediaCaption>
             <span className="font-display text-2xl">Arena3</span>
           </MediaCaption>

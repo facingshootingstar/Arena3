@@ -7,6 +7,7 @@ import { isValidVnPhone, normalizePhone, unaccentVi } from "../phone";
 import { requireRole, type PublicUser } from "../session";
 import { one, q } from "../tx";
 import { pageParams } from "../validate";
+import { getActiveSportCodes } from "./sports";
 
 /**
  * Staff accounts (R-01…R-03).
@@ -22,7 +23,6 @@ import { pageParams } from "../validate";
 
 const MANAGED_ROLES = ["receptionist", "coach"] as const;
 type ManagedRole = (typeof MANAGED_ROLES)[number];
-const SPORTS = ["badminton", "basketball", "volleyball", "all"] as const;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -42,9 +42,10 @@ function managedRole(v: unknown, field = "role"): ManagedRole {
   return v as ManagedRole;
 }
 
-function sportList(v: unknown): string[] {
+async function sportList(sql: Sql, v: unknown): Promise<string[]> {
   const list = Array.isArray(v) ? v.map(String) : [];
-  const bad = list.find((s) => !(SPORTS as readonly string[]).includes(s));
+  const valid = await getActiveSportCodes(sql, true);
+  const bad = list.find((s) => !valid.includes(s));
   if (bad) throw err.field("sports", `${bad} is not a sport we run.`);
   return [...new Set(list)];
 }
@@ -96,7 +97,7 @@ async function managedTarget(sql: Sql, id: string, manager: PublicUser): Promise
 }
 
 export async function revoke(sql: Sql, userId: string): Promise<number> {
-  const gone = await q<{ id: string }>(sql, `delete from sessions_auth where user_id = $1 returning id`, [userId]);
+  const gone = await q<{ id: string }>(sql, `update sessions_auth set revoked_at = now() where user_id = $1 and revoked_at is null returning id`, [userId]);
   return gone.length;
 }
 
@@ -146,7 +147,7 @@ export async function staffCreate(sql: Sql, request: Request, user: PublicUser) 
   if (!full_name) throw err.field("full_name", "Full name is required.");
   if (!isValidVnPhone(phone)) throw err.field("phone", "That phone number is not valid.");
   if (email && !EMAIL_RE.test(email)) throw err.field("email", "That email address is not valid.");
-  const sports = role === "coach" ? sportList(body.sports) : [];
+  const sports = role === "coach" ? await sportList(sql, body.sports) : [];
   if (role === "coach" && !sports.length) {
     throw err.field("sports", "Pick at least one sport this coach can teach.");
   }
@@ -154,7 +155,7 @@ export async function staffCreate(sql: Sql, request: Request, user: PublicUser) 
     phone,
     email,
   ]);
-  if (dup) throw err.br("BR-01", "That phone or email already has an account.");
+  if (dup) throw err.br("BR-01", "That phone or email already has an account.", { field: "phone" });
 
   const tmp = tempPassword();
   const row = await one<{ id: string }>(
@@ -164,7 +165,19 @@ export async function staffCreate(sql: Sql, request: Request, user: PublicUser) 
     [full_name, unaccentVi(full_name), phone, email, role, hashPassword(tmp)],
   );
   for (const s of sports) {
-    await sql.query(`insert into coach_sports (user_id, sport) values ($1, $2::sport_kind)`, [row!.id, s]);
+    await sql.query(`insert into coach_sports (user_id, sport) values ($1, $2)`, [row!.id, s]);
+  }
+  if (role === "coach") {
+    await sql.query(
+      `insert into site_assets (slot, kind, alt_en, alt_vi, enabled, version)
+       values ($1, 'image', $2, $3, true, 1)
+       on conflict (slot) do nothing`,
+      [
+        `coach.${row!.id}`,
+        `Photo of coach ${full_name}`,
+        `Ảnh HLV ${full_name}`,
+      ],
+    );
   }
   await audit(sql, user.id, "create_staff", "user", row!.id, null, { role, phone, sports });
   return { status: 201, body: { staff: await loadStaff(sql, row!.id), temp_password: tmp } };
@@ -198,7 +211,7 @@ export async function staffPatch(sql: Sql, id: string, request: Request, user: P
 
   if (nextRole || body.sports !== undefined) {
     const role = nextRole ?? (target.role as ManagedRole);
-    const sports = role === "coach" ? sportList(body.sports ?? target.sports ?? []) : [];
+    const sports = role === "coach" ? await sportList(sql, body.sports ?? target.sports ?? []) : [];
     if (role === "coach" && !sports.length) {
       throw err.field("sports", "Pick at least one sport this coach can teach.");
     }
@@ -221,8 +234,18 @@ export async function staffPatch(sql: Sql, id: string, request: Request, user: P
     if (role === "coach") {
       await sql.query(`delete from coach_sports where user_id = $1`, [id]);
       for (const s of sports) {
-        await sql.query(`insert into coach_sports (user_id, sport) values ($1, $2::sport_kind)`, [id, s]);
+        await sql.query(`insert into coach_sports (user_id, sport) values ($1, $2)`, [id, s]);
       }
+      await sql.query(
+        `insert into site_assets (slot, kind, alt_en, alt_vi, enabled, version)
+         values ($1, 'image', $2, $3, true, 1)
+         on conflict (slot) do nothing`,
+        [
+          `coach.${id}`,
+          `Photo of coach ${target.full_name}`,
+          `Ảnh HLV ${target.full_name}`,
+        ],
+      );
     } else {
       await sql.query(`delete from coach_sports where user_id = $1`, [id]);
     }
