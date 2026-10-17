@@ -184,6 +184,16 @@ export async function managerAssetsList(sql: Sql, user: PublicUser | null) {
   if (!user) throw err.unauth();
   requireRole(user, ["manager"]);
 
+  // Coaches made before staff.ts started creating their avatar slot have none, so the
+  // manager could not find them here. Give every coach a slot before listing.
+  await sql.query(
+    `insert into site_assets (slot, kind, alt_en, alt_vi, enabled, version)
+     select 'coach.' || u.id::text, 'image', 'Photo of coach ' || u.full_name, 'Ảnh HLV ' || u.full_name, true, 1
+       from users u
+      where u.role = 'coach'
+     on conflict (slot) do nothing`,
+  );
+
   const rows = await sql.query<{
     slot: string;
     kind: "image" | "video";
@@ -200,14 +210,17 @@ export async function managerAssetsList(sql: Sql, user: PublicUser | null) {
     updated_at: string;
     updated_by_name: string | null;
     history_count: number;
+    coach_name: string | null;
   }>(
     `select a.slot, a.kind, a.src_path, a.default_path, a.mime,
             a.bytes is not null as has_bytes,
             a.width, a.height, a.alt_en, a.alt_vi, a.enabled, a.version,
             a.updated_at, u.full_name as updated_by_name,
-            coalesce(h.cnt, 0) as history_count
+            coalesce(h.cnt, 0) as history_count,
+            c.full_name as coach_name
        from site_assets a
   left join users u on u.id = a.updated_by
+  left join users c on a.slot = 'coach.' || c.id::text
   left join (
          select slot, count(*) as cnt from site_asset_history group by slot
        ) h on h.slot = a.slot
@@ -232,8 +245,8 @@ export async function managerAssetsList(sql: Sql, user: PublicUser | null) {
       updated_at: r.updated_at,
       updated_by: r.updated_by_name ?? null,
       history_count: Number(r.history_count || 0),
-      label_en: def?.labelEn ?? r.slot,
-      label_vi: def?.labelVi ?? r.slot,
+      label_en: r.coach_name ? `Coach avatar · ${r.coach_name}` : (def?.labelEn ?? r.slot),
+      label_vi: r.coach_name ? `Ảnh đại diện HLV · ${r.coach_name}` : (def?.labelVi ?? r.slot),
       location_en: def?.locationEn ?? "",
       location_vi: def?.locationVi ?? "",
       aspect: def?.aspect ?? "16:9",
