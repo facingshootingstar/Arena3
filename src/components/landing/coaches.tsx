@@ -113,10 +113,10 @@ export function CoachesScene({
         {t("The team")}
       </p>
       <h2 className="mt-2 max-w-2xl font-display text-4xl sm:text-5xl">
-        <SplitHeading text={t("Coaches who actually take the session, not poster faces.")} stagger={0.05} />
+        <SplitHeading text={t("Our coaches")} stagger={0.05} />
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("One head coach per sport. Classes never sit on court time you already bought. Sessions show up in the app the moment you join.")}
+        {t("One head coach per sport. After you join a class, its sessions appear in the app.")}
       </p>
 
       <div data-rise className="mt-6">

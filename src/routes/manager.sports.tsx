@@ -326,7 +326,7 @@ function Page() {
         <div className="mt-6">
           <EmptyState
             title={t("No sports found")}
-            hint={t("Add a new sport to open new courts and expand centre offerings.")}
+            hint={t("Add a sport, then add its courts.")}
           />
         </div>
       ) : (

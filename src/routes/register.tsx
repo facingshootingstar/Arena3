@@ -160,7 +160,7 @@ function Register() {
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
               <SplitText
                 as="p"
-                text={t("A live plan is your key to the courts and the classes.")}
+                text={t("An active plan lets you book courts and join classes.")}
                 splitBy="words"
                 stagger={0.05}
                 delay={0.2}

@@ -57,7 +57,7 @@ export function ScheduleScene({
         <SplitHeading text={t("When is a court free?")} />
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("Every hour in the hall, exactly as it stands. Tap a free one and it is yours for {n} minutes while you sign in. No card up front, no phone call.", {
+        {t("Free and booked hours for every court. Tap a free hour to hold it for {n} minutes while you sign in. You do not pay to hold it.", {
           n: venue.holdMinutes,
         })}
       </p>

@@ -96,7 +96,7 @@ function Page() {
     <Shell
       role="member"
       title={t("Assistant")}
-      subtitle={t("Gemini answers, grounded in Arena3's own timetable, plans and coaches.")}
+      subtitle={t("Answers use Arena3's timetable, plans and coaches.")}
     >
       {/* The dot field tracks the cursor behind the thread — it makes an empty
           conversation feel awake without competing with the messages. */}

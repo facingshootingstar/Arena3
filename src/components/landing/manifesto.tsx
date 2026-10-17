@@ -13,7 +13,7 @@ registerGsap(ScrollTrigger, SplitText);
 export function Manifesto() {
   const root = useRef<HTMLElement>(null);
   const text = t(
-    "A court should not need a phone call. Pick the hour you want, hold it while you think, and settle the whole thing (court, class, racket) on one tab at the desk.",
+    "Pick a free hour online and it is held for you. Then pay for the court, any class and any equipment together at the front desk.",
   );
   useScene(
     root,

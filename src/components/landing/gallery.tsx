@@ -27,10 +27,10 @@ export function GalleryScene() {
     <section ref={root} className="mx-4 my-20 md:mx-auto md:max-w-6xl">
       <div data-rise className="mb-8 text-center">
         <p className="font-mono text-2xs uppercase tracking-widest text-accent-text">
-          {t("Moments at Arena3")}
+          {t("Photos")}
         </p>
         <h2 className="athletic mt-2 text-4xl text-fg sm:text-5xl">
-          {t("Courts, matches and community")}
+          {t("Courts and matches")}
         </h2>
       </div>
 

@@ -86,7 +86,7 @@ function CreditsPage() {
 
         <PageHero
           title={t("Media Credits")}
-          subtitle={t("All media assets in Arena3 are sourced under commercial-friendly licenses.")}
+          subtitle={t("Source and licence of each image used on this site.")}
         />
 
         <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

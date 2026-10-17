@@ -38,7 +38,7 @@ export function CourtsScene({
     id: s.code,
     colorKey: s.color_key,
     slot: `sport.${s.code}`,
-    note: t("Top-tier surface, competition lighting and climate-controlled hall."),
+    note: t("Indoor hall with air conditioning and court lighting."),
   }));
 
   return (
@@ -50,7 +50,7 @@ export function CourtsScene({
         <SplitHeading text={t("Courts & pricing")} />
       </h2>
       <p data-rise className="mt-3 max-w-md text-muted">
-        {t("One hall, multiple playing surfaces under one roof.")}
+        {t("Courts by sport, with hourly prices.")}
       </p>
 
       <div className="mt-8 grid gap-4 md:grid-cols-3">

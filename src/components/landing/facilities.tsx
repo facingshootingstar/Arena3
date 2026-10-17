@@ -42,13 +42,13 @@ export function FacilitiesScene({ courts }: { courts?: CatalogCourt[] } = {}) {
       code: getCode(s.code),
       name: lang === "vi" ? `Sân ${s.name_vi}` : `${s.name_en} courts`,
       slot: `sport.${s.code}`,
-      note: t("Top-tier surface, competition lighting and climate-controlled hall."),
+      note: t("Indoor hall with air conditioning and court lighting."),
     })),
     {
       code: t("Reception"),
       name: t("Front desk"),
       slot: "landing.facilities.reception",
-      note: t("Staffed the whole time we are open. Rackets, shuttle tubes and match balls go out on your tab and settle with the court."),
+      note: t("Open during all opening hours. You can rent rackets, shuttlecocks and balls and pay for them with the court."),
     },
   ];
 
@@ -91,10 +91,10 @@ export function FacilitiesScene({ courts }: { courts?: CatalogCourt[] } = {}) {
         {t("The building")}
       </p>
       <h2 data-rise className="mt-2 max-w-xl font-display text-4xl sm:text-5xl">
-        {t("One roof, sixteen surfaces, one desk.")}
+        {t("The hall and the front desk")}
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("Everything the schedule can sell you sits in the same hall, so a court, a class and a racket all close out on one tab at reception.")}
+        {t("Courts, classes and equipment hire are in one building. You pay for them together at reception.")}
       </p>
 
       {/* On md+ with motion, a viewport onto one long row; otherwise a grid. */}
@@ -128,7 +128,7 @@ export function FacilitiesScene({ courts }: { courts?: CatalogCourt[] } = {}) {
                       {totalCourts === 16 ? t("Sixteen playing surfaces") : t("{count} playing surfaces", { count: totalCourts })}
                     </p>
                     <p className="mt-2 max-w-md text-sm text-on-media-muted">
-                      {t("A nine-metre ceiling, sprung wood underfoot and lighting rated for evening play right through to close.")}
+                      {t("Nine-metre ceiling, sprung wooden floor and lighting for evening play.")}
                     </p>
                   </div>
                 </MediaCaption>
