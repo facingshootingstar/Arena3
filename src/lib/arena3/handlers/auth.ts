@@ -12,6 +12,7 @@ import {
 } from "../session";
 import { KeepWrites, one } from "../tx";
 import { pageParams } from "../validate";
+import { getActiveSportCodes } from "./sports";
 
 /**
  * Whether the OTP may be handed straight back to whoever asked for it.
@@ -361,11 +362,12 @@ export async function meGet(sql: Sql, user: PublicUser) {
   ]);
   // What enrolling in each sport would take (BR-19, BR-20), from the plan enrolment itself picks
   // (classSubscription), so a class card can say so before the tap instead of after.
+  const activeSportCodes = await getActiveSportCodes(sql);
   const classAccess =
     user.role === "member"
       ? Object.fromEntries(
           await Promise.all(
-            (["badminton", "basketball", "volleyball"] as const).map(async (sport) => {
+            activeSportCodes.map(async (sport) => {
               const sub = await classSubscription(sql, user.id, sport);
               return [sport, sub ? { covered: true, session_left: sub.session_left } : { covered: false, session_left: null }];
             }),

@@ -21,6 +21,7 @@ import * as attH from "./handlers/attendance";
 import * as xH from "./handlers/extras";
 import * as assetsH from "./handlers/assets";
 import * as courtH from "./handlers/courts";
+import * as sportsH from "./handlers/sports";
 
 type Result = { status: number; body: unknown };
 
@@ -106,6 +107,14 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "site-assets" && p1 && p2 === "file") {
     const sql = await getSql();
     return assetsH.siteAssetGetFile(sql, p1);
+  }
+  if (method === "GET" && p0 === "media" && p1 === "credits") {
+    const sql = await getSql();
+    return assetsH.publicMediaCredits(sql, request);
+  }
+  if (method === "GET" && p0 === "sports" && !p1) {
+    const sql = await getSql();
+    return sportsH.publicSportsList(sql);
   }
 
   // Authenticated
@@ -424,7 +433,10 @@ async function dispatch(request: Request): Promise<Response | Result> {
       return deskH.reportsRevenue(sql, request, user);
     });
   }
-  if (method === "GET" && p0 === "reports" && p1 === "capacity") {
+  if (
+    (method === "GET" && p0 === "reports" && p1 === "capacity") ||
+    (method === "GET" && p0 === "manager" && p1 === "capacity")
+  ) {
     return authedRead((sql, user) => reportH.reportsCapacity(sql, request, user));
   }
   if (method === "GET" && p0 === "reports" && p1 === "members") {
@@ -614,9 +626,12 @@ async function dispatch(request: Request): Promise<Response | Result> {
     });
   }
 
-  // Manager site assets
-  if (method === "GET" && p0 === "manager" && p1 === "site-assets" && p2 === "library") {
-    return authedRead((_sql, user) => assetsH.managerMediaLibrary(user));
+  // Manager site assets & media library
+  if (
+    (method === "GET" && p0 === "manager" && p1 === "site-assets" && p2 === "library") ||
+    (method === "GET" && p0 === "manager" && p1 === "media-library" && !p2)
+  ) {
+    return authedRead((sql, user) => assetsH.managerMediaLibrary(sql, request, user));
   }
   if (method === "GET" && p0 === "manager" && p1 === "site-assets" && !p2) {
     return authedRead((sql, user) => assetsH.managerAssetsList(sql, user));
@@ -663,6 +678,26 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "POST" && p0 === "manager" && p1 === "courts" && p2 && parts[3] === "restore") {
     return authed((sql, user) => courtH.managerCourtRestore(sql, p2, user));
+  }
+
+  // Manager sports
+  if (method === "GET" && p0 === "manager" && p1 === "sports" && !p2) {
+    return authedRead((sql, user) => sportsH.managerSportsList(sql, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "sports" && !p2) {
+    return authed((sql, user) => sportsH.managerSportCreate(sql, request, user));
+  }
+  if (method === "PATCH" && p0 === "manager" && p1 === "sports" && p2 && !parts[3]) {
+    return authed((sql, user) => sportsH.managerSportPatch(sql, p2, request, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "sports" && p2 && parts[3] === "retire") {
+    return authed((sql, user) => sportsH.managerSportRetire(sql, p2, user));
+  }
+  if (method === "POST" && p0 === "manager" && p1 === "sports" && p2 && parts[3] === "restore") {
+    return authed((sql, user) => sportsH.managerSportRestore(sql, p2, user));
+  }
+  if (method === "DELETE" && p0 === "manager" && p1 === "sports" && p2 && !parts[3]) {
+    return authed((sql, user) => sportsH.managerSportDelete(sql, p2, user));
   }
 
   void staffRoles;

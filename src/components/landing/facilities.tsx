@@ -4,7 +4,8 @@ import { GlareHover } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { gsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
-import { t } from "@/lib/i18n";
+import { t, useLang } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import type { CatalogCourt } from "@/lib/arena3/catalog";
 import { rise } from "./tweens";
 
@@ -12,13 +13,15 @@ import { rise } from "./tweens";
  * The building, walked through sideways.
  *
  * On a computer with motion on, the section holds and the scroll carries you along the hall:
- * the main hall first, then each area the schedule can sell (badminton bays, basketball,
- * volleyball, the desk), each caption arriving as its photo reaches the middle. On a phone, and
+ * the main hall first, then each area the schedule can sell,
+ * each caption arriving as its photo reaches the middle. On a phone, and
  * with motion off, it is a plain grid: the page itself never scrolls sideways (DESIGN.md, Layout).
  */
 export function FacilitiesScene({ courts }: { courts?: CatalogCourt[] } = {}) {
   const root = useRef<HTMLElement>(null);
   const still = useCalm();
+  const { sports } = useSports();
+  const lang = useLang();
 
   const getCode = (sport: string) => {
     if (!courts) return "";
@@ -35,19 +38,12 @@ export function FacilitiesScene({ courts }: { courts?: CatalogCourt[] } = {}) {
   // Named against the court codes and gear the schedule actually uses, so the page and the grid
   // describe the same building.
   const facilities = [
-    {
-      code: getCode("badminton"),
-      name: t("Badminton courts"),
-      slot: "landing.facilities.badminton",
-      note: t("Twelve bays on sprung wood. Feather-grade shuttles are issued at the counter, not sold from a machine."),
-    },
-    { code: getCode("basketball"), name: t("Basketball courts"), slot: "landing.facilities.basketball", note: t("Full-size hardwood with breakaway rims.") },
-    {
-      code: getCode("volleyball"),
-      name: t("Volleyball courts"),
-      slot: "landing.facilities.volleyball",
-      note: t("Competition net height with a referee stand on the side and a ten-second reset between sets."),
-    },
+    ...sports.map((s) => ({
+      code: getCode(s.code),
+      name: lang === "vi" ? `Sân ${s.name_vi}` : `${s.name_en} courts`,
+      slot: `sport.${s.code}`,
+      note: t("Top-tier surface, competition lighting and climate-controlled hall."),
+    })),
     {
       code: t("Reception"),
       name: t("Front desk"),

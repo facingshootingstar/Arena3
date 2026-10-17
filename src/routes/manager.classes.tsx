@@ -60,8 +60,9 @@ function Page() {
   const [creating, setCreating] = useState(false);
   const [days, setDays] = useState<string[]>(["TU", "TH"]);
   const [hour, setHour] = useState(19);
+  const { sports } = useSports();
   const [form, setForm] = useState({
-    sport: "badminton",
+    sport: "",
     level: "beginner",
     coach_id: "",
     court_id: "",
@@ -70,6 +71,11 @@ function Page() {
     start_on: todayISO(),
     end_on: addDaysISO(todayISO(), 60),
   });
+  useEffect(() => {
+    if (!form.sport && sports.length > 0) {
+      setForm((prev) => ({ ...prev, sport: sports[0].code }));
+    }
+  }, [form.sport, sports]);
 
   // After a change, the class list is read again (a published class is a new row or a new status).
   const load = classesRead.reload;
@@ -101,7 +107,6 @@ function Page() {
     setDays((prev) => (prev.includes(k) ? prev.filter((d) => d !== k) : [...prev, k]));
   }
 
-  const sports = useSports();
   const totalClasses = items?.length ?? 0;
   const publishedClasses = items?.filter((c) => c.status === "published").length ?? 0;
   const draftClasses = items?.filter((c) => c.status === "draft").length ?? 0;
@@ -148,7 +153,7 @@ function Page() {
           <Select value={form.sport} onChange={(e) => setForm({ ...form, sport: e.target.value })}>
             {sports.map((s) => (
               <option key={s.code} value={s.code}>
-                {s.name}
+                {s.name_en || (s as any).name}
               </option>
             ))}
           </Select>

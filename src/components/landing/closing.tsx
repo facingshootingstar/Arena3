@@ -101,6 +101,7 @@ export function SiteFooter() {
               ["#facilities", t("Facilities")],
               ["#coaches", t("Coaches")],
               ["#plans", t("Membership plans")],
+              ["/credits", t("Media Credits")],
             ].map(([href, label]) => (
               <li key={href}>
                 <a href={href} className="link-underline hit text-muted hover:text-fg">
@@ -115,7 +116,10 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="kicker mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-6 text-2xs text-subtle">
           <span>© {new Date().getFullYear()} Arena3</span>
-          <span>{t("Badminton · Basketball · Volleyball")}</span>
+          <div className="flex items-center gap-4">
+            <a href="/credits" className="hover:text-fg underline">{t("Media Credits")}</a>
+            <span>{t("Badminton · Basketball · Volleyball")}</span>
+          </div>
         </div>
       </div>
     </footer>

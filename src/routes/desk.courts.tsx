@@ -14,12 +14,14 @@ import { todayISO } from "@/lib/arena3/labels";
 import { t, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { hoursOf, venueFrom, type VenueRaw } from "@/lib/venue";
+import { useSports } from "@/components/sports-ui";
 
 export const Route = createFileRoute("/desk/courts")({
   component: Page,
 });
 
 function Page() {
+  const { sports } = useSports();
   const [date, setDate] = useState(todayISO);
   const [sport, setSport] = useState("");
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);
@@ -69,9 +71,9 @@ function Page() {
             onChange={setSport}
             options={[
               { value: "", label: t("All") },
-              ...["badminton", "basketball", "volleyball"]
-                .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s))
-                .map((s) => ({ value: s, label: sportLabel(s) })),
+              ...sports
+                .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s.code))
+                .map((s) => ({ value: s.code, label: sportLabel(s.code) })),
             ]}
           />
           <DateField required value={date} onChange={setDate} invalid={error?.refused === true} />

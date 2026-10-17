@@ -6,6 +6,7 @@ import type { CatalogPrice } from "@/lib/arena3/catalog";
 import { sportLabel } from "@/lib/arena3/labels";
 import { gsap, useScene } from "@/lib/gsap";
 import { t } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import { rise } from "./tweens";
 import { useVenue } from "./util";
 
@@ -18,6 +19,7 @@ import { useVenue } from "./util";
  */
 export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
   const root = useRef<HTMLElement>(null);
+  const { sports } = useSports();
   const { open: OPEN_HOUR, close: CLOSE_HOUR } = useVenue();
   const peakRule = weekday.find((p) => p.is_peak);
   const peakFrom = peakRule ? Number(peakRule.start_local.slice(0, 2)) : 17;
@@ -102,7 +104,8 @@ export function PricingScene({ weekday }: { weekday: CatalogPrice[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {["badminton", "basketball", "volleyball"].map((sport) => {
+                  {sports.map((s) => {
+                    const sport = s.code;
                     const off = weekday.find((p) => p.sport === sport && !p.is_peak);
                     const peak = weekday.find((p) => p.sport === sport && p.is_peak);
                     return (

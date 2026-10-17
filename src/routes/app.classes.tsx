@@ -15,7 +15,7 @@ import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/app/classes")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
-    sport: s.sport === "badminton" || s.sport === "basketball" || s.sport === "volleyball" ? s.sport : undefined,
+    sport: typeof s.sport === "string" && s.sport.trim() ? s.sport.trim() : undefined,
   }),
   component: Page,
 });
@@ -316,7 +316,7 @@ function Page() {
             );
           })}
           {!shown.length ? (
-            <EmptyState title={t("No open classes")} hint={t("The manager publishes the weekly timetable.")} />
+            <EmptyState assetSlot="empty.default" title={t("No open classes")} hint={t("The manager publishes the weekly timetable.")} />
           ) : null}
         </Stagger>
       )}

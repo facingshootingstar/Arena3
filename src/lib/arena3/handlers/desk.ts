@@ -1133,7 +1133,9 @@ export async function priceRulesPut(sql: Sql, request: Request, user: PublicUser
   // The one thing standing between a fat-fingered (or malicious) PUT and a
   // court quoted at 99,999,999đ. Validate the whole table before touching a
   // row — `delete from price_rules` is not the place to discover row 9 was bad.
-  const checked = validatePriceRules(items);
+  const sportsRes = await sql.query<{ code: string }>(`select code from sports where retired_at is null`);
+  const validSports = sportsRes.map((r) => r.code);
+  const checked = validatePriceRules(items, validSports);
   if (!checked.ok) throw err.validation(checked.message, { index: checked.index });
   const before = await priceRulesGet(sql);
   await sql.query(`delete from price_rules`);

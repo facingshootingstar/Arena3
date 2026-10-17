@@ -9,7 +9,8 @@ import { GLBackground, ShinyText } from "@/components/fx";
 import { money } from "@/components/shell";
 import { ScrollTrigger, gsap, registerGsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
-import { t } from "@/lib/i18n";
+import { t, useLang } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import { CountTo } from "./kit";
 import { mark, rich, useVenue } from "./util";
 import { hhmm } from "@/lib/venue";
@@ -173,7 +174,7 @@ export function Hero({
           </h1>
 
           <p data-enter data-sub className="mt-5 max-w-lg text-on-media-muted">
-            {t("Badminton, basketball, volleyball. Open {open}-{close}, every day. Book a court in five minutes; the desk closes you out in three taps.", {
+            {t("Multi-sport centre. Open {open}-{close}, every day. Book a court in five minutes; the desk closes you out in three taps.", {
               open: hhmm(venue.open),
               close: hhmm(venue.close),
             })}
@@ -338,12 +339,17 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
       scrollTrigger: { trigger: root.current, start: "top 85%", once: true },
     });
   });
+  const { sports } = useSports();
+  const lang = useLang();
   const liveCourts = courts ? courts.filter((c) => c.status !== "retired") : [];
   const totalCourts = liveCourts.length || 16;
-  const badm = liveCourts.length ? liveCourts.filter((c) => c.sport === "badminton").length : 12;
-  const bball = liveCourts.length ? liveCourts.filter((c) => c.sport === "basketball").length : 2;
-  const vball = liveCourts.length ? liveCourts.filter((c) => c.sport === "volleyball").length : 2;
-  const courtsNote = t("{b} badminton · {k} basketball · {v} volleyball", { b: badm, k: bball, v: vball });
+  const sportsSummary = sports
+    .map((s) => {
+      const cnt = liveCourts.filter((c) => c.sport === s.code).length;
+      return `${cnt} ${lang === "vi" ? s.name_vi : s.name_en}`;
+    })
+    .join(" · ");
+  const courtsNote = sportsSummary || t("All active courts and halls");
 
   const stats = [
     { to: freeHours, suffix: "", label: t("Court hours free"), note: t("Live from the booking grid · {day}", { day }), href: "#schedule" },

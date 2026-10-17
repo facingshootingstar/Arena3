@@ -8,7 +8,8 @@ import { COACHES, type CoachCard } from "@/lib/arena3/coaches";
 import { sportLabel } from "@/lib/arena3/labels";
 import { gsap, motionOff, registerGsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
-import { t } from "@/lib/i18n";
+import { t, useLang } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 
@@ -46,7 +47,7 @@ export function CoachesScene({
           slot: `coach.${dbc.id}`,
         };
       }
-      const sp = dbc.sports[0] ?? "badminton";
+      const sp = dbc.sports[0] ?? "";
       return {
         name: dbc.name,
         sport: sp,
@@ -103,6 +104,9 @@ export function CoachesScene({
     };
   }, [sport]);
 
+  const { sports } = useSports();
+  const lang = useLang();
+
   return (
     <section ref={root} id="coaches" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
       <p data-rise className="kicker text-2xs text-muted">
@@ -121,9 +125,7 @@ export function CoachesScene({
           onChange={choose}
           options={[
             { value: "", label: t("All") },
-            { value: "badminton", label: t("Badminton") },
-            { value: "basketball", label: t("Basketball") },
-            { value: "volleyball", label: t("Volleyball") },
+            ...sports.map((s) => ({ value: s.code, label: lang === "vi" ? s.name_vi : s.name_en })),
           ]}
         />
       </div>
@@ -144,7 +146,7 @@ export function CoachesScene({
                     imgClassName="transition-transform duration-[900ms] ease-[var(--ease-smooth)] group-hover:scale-105"
                   >
                     <MediaCaption>
-                      <p className="kicker text-2xs text-on-media-muted">{sportLabel(c.sport)}</p>
+                      <p className="kicker text-2xs text-on-media-muted">{sportLabel(c.sport || "")}</p>
                       <p className="athletic mt-1 text-2xl">{c.name}</p>
                     </MediaCaption>
                   </Cover>
@@ -187,7 +189,7 @@ export function CoachesScene({
               className="aspect-[3/4] rounded-[var(--radius-lg)]"
             />
             <div>
-              <p className="kicker text-2xs text-muted">{sportLabel(open.sport)}</p>
+              <p className="kicker text-2xs text-muted">{sportLabel(open.sport || "")}</p>
               <p className="mt-1 text-sm font-medium">{t(open.title)}</p>
               <p className="mt-3 text-sm text-muted">{t(open.blurb)}</p>
               <ul className="mt-4 grid gap-1.5 text-sm text-muted">

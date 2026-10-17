@@ -15,6 +15,7 @@ import { one } from "../tx";
 import { payosConfigured } from "../payos";
 import { centreBank } from "../bank";
 import { pageParams, parseInteger } from "../validate";
+import { getActiveSportCodes } from "./sports";
 
 export async function flagsGet(sql: Sql) {
   const settings = await getSettings(sql);
@@ -487,25 +488,16 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
   requireRole(user, ["coach", "manager"]);
   await requireFlag(sql, "F5");
   const b = await readJson(request);
-  const sport = str(b.sport) ?? "badminton";
+  const activeSports = await getActiveSportCodes(sql);
+  const sport = str(b.sport) ?? activeSports[0] ?? "general";
   const level = str(b.level) ?? "beginner";
   const goal = str(b.goal) ?? "core technique";
-  const drills: Record<string, Record<string, string[]>> = {
-    badminton: {
-      beginner: ["Six-corner footwork 8′", "Deep clears 12′", "Net shots 10′", "Game to 11"],
-      intermediate: ["Smash off the step 12′", "Flat drive exchanges 10′", "Net coverage 8′", "Set to 21"],
-      advanced: ["Jump smash 10′", "Cross-court attack", "Low defence", "Umpired match play"],
-    },
-    basketball: {
-      beginner: ["Shooting form 10′", "Two-hand dribbling", "Lay-ups both sides", "Half-court 3v3"],
-      intermediate: ["Pick and roll", "Three-point footwork", "2-3 zone defence", "Full-court 5v5"],
-    },
-    volleyball: {
-      beginner: ["Low digs", "Underarm serve", "Setting", "Six-touch rotation"],
-      intermediate: ["Jump serve", "Two-player block", "Outside hitting", "Match set"],
-    },
+  const defaultDrills: Record<string, string[]> = {
+    beginner: ["Warm-up & footwork 8′", "Fundamental technique drills 12′", "Targeted control practice 10′", "Practice game to 11"],
+    intermediate: ["Movement off the step 12′", "Speed & rally exchanges 10′", "Court coverage & defense 8′", "Set to 21"],
+    advanced: ["High-power attack drills 10′", "Cross-court tactics", "Low defence transitions", "Umpired match play"],
   };
-  const list = drills[sport]?.[level] ?? drills.badminton.beginner;
+  const list = defaultDrills[level] ?? defaultDrills.beginner;
   const payload = {
     sport,
     level,

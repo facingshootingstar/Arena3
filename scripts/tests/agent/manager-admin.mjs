@@ -614,4 +614,13 @@ for (const { role, token } of nonManagers) {
   check(`STF-06-${role}`, `POST /v1/staff as ${role} -> 403`, rStaff, { status: 403 });
 }
 
+// Cleanup: retire test court created in CRT-01 so it does not leak into reports or heatmaps
+if (newCourtId) {
+  await api(`/manager/courts/${newCourtId}/retire`, {
+    method: "POST",
+    token: mgr,
+    body: {},
+  });
+}
+
 summary();
