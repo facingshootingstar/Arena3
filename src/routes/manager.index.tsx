@@ -419,7 +419,7 @@ function Page() {
           disabled={!rev}
           onClick={() => {
             if (!rev) return;
-            downloadCsv(`arena3-report-${from}_${to}.csv`, [
+            downloadCsv(`lelong-report-${from}_${to}.csv`, [
               [t("From"), formatDate(from), t("To"), formatDate(to)],
               [
                 t("Revenue"),

@@ -2,7 +2,7 @@ export const core: Record<string, string> = {
   // header, language, skip link
   "Language": "Ngôn ngữ",
   "Skip to main content": "Chuyển đến nội dung chính",
-  "Opening Arena3": "Đang mở Arena3",
+  "Opening Lê Long Sport Center": "Đang mở Lê Long Sport Center",
 
   // shell.tsx
   "Schedule": "Lịch",
@@ -34,7 +34,7 @@ export const core: Record<string, string> = {
   "More": "Thêm",
   "More pages": "Các trang khác",
   "Main menu": "Menu chính",
-  "Arena3 home": "Trang chủ Arena3",
+  "Lê Long Sport Center home": "Trang chủ Lê Long Sport Center",
   "Assistant": "Trợ lý",
   "Close": "Đóng",
 

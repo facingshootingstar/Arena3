@@ -34,7 +34,7 @@ export function ExportButtons({
     try {
       const q = new URLSearchParams({ from, to, format });
       for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
-      const name = await downloadReport(`/reports/${kind}/export?${q}`, `arena3-${kind}-${from}_${to}.${format}`);
+      const name = await downloadReport(`/reports/${kind}/export?${q}`, `lelong-${kind}-${from}_${to}.${format}`);
       toast.success(t("Saved {name}", { name }));
     } catch (e) {
       toast.error(tServer((e as Error).message));

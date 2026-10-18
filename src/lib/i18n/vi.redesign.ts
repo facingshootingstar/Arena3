@@ -39,7 +39,7 @@ export const redesign: Record<string, string> = {
   "See prices": "Xem bảng giá",
   "Free court hours {day}": "Giờ sân còn trống {day}",
   "from {price} an hour": "từ {price}/giờ",
-  "Arena3 at a glance": "Tổng quan Arena3",
+  "Lê Long Sport Center at a glance": "Tổng quan Lê Long Sport Center",
   "Playing courts": "Sân thi đấu",
   "12 badminton, 2 basketball, 2 volleyball": "12 cầu lông, 2 bóng rổ, 2 bóng chuyền",
   "No closing day": "Không có ngày nghỉ",
@@ -63,7 +63,7 @@ export const redesign: Record<string, string> = {
   "Full, waitlist open": "Đã đủ, có danh sách chờ",
   "Show all {n} classes": "Xem tất cả {n} lớp",
   "One head coach per sport, and they teach the classes themselves.": "Mỗi môn có một HLV trưởng trực tiếp đứng lớp.",
-  "Visit Arena3": "Ghé Arena3",
+  "Visit Lê Long Sport Center": "Ghé Lê Long Sport Center",
   "06:00 to 22:00, seven days a week": "06:00 đến 22:00, cả tuần",
   "Walk-in players do not need an account.": "Khách vãng lai không cần tài khoản.",
   "Footer": "Chân trang",
@@ -194,7 +194,7 @@ export const redesign: Record<string, string> = {
   "I agree to the {terms} and the {policy}, under Decree 13/2023 on personal data protection.": "Tôi đồng ý với {terms} và {policy}, theo Nghị định 13/2023 về bảo vệ dữ liệu cá nhân.",
   "terms of use": "điều khoản sử dụng",
   "personal data notice": "thông báo về dữ liệu cá nhân",
-  "Arena3 home": "Trang chủ Arena3",
+  "Lê Long Sport Center home": "Trang chủ Lê Long Sport Center",
 
   // ── venue hours and hold length from the settings ──
   "{open}-{close} · seven days": "{open}-{close} · cả tuần",

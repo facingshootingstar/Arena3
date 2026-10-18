@@ -98,7 +98,7 @@ function Login() {
         <div className="relative flex h-full flex-col justify-between p-10">
           <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
             <ArenaMark className="size-8" />
-            <span className="font-display text-2xl">Arena3</span>
+            <span className="font-display text-2xl">Lê Long Sport Center</span>
           </Link>
           <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
             <ShinyText className="shiny-on-media text-2xs" speed={6}>
@@ -121,7 +121,7 @@ function Login() {
         </div>
         <Cover slot="auth.login.image" alt="" scrim="none" className="mb-6 h-36 rounded-[var(--radius-xl)] lg:hidden">
           <MediaCaption>
-            <span className="font-display text-2xl">Arena3</span>
+            <span className="font-display text-2xl">Lê Long Sport Center</span>
           </MediaCaption>
         </Cover>
         <div className="mb-6 flex items-center gap-2 lg:hidden">

@@ -159,7 +159,7 @@ function CreditsPage() {
                   <div className="mt-4 flex flex-col gap-2 border-t border-line/60 pt-3 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-muted">{t("Credit")}:</span>
-                      <span className="font-medium text-fg">{item.credit || "Arena3 Studio"}</span>
+                      <span className="font-medium text-fg">{item.credit || "Lê Long Sport Center Studio"}</span>
                     </div>
 
                     <div className="flex items-center justify-between">
