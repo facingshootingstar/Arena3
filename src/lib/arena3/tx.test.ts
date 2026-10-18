@@ -1593,7 +1593,7 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
           level: "cl22-test-ok",
           coach_id: coachUser.id,
           court_id: badmintonCourtId,
-          rrule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=10",
+          rrule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=11",
           start_on: "2026-11-01",
           end_on: "2026-11-30",
           capacity: 20,
@@ -1640,7 +1640,7 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
           level: "cl23-test-ok",
           coach_id: coachUser.id,
           court_id: badmintonCourtId,
-          rrule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=10",
+          rrule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=12",
           start_on: "2026-11-01",
           end_on: "2026-11-30",
           capacity: 20,
@@ -1695,7 +1695,7 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
           level: "cl24-test-ok",
           coach_id: coachUser.id,
           court_id: badmintonCourtId,
-          rrule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=10",
+          rrule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=13",
           start_on: "2026-11-01",
           end_on: "2026-11-30",
           capacity: 20,
@@ -1703,6 +1703,33 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
       });
       const res = await classesCreate(sql, reqGood, managerUser);
       assert.equal(res.status, 201);
+    });
+  });
+
+  it("CL-25: a class on the same court, weekday and hour as an existing one is refused with 409", async () => {
+    await withTx(async (sql) => {
+      // CL-24 left a Monday 13:00 class on this court for November.
+      const reqClash = new Request("http://localhost/v1/classes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sport: "badminton",
+          level: "cl25-clash",
+          coach_id: coachUser.id,
+          court_id: badmintonCourtId,
+          rrule: "FREQ=WEEKLY;BYDAY=MO,WE;BYHOUR=13",
+          start_on: "2026-11-10",
+          end_on: "2026-12-20",
+          capacity: 9,
+        }),
+      });
+      await assert.rejects(
+        async () => classesCreate(sql, reqClash, managerUser),
+        (err: any) => {
+          assert.equal(err.status, 409);
+          return true;
+        },
+      );
     });
   });
 

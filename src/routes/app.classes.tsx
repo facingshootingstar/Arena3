@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
 import { Shell, when } from "@/components/shell";
-import { Badge, Button, ButtonLink, Card, EmptyState, LoadError, Modal, PageHero, Seg, ShowMore, Skeleton, SportBadge, useSports } from "@/components/ui";
+import { Badge, Button, ButtonLink, Card, EmptyState, LoadError, Modal, PageHero, Seg, Select, ShowMore, Skeleton, SportBadge, useSports } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { apiDelete, apiPost } from "@/lib/arena3/client";
-import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
+import { levelLabel, parseWeeklyRrule, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
@@ -64,11 +64,28 @@ function Page() {
   const [limit, setLimit] = useState(6);
   // The member's own classes come first (C-4): they are what someone opens this page to manage.
   const enrolledIds = new Set(mine.map((e) => e.class_id));
+  // Narrowing by coach, weekday and part of the day saves scrolling through every class.
+  const [coach, setCoach] = useState("");
+  const [day, setDay] = useState("");
+  const [part, setPart] = useState("");
+  const coachNames = [...new Set((items ?? []).filter((c) => !sport || c.sport === sport).map((c) => c.coach_name))].sort((a, b) =>
+    a.localeCompare(b, "vi"),
+  );
   const matching = (items ?? [])
     .filter((c) => !sport || c.sport === sport)
+    .filter((c) => !coach || c.coach_name === coach)
+    .filter((c) => {
+      if (!day && !part) return true;
+      const p = parseWeeklyRrule(c.rrule);
+      if (day && !p.days.includes(day)) return false;
+      if (part === "morning") return p.hour < 12;
+      if (part === "afternoon") return p.hour >= 12 && p.hour < 17;
+      if (part === "evening") return p.hour >= 17;
+      return true;
+    })
     .sort((a, b) => Number(enrolledIds.has(b.id)) - Number(enrolledIds.has(a.id)));
   const shown = matching.slice(0, limit);
-  useEffect(() => setLimit(6), [sport]);
+  useEffect(() => setLimit(6), [sport, coach, day, part]);
   const byClass = Object.fromEntries(mine.map((e) => [e.class_id, e]));
   const access = meRead.data?.class_access ?? {};
   // Leaving a class (or the waitlist) is asked twice: one tap used to give the seat away.
@@ -159,6 +176,38 @@ function Page() {
             })),
           ]}
         />
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <Select aria-label={t("Coach")} value={coach} onChange={(e) => setCoach(e.target.value)}>
+            <option value="">{t("All coaches")}</option>
+            {coachNames.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </Select>
+          <Select aria-label={t("Day")} value={day} onChange={(e) => setDay(e.target.value)}>
+            <option value="">{t("Any day")}</option>
+            {[
+              ["MO", t("Mon")],
+              ["TU", t("Tue")],
+              ["WE", t("Wed")],
+              ["TH", t("Thu")],
+              ["FR", t("Fri")],
+              ["SA", t("Sat")],
+              ["SU", t("Sun")],
+            ].map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </Select>
+          <Select aria-label={t("Time of day")} value={part} onChange={(e) => setPart(e.target.value)}>
+            <option value="">{t("Any time")}</option>
+            <option value="morning">{t("Morning (before 12:00)")}</option>
+            <option value="afternoon">{t("Afternoon (12:00-17:00)")}</option>
+            <option value="evening">{t("Evening (from 17:00)")}</option>
+          </Select>
+        </div>
       </div>
       {failure ? (
         <LoadError message={failure.message} onRetry={failure.refused ? undefined : load} />
@@ -315,7 +364,9 @@ function Page() {
               </StaggerItem>
             );
           })}
-          {!shown.length ? (
+          {!shown.length && (coach || day || part) ? (
+            <EmptyState assetSlot="empty.default" title={t("No class matches these filters")} hint={t("Change the coach, day or time above.")} />
+          ) : !shown.length ? (
             <EmptyState assetSlot="empty.default" title={t("No open classes")} hint={t("The manager publishes the weekly timetable.")} />
           ) : null}
         </Stagger>

@@ -50,6 +50,10 @@ function Page() {
     "/staff?role=coach&status=active",
   );
   const items = classesRead.data?.items ?? null;
+  // Cancelled classes stay on record but are folded away; the server sends the newest first.
+  const [showCancelled, setShowCancelled] = useState(false);
+  const cancelledCount = items?.filter((c) => c.status === "cancelled").length ?? 0;
+  const listed = items ? (showCancelled ? items : items.filter((c) => c.status !== "cancelled")) : null;
   const courts = useMemo(() => courtsRead.data?.items ?? [], [courtsRead.data]);
   const coaches = useMemo(() => coachesRead.data?.items ?? [], [coachesRead.data]);
   // The form can only say "no coach teaches this" once the coaches have really been read.
@@ -108,7 +112,7 @@ function Page() {
   }
 
   const totalClasses = items?.length ?? 0;
-  const publishedClasses = items?.filter((c) => c.status === "published").length ?? 0;
+  const publishedClasses = items?.filter((c) => c.status === "open").length ?? 0;
   const draftClasses = items?.filter((c) => c.status === "draft").length ?? 0;
   const totalEnrolled = items?.reduce((sum, c) => sum + (c.enrolled_count || 0), 0) ?? 0;
 
@@ -274,7 +278,7 @@ function Page() {
         <Skeleton className="h-40" />
       ) : null}
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.06}>
-        {(items ?? []).slice(0, limit).map((c) => (
+        {(listed ?? []).slice(0, limit).map((c) => (
           <StaggerItem key={c.id} className="h-full">
           <Lift className="h-full">
           <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
@@ -318,8 +322,15 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
-      {items ? (
-        <ShowMore shown={Math.min(limit, items.length)} total={items.length} step={8} onMore={() => setLimit((n) => n + 8)} />
+      {listed ? (
+        <ShowMore shown={Math.min(limit, listed.length)} total={listed.length} step={8} onMore={() => setLimit((n) => n + 8)} />
+      ) : null}
+      {cancelledCount ? (
+        <div className="mt-3 text-center">
+          <Button variant="ghost" onClick={() => setShowCancelled((v) => !v)}>
+            {showCancelled ? t("Hide cancelled classes") : t("Show {n} cancelled classes", { n: cancelledCount })}
+          </Button>
+        </div>
       ) : null}
       {items && !items.length ? (
         <EmptyState

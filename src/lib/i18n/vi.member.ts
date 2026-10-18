@@ -308,4 +308,16 @@ export const member: Record<string, string> = {
 
   // ── main: pass ──
   "Member Code": "Mã hội viên",
+  "All coaches": "Tất cả HLV",
+  "Day": "Ngày",
+  "Any day": "Mọi ngày",
+  "Time of day": "Buổi",
+  "Any time": "Mọi buổi",
+  "Morning (before 12:00)": "Sáng (trước 12:00)",
+  "Afternoon (12:00-17:00)": "Chiều (12:00-17:00)",
+  "Evening (from 17:00)": "Tối (từ 17:00)",
+  "No class matches these filters": "Không có lớp nào khớp bộ lọc",
+  "Change the coach, day or time above.": "Hãy đổi HLV, ngày hoặc buổi ở trên.",
+  "Hide cancelled classes": "Ẩn các lớp đã hủy",
+  "Show {n} cancelled classes": "Hiện {n} lớp đã hủy",
 };
