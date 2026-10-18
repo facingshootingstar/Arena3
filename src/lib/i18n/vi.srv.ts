@@ -45,6 +45,21 @@ export const VI_SERVER_EXACT: Record<string, string> = {
   "Payments cannot be deleted — issue a refund instead.": "Không thể xóa thanh toán, hãy hoàn tiền.",
   "Unknown report.": "Báo cáo không hợp lệ.",
 
+  // ── chat.ts
+  "Conversation not found.": "Không tìm thấy cuộc trò chuyện.",
+  "Message ID is required.": "Thiếu mã định danh tin nhắn.",
+  "Message body cannot be empty.": "Nội dung tin nhắn không được để trống.",
+  "Message exceeds maximum length of 2000 characters.": "Tin nhắn vượt quá giới hạn 2000 ký tự.",
+  "You can only message coaches of classes you are currently enrolled in.": "Bạn chỉ có thể nhắn tin cho HLV của lớp bạn đang tham gia.",
+  "Coaches can only message members enrolled in their active classes.": "HLV chỉ có thể nhắn tin cho học viên đang tham gia lớp học đang hoạt động.",
+  "Recipient not found.": "Không tìm thấy người nhận.",
+  "Room parameter is required.": "Thiếu tham số phòng.",
+  "Peer parameter is required.": "Thiếu tham số peer.",
+  "Peer ID mismatch.": "Mã peer không khớp.",
+  "Not permitted in this chat room.": "Bạn không có quyền tham gia phòng chat này.",
+  "Missing required signaling fields.": "Thiếu các trường tín hiệu bắt buộc.",
+  "Sender ID mismatch.": "Mã người gửi không khớp.",
+
   // ── promos.ts (pricing of a code) and handlers/promos.ts
   "Enter a promo code.": "Vui lòng nhập mã khuyến mãi.",
   "That code is not valid.": "Mã này không hợp lệ.",

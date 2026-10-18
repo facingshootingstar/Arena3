@@ -32,6 +32,7 @@ const { csvCell } = await import("./handlers/extras.ts");
 const { trainingCreate } = await import("./handlers/training.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
 const { setOverridePaymentLinkCreator } = await import("./payos.ts");
+const chatH = await import("./handlers/chat.ts");
 
 let db: PGlite;
 
@@ -2401,6 +2402,136 @@ describe("Round 9 unit tests (SB-31 online flow price lock)", () => {
     }
   });
 });
+
+describe("Round 10: Two-way Chat unit tests", () => {
+  it("enforces permissions: member not enrolled in coach class cannot chat, enrolled member can, idempotent send, and mark read", async () => {
+    // 1. Create a coach C1 and a member M1, and an active class taught by C1
+    const coachRes = await db.query<{ id: string; role: string; full_name: string }>(
+      `insert into users (full_name, name_normalized, phone, role, status, password_hash)
+       values ('Coach Chat Test', 'coach chat test', '0901999881', 'coach', 'active', 'test_hash')
+       returning id, role, full_name`,
+    );
+    const coach = {
+      id: coachRes.rows[0]!.id,
+      role: "coach" as const,
+      full_name: coachRes.rows[0]!.full_name,
+      phone: "0901999881",
+      email: null,
+      member_code: null,
+      status: "active",
+      date_of_birth: null,
+      health_notes: null,
+      must_change_password: false,
+    };
+
+    const memberRes = await db.query<{ id: string; role: string; full_name: string }>(
+      `insert into users (full_name, name_normalized, phone, role, status, password_hash)
+       values ('Member Chat Test', 'member chat test', '0901999882', 'member', 'active', 'test_hash')
+       returning id, role, full_name`,
+    );
+    const member = {
+      id: memberRes.rows[0]!.id,
+      role: "member" as const,
+      full_name: memberRes.rows[0]!.full_name,
+      phone: "0901999882",
+      email: null,
+      member_code: null,
+      status: "active",
+      date_of_birth: null,
+      health_notes: null,
+      must_change_password: false,
+    };
+
+    // Member tries to create conversation with Coach before enrollment -> 403 Forbidden
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/conversations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ recipient_id: coach.id }),
+      });
+      await assert.rejects(
+        async () => chatH.createOrGetConversation(sql, member, req),
+        (err: any) => {
+          assert.equal(err.status, 403);
+          return true;
+        },
+      );
+    });
+
+      // Create an active class taught by coach and enroll member
+      const court = await db.query<{ id: string }>(`select id from courts where sport = 'badminton' limit 1`);
+      const clsRes = await db.query<{ id: string }>(
+        `insert into classes (sport, level, coach_id, court_id, capacity, rrule, duration_min, status, start_on, end_on)
+         values ('badminton', 'beginner', $1, $2, 12, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', 60, 'open', current_date, current_date + 30)
+         returning id`,
+        [coach.id, court.rows[0]!.id],
+      );
+      const classId = clsRes.rows[0]!.id;
+
+      await db.query(
+        `insert into enrollments (class_id, user_id, status)
+         values ($1, $2, 'confirmed')`,
+        [classId, member.id],
+      );
+
+      // Now member can create conversation with Coach -> 201 Created
+      let convId = "";
+      await withTx(async (sql) => {
+        const req = new Request("http://localhost/v1/conversations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ recipient_id: coach.id }),
+        });
+        const res = await chatH.createOrGetConversation(sql, member, req);
+        assert.ok(res.conversation!.id);
+        convId = res.conversation!.id;
+      });
+
+      // 2. Idempotent message sending
+      const clientMsgId = "11111111-2222-3333-4444-555555555555";
+      await withTx(async (sql) => {
+        const req = new Request(`http://localhost/v1/conversations/${convId}/messages`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: clientMsgId, body: "Xin chao HLV!" }),
+        });
+        const res = await chatH.sendMessage(sql, member, convId, req);
+        assert.equal(res.message!.id, clientMsgId);
+        assert.equal(res.message!.body, "Xin chao HLV!");
+        assert.equal(res.message!.read_at, null);
+      });
+
+      // Replay with exact same clientMsgId -> returns same message without duplicate
+      await withTx(async (sql) => {
+        const req = new Request(`http://localhost/v1/conversations/${convId}/messages`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: clientMsgId, body: "Xin chao HLV!" }),
+        });
+        const res = await chatH.sendMessage(sql, member, convId, req);
+        assert.equal(res.message!.id, clientMsgId);
+      });
+
+      const msgCount = await db.query<{ c: number }>(
+        `select count(*)::int as c from messages where conversation_id = $1`,
+        [convId],
+      );
+      assert.equal(msgCount.rows[0]!.c, 1);
+
+      // 3. Mark conversation read
+      await withTx(async (sql) => {
+        const res = await chatH.markConversationRead(sql, coach, convId);
+        assert.equal(res.ok, true);
+      });
+
+      const readCheck = await db.query<{ read_at: string | null }>(
+        `select read_at from messages where id = $1`,
+        [clientMsgId],
+      );
+      assert.ok(readCheck.rows[0]!.read_at !== null);
+    });
+  });
+
 
 
 

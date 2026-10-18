@@ -22,6 +22,7 @@ import * as xH from "./handlers/extras";
 import * as assetsH from "./handlers/assets";
 import * as courtH from "./handlers/courts";
 import * as sportsH from "./handlers/sports";
+import * as chatH from "./handlers/chat";
 import { liveStreamHandler } from "./handlers/live";
 
 type Result = { status: number; body: unknown };
@@ -35,7 +36,7 @@ function pathOf(request: Request): { method: string; parts: string[]; url: URL }
 
 async function dispatch(request: Request): Promise<Response | Result> {
   startJobLoop();
-  const { method, parts } = pathOf(request);
+  const { method, parts, url } = pathOf(request);
   const p0 = parts[0] ?? "";
   const p1 = parts[1] ?? "";
   const p2 = parts[2] ?? "";
@@ -51,6 +52,66 @@ async function dispatch(request: Request): Promise<Response | Result> {
     const sql = await getSql();
     const user = await optionalAuth(sql, request);
     return liveStreamHandler(request, sql, user);
+  }
+
+  // WebRTC Signaling Relay
+  if (p0 === "rtc" && !p1) {
+    if (method === "GET") {
+      return withTx(async (sql) => {
+        const user = await authFromRequest(sql, request);
+        const data = await chatH.rtcPollHandler(sql, user, request);
+        return { status: 200, body: data };
+      });
+    }
+    if (method === "POST") {
+      return withTx(async (sql) => {
+        const user = await authFromRequest(sql, request);
+        const data = await chatH.rtcSignalHandler(sql, user, request);
+        return { status: 200, body: data };
+      });
+    }
+  }
+
+  // Two-way Chat
+  if (p0 === "conversations") {
+    if (method === "GET" && !p1) {
+      return withTx(async (sql) => {
+        const user = await authFromRequest(sql, request);
+        const data = await chatH.listConversations(sql, user);
+        return { status: 200, body: data };
+      });
+    }
+    if (method === "POST" && !p1) {
+      return withTx(async (sql) => {
+        const user = await authFromRequest(sql, request);
+        const data = await chatH.createOrGetConversation(sql, user, request);
+        return { status: 201, body: data };
+      });
+    }
+    if (p1) {
+      const convId = p1;
+      if (method === "GET" && p2 === "messages") {
+        return withTx(async (sql) => {
+          const user = await authFromRequest(sql, request);
+          const data = await chatH.listMessages(sql, user, convId, url);
+          return { status: 200, body: data };
+        });
+      }
+      if (method === "POST" && p2 === "messages") {
+        return withTx(async (sql) => {
+          const user = await authFromRequest(sql, request);
+          const data = await chatH.sendMessage(sql, user, convId, request);
+          return { status: 201, body: data };
+        });
+      }
+      if (method === "POST" && p2 === "read") {
+        return withTx(async (sql) => {
+          const user = await authFromRequest(sql, request);
+          const data = await chatH.markConversationRead(sql, user, convId);
+          return { status: 200, body: data };
+        });
+      }
+    }
   }
 
   // "Is the server there?" — what the connection banner's retry button asks. No session and no

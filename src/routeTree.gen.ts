@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -83,6 +84,11 @@ const AlertsRoute = AlertsRouteImport.update({
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CoachRoute = CoachRouteImport.update({
@@ -346,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/alerts': typeof AlertsRoute
   '/app': typeof AppRouteWithChildren
+  '/chat': typeof ChatRoute
   '/coach': typeof CoachRouteWithChildren
   '/credits': typeof CreditsRoute
   '/desk': typeof DeskRouteWithChildren
@@ -402,6 +409,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/alerts': typeof AlertsRoute
+  '/chat': typeof ChatRoute
   '/credits': typeof CreditsRoute
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
@@ -457,6 +465,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/alerts': typeof AlertsRoute
   '/app': typeof AppRouteWithChildren
+  '/chat': typeof ChatRoute
   '/coach': typeof CoachRouteWithChildren
   '/credits': typeof CreditsRoute
   '/desk': typeof DeskRouteWithChildren
@@ -516,6 +525,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/alerts'
     | '/app'
+    | '/chat'
     | '/coach'
     | '/credits'
     | '/desk'
@@ -572,6 +582,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/alerts'
+    | '/chat'
     | '/credits'
     | '/forgot'
     | '/login'
@@ -626,6 +637,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/alerts'
     | '/app'
+    | '/chat'
     | '/coach'
     | '/credits'
     | '/desk'
@@ -684,6 +696,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AlertsRoute: typeof AlertsRoute
   AppRoute: typeof AppRouteWithChildren
+  ChatRoute: typeof ChatRoute
   CoachRoute: typeof CoachRouteWithChildren
   CreditsRoute: typeof CreditsRoute
   DeskRoute: typeof DeskRouteWithChildren
@@ -726,6 +739,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coach': {
@@ -1204,6 +1224,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AlertsRoute: AlertsRoute,
   AppRoute: AppRouteWithChildren,
+  ChatRoute: ChatRoute,
   CoachRoute: CoachRouteWithChildren,
   CreditsRoute: CreditsRoute,
   DeskRoute: DeskRouteWithChildren,

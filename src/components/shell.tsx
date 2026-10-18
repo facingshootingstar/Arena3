@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   LogOut,
   Map,
+  MessageSquare,
   QrCode,
   Repeat,
   Star,
@@ -85,6 +86,7 @@ const NAV: Record<string, NavItem[]> = {
     { to: "/app/train", label: tk("Progress"), icon: Activity, dock: false },
     { to: "/app/plans", label: tk("Plans"), icon: Wallet, dock: false },
     { to: "/app/points", label: tk("Points"), icon: Star, dock: false },
+    { to: "/chat", label: tk("Messages"), icon: MessageSquare, dock: false },
     { to: "/app/pass", label: tk("Pass"), icon: QrCode },
   ],
   receptionist: [
@@ -98,6 +100,7 @@ const NAV: Record<string, NavItem[]> = {
     // it comes before the retention list. The row shows as many tabs as fit, in this order.
     { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, dock: false },
     { to: "/desk/at-risk", label: tk("At risk"), icon: UserMinus, dock: false },
+    { to: "/chat", label: tk("Messages"), icon: MessageSquare, more: true, dock: false },
     // `/desk/gear` is a complete equipment-hire screen that nothing linked to,
     // so reception could only reach it by typing the URL.
     { to: "/desk/gear", label: tk("Gear"), icon: Dumbbell, more: true, dock: false },
@@ -109,6 +112,7 @@ const NAV: Record<string, NavItem[]> = {
     { to: "/coach", label: tk("Schedule"), icon: CalendarDays },
     { to: "/coach/classes", label: tk("Classes"), icon: Ticket },
     { to: "/coach/attendance", label: tk("Attendance"), icon: ClipboardList },
+    { to: "/chat", label: tk("Messages"), icon: MessageSquare },
     { to: "/coach/earnings", label: tk("Earnings"), icon: HandCoins },
     { to: "/account", label: tk("Profile"), icon: UserCog },
   ],
@@ -123,6 +127,7 @@ const NAV: Record<string, NavItem[]> = {
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet },
     { to: "/manager/staff", label: tk("Staff"), icon: UserCog, dock: false, group: G_SYSTEM },
+    { to: "/chat", label: tk("Messages"), icon: MessageSquare, more: true, dock: false, group: G_OPS },
     { to: "/manager/prices", label: tk("Pricing"), icon: Coins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, more: true, dock: false, group: G_BUSINESS },
     { to: "/manager/invoices", label: tk("E-invoices"), icon: FileText, more: true, dock: false, group: G_BUSINESS },
@@ -141,7 +146,7 @@ function navActive(pathname: string, to: string, items: { to: string }[]) {
   // A student's profile is reached from the register, so that is the tab it belongs to.
   if (pathname.startsWith("/coach/student/")) pathname = "/coach/attendance";
   // These have their own header buttons, not tabs; "/app" must not claim them as Schedule.
-  if (/^\/(app\/(assistant|notifications)|alerts)(\/|$)/.test(pathname)) return false;
+  if (/^\/(app\/(assistant|notifications)|alerts|chat)(\/|$)/.test(pathname) && to === "/app") return false;
   const matches = list.filter((it) => pathname === it.to || pathname.startsWith(`${it.to}/`));
   const best = [...matches].sort((a, b) => b.to.length - a.to.length)[0];
   return best?.to === to;
@@ -189,6 +194,46 @@ function NotificationBell({ active, to }: { active: boolean; to: string }) {
       )}
     >
       <Bell className="size-4" strokeWidth={1.9} />
+      {unread ? (
+        <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-bold leading-5 text-on-media tabular-nums motion-safe:animate-pulse">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
+function ChatBell({ active }: { active: boolean }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [unread, setUnread] = useState(0);
+
+  const fetchUnread = () => {
+    void apiGet<{ conversations: Array<{ unread_count: number }> }>("/conversations", { background: true })
+      .then((r) => {
+        const total = (r.conversations ?? []).reduce((acc, c) => acc + (Number(c.unread_count) || 0), 0);
+        setUnread(total);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchUnread();
+  }, [pathname]);
+
+  useLive("chat", fetchUnread);
+  useLive("notifications", fetchUnread);
+
+  return (
+    <Link
+      to="/chat"
+      search={{}}
+      aria-label={unread ? t("Messages, {n} unread", { n: unread }) : t("Messages")}
+      className={cn(
+        "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
+        active ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-fg hover:bg-wood",
+      )}
+    >
+      <MessageSquare className="size-4" strokeWidth={1.9} />
       {unread ? (
         <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-bold leading-5 text-on-media tabular-nums motion-safe:animate-pulse">
           {unread > 9 ? "9+" : unread}
@@ -624,6 +669,7 @@ export function Shell({
           </nav>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <LangSwitch />
+            <ChatBell active={pathname.startsWith("/chat")} />
             <NotificationBell
               to={role === "member" ? "/app/notifications" : "/alerts"}
               active={pathname.startsWith("/app/notifications") || pathname.startsWith("/alerts")}
