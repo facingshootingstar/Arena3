@@ -23,6 +23,7 @@ import * as assetsH from "./handlers/assets";
 import * as courtH from "./handlers/courts";
 import * as sportsH from "./handlers/sports";
 import * as chatH from "./handlers/chat";
+import * as avatarH from "./handlers/avatar";
 import { liveStreamHandler } from "./handlers/live";
 
 type Result = { status: number; body: unknown };
@@ -220,6 +221,15 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "PATCH" && p0 === "me" && !p1) {
     return authed((sql, user) => authH.mePatch(sql, request, user));
+  }
+  if (method === "PUT" && p0 === "me" && p1 === "avatar" && !p2) {
+    return authed((sql, user) => avatarH.meAvatarPut(sql, request, user));
+  }
+  if (method === "DELETE" && p0 === "me" && p1 === "avatar" && !p2) {
+    return authed((sql, user) => avatarH.meAvatarDelete(sql, user));
+  }
+  if (method === "GET" && p0 === "users" && p1 && p2 === "avatar" && !parts[3]) {
+    return authedRead((sql, user) => avatarH.userAvatarGet(sql, p1, user));
   }
   if (method === "GET" && p0 === "me" && p1 === "notifications" && !p2) {
     return authedRead((sql, user) => authH.meNotifications(sql, request, user));

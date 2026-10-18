@@ -36,6 +36,7 @@ import { ArenaMark, AssistantMark } from "./mark";
 import { AnimatePresence, PageIn, motion } from "./motion";
 import { GradualBlur } from "./fx";
 import { Spot, spotForPath } from "./illustrations";
+import { UserAvatar } from "./user-avatar";
 import { cn } from "@/lib/cn";
 import { useLive } from "@/lib/use-live";
 import {
@@ -307,7 +308,12 @@ function AccountMenu({
         aria-label={t("Account menu: {name}", { name: user?.full_name ?? "" })}
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold tracking-wide text-accent-fg">
-          {initials(user?.full_name)}
+          <UserAvatar
+            url={user?.avatar_url}
+            name={user?.full_name}
+            className="size-full bg-accent"
+            initialsClassName="text-xs font-bold tracking-wide text-accent-fg"
+          />
         </span>
         <span className={cn("hidden text-left", compact ? "" : "xl:block")}>
           <span className="block max-w-[10rem] truncate text-sm font-medium leading-tight">{user?.full_name ?? "-"}</span>

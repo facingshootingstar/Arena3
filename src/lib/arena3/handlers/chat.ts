@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import { enqueue, readJson, str } from "../helpers";
-import { limit, RULES } from "../ratelimit";
+import { limit } from "../ratelimit";
 import type { PublicUser } from "../session";
 import { one } from "../tx";
 
@@ -89,6 +89,7 @@ export async function listConversations(sql: Sql, user: PublicUser) {
            case when c.member_id = $1 then u_staff.full_name else u_member.full_name end as peer_name,
            case when c.member_id = $1 then u_staff.role else u_member.role end as peer_role,
            case when c.member_id = $1 then u_staff.member_code else u_member.member_code end as peer_member_code,
+           (select version from user_avatars a where a.user_id = case when c.member_id = $1 then u_staff.id else u_member.id end) as peer_avatar_version,
            lm.id as last_msg_id,
            lm.body as last_msg_body,
            lm.created_at as last_msg_created_at,
@@ -123,6 +124,7 @@ export async function listConversations(sql: Sql, user: PublicUser) {
     peer_name: string;
     peer_role: string;
     peer_member_code: string | null;
+    peer_avatar_version: number | null;
     last_msg_id: string | null;
     last_msg_body: string | null;
     last_msg_created_at: string | null;
@@ -130,22 +132,26 @@ export async function listConversations(sql: Sql, user: PublicUser) {
     unread_count: number;
   }>(query, [user.id]);
 
-  const items = rows.map((r) => ({
-    id: r.id,
-    member_id: r.member_id,
-    staff_id: r.staff_id,
-    created_at: r.created_at,
-    peer_id: r.peer_id,
-    peer_name: r.peer_name,
-    peer_role: r.peer_role,
-    peer_phone: null,
-    peer_member_code: r.peer_member_code,
-    peer: {
-      id: r.peer_id,
-      full_name: r.peer_name,
-      role: r.peer_role,
-      member_code: r.peer_member_code,
-    },
+  const items = rows.map((r) => {
+    const avatarUrl = r.peer_avatar_version != null ? `/v1/users/${r.peer_id}/avatar?v=${r.peer_avatar_version}` : null;
+    return {
+      id: r.id,
+      member_id: r.member_id,
+      staff_id: r.staff_id,
+      created_at: r.created_at,
+      peer_id: r.peer_id,
+      peer_name: r.peer_name,
+      peer_role: r.peer_role,
+      peer_phone: null,
+      peer_member_code: r.peer_member_code,
+      peer_avatar_url: avatarUrl,
+      peer: {
+        id: r.peer_id,
+        full_name: r.peer_name,
+        role: r.peer_role,
+        member_code: r.peer_member_code,
+        avatar_url: avatarUrl,
+      },
     last_message: r.last_msg_id
       ? {
           id: r.last_msg_id,
@@ -154,8 +160,9 @@ export async function listConversations(sql: Sql, user: PublicUser) {
           sender_id: r.last_msg_sender_id,
         }
       : null,
-    unread_count: r.unread_count,
-  }));
+      unread_count: r.unread_count,
+    };
+  });
 
   return { items, conversations: items };
 }

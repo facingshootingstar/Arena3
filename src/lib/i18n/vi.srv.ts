@@ -25,6 +25,10 @@ export const VI_SERVER_EXACT: Record<string, string> = {
   "That value is not allowed.": "Giá trị này không được phép.",
   "Something went wrong on our side.": "Đã có lỗi phía chúng tôi. Vui lòng thử lại.",
   "Request failed": "Yêu cầu không thành công.",
+  "Choose a photo to upload.": "Hãy chọn một ảnh để tải lên.",
+  "The photo must be 2 MB or smaller.": "Ảnh phải từ 2 MB trở xuống.",
+  "Use a JPEG, PNG or WebP photo.": "Hãy dùng ảnh JPEG, PNG hoặc WebP.",
+  "The photo must be between 64 and 4096 pixels on each side.": "Mỗi cạnh của ảnh phải từ 64 đến 4096 điểm ảnh.",
   // Raised by the browser-side client, not the server: no answer at all, or the host's own error page.
   "Could not reach the server. Check your connection and try again.": "Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.",
   "The server is busy or restarting. Try again in a moment.": "Máy chủ đang bận hoặc đang khởi động lại. Hãy thử lại sau ít phút.",

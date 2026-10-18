@@ -7,6 +7,7 @@ import { limit, RULES } from "../ratelimit";
 import {
   findUserByLogin,
   issueSession,
+  loadUser,
   toPublic,
   type PublicUser,
 } from "../session";
@@ -55,17 +56,6 @@ async function deliverOtp(email: string | null | undefined, otp: string): Promis
   const [name, domain] = email.split("@");
   const masked = name && domain ? `${name.slice(0, 2)}${"*".repeat(Math.max(1, name.length - 2))}@${domain}` : null;
   return { sentTo: masked };
-}
-
-async function loadUser(sql: Sql, id: string) {
-  const u = await one<Record<string, unknown>>(
-    sql,
-    `select id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password
-       from users where id = $1`,
-    [id],
-  );
-  if (!u) throw err.notFound();
-  return toPublic(u);
 }
 
 export async function register(sql: Sql, request: Request) {

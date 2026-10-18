@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 // Prevent src/lib/db.ts from running bootstrap in test runner
 process.env.DATABASE_URL = "postgres://mock:mock@localhost/mock";
+process.env.PGLITE_DATA_DIR = "memory";
 
 import { register } from "node:module";
 import { pathToFileURL } from "node:url";
@@ -33,6 +34,8 @@ const { trainingCreate } = await import("./handlers/training.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
 const { setOverridePaymentLinkCreator } = await import("./payos.ts");
 const chatH = await import("./handlers/chat.ts");
+const avatarH = await import("./handlers/avatar.ts");
+const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
 
 let db: PGlite;
 
@@ -2422,6 +2425,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       date_of_birth: null,
       health_notes: null,
       must_change_password: false,
+      avatar_url: null,
     };
 
     const memberRes = await db.query<{ id: string; role: string; full_name: string }>(
@@ -2440,6 +2444,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       date_of_birth: null,
       health_notes: null,
       must_change_password: false,
+      avatar_url: null,
     };
 
     // Member tries to create conversation with Coach before enrollment -> 403 Forbidden
@@ -2954,5 +2959,302 @@ describe("Round 10: Two-way Chat unit tests", () => {
       )).rows[0];
       assert.equal(checkRow.status, "refund_rejected");
       assert.equal(checkRow.shift_id, s1);
+    });
+  });
+
+  describe("Task B: self-service user avatars", () => {
+    function makePng(width = 64, height = 64): Buffer {
+      const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const ihdr = Buffer.alloc(25);
+      ihdr.writeUInt32BE(13, 0);
+      ihdr.write("IHDR", 4, 4, "ascii");
+      ihdr.writeUInt32BE(width, 8);
+      ihdr.writeUInt32BE(height, 12);
+      ihdr[16] = 8;
+      ihdr[17] = 6;
+      ihdr[18] = 0;
+      ihdr[19] = 0;
+      ihdr[20] = 0;
+      ihdr.writeUInt32BE(0, 21);
+      return Buffer.concat([sig, ihdr]);
+    }
+
+    function makeJpeg(width = 100, height = 100, withApp0 = true): Buffer {
+      const parts: Buffer[] = [];
+      if (withApp0) {
+        const app0 = Buffer.alloc(18);
+        app0[0] = 0xff;
+        app0[1] = 0xe0;
+        app0.writeUInt16BE(16, 2);
+        app0.write("JFIF\0", 4, "ascii");
+        parts.push(Buffer.from([0xff, 0xd8]), app0);
+      } else {
+        parts.push(Buffer.from([0xff, 0xd8]));
+      }
+      const sof0 = Buffer.alloc(19);
+      sof0[0] = 0xff;
+      sof0[1] = 0xc0;
+      sof0.writeUInt16BE(17, 2);
+      sof0[4] = 8;
+      sof0.writeUInt16BE(height, 5);
+      sof0.writeUInt16BE(width, 7);
+      parts.push(sof0);
+      return Buffer.concat(parts);
+    }
+
+    function makeWebpVP8X(width = 120, height = 90): Buffer {
+      const buf = Buffer.alloc(32);
+      buf.write("RIFF", 0, "ascii");
+      buf.writeUInt32LE(24, 4);
+      buf.write("WEBP", 8, "ascii");
+      buf.write("VP8X", 12, "ascii");
+      buf.writeUInt32LE(10, 16);
+      const w = width - 1;
+      buf[24] = w & 0xff;
+      buf[25] = (w >> 8) & 0xff;
+      buf[26] = (w >> 16) & 0xff;
+      const h = height - 1;
+      buf[27] = h & 0xff;
+      buf[28] = (h >> 8) & 0xff;
+      buf[29] = (h >> 16) & 0xff;
+      return buf;
+    }
+
+    it("sniffAvatar: covers PNG, JPEG with APP0, WebP VP8X, truncated, and empty buffer", () => {
+      const png = sniffAvatar(makePng(64, 64));
+      assert.deepEqual(png, { mime: "image/png", width: 64, height: 64 });
+
+      const jpeg = sniffAvatar(makeJpeg(100, 80, true));
+      assert.deepEqual(jpeg, { mime: "image/jpeg", width: 100, height: 80 });
+
+      const webp = sniffAvatar(makeWebpVP8X(120, 90));
+      assert.deepEqual(webp, { mime: "image/webp", width: 120, height: 90 });
+
+      assert.equal(sniffAvatar(Buffer.from([0x89, 0x50, 0x4e])), null);
+      assert.equal(sniffAvatar(Buffer.alloc(0)), null);
+    });
+
+    const memberA = { id: "00000000-0000-0000-0000-b00000000001", role: "member", full_name: "Member A", phone: "+84999999081" } as any;
+    const memberB = { id: "00000000-0000-0000-0000-b00000000002", role: "member", full_name: "Member B", phone: "+84999999082" } as any;
+    const staffCoach = { id: "00000000-0000-0000-0000-b00000000003", role: "coach", full_name: "Coach B", phone: "+84999999083" } as any;
+
+    async function setupTaskB() {
+      await db.query("delete from user_avatars where user_id in ($1, $2, $3)", [memberA.id, memberB.id, staffCoach.id]);
+      await db.query("delete from conversations where id = '00000000-0000-0000-0000-b00000000099'");
+      await db.query("delete from users where id in ($1, $2, $3) or phone in ('+84999999081', '+84999999082', '+84999999083')", [memberA.id, memberB.id, staffCoach.id]);
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+         values ($1, $2, $3, 'member a', 'member', 'hash'),
+                ($4, $5, $6, 'member b', 'member', 'hash'),
+                ($7, $8, $9, 'coach b', 'coach', 'hash')`,
+        [memberA.id, memberA.phone, memberA.full_name, memberB.id, memberB.phone, memberB.full_name, staffCoach.id, staffCoach.phone, staffCoach.full_name],
+      );
+    }
+
+    it("B-1: member PUTs a valid 64x64 PNG -> 200, avatar_url ends in ?v=1, audit row created with no bytes", async () => {
+      await setupTaskB();
+      const req = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: makePng(64, 64).toString("base64") }),
+      });
+      const res = await withTx(async (sql) => meAvatarPut(sql, req, memberA));
+      assert.equal(res.status, 200);
+      const user = (res.body as any).user;
+      assert.match(user.avatar_url, /\/v1\/users\/00000000-0000-0000-0000-b00000000001\/avatar\?v=1$/);
+
+      const audits = (await db.query<{ action: string; after: string }>(
+        `select action, after from audit_logs where action = 'avatar_set' and actor_id = $1`,
+        [memberA.id],
+      )).rows;
+      assert.equal(audits.length, 1);
+      const after = typeof audits[0].after === "string" ? JSON.parse(audits[0].after) : audits[0].after;
+      assert.equal(after.mime, "image/png");
+      assert.equal(after.width, 64);
+      assert.equal(after.height, 64);
+      assert.equal(after.bytes > 0, true);
+      assert.equal(after.data, undefined);
+    });
+
+    it("B-2: PUT again -> ?v=2", async () => {
+      const req = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: makePng(128, 128).toString("base64") }),
+      });
+      const res = await withTx(async (sql) => meAvatarPut(sql, req, memberA));
+      assert.equal(res.status, 200);
+      const user = (res.body as any).user;
+      assert.match(user.avatar_url, /\?v=2$/);
+    });
+
+    it("B-3: 2 MB + 1 byte -> field error file", async () => {
+      const bigBuf = Buffer.alloc(2 * 1024 * 1024 + 1);
+      const req = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: bigBuf.toString("base64") }),
+      });
+      await assert.rejects(
+        () => withTx(async (sql) => meAvatarPut(sql, req, memberA)),
+        (err: any) => {
+          assert.equal(err.status, 400);
+          assert.equal(err.extra?.field, "file");
+          assert.match(err.message, /2 MB/);
+          return true;
+        },
+      );
+    });
+
+    it("B-4: SVG (<svg ...>), a renamed .exe (MZ...), random bytes -> field error file", async () => {
+      for (const raw of ["<svg width='100' height='100'></svg>", "MZ9999renamedexe", "randombytes12345678901234567890"]) {
+        const req = new Request("http://localhost/v1/me/avatar", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ data_base64: Buffer.from(raw).toString("base64") }),
+        });
+        await assert.rejects(
+          () => withTx(async (sql) => meAvatarPut(sql, req, memberA)),
+          (err: any) => {
+            assert.equal(err.status, 400);
+            assert.equal(err.extra?.field, "file");
+            return true;
+          },
+        );
+      }
+    });
+
+    it("B-5: 32x32 PNG; PNG with IHDR 5000x10 -> field error file", async () => {
+      for (const [w, h] of [[32, 32], [5000, 10]]) {
+        const req = new Request("http://localhost/v1/me/avatar", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ data_base64: makePng(w, h).toString("base64") }),
+        });
+        await assert.rejects(
+          () => withTx(async (sql) => meAvatarPut(sql, req, memberA)),
+          (err: any) => {
+            assert.equal(err.status, 400);
+            assert.equal(err.extra?.field, "file");
+            assert.match(err.message, /between 64 and 4096 pixels/);
+            return true;
+          },
+        );
+      }
+    });
+
+    it("B-6: GET own avatar -> 200, correct Content-Type, Cache-Control contains private, X-Content-Type-Options: nosniff", async () => {
+      const res = await withTx(async (sql) => userAvatarGet(sql, memberA.id, memberA));
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get("content-type"), "image/png");
+      assert.equal(res.headers.get("cache-control")?.includes("private"), true);
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(res.headers.get("etag"), '"2"');
+    });
+
+    it("B-7: GET without a token -> 401", async () => {
+      await assert.rejects(
+        () => withTx(async (sql) => userAvatarGet(sql, memberA.id, null)),
+        (err: any) => {
+          assert.equal(err.status, 401);
+          return true;
+        },
+      );
+    });
+
+    it("B-8: member A GETs member B (no conversation) -> 404", async () => {
+      await assert.rejects(
+        () => withTx(async (sql) => userAvatarGet(sql, memberB.id, memberA)),
+        (err: any) => {
+          assert.equal(err.status, 404);
+          return true;
+        },
+      );
+    });
+
+    it("B-9: member A GETs a staff member A has a conversation with; staff GETs a member -> 200", async () => {
+      // Upload avatar for staffCoach
+      const reqCoach = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: makePng(64, 64).toString("base64") }),
+      });
+      await withTx(async (sql) => meAvatarPut(sql, reqCoach, staffCoach));
+
+      // Create conversation
+      await db.query(
+        `insert into conversations (id, member_id, staff_id) values ('00000000-0000-0000-0000-b00000000099', $1, $2)`,
+        [memberA.id, staffCoach.id],
+      );
+
+      // member A GETs staffCoach
+      const res1 = await withTx(async (sql) => userAvatarGet(sql, staffCoach.id, memberA));
+      assert.equal(res1.status, 200);
+
+      // staffCoach GETs member A
+      const res2 = await withTx(async (sql) => userAvatarGet(sql, memberA.id, staffCoach));
+      assert.equal(res2.status, 200);
+    });
+
+    it("B-10: DELETE -> avatar_url = null; GET -> 404; DELETE again -> still 200", async () => {
+      const resDel = await withTx(async (sql) => meAvatarDelete(sql, memberA));
+      assert.equal(resDel.status, 200);
+      assert.equal((resDel.body as any).user.avatar_url, null);
+
+      await assert.rejects(
+        () => withTx(async (sql) => userAvatarGet(sql, memberA.id, memberA)),
+        (err: any) => {
+          assert.equal(err.status, 404);
+          return true;
+        },
+      );
+
+      const resDelAgain = await withTx(async (sql) => meAvatarDelete(sql, memberA));
+      assert.equal(resDelAgain.status, 200);
+    });
+
+    it("B-11: GET /me after an upload -> user.avatar_url present through authFromRequest", async () => {
+      const req = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: makePng(64, 64).toString("base64") }),
+      });
+      await withTx(async (sql) => meAvatarPut(sql, req, memberA));
+
+      const sess = await withTx(async (sql) => issueSession(sql, memberA));
+      const reqMe = new Request("http://localhost/v1/me", {
+        headers: { authorization: `Bearer ${sess.token}` },
+      });
+      const meUser = await withTx(async (sql) => authFromRequest(sql, reqMe));
+      assert.match(meUser.avatar_url ?? "", /\/v1\/users\/00000000-0000-0000-0000-b00000000001\/avatar\?v=\d+$/);
+    });
+
+    it("B-12: user is deleted -> the user_avatars row is gone (cascade)", async () => {
+      const tempUser = { id: "00000000-0000-0000-0000-b00000000089", role: "member", full_name: "Temp", phone: "+84999999089" } as any;
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+         values ($1, $2, $3, 'temp', 'member', 'hash')`,
+        [tempUser.id, tempUser.phone, tempUser.full_name],
+      );
+      const req = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: makePng(64, 64).toString("base64") }),
+      });
+      await withTx(async (sql) => meAvatarPut(sql, req, tempUser));
+
+      const beforeCount = (await db.query<{ count: number }>(
+        `select count(*)::int as count from user_avatars where user_id = $1`,
+        [tempUser.id],
+      )).rows[0].count;
+      assert.equal(beforeCount, 1);
+
+      await db.query("delete from users where id = $1", [tempUser.id]);
+
+      const afterCount = (await db.query<{ count: number }>(
+        `select count(*)::int as count from user_avatars where user_id = $1`,
+        [tempUser.id],
+      )).rows[0].count;
+      assert.equal(afterCount, 0);
     });
   });

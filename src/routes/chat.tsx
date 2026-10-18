@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, MessageSquare, RefreshCw, Send, ShieldCheck, Zap } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, MessageSquare, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
-import { Guard, Shell, initials, roleLabel, useSessionUser } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Input, LoadError, Skeleton } from "@/components/ui";
-import { Cover } from "@/components/media";
+import { Guard, Shell, roleLabel, useSessionUser } from "@/components/shell";
+import { Badge, Button, EmptyState, Input, LoadError, Skeleton } from "@/components/ui";
+import { UserAvatar } from "@/components/user-avatar";
 import { apiGet, apiPost } from "@/lib/arena3/client";
 import { locale, t, tServer } from "@/lib/i18n";
 import { HighlightBadge, useLive } from "@/lib/use-live";
@@ -29,6 +29,14 @@ export interface ConversationItem {
   peer_name: string;
   peer_role: string;
   peer_phone: string | null;
+  peer_avatar_url?: string | null;
+  peer?: {
+    id: string;
+    full_name: string;
+    role: string;
+    member_code: string | null;
+    avatar_url: string | null;
+  };
   last_message: {
     id: string;
     sender_id: string;
@@ -363,9 +371,9 @@ function ChatPage() {
                           )}
                         >
                           <div className="relative shrink-0">
-                            <Cover
-                              slot={`avatar.${conv.peer_id}`}
-                              fallbackInitials={initials(conv.peer_name)}
+                            <UserAvatar
+                              url={conv.peer_avatar_url}
+                              name={conv.peer_name}
                               className="size-11 rounded-full border border-line"
                               initialsClassName="text-xs font-bold"
                               alt={conv.peer_name}
@@ -428,9 +436,9 @@ function ChatPage() {
                     >
                       <ArrowLeft className="size-5" />
                     </button>
-                    <Cover
-                      slot={`avatar.${activeConv.peer_id}`}
-                      fallbackInitials={initials(activeConv.peer_name)}
+                    <UserAvatar
+                      url={activeConv.peer_avatar_url}
+                      name={activeConv.peer_name}
                       className="size-10 rounded-full border border-line"
                       initialsClassName="text-xs font-bold"
                       alt={activeConv.peer_name}
