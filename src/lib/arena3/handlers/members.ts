@@ -3,7 +3,7 @@ import { hashPassword } from "../crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, phoneLast9, unaccentVi } from "../phone";
-import { PUBLIC_COLS, requireRole, toPublic, type PublicUser } from "../session";
+import { PUBLIC_COLS, avatarUrlSql, requireRole, toPublic, withAvatarUrl, type PublicUser } from "../session";
 import { one } from "../tx";
 import { revoke, tempPassword } from "./staff";
 import { getActiveSportCodes } from "./sports";
@@ -16,7 +16,8 @@ export async function membersSearch(sql: Sql, request: Request, user: PublicUser
   const phone = q.replace(/[\s-]/g, "");
   const tail = phoneLast9(q);
   const items = await sql.query(
-    `select id, member_code, full_name, phone, email, role, status, date_of_birth
+    `select id, member_code, full_name, phone, email, role, status, date_of_birth,
+            ${avatarUrlSql("users")}
        from users
       where role = 'member'
         and (
@@ -29,7 +30,7 @@ export async function membersSearch(sql: Sql, request: Request, user: PublicUser
       limit 20`,
     [nq, phone, q, tail],
   );
-  return { status: 200, body: { items } };
+  return { status: 200, body: { items: items.map(withAvatarUrl) } };
 }
 
 export async function membersCreate(sql: Sql, request: Request, user: PublicUser) {
@@ -44,7 +45,7 @@ export async function membersCreate(sql: Sql, request: Request, user: PublicUser
   if (!pii) throw err.br("BR-04", "You must accept the terms and the data-privacy notice.");
   const existing = await one<Record<string, unknown>>(
     sql,
-    `select id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password
+    `select ${PUBLIC_COLS}
        from users where phone = $1`,
     [phone],
   );
@@ -81,7 +82,7 @@ export async function membersCreate(sql: Sql, request: Request, user: PublicUser
   await audit(sql, user.id, "create_member", "user", inserted!.id);
   const created = await one<Record<string, unknown>>(
     sql,
-    `select id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password
+    `select ${PUBLIC_COLS}
        from users where id = $1`,
     [inserted!.id],
   );
@@ -383,6 +384,7 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
     `with base as (
        select u.id, u.member_code, u.full_name, u.phone, u.status::text as status, u.created_at,
               u.date_of_birth::text as date_of_birth,
+              ${avatarUrlSql("u")},
               u.name_normalized, latest.plan_name, latest.sport_scope, latest.end_on, latest.sub_status,
               (select count(*) from enrollments e where e.user_id = u.id and e.status = 'confirmed')::int as classes,
               case
@@ -425,7 +427,7 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
       total,
       limit,
       offset,
-      items: rows.map(({ total: _t, name_normalized: _n, ...r }) => r),
+      items: rows.map(({ total: _t, name_normalized: _n, ...r }) => withAvatarUrl(r)),
     },
   };
 }

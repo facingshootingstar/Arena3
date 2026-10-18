@@ -22,7 +22,7 @@ const { KeepWrites, setOverridePglite, withTx } = await import("./tx.ts");
 const authH = await import("./handlers/auth.ts");
 const { readJson, withIdempotency } = await import("./helpers.ts");
 const opsH = await import("./handlers/ops.ts");
-const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel } = await import("./handlers/classes.ts");
+const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel, classDetail, classRoster } = await import("./handlers/classes.ts");
 const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
@@ -3970,5 +3970,128 @@ describe("Round 10: Two-way Chat unit tests", () => {
       const m2 = b.items.find((r: any) => r.id === memM2.id);
       assert.ok(m2);
       assert.equal(m2.date_of_birth, "1995-10-20");
+    });
+  });
+
+  describe("Task V: avatars wherever a name is listed", () => {
+    function makePng(width = 64, height = 64): Buffer {
+      const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const ihdr = Buffer.alloc(25);
+      ihdr.writeUInt32BE(13, 0);
+      ihdr.write("IHDR", 4, 4, "ascii");
+      ihdr.writeUInt32BE(width, 8);
+      ihdr.writeUInt32BE(height, 12);
+      ihdr[16] = 8;
+      ihdr[17] = 6;
+      ihdr[18] = 0;
+      ihdr[19] = 0;
+      ihdr[20] = 0;
+      ihdr.writeUInt32BE(0, 21);
+      return Buffer.concat([sig, ihdr]);
+    }
+
+    const memV = { id: "d0000000-0000-0000-0000-000000000001", phone: "+84999993001", full_name: "V Member", role: "member" } as any;
+    const coachV = { id: "d0000000-0000-0000-0000-000000000002", phone: "+84999993002", full_name: "V Coach", role: "coach" } as any;
+    const mgrV = { id: "d0000000-0000-0000-0000-000000000003", phone: "+84999993003", full_name: "V Manager", role: "manager" } as any;
+    const classV = "f0000000-0000-0000-0000-000000000010";
+    const courtV = "10000000-0000-0000-0000-000000000001";
+
+    async function cleanupV() {
+      await db.query("delete from user_avatars where user_id in ($1, $2, $3)", [memV.id, coachV.id, mgrV.id]);
+      await db.query("delete from enrollments where class_id = $1 or user_id = $2", [classV, memV.id]);
+      await db.query("delete from classes where id = $1", [classV]);
+      await db.query("delete from users where id in ($1, $2, $3)", [memV.id, coachV.id, mgrV.id]);
+    }
+
+    async function setupV() {
+      await cleanupV();
+      for (const u of [coachV, mgrV]) {
+        await db.query(
+          `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+           values ($1, $2, $3, $4, $5, 'hash')`,
+          [u.id, u.phone, u.full_name, u.full_name.toLowerCase(), u.role],
+        );
+      }
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash, status, date_of_birth)
+         values ($1, $2, $3, $4, 'member', 'hash', 'active', '1990-01-01')`,
+        [memV.id, memV.phone, memV.full_name, memV.full_name.toLowerCase()],
+      );
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'Beginner', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=18', current_date - 1, current_date + 30, 60, 5, 'open', 1)`,
+        [classV, coachV.id, courtV],
+      );
+      await db.query(
+        `insert into enrollments (id, class_id, user_id, status)
+         values ('d2000000-0000-0000-0000-000000000001', $1, $2, 'confirmed')`,
+        [classV, memV.id],
+      );
+    }
+
+    after(async () => {
+      await cleanupV();
+    });
+
+    it("after meAvatarPut, membersDirectory, membersSearch, memberGet, and class roster return non-null avatar_url; after meAvatarDelete they return null", async () => {
+      await setupV();
+
+      // 1. Initially without avatar, all return avatar_url = null
+      const initDir = await withTx(async (sql) => membersDirectory(sql, new Request("http://localhost?q=V%20Member"), mgrV));
+      const initSearch = await withTx(async (sql) => membersSearch(sql, new Request("http://localhost?q=V%20Member"), mgrV));
+      const initGet = await withTx(async (sql) => memberGet(sql, memV.id, mgrV));
+      const initClass = await withTx(async (sql) => classDetail(sql, classV, mgrV));
+      const initRoster = await withTx(async (sql) => classRoster(sql, classV, mgrV));
+
+      assert.equal((initDir.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
+      assert.equal((initSearch.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
+      assert.equal((initGet.body as any).user.avatar_url, null);
+      assert.equal((initClass.body as any).roster.find((r: any) => r.id === memV.id)?.avatar_url, null);
+      assert.equal((initRoster.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
+
+      // 2. PUT avatar
+      const reqPut = new Request("http://localhost/v1/me/avatar", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: makePng(64, 64).toString("base64") }),
+      });
+      const putRes = await withTx(async (sql) => meAvatarPut(sql, reqPut, memV));
+      assert.equal(putRes.status, 200);
+
+      // 3. Each returns non-null avatar_url
+      const afterDir = await withTx(async (sql) => membersDirectory(sql, new Request("http://localhost?q=V%20Member"), mgrV));
+      const afterSearch = await withTx(async (sql) => membersSearch(sql, new Request("http://localhost?q=V%20Member"), mgrV));
+      const afterGet = await withTx(async (sql) => memberGet(sql, memV.id, mgrV));
+      const afterClass = await withTx(async (sql) => classDetail(sql, classV, mgrV));
+      const afterRoster = await withTx(async (sql) => classRoster(sql, classV, mgrV));
+
+      const dirUrl = (afterDir.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url;
+      const searchUrl = (afterSearch.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url;
+      const getUrl = (afterGet.body as any).user.avatar_url;
+      const classUrl = (afterClass.body as any).roster.find((r: any) => r.id === memV.id)?.avatar_url;
+      const rosterUrl = (afterRoster.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url;
+
+      assert.ok(dirUrl && dirUrl.includes(`/v1/users/${memV.id}/avatar`));
+      assert.ok(searchUrl && searchUrl.includes(`/v1/users/${memV.id}/avatar`));
+      assert.ok(getUrl && getUrl.includes(`/v1/users/${memV.id}/avatar`));
+      assert.ok(classUrl && classUrl.includes(`/v1/users/${memV.id}/avatar`));
+      assert.ok(rosterUrl && rosterUrl.includes(`/v1/users/${memV.id}/avatar`));
+
+      // 4. DELETE avatar
+      const delRes = await withTx(async (sql) => meAvatarDelete(sql, memV));
+      assert.equal(delRes.status, 200);
+
+      // 5. Each returns null
+      const finalDir = await withTx(async (sql) => membersDirectory(sql, new Request("http://localhost?q=V%20Member"), mgrV));
+      const finalSearch = await withTx(async (sql) => membersSearch(sql, new Request("http://localhost?q=V%20Member"), mgrV));
+      const finalGet = await withTx(async (sql) => memberGet(sql, memV.id, mgrV));
+      const finalClass = await withTx(async (sql) => classDetail(sql, classV, mgrV));
+      const finalRoster = await withTx(async (sql) => classRoster(sql, classV, mgrV));
+
+      assert.equal((finalDir.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
+      assert.equal((finalSearch.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
+      assert.equal((finalGet.body as any).user.avatar_url, null);
+      assert.equal((finalClass.body as any).roster.find((r: any) => r.id === memV.id)?.avatar_url, null);
+      assert.equal((finalRoster.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
     });
   });

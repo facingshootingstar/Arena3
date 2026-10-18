@@ -3,7 +3,7 @@ import { err, isConflictSlot } from "../errors";
 import { assertNoClassClash, audit, classPlan, enqueue, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
-import { requireRole, type PublicUser } from "../session";
+import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
 import { addDays, classMinutes, ictDateString, ictDateTime, slotSpan } from "../time";
 import { one } from "../tx";
 import { inviteWaitlist } from "./ops";
@@ -514,6 +514,7 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
   );
   const roster = await sql.query(
     `select u.id, u.full_name, u.member_code, u.phone, e.status::text as status,
+            ${avatarUrlSql("u")},
             case when e.status = 'waitlisted' then (select count(*) from enrollments w where w.class_id = e.class_id and w.status = 'waitlisted' and (w.waitlist_pos, w.id) <= (e.waitlist_pos, e.id)) end as waitlist_pos,
             exists(
               select 1 from waitlist_offers o
@@ -530,7 +531,7 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
     body: {
       class: { ...cl, code: classCode(cl.sport, cl.level, cl.id) },
       sessions,
-      roster,
+      roster: roster.map(withAvatarUrl),
     },
   };
 }
@@ -547,14 +548,15 @@ export async function classRoster(sql: Sql, classId: string, user: PublicUser) {
     throw err.forbidden();
   }
   const items = await sql.query(
-    `select u.id, u.full_name, u.member_code, u.health_notes, e.status, e.id as enrollment_id
+    `select u.id, u.full_name, u.member_code, u.health_notes, e.status, e.id as enrollment_id,
+            ${avatarUrlSql("u")}
        from enrollments e
        join users u on u.id = e.user_id
       where e.class_id = $1 and e.status = 'confirmed'
       order by u.full_name`,
     [classId],
   );
-  return { status: 200, body: { items } };
+  return { status: 200, body: { items: items.map(withAvatarUrl) } };
 }
 
 /* ------------------------------------------------------------------ *

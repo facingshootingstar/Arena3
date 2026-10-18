@@ -153,15 +153,7 @@ function navActive(pathname: string, to: string, items: { to: string }[]) {
   return best?.to === to;
 }
 
-export function initials(name: string | undefined) {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "A3";
-  // Vietnamese names put the given name last, and that is the one people answer
-  // to — so take the first and last word rather than the first two.
-  const first = parts[0]![0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? "") : "";
-  return (first + last).toUpperCase();
-}
+export { initials } from "@/lib/initials";
 
 /**
  * The member's notifications, on their own button beside the account menu

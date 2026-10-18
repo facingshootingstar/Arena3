@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
 import { ageYears } from "@/lib/arena3/time";
 import { locale, t, tk, tData } from "@/lib/i18n";
+import { UserAvatar } from "@/components/user-avatar";
 import { useRead } from "@/lib/use-read";
 import { usePageState } from "@/lib/use-page-state";
 
@@ -23,6 +24,7 @@ type Row = {
   phone: string;
   status: string;
   date_of_birth: string | null;
+  avatar_url?: string | null;
   plan_name: string | null;
   sport_scope: string | null;
   end_on: string | null;
@@ -170,15 +172,20 @@ function Page() {
                     params={{ id: m.id }}
                     className="grid gap-x-4 gap-y-0.5 px-4 py-2.5 transition-colors duration-150 hover:bg-wood/60 md:grid-cols-[minmax(0,1.6fr)_4rem_minmax(0,1.3fr)_minmax(0,1.4fr)_5rem] md:items-center"
                   >
-                    <div className="min-w-0">
-                      <p className="flex flex-wrap items-center gap-2 font-medium">
-                        <span className="break-words">{m.full_name}</span>
-                        {m.status !== "active" ? <StatusBadge status={m.status} /> : null}
-                      </p>
-                      <p className="text-xs tabular-nums text-muted">
-                        {m.member_code ?? "-"}
-                        {m.date_of_birth ? ` · ${t("{age} yrs", { age: ageYears(m.date_of_birth) })}` : ""}
-                      </p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="size-8 shrink-0">
+                        <UserAvatar name={m.full_name} url={m.avatar_url} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="flex flex-wrap items-center gap-2 font-medium">
+                          <span className="break-words">{m.full_name}</span>
+                          {m.status !== "active" ? <StatusBadge status={m.status} /> : null}
+                        </p>
+                        <p className="text-xs tabular-nums text-muted">
+                          {m.member_code ?? "-"}
+                          {m.date_of_birth ? ` · ${t("{age} yrs", { age: ageYears(m.date_of_birth) })}` : ""}
+                        </p>
+                      </div>
                     </div>
                     <p className="hidden text-sm tabular-nums text-muted md:block">
                       {m.date_of_birth ? ageYears(m.date_of_birth) : "-"}

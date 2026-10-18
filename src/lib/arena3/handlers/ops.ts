@@ -3,7 +3,7 @@ import { err } from "../errors";
 import { flagsMap, requireFlag, type FlagKey } from "../flags";
 import { assertNoClassClash, audit, classPlan, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
-import { requireRole, type PublicUser } from "../session";
+import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
 import { generateAssistantReply, type ChatTurn } from "../gemini";
 import { COACHES } from "../coaches";
@@ -338,6 +338,7 @@ export async function sessionAttendanceGet(sql: Sql, sessionId: string, user: Pu
   };
   const roster = await sql.query(
     `select u.id, u.full_name, u.member_code, u.health_notes,
+            ${avatarUrlSql("u")},
             a.result, a.at,
             (sc.charged = false) as uncharged
        from enrollments e
@@ -348,7 +349,7 @@ export async function sessionAttendanceGet(sql: Sql, sessionId: string, user: Pu
       order by u.full_name`,
     [sessionId, session.class_id],
   );
-  return { status: 200, body: { session, items: roster } };
+  return { status: 200, body: { session, items: roster.map(withAvatarUrl) } };
 }
 
 /**

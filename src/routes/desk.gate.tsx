@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
 import { Shell, hhmm, money, useSessionUser } from "@/components/shell";
+import { UserAvatar } from "@/components/user-avatar";
 import { PageHero } from "@/components/page-hero";
 import { StatStrip } from "@/components/stat-strip";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/components/ui";
@@ -17,7 +18,7 @@ import { HighlightBadge, useLive } from "@/lib/use-live";
 export const Route = createFileRoute("/desk/gate")({ component: Page });
 
 type Result = {
-  member: { id: string; full_name: string; member_code: string | null };
+  member: { id: string; full_name: string; member_code: string | null; avatar_url?: string | null };
   allowed: boolean;
   needs_override: boolean;
   flagged?: boolean;
@@ -40,6 +41,7 @@ type Entry = {
   method: string | null;
   flagged: boolean;
   reason: string | null;
+  avatar_url?: string | null;
 };
 
 /** What reception picks from when the code could not be used (BR-31). */
@@ -237,9 +239,14 @@ function Page() {
           {result ? (
             <Card className="grid gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-display text-2xl">{result.member.full_name}</p>
-                  <p className="text-xs text-muted">{result.member.member_code}</p>
+                <div className="flex items-center gap-3">
+                  <div className="size-10 shrink-0">
+                    <UserAvatar name={result.member.full_name} url={result.member.avatar_url} />
+                  </div>
+                  <div>
+                    <p className="font-display text-2xl">{result.member.full_name}</p>
+                    <p className="text-xs text-muted">{result.member.member_code}</p>
+                  </div>
                 </div>
                 {result.needs_override ? (
                   <Badge tone="danger">{t("Nothing to enter on")}</Badge>
@@ -344,9 +351,14 @@ function Page() {
           ) : (
             today.map((row) => (
               <Card key={row.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
-                <p className="font-medium">
-                  {row.full_name} <span className="text-xs text-muted">{row.member_code}</span>
-                </p>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="size-8 shrink-0">
+                    <UserAvatar name={row.full_name} url={row.avatar_url} />
+                  </div>
+                  <p className="font-medium">
+                    {row.full_name} <span className="text-xs text-muted">{row.member_code}</span>
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
                   {row.flagged ? <Badge tone="hold">{t("Flagged")}</Badge> : null}
                   {row.method ? <Badge tone="muted">{METHOD_LABEL[row.method] ? t(METHOD_LABEL[row.method]) : row.method}</Badge> : null}

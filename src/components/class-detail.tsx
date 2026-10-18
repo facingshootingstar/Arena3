@@ -4,6 +4,7 @@ import { MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge } from "@/components/ui";
 import { hhmm, initials, money, useSessionUser, when } from "@/components/shell";
+import { UserAvatar } from "@/components/user-avatar";
 import { Cover } from "@/components/media";
 import { apiPatch, apiPost } from "@/lib/arena3/client";
 import { formatDate, kindLabel, levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
@@ -57,6 +58,7 @@ type ClassDetail = {
     waitlist_pos?: number | null;
     offer_pending?: boolean;
     offer_expires_at?: string | null;
+    avatar_url?: string | null;
   }>;
 };
 
@@ -243,8 +245,13 @@ export function ClassDetailModal({
             {confirmed.length ? (
               <ul className="mt-2 grid max-h-48 gap-1 overflow-y-auto text-sm">
                 {confirmed.map((r) => (
-                  <li key={r.id} className="flex flex-wrap justify-between gap-2 px-1">
-                    <span className="font-medium">{r.full_name}</span>
+                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="size-8 shrink-0">
+                        <UserAvatar name={r.full_name} url={r.avatar_url} />
+                      </div>
+                      <span className="font-medium">{r.full_name}</span>
+                    </div>
                     <span className="tabular-nums text-muted">
                       {r.member_code ?? "-"} · {r.phone}
                     </span>
@@ -262,10 +269,13 @@ export function ClassDetailModal({
                 <ul className="mt-1.5 grid max-h-36 gap-1 overflow-y-auto text-sm">
                   {waiting.map((r) => (
                     <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-1">
-                      <span className="font-medium">
-                        <span className="mr-1.5 tabular-nums text-muted">#{r.waitlist_pos ?? "-"}</span>
-                        {r.full_name}
-                      </span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="tabular-nums text-muted text-xs">#{r.waitlist_pos ?? "-"}</span>
+                        <div className="size-8 shrink-0">
+                          <UserAvatar name={r.full_name} url={r.avatar_url} />
+                        </div>
+                        <span className="font-medium">{r.full_name}</span>
+                      </div>
                       <span className="flex items-center gap-2">
                         {r.offer_pending && r.offer_expires_at ? (
                           <Badge tone="accent" className="text-2xs">

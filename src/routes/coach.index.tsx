@@ -3,6 +3,7 @@ import { CalendarDays, ChevronRight, ClipboardCheck, MapPin, Users } from "lucid
 import { sessionDay } from "@/components/class-detail";
 import { ArenaIcon, SportIcon } from "@/components/arena-icons";
 import { Shell, hhmm, initials } from "@/components/shell";
+import { UserAvatar } from "@/components/user-avatar";
 import { PageHero } from "@/components/page-hero";
 import { SportBadge } from "@/components/sports-ui";
 import { SessionCountdown } from "@/components/training-progress";
@@ -214,7 +215,7 @@ function Page() {
 }
 
 function NextSessionStudents({ sessionId }: { sessionId: string }) {
-  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null }> }>(
+  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null; avatar_url?: string | null }> }>(
     `/sessions/${sessionId}/attendance`
   );
   const students = read.data?.items ?? [];
@@ -234,9 +235,9 @@ function NextSessionStudents({ sessionId }: { sessionId: string }) {
               className="inline-flex items-center gap-1.5 rounded-full border border-line bg-wood/40 px-2.5 py-1 text-xs"
               title={st.member_code ? `${st.full_name} (${st.member_code})` : st.full_name}
             >
-              <span className="grid size-5 place-items-center rounded-full bg-accent/20 text-2xs font-bold text-accent">
-                {initials(st.full_name)}
-              </span>
+              <div className="size-5 shrink-0">
+                <UserAvatar name={st.full_name} url={st.avatar_url} />
+              </div>
               <span className="font-medium">{st.full_name}</span>
             </div>
           ))}

@@ -19,7 +19,7 @@ import { requireFlag } from "../flags";
 import { audit, getSettings, pageOf, readJson, str } from "../helpers";
 import { signCheckinToken, verifyCheckinToken } from "../checkin";
 import { normalizePhone } from "../phone";
-import { requireRole, type PublicUser } from "../session";
+import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
 import { addDays, ictDateString, ictDateTime } from "../time";
 import { one } from "../tx";
 import { pageParams } from "../validate";
@@ -31,7 +31,7 @@ const DAY_MS = 86_400_000;
 export const MANUAL_REASONS = ["no_phone", "dead_battery", "qr_failed", "forgot", "other"] as const;
 export const OVERRIDE_REASONS = ["expired_ok", "manager_ok", "guest_pass", "renewing", "other"] as const;
 
-type Member = { id: string; full_name: string; member_code: string | null; status: string };
+type Member = { id: string; full_name: string; member_code: string | null; status: string; avatar_url: string | null };
 
 async function findMember(sql: Sql, b: Record<string, unknown>): Promise<Member> {
   const id = str(b.member_id) || null;
@@ -41,23 +41,23 @@ async function findMember(sql: Sql, b: Record<string, unknown>): Promise<Member>
   if (!id && !code && !phone && !q) {
     throw err.field("q", "Type a name, phone number or member code.");
   }
-  const cols = `select id, full_name, member_code, status::text as status from users where role = 'member'`;
+  const cols = `select id, full_name, member_code, status::text as status, ${avatarUrlSql("users")} from users where role = 'member'`;
   let rows: Member[] = [];
   if (id) {
     if (!UUID_RE.test(id)) throw err.field("member_id", "member_id is not valid.");
-    rows = await sql.query<Member>(`${cols} and id = $1`, [id]);
+    rows = (await sql.query<Member>(`${cols} and id = $1`, [id])).map(withAvatarUrl);
   } else if (code) {
-    rows = await sql.query<Member>(`${cols} and upper(member_code) = upper($1)`, [code]);
+    rows = (await sql.query<Member>(`${cols} and upper(member_code) = upper($1)`, [code])).map(withAvatarUrl);
   } else if (phone) {
-    rows = await sql.query<Member>(`${cols} and phone = $1`, [normalizePhone(phone)]);
+    rows = (await sql.query<Member>(`${cols} and phone = $1`, [normalizePhone(phone)])).map(withAvatarUrl);
   } else {
     const digits = (q as string).replace(/\D/g, "");
-    rows = await sql.query<Member>(
+    rows = (await sql.query<Member>(
       `${cols} and (upper(member_code) = upper($1) or ($2 <> '' and phone like '%' || $2)
                     or name_normalized like '%' || lower($1) || '%')
         order by full_name limit 6`,
       [q, digits.length >= 4 ? digits : ""],
-    );
+    )).map(withAvatarUrl);
     if (rows.length > 1) {
       throw err.conflictState("More than one member matches — pick one.", {
         candidates: rows.map((r) => ({ id: r.id, full_name: r.full_name, member_code: r.member_code })),
@@ -298,7 +298,7 @@ function result(
   return {
     status: 200,
     body: {
-      member: { id: member.id, full_name: member.full_name, member_code: member.member_code },
+      member: { id: member.id, full_name: member.full_name, member_code: member.member_code, avatar_url: member.avatar_url },
       allowed: true,
       needs_override: false,
       checked_in_at: visit.at,
@@ -320,13 +320,14 @@ export async function gateCheckins(sql: Sql, request: Request, user: PublicUser)
   const span = [ictDateTime(today, "00:00").toISOString(), ictDateTime(addDays(today, 1), "00:00").toISOString()];
   const rows = await sql.query<{ total: number } & Record<string, unknown>>(
     `select a.id, a.at, a.method, a.flagged, a.reason, u.id as user_id, u.full_name, u.member_code,
+            ${avatarUrlSql("u")},
             count(*) over ()::int as total
        from attendance a join users u on u.id = a.user_id
       where a.kind = 'gate' and a.at >= $1 and a.at < $2
       order by a.at desc limit $3 offset $4`,
     [...span, limit, offset],
   );
-  const body = await pageOf(rows, { limit, offset }, async () =>
+  const body = await pageOf(rows.map(withAvatarUrl), { limit, offset }, async () =>
     ((await one<{ n: number }>(
       sql,
       `select count(*)::int as n from attendance where kind = 'gate' and at >= $1 and at < $2`,

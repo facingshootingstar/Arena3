@@ -28,6 +28,7 @@ import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
 import { ageYears } from "@/lib/arena3/time";
+import { UserAvatar } from "@/components/user-avatar";
 import { t, tServer, tData } from "@/lib/i18n";
 import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
@@ -43,6 +44,7 @@ type Hit = {
   member_code: string | null;
   status: string;
   date_of_birth?: string | null;
+  avatar_url?: string | null;
 };
 
 type Plan = {
@@ -270,13 +272,18 @@ function Page() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, delay: Math.min(i, 6) * 0.03, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => navigate({ to: "/desk/member/$id", params: { id: m.id } })}
-            className="flex min-h-14 items-center justify-between rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left shadow-[var(--shadow-border)] transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-wood"
+            className="flex min-h-14 items-center justify-between gap-3 rounded-[var(--radius-lg)] bg-surface px-4 py-3 text-left shadow-[var(--shadow-border)] transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-wood"
           >
-            <div>
-              <div className="font-medium">{m.full_name}</div>
-              <div className="text-xs tabular-nums text-muted">
-                {m.member_code} · {m.phone}
-                {m.date_of_birth ? ` · ${t("{age} yrs", { age: ageYears(m.date_of_birth) })}` : ""}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="size-8 shrink-0">
+                <UserAvatar name={m.full_name} url={m.avatar_url} />
+              </div>
+              <div className="min-w-0">
+                <div className="font-medium">{m.full_name}</div>
+                <div className="text-xs tabular-nums text-muted">
+                  {m.member_code} · {m.phone}
+                  {m.date_of_birth ? ` · ${t("{age} yrs", { age: ageYears(m.date_of_birth) })}` : ""}
+                </div>
               </div>
             </div>
             <StatusBadge status={m.status} />
@@ -817,7 +824,7 @@ function DeskArrivingTimeline() {
 }
 
 function DeskRecentCheckins() {
-  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null; method: string | null; at: string }>; total: number }>("/desk/gate-checkins?limit=6");
+  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null; method: string | null; at: string; avatar_url?: string | null }>; total: number }>("/desk/gate-checkins?limit=6");
   const items = read.data?.items ?? [];
 
   return (
@@ -831,11 +838,16 @@ function DeskRecentCheckins() {
         <div className="mt-3 grid gap-2">
           {items.map((it) => (
             <Card key={it.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-              <div>
-                <p className="font-medium">{it.full_name}</p>
-                <p className="text-xs text-muted tabular-nums">
-                  {it.member_code ? `${it.member_code} · ` : ""}{when(it.at)}
-                </p>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="size-8 shrink-0">
+                  <UserAvatar name={it.full_name} url={it.avatar_url} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium">{it.full_name}</p>
+                  <p className="text-xs text-muted tabular-nums">
+                    {it.member_code ? `${it.member_code} · ` : ""}{when(it.at)}
+                  </p>
+                </div>
               </div>
               <Badge tone="accent">{it.method ? it.method.toUpperCase() : "QR"}</Badge>
             </Card>

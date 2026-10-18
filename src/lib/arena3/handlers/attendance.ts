@@ -15,7 +15,7 @@ import { requireFlag } from "../flags";
 import { audit, getSettings, readJson, str } from "../helpers";
 import { classCode } from "../labels";
 import { absentStreak, ABSENT_STREAK_LIMIT } from "../rules";
-import { requireRole, type PublicUser } from "../session";
+import { avatarUrlSql, requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString, ictDateTime } from "../time";
 import { one } from "../tx";
 import { reportDay } from "./desk";
@@ -191,6 +191,7 @@ export type AtRiskItem = {
   full_name: string;
   member_code: string | null;
   phone: string | null;
+  avatar_url: string | null;
   plan_end_on: string | null;
   reasons: RiskReason[];
   attendance_pct: number | null;
@@ -220,11 +221,13 @@ export async function atRiskBody(sql: Sql, scopeCoachId: string | null): Promise
     full_name: string;
     member_code: string | null;
     phone: string | null;
+    avatar_version: number | null;
     end_on: string;
     start_on: string;
     last_seen: string | null;
   }>(
     `select u.id as user_id, u.full_name, u.member_code, u.phone,
+            (select version from user_avatars a where a.user_id = u.id) as avatar_version,
             max(s.end_on)::text as end_on, min(s.start_on)::text as start_on,
             (select max(a.at) from attendance a
                where a.user_id = u.id and (a.kind = 'gate' or a.result in ('present','late'))) as last_seen
@@ -280,7 +283,9 @@ export async function atRiskBody(sql: Sql, scopeCoachId: string | null): Promise
   const missing = [...streakByUser.keys()].filter((id) => !byId.has(id));
   if (missing.length) {
     const extra = await sql.query<(typeof members)[number]>(
-      `select u.id as user_id, u.full_name, u.member_code, u.phone, null::text as end_on, null::text as start_on,
+      `select u.id as user_id, u.full_name, u.member_code, u.phone,
+              (select version from user_avatars a where a.user_id = u.id) as avatar_version,
+              null::text as end_on, null::text as start_on,
               (select max(a.at) from attendance a
                  where a.user_id = u.id and (a.kind = 'gate' or a.result in ('present','late'))) as last_seen
          from users u where u.id = any($1::uuid[]) and u.role = 'member' and u.status = 'active'`,
@@ -317,6 +322,7 @@ export async function atRiskBody(sql: Sql, scopeCoachId: string | null): Promise
       full_name: m.full_name,
       member_code: m.member_code,
       phone: m.phone,
+      avatar_url: m.avatar_version != null ? `/v1/users/${m.user_id}/avatar?v=${m.avatar_version}` : null,
       plan_end_on: m.end_on,
       reasons,
       attendance_pct: rate,

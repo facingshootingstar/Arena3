@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Copy, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Shell, initials, when } from "@/components/shell";
+import { UserAvatar } from "@/components/user-avatar";
 import { Cover } from "@/components/media";
 import { PageHero } from "@/components/page-hero";
 import { StatStrip } from "@/components/stat-strip";
@@ -31,6 +32,7 @@ type Staff = {
   open_sessions: number;
   issued_by: string | null;
   issued_at: string | null;
+  avatar_url?: string | null;
 };
 
 type Issued = { name: string; phone: string; password: string; why: string };
@@ -183,18 +185,9 @@ function Page() {
             return (
               <Card key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="flex items-center gap-3.5 min-w-0">
-                  {s.role === "coach" ? (
-                    <Cover
-                      slot={"coach." + s.id}
-                      fallbackInitials={initials(s.full_name)}
-                      className="size-14 shrink-0 rounded-full border border-line"
-                      initialsClassName="text-base font-bold"
-                    />
-                  ) : (
-                    <div className="grid size-14 shrink-0 place-items-center rounded-full border border-line bg-wood text-base font-bold text-fg">
-                      {initials(s.full_name)}
-                    </div>
-                  )}
+                  <div className="size-10 shrink-0">
+                    <UserAvatar name={s.full_name} url={s.avatar_url} />
+                  </div>
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 font-medium">
                       {tData(s.full_name)}
