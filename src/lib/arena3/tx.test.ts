@@ -2532,12 +2532,167 @@ describe("Round 10: Two-way Chat unit tests", () => {
     });
   });
 
+  describe("Task A1: waitlistAccept session deduction", () => {
+    const coachId = "00000000-0000-0000-0000-000000000011";
+    const courtId = "10000000-0000-0000-0000-000000000001"; // badminton court
+    const planId = "20000000-0000-0000-0000-000000000002";
 
+    async function setupTest(opts: {
+      sessionLeft: number | null | "no_sub";
+      sport?: string;
+      classCapacity?: number;
+      classEnrolled?: number;
+    }) {
+      const classId = "40000000-0000-0000-0000-a10000000001";
+      const memberId = "00000000-0000-0000-0000-a10000000002";
+      const member = { id: memberId, phone: "+84900000201", name: "A1 Member", role: "member" } as any;
 
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classId]);
+      await db.query("delete from enrollments where class_id = $1", [classId]);
+      await db.query("delete from classes where id = $1", [classId]);
+      await db.query("delete from subscriptions where user_id in (select id from users where phone = $1 or id = $2)", [member.phone, memberId]);
+      await db.query("delete from users where phone = $1 or id = $2", [member.phone, memberId]);
 
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+         values ($1, $2, $3, $4, 'member', 'hash')`,
+        [member.id, member.phone, member.name, member.name.toLowerCase()],
+      );
 
+      let subId: string | null = null;
+      if (opts.sessionLeft !== "no_sub") {
+        subId = "30000000-0000-0000-0000-a10000000003";
+        await db.query(
+          `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+           values ($1, $2, $3, $4, current_date - 1, current_date + 30, 'active', $5)`,
+          [subId, memberId, planId, opts.sport ?? "badminton", opts.sessionLeft],
+        );
+      }
 
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'a1-test', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', current_date + 1, current_date + 14, 60, $4, 'open', $5)`,
+        [classId, coachId, courtId, opts.classCapacity ?? 2, opts.classEnrolled ?? 0],
+      );
 
+      const enrId = "50000000-0000-0000-0000-a10000000004";
+      await db.query(
+        `insert into enrollments (id, class_id, user_id, status, waitlist_pos)
+         values ($1, $2, $3, 'waitlisted', 1)`,
+        [enrId, classId, memberId],
+      );
 
+      const offerId = "60000000-0000-0000-0000-a10000000005";
+      await db.query(
+        `insert into waitlist_offers (id, enrollment_id, status, expires_at)
+         values ($1, $2, 'pending', now() + interval '1 hour')`,
+        [offerId, enrId],
+      );
 
+      return { classId, member, subId, enrId, offerId };
+    }
 
+    it("A1-1: Member accepts offer with 5 sessions left -> enroll succeeds, session_left becomes 4", async () => {
+      const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: 5 });
+      const res = await withTx(async (sql) => waitlistAccept(sql, offerId, member));
+      assert.equal(res.status, 200);
+
+      const enr = (await db.query<{ status: string; waitlist_pos: number | null }>(
+        "select status, waitlist_pos from enrollments where id = $1",
+        [enrId],
+      )).rows[0];
+      assert.equal(enr.status, "confirmed");
+      assert.equal(enr.waitlist_pos, null);
+
+      const sub = (await db.query<{ session_left: number }>(
+        "select session_left from subscriptions where id = $1",
+        [subId!],
+      )).rows[0];
+      assert.equal(sub.session_left, 4);
+
+      const off = (await db.query<{ status: string }>(
+        "select status from waitlist_offers where id = $1",
+        [offerId],
+      )).rows[0];
+      assert.equal(off.status, "accepted");
+    });
+
+    it("A1-2: Member accepts offer with unlimited plan (session_left null) -> enroll succeeds, session_left remains null", async () => {
+      const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: null });
+      const res = await withTx(async (sql) => waitlistAccept(sql, offerId, member));
+      assert.equal(res.status, 200);
+
+      const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
+      assert.equal(enr.status, "confirmed");
+
+      const sub = (await db.query<{ session_left: number | null }>(
+        "select session_left from subscriptions where id = $1",
+        [subId!],
+      )).rows[0];
+      assert.equal(sub.session_left, null);
+    });
+
+    it("A1-3: Member accepts offer with 0 sessions left -> throws BR-20, enrollment stays waitlisted, offer stays pending", async () => {
+      const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: 0 });
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
+        (e: any) => e.extra?.br === "BR-20",
+      );
+
+      const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
+      assert.equal(enr.status, "waitlisted");
+
+      const off = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offerId])).rows[0];
+      assert.equal(off.status, "pending");
+
+      const sub = (await db.query<{ session_left: number }>(
+        "select session_left from subscriptions where id = $1",
+        [subId!],
+      )).rows[0];
+      assert.equal(sub.session_left, 0);
+    });
+
+    it("A1-4: Member accepts offer without plan for that sport -> throws BR-19, no session deducted, enrollment unchanged", async () => {
+      const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: 5, sport: "basketball" }); // class is badminton
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
+        (e: any) => e.extra?.br === "BR-19",
+      );
+
+      const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
+      assert.equal(enr.status, "waitlisted");
+
+      const off = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offerId])).rows[0];
+      assert.equal(off.status, "pending");
+
+      const sub = (await db.query<{ session_left: number }>(
+        "select session_left from subscriptions where id = $1",
+        [subId!],
+      )).rows[0];
+      assert.equal(sub.session_left, 5);
+    });
+
+    it("A1-5: Class filled up right before accept (enrolled_count = capacity) -> throws BR-21, does NOT deduct session", async () => {
+      const { member, subId, enrId, offerId } = await setupTest({
+        sessionLeft: 5,
+        classCapacity: 1,
+        classEnrolled: 1,
+      });
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
+        (e: any) => e.extra?.br === "BR-21",
+      );
+
+      const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
+      assert.equal(enr.status, "waitlisted");
+
+      const off = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offerId])).rows[0];
+      assert.equal(off.status, "pending");
+
+      const sub = (await db.query<{ session_left: number }>(
+        "select session_left from subscriptions where id = $1",
+        [subId!],
+      )).rows[0];
+      assert.equal(sub.session_left, 5);
+    });
+  });

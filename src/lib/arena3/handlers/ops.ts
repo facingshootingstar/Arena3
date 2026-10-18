@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import { flagsMap, requireFlag, type FlagKey } from "../flags";
-import { audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
+import { audit, classSubscription, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
@@ -153,12 +153,23 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [offer.enrollment_id],
   );
   if (!enr || enr.user_id !== user.id) throw err.forbidden();
-  const cl = await one<{ enrolled_count: number; capacity: number }>(
+  const cl = await one<{ enrolled_count: number; capacity: number; sport: string }>(
     sql,
-    `select enrolled_count, capacity from classes where id = $1 for update`,
+    `select enrolled_count, capacity, sport from classes where id = $1 for update`,
     [enr.class_id],
   );
   if (!cl) throw err.notFound();
+  const found = await classSubscription(sql, user.id, cl.sport);
+  if (!found) throw err.br("BR-19", "You need an active plan covering this sport.");
+  const sub = await one<{ id: string; session_left: number | null }>(
+    sql,
+    `select id, session_left from subscriptions where id = $1 for update`,
+    [found.id],
+  );
+  if (!sub) throw err.br("BR-19", "You need an active plan covering this sport.");
+  if (sub.session_left != null && sub.session_left <= 0) {
+    throw err.br("BR-20", "You have no sessions left.");
+  }
   if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
   await sql.query(
     `update enrollments set status = 'confirmed', waitlist_pos = null where id = $1`,
@@ -169,6 +180,18 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [enr.class_id],
   );
   await sql.query(`update waitlist_offers set status = 'accepted' where id = $1`, [offerId]);
+  if (sub.session_left != null) {
+    const took = await sql.query(
+      `update subscriptions
+          set session_left = session_left - 1
+        where id = $1 and session_left > 0
+       returning id`,
+      [sub.id],
+    );
+    if (took.length === 0) {
+      throw err.br("BR-20", "You have no sessions left.");
+    }
+  }
   return { status: 200, body: { ok: true } };
 }
 
