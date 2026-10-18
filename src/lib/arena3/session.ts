@@ -61,11 +61,22 @@ export async function issueSession(sql: Sql, user: PublicUser) {
   return { token, expires_at: expires.toISOString(), user };
 }
 
+/**
+ * EventSource cannot send headers, so the live update stream (GET /api/live) alone may carry
+ * its token in the query string. Every other route needs the Authorization header, which keeps
+ * tokens out of URLs, logs and Referer headers.
+ */
+function liveStreamToken(request: Request): string | null {
+  if (request.method.toUpperCase() !== "GET") return null;
+  const url = new URL(request.url);
+  if (!/\/(api|v1)\/live\/?$/.test(url.pathname)) return null;
+  return url.searchParams.get("token");
+}
+
 export async function authFromRequest(sql: Sql, request: Request): Promise<PublicUser> {
   const hdr = request.headers.get("authorization") ?? "";
   const m = /^Bearer\s+(.+)$/i.exec(hdr);
-  const url = new URL(request.url);
-  const token = m ? m[1] : url.searchParams.get("token");
+  const token = m ? m[1] : liveStreamToken(request);
   if (!token) throw err.unauth();
   const row = await one<{
     id: string;
@@ -109,9 +120,7 @@ export async function authFromRequest(sql: Sql, request: Request): Promise<Publi
 
 export async function optionalAuth(sql: Sql, request: Request): Promise<PublicUser | null> {
   const hdr = request.headers.get("authorization") ?? "";
-  const url = new URL(request.url);
-  const qToken = url.searchParams.get("token");
-  if (!/^Bearer\s+/i.test(hdr) && !qToken) return null;
+  if (!/^Bearer\s+/i.test(hdr) && !liveStreamToken(request)) return null;
   try {
     return await authFromRequest(sql, request);
   } catch {
