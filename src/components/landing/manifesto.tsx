@@ -42,7 +42,7 @@ export function Manifesto() {
     [text],
   );
   return (
-    <section ref={root} aria-label={t("What Lê Long Sport Center is for")} className="mx-auto max-w-4xl px-4 py-24">
+    <section ref={root} aria-label={t("What Lê Long Sport is for")} className="mx-auto max-w-4xl px-4 py-24">
       <p key={text} className="font-display text-3xl leading-snug sm:text-[2.6rem] sm:leading-[1.25]">
         {text}
       </p>

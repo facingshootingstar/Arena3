@@ -899,7 +899,7 @@ export async function invoicePdf(sql: Sql, id: string, request: Request, user: P
       serial_no: inv.serial_no,
       issued_at: inv.issued_at,
       seller: {
-        legal_name: inv.seller_legal_name ?? settings.legal_name ?? "Lê Long Sport Center",
+        legal_name: inv.seller_legal_name ?? settings.legal_name ?? "Lê Long Sport",
         tax_code: inv.seller_tax_code ?? settings.tax_code,
         address: inv.seller_address ?? settings.address,
       },

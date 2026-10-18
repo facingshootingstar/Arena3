@@ -170,7 +170,7 @@ function Register() {
           <div className="relative flex h-full min-h-dvh flex-col justify-between p-10">
             <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
               <ArenaMark className="size-8" />
-              <span className="font-display text-2xl">Lê Long Sport Center</span>
+              <span className="font-display text-2xl">Lê Long Sport</span>
             </Link>
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
               <SplitText
@@ -194,7 +194,7 @@ function Register() {
         <Card className="relative z-[2] w-full p-6">
           <div className="flex items-center gap-2">
             <ArenaMark className="size-7" />
-            <p className="text-2xs text-muted">Lê Long Sport Center</p>
+            <p className="text-2xs text-muted">Lê Long Sport</p>
           </div>
           <h1 className="mt-3 font-display text-3xl">{t("Create an account")}</h1>
           <AnimatePresence mode="wait">

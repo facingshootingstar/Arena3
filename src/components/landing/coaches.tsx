@@ -52,7 +52,7 @@ export function CoachesScene({
         name: dbc.name,
         sport: sp,
         title: `${sportLabel(sp)} Coach`,
-        blurb: "Dedicated coach at Lê Long Sport Center.",
+        blurb: "Dedicated coach at Lê Long Sport.",
         creds: dbc.sports.map((s) => sportLabel(s)),
         userId: dbc.id,
         slot: `coach.${dbc.id}`,

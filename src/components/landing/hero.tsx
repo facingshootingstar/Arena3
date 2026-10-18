@@ -168,7 +168,7 @@ export function Hero({
             </span>
             <span className="media-glow block font-display text-4xl font-bold leading-[1.05] sm:text-6xl">
               <span data-line2 className="text-gradient-media inline-block py-[0.3em] -my-[0.3em]">
-                {t("at Lê Long Sport Center.")}
+                {t("at Lê Long Sport.")}
               </span>
             </span>
           </h1>

@@ -589,13 +589,13 @@ export function Shell({
   // Moving to another page closes the sheet.
   useEffect(() => setSheet(false), [pathname]);
 
-  // The browser tab and history say which screen this is, not just "Lê Long Sport Center" on every one.
+  // The browser tab and history say which screen this is, not just "Lê Long Sport" on every one.
   const navLabel = [...items]
     .filter((it) => pathname === it.to || pathname.startsWith(`${it.to}/`))
     .sort((a, b) => b.to.length - a.to.length)[0]?.label;
   const pageName = title ?? (navLabel ? t(navLabel) : undefined);
   useEffect(() => {
-    document.title = pageName ? `${pageName} · Lê Long Sport Center` : "Lê Long Sport Center";
+    document.title = pageName ? `${pageName} · Lê Long Sport` : "Lê Long Sport";
   }, [pageName]);
 
   async function logout() {
@@ -616,10 +616,10 @@ export function Shell({
     <div className="isolate min-h-dvh text-fg">
       <header className="sticky top-0 z-20 border-b border-line/80 bg-surface/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-          <Link to={home} aria-label={t("Lê Long Sport Center home")} className="-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start">
+          <Link to={home} aria-label={t("Lê Long Sport home")} className="-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start">
             <ArenaMark className="size-8" />
             {/* The header is the same width on every wide screen, so a long row never gets the wordmark back. */}
-            <span className={cn("hidden font-display text-xl font-bold tracking-tight", dense ? "" : "sm:inline")}>Lê Long Sport Center</span>
+            <span className={cn("hidden font-display text-xl font-bold tracking-tight", dense ? "" : "sm:inline")}>Lê Long Sport</span>
           </Link>
           {/* Laptop and wider. A tablet gets the bottom bar, like a phone: it is the thumb-friendly one. */}
           <nav
@@ -837,7 +837,7 @@ export function Guard({
           >
             <ArenaMark />
           </motion.span>
-          <p className="font-display text-lg">Lê Long Sport Center</p>
+          <p className="font-display text-lg">Lê Long Sport</p>
         </div>
       </div>
     );

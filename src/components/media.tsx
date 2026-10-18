@@ -331,7 +331,7 @@ export function BootGate({ children }: { children: ReactNode }) {
             <div className="grid h-full place-items-center text-muted" role="status">
               <div className="flex flex-col items-center gap-3">
                 <ArenaMark />
-                <p className="font-display text-lg">{t("Opening Lê Long Sport Center")}</p>
+                <p className="font-display text-lg">{t("Opening Lê Long Sport")}</p>
               </div>
             </div>
           ) : null}
