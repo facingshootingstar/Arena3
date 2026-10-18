@@ -224,6 +224,7 @@ export const pub: Record<string, string> = {
   "Email": "Email",
   "Where your verification code is sent, and how you recover the account.": "Nơi nhận mã xác minh và dùng để khôi phục tài khoản.",
   "Confirm password": "Nhập lại mật khẩu",
+  "I agree": "Tôi đồng ý",
   "I agree to the terms and to Decree 13/2023 on personal data protection.": "Tôi đồng ý với các điều khoản và Nghị định 13/2023 về bảo vệ dữ liệu cá nhân.",
   "Sending…": "Đang gửi…",
   "Send OTP": "Gửi mã xác nhận",
