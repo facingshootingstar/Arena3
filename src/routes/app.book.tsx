@@ -19,6 +19,7 @@ import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import { useRead } from "@/lib/use-read";
+import { useLive } from "@/lib/use-live";
 import { useSports } from "@/components/sports-ui";
 import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
 
@@ -178,6 +179,8 @@ function Page() {
     setRefresh((n) => n + 1);
     void loadMine();
   }
+
+  useLive("courts", load);
 
   async function moveTo(court: Court, hour: number, confirmOverlap = false) {
     if (!moving) return;
@@ -923,6 +926,7 @@ function Page() {
                 startedIsPast
                 freeCount={avail?.[date]?.free}
                 hours={hoursOf(venue)}
+                onRefresh={load}
                 // A sold-out sport hands back the two controls at the top of this page.
                 onPickSport={setSport}
                 onPickDate={setDate}

@@ -22,12 +22,13 @@ import * as xH from "./handlers/extras";
 import * as assetsH from "./handlers/assets";
 import * as courtH from "./handlers/courts";
 import * as sportsH from "./handlers/sports";
+import { liveStreamHandler } from "./handlers/live";
 
 type Result = { status: number; body: unknown };
 
 function pathOf(request: Request): { method: string; parts: string[]; url: URL } {
   const url = new URL(request.url);
-  const raw = url.pathname.replace(/^\/v1\/?/, "").replace(/\/+$/, "");
+  const raw = url.pathname.replace(/^\/(?:v1|api)\/?/, "").replace(/\/+$/, "");
   const parts = raw ? raw.split("/") : [];
   return { method: request.method.toUpperCase(), parts, url };
 }
@@ -44,6 +45,13 @@ async function dispatch(request: Request): Promise<Response | Result> {
       const r = await withIdempotency(sql, request, userId, true, fn);
       return r;
     });
+
+  // Server-Sent Events live update stream
+  if (method === "GET" && p0 === "live" && !p1) {
+    const sql = await getSql();
+    const user = await optionalAuth(sql, request);
+    return liveStreamHandler(request, sql, user);
+  }
 
   // "Is the server there?" — what the connection banner's retry button asks. No session and no
   // database on purpose: it answers whenever the app itself is running, which is the whole question.

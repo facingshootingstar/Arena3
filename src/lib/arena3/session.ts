@@ -64,7 +64,9 @@ export async function issueSession(sql: Sql, user: PublicUser) {
 export async function authFromRequest(sql: Sql, request: Request): Promise<PublicUser> {
   const hdr = request.headers.get("authorization") ?? "";
   const m = /^Bearer\s+(.+)$/i.exec(hdr);
-  if (!m) throw err.unauth();
+  const url = new URL(request.url);
+  const token = m ? m[1] : url.searchParams.get("token");
+  if (!token) throw err.unauth();
   const row = await one<{
     id: string;
     member_code: string | null;
@@ -87,7 +89,7 @@ export async function authFromRequest(sql: Sql, request: Request): Promise<Publi
        from sessions_auth s
        join users u on u.id = s.user_id
       where s.token_hash = $1`,
-    [sha256(m[1]!)],
+    [sha256(token)],
   );
   if (!row) throw err.unauth("That session is not valid.");
   if (row.revoked_at) {
@@ -107,7 +109,9 @@ export async function authFromRequest(sql: Sql, request: Request): Promise<Publi
 
 export async function optionalAuth(sql: Sql, request: Request): Promise<PublicUser | null> {
   const hdr = request.headers.get("authorization") ?? "";
-  if (!/^Bearer\s+/i.test(hdr)) return null;
+  const url = new URL(request.url);
+  const qToken = url.searchParams.get("token");
+  if (!/^Bearer\s+/i.test(hdr) && !qToken) return null;
   try {
     return await authFromRequest(sql, request);
   } catch {

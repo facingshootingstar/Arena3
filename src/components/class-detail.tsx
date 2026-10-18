@@ -8,6 +8,7 @@ import { formatDate, kindLabel, levelLabel, rruleLabel, sportLabel } from "@/lib
 import { scrollBehavior } from "@/lib/calm";
 import { locale, t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { HighlightBadge, useLive } from "@/lib/use-live";
 
 /** "Tue 21 Oct" in the centre's timezone. */
 export function sessionDay(iso: string) {
@@ -75,6 +76,8 @@ export function ClassDetailModal({
   onChanged?: () => void;
 }) {
   const { data, error, reload } = useRead<ClassDetail>(classId ? `/classes/${classId}` : null);
+  useLive(classId ? `class:${classId}` : null, reload);
+  useLive("classes", reload);
   const [action, setAction] = useState<Action | null>(null);
 
   // Another class never starts with a half-filled form from the last one.
@@ -126,7 +129,9 @@ export function ClassDetailModal({
                 <span className="font-medium tabular-nums">{c.code}</span>
                 <StatusBadge status={c.status} />
                 <Badge tone="muted">
-                  {t("{n}/{cap} enrolled", { n: c.enrolled_count, cap: c.capacity })}
+                  <HighlightBadge value={c.enrolled_count}>
+                    {t("{n}/{cap} enrolled", { n: c.enrolled_count, cap: c.capacity })}
+                  </HighlightBadge>
                 </Badge>
               </div>
               <p className="text-muted">

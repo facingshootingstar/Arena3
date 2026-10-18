@@ -36,6 +36,7 @@ import { AnimatePresence, PageIn, motion } from "./motion";
 import { GradualBlur } from "./fx";
 import { Spot, spotForPath } from "./illustrations";
 import { cn } from "@/lib/cn";
+import { useLive } from "@/lib/use-live";
 import {
   apiGet,
   apiPost,
@@ -165,18 +166,19 @@ export function initials(name: string | undefined) {
 function NotificationBell({ active, to }: { active: boolean; to: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [unread, setUnread] = useState(0);
-  useEffect(() => {
-    let live = true;
-    // The bell needs the count, not the messages: one row is enough to get it.
+
+  const fetchUnread = () => {
     void apiGet<{ unread: number }>("/me/notifications?limit=1", { background: true })
-      .then((r) => live && setUnread(r.unread))
-      .catch(() => {
-        // The bell is a convenience; a failed count must not break the header.
-      });
-    return () => {
-      live = false;
-    };
+      .then((r) => setUnread(r.unread))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchUnread();
   }, [pathname]);
+
+  useLive("notifications", fetchUnread);
+
   return (
     <Link
       to={to}
@@ -188,7 +190,7 @@ function NotificationBell({ active, to }: { active: boolean; to: string }) {
     >
       <Bell className="size-4" strokeWidth={1.9} />
       {unread ? (
-        <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-bold leading-5 text-on-media tabular-nums">
+        <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-bold leading-5 text-on-media tabular-nums motion-safe:animate-pulse">
           {unread > 9 ? "9+" : unread}
         </span>
       ) : null}

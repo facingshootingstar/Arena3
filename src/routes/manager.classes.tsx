@@ -13,6 +13,7 @@ import { apiPost } from "@/lib/arena3/client";
 import { composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { HighlightBadge, useLive } from "@/lib/use-live";
 
 export const Route = createFileRoute("/manager/classes")({
   component: Page,
@@ -83,6 +84,7 @@ function Page() {
 
   // After a change, the class list is read again (a published class is a new row or a new status).
   const load = classesRead.reload;
+  useLive("classes", load);
 
   // The people and courts a class of this sport can actually use. Nothing is
   // assumed about which accounts exist: a centre that issued its own coach
@@ -294,7 +296,7 @@ function Page() {
               {sportLabel(c.sport)} · {levelLabel(c.level)}
             </h2>
             <p className="text-sm text-muted">
-              {c.coach_name} · {c.court_code} · {c.enrolled_count}/{c.capacity}
+              {c.coach_name} · {c.court_code} · <HighlightBadge value={c.enrolled_count}>{c.enrolled_count}</HighlightBadge>/{c.capacity}
             </p>
             {c.rrule ? <p className="text-sm">{rruleLabel(c.rrule, c.duration_min)}</p> : null}
             <Button className="mt-3" variant="outline" onClick={() => setDetail(c.id)}>

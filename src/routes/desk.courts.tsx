@@ -15,6 +15,7 @@ import { t, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { hoursOf, venueFrom, type VenueRaw } from "@/lib/venue";
 import { useSports } from "@/components/sports-ui";
+import { useLive } from "@/lib/use-live";
 
 export const Route = createFileRoute("/desk/courts")({
   component: Page,
@@ -25,6 +26,7 @@ function Page() {
   const [date, setDate] = useState(todayISO);
   const [sport, setSport] = useState("");
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);
+  useLive("courts", reload);
   const now = useNowMinute();
   const shiftRead = useRead<{ shift: { id: string; opened_at: string } | null; totals?: { cash: number } | null }>("/shifts/current?optional=1");
   const shift = shiftRead.data?.shift ? { shift: shiftRead.data.shift, totals: shiftRead.data.totals ?? undefined } : null;
@@ -161,6 +163,7 @@ function Page() {
           courts={data.courts}
           slots={data.slots}
           sport={sport || undefined}
+          onRefresh={reload}
           onInspect={(_c, _h, occ) => setLook({ kind: occ.kind, ref: occ.ref })}
           onPick={(c, h) => {
             setPick({ court: c, hour: h });

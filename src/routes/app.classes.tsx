@@ -12,6 +12,7 @@ import { apiDelete, apiPost } from "@/lib/arena3/client";
 import { levelLabel, parseWeeklyRrule, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { HighlightBadge, useLive } from "@/lib/use-live";
 
 export const Route = createFileRoute("/app/classes")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
@@ -59,6 +60,7 @@ function Page() {
     classesRead.reload();
     meRead.reload();
   };
+  useLive("classes", load);
 
   const sports = useSports();
   const [limit, setLimit] = useState(6);
@@ -231,7 +233,9 @@ function Page() {
                   <Cover slot={sportPhoto(c.sport)} alt="" scrim="none" className="h-28 sm:h-32">
                     <MediaCaption className="flex items-end justify-between">
                       <SportBadge sport={c.sport} className="bg-surface/90 text-fg backdrop-blur-xs" />
-                      <p className="tabular-nums text-sm font-semibold">{c.enrolled_count}/{c.capacity}</p>
+                      <p className="tabular-nums text-sm font-semibold">
+                        <HighlightBadge value={c.enrolled_count}>{c.enrolled_count}</HighlightBadge>/{c.capacity}
+                      </p>
                     </MediaCaption>
                   </Cover>
                 </GlareHover>
