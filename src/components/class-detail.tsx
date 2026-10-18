@@ -48,7 +48,16 @@ type ClassDetail = {
     court_code: string;
     headcount: number;
   }>;
-  roster: Array<{ id: string; full_name: string; member_code: string | null; phone: string; status: string }>;
+  roster: Array<{
+    id: string;
+    full_name: string;
+    member_code: string | null;
+    phone: string;
+    status: string;
+    waitlist_pos?: number | null;
+    offer_pending?: boolean;
+    offer_expires_at?: string | null;
+  }>;
 };
 
 /** What the manager is in the middle of doing to the class. */
@@ -246,7 +255,31 @@ export function ClassDetailModal({
               <p className="mt-2 text-sm text-muted">{t("Nobody has enrolled yet.")}</p>
             )}
             {waiting.length ? (
-              <p className="mt-2 text-sm text-muted">{t("Waiting list: {names}", { names: waiting.map((r) => r.full_name).join(", ") })}</p>
+              <div className="mt-3 border-t border-line/60 pt-2.5">
+                <h4 className="text-2xs font-medium text-muted">
+                  {t("Waiting list · {n}", { n: waiting.length })}
+                </h4>
+                <ul className="mt-1.5 grid max-h-36 gap-1 overflow-y-auto text-sm">
+                  {waiting.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-1">
+                      <span className="font-medium">
+                        <span className="mr-1.5 tabular-nums text-muted">#{r.waitlist_pos ?? "-"}</span>
+                        {r.full_name}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {r.offer_pending && r.offer_expires_at ? (
+                          <Badge tone="accent" className="text-2xs">
+                            {t("Offer sent, expires {time}", { time: hhmm(r.offer_expires_at) })}
+                          </Badge>
+                        ) : null}
+                        <span className="tabular-nums text-muted">
+                          {r.member_code ?? "-"} · {r.phone}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
           </section>
 

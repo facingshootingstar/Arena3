@@ -325,7 +325,9 @@ export async function meGet(sql: Sql, user: PublicUser) {
     sql.query(
       // `leave_until` is the last moment leaving is allowed (BR-24: cancel_class_hours before the
       // next session), worked out here with the same rule enrollmentDelete applies.
-      `select e.id, e.status, e.waitlist_pos, e.class_id, cl.sport, cl.level, cl.rrule, c.court_code,
+      `select e.id, e.status,
+              case when e.status = 'waitlisted' then (select count(*) from enrollments w where w.class_id = e.class_id and w.status = 'waitlisted' and (w.waitlist_pos, w.id) <= (e.waitlist_pos, e.id)) end as waitlist_pos,
+              e.class_id, cl.sport, cl.level, cl.rrule, c.court_code,
               nx.start_at as next_session_at,
               nx.start_at - make_interval(hours => st.cancel_class_hours) as leave_until
          from enrollments e

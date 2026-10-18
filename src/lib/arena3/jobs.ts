@@ -187,6 +187,7 @@ export async function waitlistExpire() {
         `update enrollments set status = 'cancelled', waitlist_pos = null where id = $1 and status = 'waitlisted'`,
         [r.enrollment_id],
       );
+      await sql.query(`select waitlist_compact($1::uuid)`, [r.class_id]);
       const { inviteWaitlist } = await import("./handlers/ops");
       await inviteWaitlist(sql, r.class_id);
     }

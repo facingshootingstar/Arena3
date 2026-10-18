@@ -13,6 +13,8 @@ export const desk: Record<string, string> = {
   "No sessions on the calendar.": "Không có buổi nào trên lịch.",
   "Students · {n}": "Học viên · {n}",
   "Nobody has enrolled yet.": "Chưa có ai đăng ký.",
+  "Waiting list · {n}": "Danh sách chờ · {n}",
+  "Offer sent, expires {time}": "Đã gửi đề nghị, hết hạn {time}",
   "Waiting list: {names}": "Danh sách chờ: {names}",
   "Manage this class": "Quản lý lớp này",
   "Change coach": "Đổi HLV",

@@ -27,6 +27,7 @@ const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, subscriptionFreeze, subscriptionUnfreeze, sessionAttendancePost } = await import("./handlers/ops.ts");
+const { waitlistExpire } = await import("./jobs.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
 const { hashPassword, hashOtp } = await import("./crypto.ts");
 const { csvCell } = await import("./handlers/extras.ts");
@@ -1247,28 +1248,42 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     )).rows[0];
     assert.ok(offer);
 
-    // 4. mem3 (newcomer) attempts to enroll while offer is pending -> waitlisted (cannot jump queue)
+    // 4. mem3 (newcomer) attempts to enroll while offer is pending -> confirmed (D5: free seat is not held)
     const enr3 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem3));
     assert.equal(enr3.status, 201);
-    assert.equal((enr3.body as any).waitlisted, true);
-    assert.equal((enr3.body as any).enrollment?.status, "waitlisted");
+    assert.equal((enr3.body as any).enrollment?.status, "confirmed");
+
+    // offer for mem2 was skipped
+    const offerAfter = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offer.id])).rows[0];
+    assert.equal(offerAfter.status, "skipped");
+
+    // mem2 attempts to accept skipped/full offer -> throws BR-21
+    await assert.rejects(
+      () => withTx(async (sql) => waitlistAccept(sql, offer.id, mem2)),
+      (err: any) => {
+        assert.equal(err.extra?.br, "BR-21");
+        return true;
+      }
+    );
+
+    // Cancel mem3 -> triggers new offer for mem2
+    await withTx(async (sql) => enrollmentDelete(sql, (enr3.body as any).enrollment.id, mem3));
+    const newOffer = (await db.query<{ id: string }>(
+      "select o.id from waitlist_offers o join enrollments e on e.id = o.enrollment_id where e.class_id = $1 and o.status = 'pending'",
+      [classId]
+    )).rows[0];
+    assert.ok(newOffer);
 
     // 5. mem2 accepts offer -> 200 confirmed
-    const accRes = await withTx(async (sql) => waitlistAccept(sql, offer.id, mem2));
+    const accRes = await withTx(async (sql) => waitlistAccept(sql, newOffer.id, mem2));
     assert.equal(accRes.status, 200);
     const mem2Enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [(enr2.body as any).enrollment.id])).rows[0];
     assert.equal(mem2Enr.status, "confirmed");
 
-    // 6. Test offer expired -> newcomer can take seat
-    // Cancel mem2, invite mem3, then expire mem3's offer
-    await withTx(async (sql) => enrollmentDelete(sql, (enr2.body as any).enrollment.id, mem2));
-    await withTx(async (sql) => inviteWaitlist(sql, classId));
-    // Expire all pending offers
-    await db.query("update waitlist_offers set expires_at = now() - interval '1 hour' where status = 'pending'");
-
-    const enr4 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem4));
-    assert.equal(enr4.status, 201);
-    assert.equal((enr4.body as any).enrollment?.status, "confirmed");
+    // Clean up test class and enrollments so later tests don't clash on court
+    await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classId]);
+    await db.query("delete from enrollments where class_id = $1", [classId]);
+    await db.query("delete from classes where id = $1", [classId]);
   });
 
   // F-04: next_member_code past 0099
@@ -3256,5 +3271,185 @@ describe("Round 10: Two-way Chat unit tests", () => {
         [tempUser.id],
       )).rows[0].count;
       assert.equal(afterCount, 0);
+    });
+  });
+
+  describe("Task W: fair waitlist order and free seat allocation (D5, D6)", () => {
+    const coachW = { id: "00000000-0000-0000-0000-c00000000001", role: "coach", full_name: "Coach W" } as any;
+    const courtW = "10000000-0000-0000-0000-000000000004";
+    const classW = "40000000-0000-0000-0000-c00000000001";
+    const memA = { id: "00000000-0000-0000-0000-c0000000000a", phone: "+84999999011", full_name: "An", role: "member" } as any;
+    const memH = { id: "00000000-0000-0000-0000-c0000000000b", phone: "+84999999012", full_name: "Hoa", role: "member" } as any;
+    const memN = { id: "00000000-0000-0000-0000-c0000000000c", phone: "+84999999013", full_name: "Nam", role: "member" } as any;
+    const memL = { id: "00000000-0000-0000-0000-c0000000000d", phone: "+84999999014", full_name: "Linh", role: "member" } as any;
+
+    async function setupW() {
+      await db.query("delete from outbox where user_id in ($1, $2, $3, $4)", [memA.id, memH.id, memN.id, memL.id]);
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classW]);
+      await db.query("delete from enrollments where class_id = $1", [classW]);
+      await db.query("delete from classes where id = $1", [classW]);
+      await db.query("delete from subscriptions where user_id in ($1, $2, $3, $4)", [memA.id, memH.id, memN.id, memL.id]);
+      await db.query("delete from users where id in ($1, $2, $3, $4, $5)", [memA.id, memH.id, memN.id, memL.id, coachW.id]);
+
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+         values ($1, $2, $3, 'an', 'member', 'hash'),
+                ($4, $5, $6, 'hoa', 'member', 'hash'),
+                ($7, $8, $9, 'nam', 'member', 'hash'),
+                ($10, $11, $12, 'linh', 'member', 'hash'),
+                ($13, '+84999999015', $14, 'coach w', 'coach', 'hash')`,
+        [memA.id, memA.phone, memA.full_name, memH.id, memH.phone, memH.full_name, memN.id, memN.phone, memN.full_name, memL.id, memL.phone, memL.full_name, coachW.id, coachW.full_name],
+      );
+
+      const planId = "20000000-0000-0000-0000-000000000002";
+      for (const m of [memA, memH, memN, memL]) {
+        await db.query(
+          `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+           values (gen_random_uuid(), $1, $2, 'badminton', current_date - 1, current_date + 30, 'active', 10)`,
+          [m.id, planId],
+        );
+      }
+
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'w-test', $2, $3, 'FREQ=WEEKLY;BYDAY=TU;BYHOUR=14', current_date + 1, current_date + 14, 60, 1, 'open', 0)`,
+        [classW, coachW.id, courtW],
+      );
+    }
+
+    it("W-1: QA scenario with capacity 1 and per-session plans (steps 1 to 6)", async () => {
+      await setupW();
+
+      // 1. A enrols (confirmed). H joins (waitlist 1). A leaves -> H has a pending offer.
+      const enrA = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memA));
+      assert.equal(enrA.status, 201);
+      assert.equal((enrA.body as any).enrollment?.status, "confirmed");
+
+      const enrH = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memH));
+      assert.equal(enrH.status, 201);
+      assert.equal((enrH.body as any).enrollment?.status, "waitlisted");
+      const hRow1 = (await db.query<{ waitlist_pos: number }>("select waitlist_pos from enrollments where id = $1", [(enrH.body as any).enrollment.id])).rows[0];
+      assert.equal(hRow1.waitlist_pos, 1);
+
+      // A leaves -> triggers inviteWaitlist -> creates pending offer for H
+      await withTx(async (sql) => enrollmentDelete(sql, (enrA.body as any).enrollment.id, memA));
+      const offerH = (await db.query<{ id: string; status: string }>(
+        "select id, status from waitlist_offers where enrollment_id = $1 and status = 'pending'",
+        [(enrH.body as any).enrollment.id],
+      )).rows[0];
+      assert.ok(offerH);
+      assert.equal(offerH.status, "pending");
+
+      // 2. N enrols -> confirmed (takes the seat); H's offer is skipped; H is still waitlist 1
+      const enrN = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memN));
+      assert.equal(enrN.status, 201);
+      assert.equal((enrN.body as any).enrollment?.status, "confirmed");
+
+      const offerHAfter = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offerH.id])).rows[0];
+      assert.equal(offerHAfter.status, "skipped");
+
+      const hRow2 = (await db.query<{ status: string; waitlist_pos: number }>("select status, waitlist_pos from enrollments where id = $1", [(enrH.body as any).enrollment.id])).rows[0];
+      assert.equal(hRow2.status, "waitlisted");
+      assert.equal(hRow2.waitlist_pos, 1);
+
+      // Verify inapp note waitlist_seat_taken queued for H
+      const notes = (await db.query<{ template: string; user_id: string }>(
+        "select template, user_id from outbox where user_id = $1 and template = 'waitlist_seat_taken'",
+        [memH.id],
+      )).rows;
+      assert.equal(notes.length, 1);
+
+      // 3. L enrols -> waitlist 2
+      const enrL = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memL));
+      assert.equal(enrL.status, 201);
+      assert.equal((enrL.body as any).enrollment?.status, "waitlisted");
+      const lRow1 = (await db.query<{ waitlist_pos: number }>("select waitlist_pos from enrollments where id = $1", [(enrL.body as any).enrollment.id])).rows[0];
+      assert.equal(lRow1.waitlist_pos, 2);
+
+      // 4. H accepts -> BR-21, H stays waitlist 1
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offerH.id, memH)),
+        (err: any) => {
+          assert.equal(err.extra?.br, "BR-21");
+          return true;
+        },
+      );
+      const hRow3 = (await db.query<{ status: string; waitlist_pos: number }>("select status, waitlist_pos from enrollments where id = $1", [(enrH.body as any).enrollment.id])).rows[0];
+      assert.equal(hRow3.status, "waitlisted");
+      assert.equal(hRow3.waitlist_pos, 1);
+
+      // 5. N leaves -> H gets a new offer, accepts -> confirmed; L is now waitlist 1
+      await withTx(async (sql) => enrollmentDelete(sql, (enrN.body as any).enrollment.id, memN));
+      const newOfferH = (await db.query<{ id: string; status: string }>(
+        "select id, status from waitlist_offers where enrollment_id = $1 and status = 'pending'",
+        [(enrH.body as any).enrollment.id],
+      )).rows[0];
+      assert.ok(newOfferH);
+
+      const accRes = await withTx(async (sql) => waitlistAccept(sql, newOfferH.id, memH));
+      assert.equal(accRes.status, 200);
+      const hRow4 = (await db.query<{ status: string }>("select status from enrollments where id = $1", [(enrH.body as any).enrollment.id])).rows[0];
+      assert.equal(hRow4.status, "confirmed");
+
+      // L is now waitlist 1
+      const lRow2 = (await db.query<{ status: string; waitlist_pos: number }>("select status, waitlist_pos from enrollments where id = $1", [(enrL.body as any).enrollment.id])).rows[0];
+      assert.equal(lRow2.status, "waitlisted");
+      assert.equal(lRow2.waitlist_pos, 1);
+
+      // 6. L leaves the waitlist -> class has no waitlisted rows; positions of any others stay gap-free
+      const delL = await withTx(async (sql) => enrollmentDelete(sql, (enrL.body as any).enrollment.id, memL));
+      assert.equal(delL.status, 200);
+      const remainingWl = (await db.query<{ count: number }>("select count(*)::int as count from enrollments where class_id = $1 and status = 'waitlisted'", [classW])).rows[0].count;
+      assert.equal(remainingWl, 0);
+
+      // Clean up
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classW]);
+      await db.query("delete from enrollments where class_id = $1", [classW]);
+      await db.query("delete from classes where id = $1", [classW]);
+    });
+
+    it("W-2: expired offer drops its holder and moves everyone up by one (gap-free)", async () => {
+      await setupW();
+
+      // Enrol A (confirmed, fills capacity)
+      await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memA));
+
+      // H joins (waitlist 1)
+      const enrH = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memH));
+      // N joins (waitlist 2)
+      const enrN = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memN));
+      // L joins (waitlist 3)
+      const enrL = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memL));
+
+      // Create an expired pending offer for H
+      await db.query(
+        `insert into waitlist_offers (enrollment_id, expires_at, status)
+         values ($1, now() - interval '5 minutes', 'pending')`,
+        [(enrH.body as any).enrollment.id],
+      );
+
+      // Run waitlistExpire job
+      const expiredCount = await waitlistExpire();
+      assert.ok(expiredCount >= 1);
+
+      // H's enrollment should be cancelled
+      const hRow = (await db.query<{ status: string; waitlist_pos: number | null }>("select status, waitlist_pos from enrollments where id = $1", [(enrH.body as any).enrollment.id])).rows[0];
+      assert.equal(hRow.status, "cancelled");
+      assert.equal(hRow.waitlist_pos, null);
+
+      // N should now be waitlist 1
+      const nRow = (await db.query<{ status: string; waitlist_pos: number }>("select status, waitlist_pos from enrollments where id = $1", [(enrN.body as any).enrollment.id])).rows[0];
+      assert.equal(nRow.status, "waitlisted");
+      assert.equal(nRow.waitlist_pos, 1);
+
+      // L should now be waitlist 2
+      const lRow = (await db.query<{ status: string; waitlist_pos: number }>("select status, waitlist_pos from enrollments where id = $1", [(enrL.body as any).enrollment.id])).rows[0];
+      assert.equal(lRow.status, "waitlisted");
+      assert.equal(lRow.waitlist_pos, 2);
+
+      // Clean up
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classW]);
+      await db.query("delete from enrollments where class_id = $1", [classW]);
+      await db.query("delete from classes where id = $1", [classW]);
     });
   });

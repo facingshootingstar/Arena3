@@ -169,6 +169,12 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
         body: t("A seat is yours if you claim it before the offer runs out."),
         link: { to: "/app/classes", label: t("Claim the seat") },
       };
+    case "waitlist_seat_taken":
+      return {
+        title: t("Seat taken"),
+        body: t("The open seat was taken. You are still first in line when another opens."),
+        link: { to: "/app/classes", label: t("View class") },
+      };
     case "refund_approved": {
       const amount = typeof p.amount_vnd === "number" ? money(p.amount_vnd) : null;
       const subject = amount

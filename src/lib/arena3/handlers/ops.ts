@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import { flagsMap, requireFlag, type FlagKey } from "../flags";
-import { audit, classSubscription, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
+import { assertNoClassClash, audit, classSubscription, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
@@ -145,6 +145,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     expires_at: string;
   }>(sql, `select * from waitlist_offers where id = $1 for update`, [offerId]);
   if (!offer) throw err.notFound();
+  if (offer.status === "skipped") throw err.br("BR-21", "The class just filled up.");
   if (offer.status !== "pending") throw err.conflictState();
   if (new Date(offer.expires_at) < new Date()) throw err.br("BR-23", "That offer has expired.");
   const enr = await one<{ id: string; class_id: string; user_id: string; status: string }>(
@@ -159,6 +160,8 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [enr.class_id],
   );
   if (!cl) throw err.notFound();
+  await assertNoClassClash(sql, user.id, enr.class_id);
+  if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
   const found = await classSubscription(sql, user.id, cl.sport);
   if (!found) throw err.br("BR-19", "You need an active plan covering this sport.");
   const sub = await one<{ id: string; session_left: number | null }>(
@@ -170,7 +173,6 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   if (sub.session_left != null && sub.session_left <= 0) {
     throw err.br("BR-20", "You have no sessions left.");
   }
-  if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
   await sql.query(
     `update enrollments set status = 'confirmed', waitlist_pos = null where id = $1`,
     [enr.id],
@@ -192,6 +194,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
       throw err.br("BR-20", "You have no sessions left.");
     }
   }
+  await sql.query(`select waitlist_compact($1::uuid)`, [enr.class_id]);
   return { status: 200, body: { ok: true } };
 }
 

@@ -3,6 +3,8 @@ import { sha256 } from "./crypto";
 import { err } from "./errors";
 import type { PublicUser } from "./session";
 import type { CancelTier } from "./policy";
+import { parseWeeklyRrule } from "./labels";
+import { addDays } from "./time";
 import { one } from "./tx";
 
 export type Settings = {
@@ -420,6 +422,63 @@ export async function classSubscription(
       limit 1`,
     [userId, sport],
   );
+}
+
+export type ClassPattern = { rrule: string; duration_min: number; start_on: string; end_on: string };
+
+/** True when two weekly classes meet on at least one same date at overlapping hours. */
+export function classPatternsClash(a: ClassPattern, b: ClassPattern) {
+  const from = a.start_on > b.start_on ? a.start_on : b.start_on;
+  const to = a.end_on < b.end_on ? a.end_on : b.end_on;
+  if (from > to) return false;
+  const pa = parseWeeklyRrule(a.rrule);
+  const pb = parseWeeklyRrule(b.rrule);
+  const aStart = pa.hour * 60;
+  const bStart = pb.hour * 60;
+  if (!(aStart < bStart + b.duration_min && bStart < aStart + a.duration_min)) return false;
+  const codes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  // Only weekdays that really fall inside the shared date range count.
+  let day = from;
+  for (let i = 0; i < 7 && day <= to; i++, day = addDays(day, 1)) {
+    const code = codes[new Date(`${day}T00:00:00Z`).getUTCDay()]!;
+    if (pa.days.includes(code) && pb.days.includes(code)) return true;
+  }
+  return false;
+}
+
+export async function assertNoClassClash(sql: Sql, userId: string, classId: string) {
+  const overlap = await one(
+    sql,
+    `select 1
+       from sessions s
+       join enrollments e on e.class_id = s.class_id and e.user_id = $1 and e.status = 'confirmed'
+      where e.class_id <> $2
+        and s.status = 'scheduled'
+        and exists (
+          select 1 from sessions s2
+           where s2.class_id = $2 and s2.status = 'scheduled'
+             and tstzrange(s.start_at, s.end_at, '[)') && tstzrange(s2.start_at, s2.end_at, '[)')
+        )
+      limit 1`,
+    [userId, classId],
+  );
+  if (overlap) throw err.br("BR-22", "This clashes with another class you are in.");
+  // Sessions are only laid out two weeks ahead, so the weekly timetables are compared too.
+  const target = await one<ClassPattern>(
+    sql,
+    `select rrule, duration_min, start_on::text, end_on::text from classes where id = $1`,
+    [classId],
+  );
+  const others = await sql.query<ClassPattern>(
+    `select cl.rrule, cl.duration_min, cl.start_on::text, cl.end_on::text
+       from classes cl
+       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
+      where cl.id <> $2 and cl.status <> 'cancelled'`,
+    [userId, classId],
+  );
+  if (target && (others as ClassPattern[]).some((o) => classPatternsClash(target, o))) {
+    throw err.br("BR-22", "This clashes with another class you are in.");
+  }
 }
 
 export type Ctx = { sql: Sql; request: Request; user: PublicUser | null };

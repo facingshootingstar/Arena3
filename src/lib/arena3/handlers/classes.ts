@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { audit, classSubscription, enqueue, getSettings, num, readJson, str } from "../helpers";
+import { assertNoClassClash, audit, classSubscription, enqueue, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
 import { requireRole, type PublicUser } from "../session";
@@ -38,27 +38,8 @@ export async function classesList(sql: Sql, request: Request, user: PublicUser |
   };
 }
 
-type ClassPattern = { rrule: string; duration_min: number; start_on: string; end_on: string };
-
-/** True when two weekly classes meet on at least one same date at overlapping hours. */
-export function classPatternsClash(a: ClassPattern, b: ClassPattern) {
-  const from = a.start_on > b.start_on ? a.start_on : b.start_on;
-  const to = a.end_on < b.end_on ? a.end_on : b.end_on;
-  if (from > to) return false;
-  const pa = parseWeeklyRrule(a.rrule);
-  const pb = parseWeeklyRrule(b.rrule);
-  const aStart = pa.hour * 60;
-  const bStart = pb.hour * 60;
-  if (!(aStart < bStart + b.duration_min && bStart < aStart + a.duration_min)) return false;
-  const codes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-  // Only weekdays that really fall inside the shared date range count.
-  let day = from;
-  for (let i = 0; i < 7 && day <= to; i++, day = addDays(day, 1)) {
-    const code = codes[new Date(`${day}T00:00:00Z`).getUTCDay()]!;
-    if (pa.days.includes(code) && pb.days.includes(code)) return true;
-  }
-  return false;
-}
+export type { ClassPattern };
+export { classPatternsClash };
 
 export async function classesCreate(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
@@ -325,62 +306,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   const sub = await classSubscription(sql, userId, cl.sport);
   if (!sub) throw err.br("BR-19", "You need an active plan covering this sport.");
   if (sub.session_left != null && sub.session_left <= 0) throw err.br("BR-20", "You have no sessions left.");
-  const overlap = await one(
-    sql,
-    `select 1
-       from sessions s
-       join enrollments e on e.class_id = s.class_id and e.user_id = $1 and e.status = 'confirmed'
-      where e.class_id <> $2
-        and s.status = 'scheduled'
-        and exists (
-          select 1 from sessions s2
-           where s2.class_id = $2 and s2.status = 'scheduled'
-             and tstzrange(s.start_at, s.end_at, '[)') && tstzrange(s2.start_at, s2.end_at, '[)')
-        )
-      limit 1`,
-    [userId, id],
-  );
-  if (overlap) throw err.br("BR-22", "This clashes with another class you are in.");
-  // Sessions are only laid out two weeks ahead, so the weekly timetables are compared too.
-  const target = await one<ClassPattern>(
-    sql,
-    `select rrule, duration_min, start_on::text, end_on::text from classes where id = $1`,
-    [id],
-  );
-  const others = await sql.query(
-    `select cl.rrule, cl.duration_min, cl.start_on::text, cl.end_on::text
-       from classes cl
-       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
-      where cl.id <> $2 and cl.status <> 'cancelled'`,
-    [userId, id],
-  );
-  if (target && (others as ClassPattern[]).some((o) => classPatternsClash(target, o))) {
-    throw err.br("BR-22", "This clashes with another class you are in.");
-  }
-  const pendingOffers = await one<{ n: number }>(
-    sql,
-    `select count(*)::int as n
-       from waitlist_offers o
-       join enrollments e on e.id = o.enrollment_id
-      where e.class_id = $1 and o.status = 'pending' and o.expires_at > now()`,
-    [id],
-  );
-  const reservedSeats = (cl.enrolled_count ?? 0) + (pendingOffers?.n ?? 0);
-  if (reservedSeats >= cl.capacity) {
-    try {
-      const wl = await one<{ enrollment_waitlist: string }>(
-        sql,
-        `select enrollment_waitlist($1::uuid, $2::uuid) as enrollment_waitlist`,
-        [id, userId],
-      );
-      const enr = await one(sql, `select * from enrollments where id = $1`, [wl!.enrollment_waitlist]);
-      return { status: 201, body: { enrollment: enr, waitlisted: true } };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("ALREADY_ENROLLED")) throw err.br("BR-22", "You are already enrolled.");
-      throw e;
-    }
-  }
+  await assertNoClassClash(sql, userId, id);
   await sql.query("savepoint sp_enroll");
   try {
     const row = await one<{ enrollment_confirm: string }>(
@@ -395,6 +321,24 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
           where id = $1 and session_left > 0`,
         [sub.id],
       );
+    }
+    const updatedClass = await one<{ enrolled_count: number; capacity: number }>(
+      sql,
+      `select enrolled_count, capacity from classes where id = $1`,
+      [id],
+    );
+    if (updatedClass && updatedClass.enrolled_count >= updatedClass.capacity) {
+      const pendingOffers = await sql.query<{ id: string; user_id: string }>(
+        `select o.id, e.user_id
+           from waitlist_offers o
+           join enrollments e on e.id = o.enrollment_id
+          where e.class_id = $1 and o.status = 'pending' and o.expires_at > now()`,
+        [id],
+      );
+      for (const po of pendingOffers) {
+        await sql.query(`update waitlist_offers set status = 'skipped' where id = $1`, [po.id]);
+        await enqueue(sql, "inapp", "waitlist_seat_taken", po.user_id, { class_id: id, offer_id: po.id }, `wl_st|${po.id}`);
+      }
     }
     const enr = await one(sql, `select * from enrollments where id = $1`, [row!.enrollment_confirm]);
     return { status: 201, body: { enrollment: enr } };
@@ -439,6 +383,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
   }
   if (enr.status === "waitlisted") {
     await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null where id = $1`, [id]);
+    await sql.query(`select waitlist_compact($1::uuid)`, [enr.class_id]);
     return { status: 200, body: { ok: true } };
   }
   if (enr.status !== "confirmed") throw err.conflictState();
@@ -573,7 +518,13 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
     [classId, cl.enrolled_count],
   );
   const roster = await sql.query(
-    `select u.id, u.full_name, u.member_code, u.phone, e.status::text as status
+    `select u.id, u.full_name, u.member_code, u.phone, e.status::text as status,
+            case when e.status = 'waitlisted' then (select count(*) from enrollments w where w.class_id = e.class_id and w.status = 'waitlisted' and (w.waitlist_pos, w.id) <= (e.waitlist_pos, e.id)) end as waitlist_pos,
+            exists(
+              select 1 from waitlist_offers o
+               where o.enrollment_id = e.id and o.status = 'pending' and o.expires_at > now()
+            ) as offer_pending,
+            (select o.expires_at from waitlist_offers o where o.enrollment_id = e.id and o.status = 'pending' and o.expires_at > now() limit 1) as offer_expires_at
        from enrollments e join users u on u.id = e.user_id
       where e.class_id = $1 and e.status in ('confirmed','waitlisted')
       order by e.status, e.waitlist_pos nulls first, u.full_name`,
