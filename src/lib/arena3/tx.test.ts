@@ -24,7 +24,7 @@ const opsH = await import("./handlers/ops.ts");
 const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule } = await import("./handlers/classes.ts");
 const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold } = await import("./handlers/bookings.ts");
-const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund } = await import("./handlers/desk.ts");
+const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, subscriptionFreeze, subscriptionUnfreeze, sessionAttendancePost } = await import("./handlers/ops.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
 const { hashPassword, hashOtp } = await import("./crypto.ts");
@@ -886,8 +886,8 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     await db.query("update cashier_shifts set closed_at = now() where id = $1", [shift.id]);
   });
 
-  // F-16 (2): Quản lý duyệt hoàn tiền (approve-refund) → tổng ca lễ tân không đổi
-  it("F-16: manager approves refund (approve-refund) -> receptionist shift till totals unchanged", async () => {
+  // F-16 (2): Quản lý duyệt hoàn tiền (approve-refund) → tổng ca lễ tân giảm theo số tiền hoàn
+  it("F-16: manager approves refund (approve-refund) -> receptionist shift till totals reduced by refund", async () => {
     await db.query("update cashier_shifts set closed_at = now() where receptionist_id = $1 and closed_at is null", [receptionistUser.id]);
     const shift = (await db.query<{ id: string }>(
       "insert into cashier_shifts (receptionist_id) values ($1) returning id",
@@ -914,7 +914,7 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     const resPending = await withTx(async (sql) => paymentsRefund(sql, pay.id, reqPending, receptionistUser));
     assert.equal(resPending.status, 201);
     assert.equal((resPending.body as any).payment?.status, "refund_pending");
-    assert.equal((resPending.body as any).payment?.shift_id, null);
+    assert.equal((resPending.body as any).payment?.shift_id, shift.id);
     const pendingId = (resPending.body as any).payment.id;
 
     // Manager approves refund
@@ -926,9 +926,9 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     const resApprove = await withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
     assert.equal(resApprove.status, 200);
 
-    // Shift totals for receptionist MUST be unchanged (the approved refund has shift_id = null)
+    // Shift totals for receptionist MUST drop by refund amount (the approved refund has shift_id = shift.id)
     const curAfter = await withTx(async (sql) => shiftCurrent(sql, receptionistUser, reqCurrentBefore));
-    assert.equal((curAfter.body as any).totals?.cash, cashBefore);
+    assert.equal((curAfter.body as any).totals?.cash, cashBefore - 1200000);
 
     await db.query("update cashier_shifts set closed_at = now() where id = $1", [shift.id]);
   });
@@ -2545,13 +2545,13 @@ describe("Round 10: Two-way Chat unit tests", () => {
     }) {
       const classId = "40000000-0000-0000-0000-a10000000001";
       const memberId = "00000000-0000-0000-0000-a10000000002";
-      const member = { id: memberId, phone: "+84900000201", name: "A1 Member", role: "member" } as any;
+      const member = { id: memberId, phone: "+84999999001", name: "A1 Member", role: "member" } as any;
 
       await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classId]);
       await db.query("delete from enrollments where class_id = $1", [classId]);
       await db.query("delete from classes where id = $1", [classId]);
-      await db.query("delete from subscriptions where user_id in (select id from users where phone = $1 or id = $2)", [member.phone, memberId]);
-      await db.query("delete from users where phone = $1 or id = $2", [member.phone, memberId]);
+      await db.query("delete from subscriptions where user_id = $1", [memberId]);
+      await db.query("delete from users where id = $1 or phone = $2", [memberId, member.phone]);
 
       await db.query(
         `insert into users (id, phone, full_name, name_normalized, role, password_hash)
@@ -2694,5 +2694,265 @@ describe("Round 10: Two-way Chat unit tests", () => {
         [subId!],
       )).rows[0];
       assert.equal(sub.session_left, 5);
+    });
+  });
+
+  describe("Task A2: manager-approved cash refund in till shift (SU-FL05-01)", () => {
+    const receptionistUser = { id: "00000000-0000-0000-0000-a20000000001", role: "receptionist", full_name: "A2 Receptionist" } as any;
+    const managerUser = { id: "00000000-0000-0000-0000-a20000000002", role: "manager", full_name: "A2 Manager" } as any;
+    const bookingId = "30000000-0000-0000-0000-a20000000003";
+
+    async function setupA2() {
+      await db.query("delete from payments where ref_id = $1", [bookingId]);
+      await db.query("delete from cashier_shifts where receptionist_id in ($1, $2)", [receptionistUser.id, managerUser.id]);
+      await db.query("delete from users where id in ($1, $2) or phone in ('+84999999002', '+84999999003')", [receptionistUser.id, managerUser.id]);
+
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+         values ($1, '+84999999002', $2, 'a2 receptionist', 'receptionist', 'hash'),
+                ($3, '+84999999003', $4, 'a2 manager', 'manager', 'hash')`,
+        [receptionistUser.id, receptionistUser.full_name, managerUser.id, managerUser.full_name],
+      );
+    }
+
+    async function seedBasePayment(shiftId: string, amount = 1_500_000) {
+      const pay = (await db.query<{ id: string }>(
+        `insert into payments (code, shift_id, method, amount_vnd, vat_rate, status, ref_type, ref_id)
+         values ('PAY-A2-' || substr(gen_random_uuid()::text, 1, 8), $1, 'cash', $2, 8, 'posted', 'booking', $3)
+         returning id`,
+        [shiftId, amount, bookingId],
+      )).rows[0];
+      return pay.id;
+    }
+
+    it("A2-1: receptionist with no open shift, refund >= refund_manager_vnd -> throws BR-44, no payment row inserted", async () => {
+      await setupA2();
+      // Ensure no open shift
+      await db.query("update cashier_shifts set closed_at = now() where receptionist_id = $1", [receptionistUser.id]);
+
+      // Seed an unattached positive payment
+      const payId = (await db.query<{ id: string }>(
+        `insert into payments (code, method, amount_vnd, vat_rate, status, ref_type, ref_id)
+         values ('PAY-A2-NO-SHIFT', 'cash', 1000000, 8, 'posted', 'booking', $1)
+         returning id`,
+        [bookingId],
+      )).rows[0].id;
+
+      const req = new Request("http://localhost/v1/payments/" + payId + "/refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount_vnd: 800000, reason: "Refund test" }),
+      });
+
+      await assert.rejects(
+        () => withTx(async (sql) => paymentsRefund(sql, payId, req, receptionistUser)),
+        (e: any) => e.extra?.br === "BR-44",
+      );
+
+      const count = (await db.query<{ c: number }>(
+        `select count(*)::int as c from payments where status = 'refund_pending' and ref_id = $1`,
+        [bookingId],
+      )).rows[0].c;
+      assert.equal(count, 0);
+    });
+
+    it("A2-2: receptionist with an open shift S1, large refund -> refund_pending row has shift_id = S1", async () => {
+      await setupA2();
+      const s1 = (await db.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
+        [receptionistUser.id],
+      )).rows[0].id;
+
+      const payId = await seedBasePayment(s1);
+
+      const req = new Request("http://localhost/v1/payments/" + payId + "/refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount_vnd: 1000000, reason: "Move out" }),
+      });
+      const res = await withTx(async (sql) => paymentsRefund(sql, payId, req, receptionistUser));
+      assert.equal(res.status, 201);
+      assert.equal((res.body as any).payment?.status, "refund_pending");
+      assert.equal((res.body as any).payment?.shift_id, s1);
+    });
+
+    it("A2-3: manager approves while S1 is still open -> posted, shift_id = S1, cash total drops", async () => {
+      await setupA2();
+      const s1 = (await db.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
+        [receptionistUser.id],
+      )).rows[0].id;
+
+      const payId = await seedBasePayment(s1, 1500000);
+
+      const reqCurrent = new Request("http://localhost/v1/shifts/current");
+      const curBefore = await withTx(async (sql) => shiftCurrent(sql, receptionistUser, reqCurrent));
+      const cashBefore = (curBefore.body as any).totals?.cash;
+
+      const reqPending = new Request("http://localhost/v1/payments/" + payId + "/refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount_vnd: 1000000, reason: "Refund" }),
+      });
+      const resPending = await withTx(async (sql) => paymentsRefund(sql, payId, reqPending, receptionistUser));
+      const pendingId = (resPending.body as any).payment.id;
+
+      const reqApprove = new Request("http://localhost/v1/payments/" + pendingId + "/approve-refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: "Approved" }),
+      });
+      const resApprove = await withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
+      assert.equal(resApprove.status, 200);
+
+      const checkRow = (await db.query<{ status: string; shift_id: string }>(
+        `select status, shift_id from payments where id = $1`,
+        [pendingId],
+      )).rows[0];
+      assert.equal(checkRow.status, "posted");
+      assert.equal(checkRow.shift_id, s1);
+
+      const curAfter = await withTx(async (sql) => shiftCurrent(sql, receptionistUser, reqCurrent));
+      assert.equal((curAfter.body as any).totals?.cash, cashBefore - 1000000);
+    });
+
+    it("A2-4: S1 closes -> receptionist opens S2 -> approve -> shift_id = S2; S1's figures unchanged", async () => {
+      await setupA2();
+      const s1 = (await db.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
+        [receptionistUser.id],
+      )).rows[0].id;
+
+      const payId = await seedBasePayment(s1, 1500000);
+
+      const reqPending = new Request("http://localhost/v1/payments/" + payId + "/refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount_vnd: 1000000, reason: "Refund" }),
+      });
+      const resPending = await withTx(async (sql) => paymentsRefund(sql, payId, reqPending, receptionistUser));
+      const pendingId = (resPending.body as any).payment.id;
+
+      // Close S1
+      await db.query("update cashier_shifts set closed_at = now() where id = $1", [s1]);
+      const s1Totals = (await db.query<{ cash: number }>(
+        `select coalesce(sum(amount_vnd) filter (where method = 'cash' and status = 'posted'), 0)::int as cash from payments where shift_id = $1`,
+        [s1],
+      )).rows[0].cash;
+      assert.equal(s1Totals, 1500000);
+
+      // Receptionist opens S2
+      const s2 = (await db.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
+        [receptionistUser.id],
+      )).rows[0].id;
+
+      // Seed some intake in S2
+      await seedBasePayment(s2, 2000000);
+
+      // Manager approves
+      const reqApprove = new Request("http://localhost/v1/payments/" + pendingId + "/approve-refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: "Approved in new shift" }),
+      });
+      const resApprove = await withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
+      assert.equal(resApprove.status, 200);
+
+      const checkRow = (await db.query<{ status: string; shift_id: string }>(
+        `select status, shift_id from payments where id = $1`,
+        [pendingId],
+      )).rows[0];
+      assert.equal(checkRow.status, "posted");
+      assert.equal(checkRow.shift_id, s2);
+
+      // S1 figures remain 1500000
+      const s1After = (await db.query<{ cash: number }>(
+        `select coalesce(sum(amount_vnd) filter (where method = 'cash' and status = 'posted'), 0)::int as cash from payments where shift_id = $1`,
+        [s1],
+      )).rows[0].cash;
+      assert.equal(s1After, 1500000);
+
+      // S2 cash dropped by 1000000 (2000000 - 1000000 = 1000000)
+      const s2Totals = (await db.query<{ cash: number }>(
+        `select coalesce(sum(amount_vnd) filter (where method = 'cash' and status = 'posted'), 0)::int as cash from payments where shift_id = $1`,
+        [s2],
+      )).rows[0].cash;
+      assert.equal(s2Totals, 1000000);
+    });
+
+    it("A2-5: S1 closes, no new shift -> approve refused; payment still refund_pending", async () => {
+      await setupA2();
+      const s1 = (await db.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
+        [receptionistUser.id],
+      )).rows[0].id;
+
+      const payId = await seedBasePayment(s1, 1500000);
+
+      const reqPending = new Request("http://localhost/v1/payments/" + payId + "/refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount_vnd: 1000000, reason: "Refund" }),
+      });
+      const resPending = await withTx(async (sql) => paymentsRefund(sql, payId, reqPending, receptionistUser));
+      const pendingId = (resPending.body as any).payment.id;
+
+      // Close S1 and ensure no open shift
+      await db.query("update cashier_shifts set closed_at = now() where receptionist_id = $1", [receptionistUser.id]);
+
+      const reqApprove = new Request("http://localhost/v1/payments/" + pendingId + "/approve-refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: "Approved" }),
+      });
+
+      await assert.rejects(
+        () => withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser)),
+        (e: any) => e.code === "CONFLICT_STATE",
+      );
+
+      const checkRow = (await db.query<{ status: string; shift_id: string }>(
+        `select status, shift_id from payments where id = $1`,
+        [pendingId],
+      )).rows[0];
+      assert.equal(checkRow.status, "refund_pending");
+      assert.equal(checkRow.shift_id, s1);
+    });
+
+    it("A2-6: reject (decideRefund approve=false) -> shift_id unchanged, status refund_rejected", async () => {
+      await setupA2();
+      const s1 = (await db.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
+        [receptionistUser.id],
+      )).rows[0].id;
+
+      const payId = await seedBasePayment(s1, 1500000);
+
+      const reqPending = new Request("http://localhost/v1/payments/" + payId + "/refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount_vnd: 1000000, reason: "Refund" }),
+      });
+      const resPending = await withTx(async (sql) => paymentsRefund(sql, payId, reqPending, receptionistUser));
+      const pendingId = (resPending.body as any).payment.id;
+
+      // Close S1 - reject should still work even if S1 is closed!
+      await db.query("update cashier_shifts set closed_at = now() where receptionist_id = $1", [receptionistUser.id]);
+
+      const reqReject = new Request("http://localhost/v1/payments/" + pendingId + "/reject-refund", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: "Denied by manager" }),
+      });
+      const resReject = await withTx(async (sql) => paymentsRejectRefund(sql, pendingId, reqReject, managerUser));
+      assert.equal(resReject.status, 200);
+
+      const checkRow = (await db.query<{ status: string; shift_id: string }>(
+        `select status, shift_id from payments where id = $1`,
+        [pendingId],
+      )).rows[0];
+      assert.equal(checkRow.status, "refund_rejected");
+      assert.equal(checkRow.shift_id, s1);
     });
   });
