@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { hashOtp, hashPassword, randomOtp, verifyPassword } from "../crypto";
 import { err } from "../errors";
-import { ageYears, audit, classSubscription, getSettings, pageOf, readJson, str } from "../helpers";
+import { ageYears, audit, classPlan, getSettings, pageOf, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
 import { limit, RULES } from "../ratelimit";
 import {
@@ -353,15 +353,20 @@ export async function meGet(sql: Sql, user: PublicUser) {
     sql.query<{ key: string; enabled: boolean }>(`select key, enabled from feature_flags`),
   ]);
   // What enrolling in each sport would take (BR-19, BR-20), from the plan enrolment itself picks
-  // (classSubscription), so a class card can say so before the tap instead of after.
+  // (classPlan), so a class card can say so before the tap instead of after.
   const activeSportCodes = await getActiveSportCodes(sql);
   const classAccess =
     user.role === "member"
       ? Object.fromEntries(
           await Promise.all(
             activeSportCodes.map(async (sport) => {
-              const sub = await classSubscription(sql, user.id, sport);
-              return [sport, sub ? { covered: true, session_left: sub.session_left } : { covered: false, session_left: null }];
+              const res = await classPlan(sql, user.id, sport);
+              return [
+                sport,
+                res.ok
+                  ? { covered: true, session_left: res.sub.session_left }
+                  : { covered: false, session_left: null, code: res.code, reason: res.message },
+              ];
             }),
           ),
         )

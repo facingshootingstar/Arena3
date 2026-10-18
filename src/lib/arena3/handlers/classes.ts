@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { assertNoClassClash, audit, classSubscription, enqueue, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
+import { assertNoClassClash, audit, classPlan, enqueue, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
 import { requireRole, type PublicUser } from "../session";
@@ -303,9 +303,8 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   }>(sql, `select * from classes where id = $1`, [id]);
   if (!cl) throw err.notFound();
   if (cl.status !== "open") throw err.br("BR-18", "That class is not open yet.");
-  const sub = await classSubscription(sql, userId, cl.sport);
-  if (!sub) throw err.br("BR-19", "You need an active plan covering this sport.");
-  if (sub.session_left != null && sub.session_left <= 0) throw err.br("BR-20", "You have no sessions left.");
+  const planRes = await classPlan(sql, userId, cl.sport);
+  if (!planRes.ok) throw err.br(planRes.code, planRes.message);
   await assertNoClassClash(sql, userId, id);
   await sql.query("savepoint sp_enroll");
   try {
@@ -315,13 +314,6 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
       [id, userId],
     );
     await sql.query("release savepoint sp_enroll");
-    if (sub.session_left != null) {
-      await sql.query(
-        `update subscriptions set session_left = session_left - 1
-          where id = $1 and session_left > 0`,
-        [sub.id],
-      );
-    }
     const updatedClass = await one<{ enrolled_count: number; capacity: number }>(
       sql,
       `select enrolled_count, capacity from classes where id = $1`,
@@ -369,6 +361,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     class_id: string;
     user_id: string;
     status: string;
+    prepaid_sessions: number;
   }>(sql, `select * from enrollments where id = $1 for update`, [id]);
   if (!enr) throw err.notFound();
   if (user.role === "member" && enr.user_id !== user.id) throw err.forbidden();
@@ -401,18 +394,20 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
       throw err.br("BR-24", "Cancel at least 4 hours before the next session.");
     }
   }
-  await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null where id = $1`, [id]);
+  if (enr.prepaid_sessions > 0) {
+    const cl = await one<{ sport: string }>(sql, `select sport from classes where id = $1`, [enr.class_id]);
+    if (cl) {
+      const planRes = await classPlan(sql, enr.user_id, cl.sport);
+      if (planRes.ok) {
+        await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [planRes.sub.id]);
+      }
+    }
+  }
+  await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null, prepaid_sessions = 0 where id = $1`, [id]);
   await sql.query(
     `update classes set enrolled_count = greatest(enrolled_count - 1, 0) where id = $1`,
     [enr.class_id],
   );
-  const cl = await one<{ sport: string }>(sql, `select sport from classes where id = $1`, [enr.class_id]);
-  if (cl) {
-    const sub = await classSubscription(sql, enr.user_id, cl.sport);
-    if (sub?.session_left != null) {
-      await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [sub.id]);
-    }
-  }
   await inviteWaitlist(sql, enr.class_id);
   return { status: 200, body: { ok: true } };
 }
@@ -622,14 +617,6 @@ async function notifyClass(
   }
 }
 
-/** BR-29: a per-session plan gets the session back; a time-based plan has nothing to give back. */
-async function giveSessionBack(sql: Sql, userId: string, sport: string): Promise<boolean> {
-  const sub = await classSubscription(sql, userId, sport);
-  if (sub?.session_left == null) return false;
-  await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [sub.id]);
-  return true;
-}
-
 function reasonOf(b: Record<string, unknown>): string | undefined {
   const r = str(b.reason);
   return r ? r.slice(0, 300) : undefined;
@@ -649,10 +636,7 @@ export async function sessionCancel(sql: Sql, sessionId: string, request: Reques
   await sql.query(`update sessions set change_reason = $2 where id = $1`, [sessionId, reason]);
 
   const members = await confirmedMembers(sql, s.class_id);
-  let refunded = 0;
-  for (const uid of members) {
-    if (await giveSessionBack(sql, uid, s.sport)) refunded += 1;
-  }
+  const refunded = 0;
   await notifyClass(
     sql,
     s.class_id,
@@ -895,10 +879,18 @@ async function cancelClass(
   const waiting = (
     await sql.query(`select user_id from enrollments where class_id = $1 and status = 'waitlisted'`, [cl.id])
   ).map((r) => String(r.user_id));
-  // One refund each: enrolling is what spent the session, not each date.
+  // Return prepaid sessions if any (4.5)
   let refunded = 0;
-  for (const uid of members) {
-    if (await giveSessionBack(sql, uid, cl.sport)) refunded += 1;
+  const prepaidEnrs = await sql.query<{ id: string; user_id: string }>(
+    `select id, user_id from enrollments where class_id = $1 and status = 'confirmed' and prepaid_sessions > 0`,
+    [cl.id],
+  );
+  for (const pe of prepaidEnrs) {
+    const planRes = await classPlan(sql, pe.user_id, cl.sport);
+    if (planRes.ok) {
+      await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [planRes.sub.id]);
+      refunded += 1;
+    }
   }
   await sql.query(
     `update waitlist_offers set status = 'expired'
@@ -906,7 +898,7 @@ async function cancelClass(
     [cl.id],
   );
   await sql.query(
-    `update enrollments set status = 'cancelled', waitlist_pos = null
+    `update enrollments set status = 'cancelled', waitlist_pos = null, prepaid_sessions = 0
       where class_id = $1 and status in ('confirmed','waitlisted')`,
     [cl.id],
   );

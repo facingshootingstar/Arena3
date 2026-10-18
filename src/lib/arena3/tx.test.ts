@@ -22,7 +22,7 @@ const { KeepWrites, setOverridePglite, withTx } = await import("./tx.ts");
 const authH = await import("./handlers/auth.ts");
 const { readJson, withIdempotency } = await import("./helpers.ts");
 const opsH = await import("./handlers/ops.ts");
-const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule } = await import("./handlers/classes.ts");
+const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel } = await import("./handlers/classes.ts");
 const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
@@ -1213,77 +1213,79 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     const mem3 = { id: "00000000-0000-0000-0000-000000000106", phone: "+84900000106", name: "Mem 3", role: "member" } as any;
     const mem4 = { id: "00000000-0000-0000-0000-000000000107", phone: "+84900000107", name: "Mem 4", role: "member" } as any;
 
-    for (const m of [mem1, mem2, mem3, mem4]) {
-      await db.query(
-        `insert into users (id, phone, full_name, name_normalized, role, password_hash)
-         values ($1, $2, $3, $4, 'member', 'hash')
-         on conflict (id) do nothing`,
-        [m.id, m.phone, m.name, m.name.toLowerCase()]
-      );
-      await db.query("delete from subscriptions where user_id = $1", [m.id]);
-      await db.query(
-        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
-         values (gen_random_uuid(), $1, $2, 'badminton', current_date - 1, current_date + 30, 'active', 10)`,
-        [m.id, planId]
-      );
-    }
-
-    // 1. mem1 enrolls -> confirmed (1/1)
-    const enr1 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem1));
-    assert.equal(enr1.status, 201);
-    assert.equal((enr1.body as any).enrollment?.status, "confirmed");
-
-    // 2. mem2 enrolls -> waitlisted
-    const enr2 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem2));
-    assert.equal(enr2.status, 201);
-    assert.equal((enr2.body as any).enrollment?.status, "waitlisted");
-
-    // 3. mem1 cancels -> triggers inviteWaitlist -> creates offer for mem2
-    await withTx(async (sql) => enrollmentDelete(sql, (enr1.body as any).enrollment.id, mem1));
-    await withTx(async (sql) => inviteWaitlist(sql, classId));
-
-    const offer = (await db.query<{ id: string }>(
-      "select o.id from waitlist_offers o join enrollments e on e.id = o.enrollment_id where e.class_id = $1 and o.status = 'pending'",
-      [classId]
-    )).rows[0];
-    assert.ok(offer);
-
-    // 4. mem3 (newcomer) attempts to enroll while offer is pending -> confirmed (D5: free seat is not held)
-    const enr3 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem3));
-    assert.equal(enr3.status, 201);
-    assert.equal((enr3.body as any).enrollment?.status, "confirmed");
-
-    // offer for mem2 was skipped
-    const offerAfter = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offer.id])).rows[0];
-    assert.equal(offerAfter.status, "skipped");
-
-    // mem2 attempts to accept skipped/full offer -> throws BR-21
-    await assert.rejects(
-      () => withTx(async (sql) => waitlistAccept(sql, offer.id, mem2)),
-      (err: any) => {
-        assert.equal(err.extra?.br, "BR-21");
-        return true;
+    try {
+      for (const m of [mem1, mem2, mem3, mem4]) {
+        await db.query(
+          `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+           values ($1, $2, $3, $4, 'member', 'hash')
+           on conflict (id) do nothing`,
+          [m.id, m.phone, m.name, m.name.toLowerCase()]
+        );
+        await db.query("delete from subscriptions where user_id = $1", [m.id]);
+        await db.query(
+          `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+           values (gen_random_uuid(), $1, $2, 'badminton', current_date - 1, current_date + 30, 'active', 10)`,
+          [m.id, planId]
+        );
       }
-    );
 
-    // Cancel mem3 -> triggers new offer for mem2
-    await withTx(async (sql) => enrollmentDelete(sql, (enr3.body as any).enrollment.id, mem3));
-    const newOffer = (await db.query<{ id: string }>(
-      "select o.id from waitlist_offers o join enrollments e on e.id = o.enrollment_id where e.class_id = $1 and o.status = 'pending'",
-      [classId]
-    )).rows[0];
-    assert.ok(newOffer);
+      // 1. mem1 enrolls -> confirmed (1/1)
+      const enr1 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem1));
+      assert.equal(enr1.status, 201);
+      assert.equal((enr1.body as any).enrollment?.status, "confirmed");
 
-    // 5. mem2 accepts offer -> 200 confirmed
-    const accRes = await withTx(async (sql) => waitlistAccept(sql, newOffer.id, mem2));
-    assert.equal(accRes.status, 200);
-    const mem2Enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [(enr2.body as any).enrollment.id])).rows[0];
-    assert.equal(mem2Enr.status, "confirmed");
+      // 2. mem2 enrolls -> waitlisted
+      const enr2 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem2));
+      assert.equal(enr2.status, 201);
+      assert.equal((enr2.body as any).enrollment?.status, "waitlisted");
 
-    // Clean up test class and enrollments so later tests don't clash on court
-    await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classId]);
-    await db.query("delete from enrollments where class_id = $1", [classId]);
-    await db.query("delete from classes where id = $1", [classId]);
+      // 3. mem1 cancels -> triggers inviteWaitlist -> creates offer for mem2
+      await withTx(async (sql) => enrollmentDelete(sql, (enr1.body as any).enrollment.id, mem1));
+      await withTx(async (sql) => inviteWaitlist(sql, classId));
+
+      const offer = (await db.query<{ id: string }>(
+        "select o.id from waitlist_offers o join enrollments e on e.id = o.enrollment_id where e.class_id = $1 and o.status = 'pending'",
+        [classId]
+      )).rows[0];
+      assert.ok(offer);
+
+      // 4. mem3 (newcomer) attempts to enroll while offer is pending -> confirmed (D5: free seat is not held)
+      const enr3 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem3));
+      assert.equal(enr3.status, 201);
+      assert.equal((enr3.body as any).enrollment?.status, "confirmed");
+
+      // offer for mem2 was skipped
+      const offerAfter = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offer.id])).rows[0];
+      assert.equal(offerAfter.status, "skipped");
+
+      // mem2 attempts to accept skipped/full offer -> throws BR-21
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offer.id, mem2)),
+        (err: any) => {
+          assert.equal(err.extra?.br, "BR-21");
+          return true;
+        }
+      );
+
+      // Cancel mem3 -> triggers new offer for mem2
+      await withTx(async (sql) => enrollmentDelete(sql, (enr3.body as any).enrollment.id, mem3));
+      const newOffer = (await db.query<{ id: string }>(
+        "select o.id from waitlist_offers o join enrollments e on e.id = o.enrollment_id where e.class_id = $1 and o.status = 'pending'",
+        [classId]
+      )).rows[0];
+      assert.ok(newOffer);
+
+      // 5. mem2 accepts offer -> 200 confirmed
+      const accRes = await withTx(async (sql) => waitlistAccept(sql, newOffer.id, mem2));
+      assert.equal(accRes.status, 200);
+      const mem2Enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [(enr2.body as any).enrollment.id])).rows[0];
+      assert.equal(mem2Enr.status, "confirmed");
+    } finally {
+      // Clean up test class and enrollments so later tests don't clash on court
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classId]);
+      await db.query("delete from enrollments where class_id = $1", [classId]);
+      await db.query("delete from classes where id = $1", [classId]);
+    }
   });
 
   // F-04: next_member_code past 0099
@@ -2612,7 +2614,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       return { classId, member, subId, enrId, offerId };
     }
 
-    it("A1-1: Member accepts offer with 5 sessions left -> enroll succeeds, session_left becomes 4", async () => {
+    it("A1-1: Member accepts offer with 5 sessions left -> enroll succeeds, session_left remains 5 (no deduction)", async () => {
       const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: 5 });
       const res = await withTx(async (sql) => waitlistAccept(sql, offerId, member));
       assert.equal(res.status, 200);
@@ -2628,7 +2630,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
         "select session_left from subscriptions where id = $1",
         [subId!],
       )).rows[0];
-      assert.equal(sub.session_left, 4);
+      assert.equal(sub.session_left, 5);
 
       const off = (await db.query<{ status: string }>(
         "select status from waitlist_offers where id = $1",
@@ -2637,19 +2639,18 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(off.status, "accepted");
     });
 
-    it("A1-2: Member accepts offer with unlimited plan (session_left null) -> enroll succeeds, session_left remains null", async () => {
+    it("A1-2: Member accepts offer with unlimited plan (session_left null) -> throws BR-18 court time, not classes", async () => {
       const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: null });
-      const res = await withTx(async (sql) => waitlistAccept(sql, offerId, member));
-      assert.equal(res.status, 200);
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
+        (e: any) => e.extra?.br === "BR-18" && e.message.includes("court time, not classes"),
+      );
 
       const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
-      assert.equal(enr.status, "confirmed");
+      assert.equal(enr.status, "waitlisted");
 
-      const sub = (await db.query<{ session_left: number | null }>(
-        "select session_left from subscriptions where id = $1",
-        [subId!],
-      )).rows[0];
-      assert.equal(sub.session_left, null);
+      const off = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offerId])).rows[0];
+      assert.equal(off.status, "pending");
     });
 
     it("A1-3: Member accepts offer with 0 sessions left -> throws BR-20, enrollment stays waitlisted, offer stays pending", async () => {
@@ -2672,11 +2673,11 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(sub.session_left, 0);
     });
 
-    it("A1-4: Member accepts offer without plan for that sport -> throws BR-19, no session deducted, enrollment unchanged", async () => {
+    it("A1-4: Member accepts offer without plan for that sport -> throws BR-18, no session deducted, enrollment unchanged", async () => {
       const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: 5, sport: "basketball" }); // class is badminton
       await assert.rejects(
         () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
-        (e: any) => e.extra?.br === "BR-19",
+        (e: any) => e.extra?.br === "BR-18",
       );
 
       const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
@@ -3451,5 +3452,353 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classW]);
       await db.query("delete from enrollments where class_id = $1", [classW]);
       await db.query("delete from classes where id = $1", [classW]);
+    });
+  });
+
+  describe("Task P: class plan eligibility and session charging", () => {
+    const memP1 = { id: "a0000000-0000-0000-0000-000000000001", phone: "+84999991001", full_name: "P Member 1", role: "member" } as any;
+    const memP2 = { id: "a0000000-0000-0000-0000-000000000002", phone: "+84999991002", full_name: "P Member 2", role: "member" } as any;
+    const coachP = { id: "a0000000-0000-0000-0000-000000000003", phone: "+84999991003", full_name: "P Coach", role: "coach" } as any;
+    const mgrP = { id: "a0000000-0000-0000-0000-000000000004", phone: "+84999991004", full_name: "P Manager", role: "manager" } as any;
+    const courtP = "10000000-0000-0000-0000-000000000001";
+    const classP = "b0000000-0000-0000-0000-000000000001";
+    const sessP = "c0000000-0000-0000-0000-000000000001";
+    const planP = "20000000-0000-0000-0000-000000000002";
+    const subP1 = "d0000000-0000-0000-0000-000000000001";
+    const subP2 = "d0000000-0000-0000-0000-000000000002";
+
+    async function cleanupP() {
+      await db.query("delete from session_charges where session_id = $1 or user_id in ($2, $3)", [sessP, memP1.id, memP2.id]);
+      await db.query("delete from attendance where session_id = $1 or user_id in ($2, $3)", [sessP, memP1.id, memP2.id]);
+      await db.query("delete from sessions where class_id = $1 or id = $2", [classP, sessP]);
+      await db.query("delete from occupancies where ref_id = $1", [classP]);
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classP]);
+      await db.query("delete from enrollments where class_id = $1 or user_id in ($2, $3)", [classP, memP1.id, memP2.id]);
+      await db.query("delete from classes where id = $1", [classP]);
+      await db.query("delete from subscriptions where user_id in ($1, $2)", [memP1.id, memP2.id]);
+      await db.query("delete from coach_sports where user_id = $1", [coachP.id]);
+      await db.query("delete from outbox where user_id in ($1, $2, $3, $4)", [memP1.id, memP2.id, coachP.id, mgrP.id]);
+      await db.query("delete from users where id in ($1, $2, $3, $4)", [memP1.id, memP2.id, coachP.id, mgrP.id]);
+    }
+
+    async function setupP() {
+      await cleanupP();
+      for (const u of [memP1, memP2, coachP, mgrP]) {
+        await db.query(
+          `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+           values ($1, $2, $3, $4, $5, 'hash')`,
+          [u.id, u.phone, u.full_name, u.full_name.toLowerCase(), u.role],
+        );
+      }
+      await db.query(
+        `insert into coach_sports (user_id, sport) values ($1, 'badminton') on conflict do nothing`,
+        [coachP.id],
+      );
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'p-test', $2, $3, 'FREQ=WEEKLY;BYDAY=WE;BYHOUR=15', current_date + 1, current_date + 14, 60, 5, 'open', 0)`,
+        [classP, coachP.id, courtP],
+      );
+      const occId = (await db.query<{ id: string }>(`
+        insert into occupancies (court_id, start_at, end_at, kind, ref_id)
+        values ($1, now() - interval '1 hour', now() + interval '1 hour', 'session', $2)
+        returning id
+      `, [courtP, classP])).rows[0].id;
+      await db.query(
+        `insert into sessions (id, class_id, court_id, start_at, end_at, status, occupancy_id)
+         values ($1, $2, $3, now() - interval '1 hour', now() + interval '1 hour', 'scheduled', $4)`,
+        [sessP, classP, courtP, occId],
+      );
+    }
+
+    after(async () => {
+      await cleanupP();
+    });
+
+    it("Time-based plan only -> enrol refused with 'court time, not classes'; waitlist accept too", async () => {
+      await setupP();
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', null)`,
+        [subP1, memP1.id, planP],
+      );
+
+      await assert.rejects(
+        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
+        (e: any) => e.extra?.br === "BR-18" && e.message.includes("court time, not classes"),
+      );
+
+      const enrId = "50000000-0000-0000-0000-000000000001";
+      const offerId = "60000000-0000-0000-0000-000000000001";
+      await db.query(
+        `insert into enrollments (id, class_id, user_id, status, waitlist_pos)
+         values ($1, $2, $3, 'waitlisted', 1)`,
+        [enrId, classP, memP1.id],
+      );
+      await db.query(
+        `insert into waitlist_offers (id, enrollment_id, status, expires_at)
+         values ($1, $2, 'pending', now() + interval '1 hour')`,
+        [offerId, enrId],
+      );
+
+      await assert.rejects(
+        () => withTx(async (sql) => waitlistAccept(sql, offerId, memP1)),
+        (e: any) => e.extra?.br === "BR-18" && e.message.includes("court time, not classes"),
+      );
+    });
+
+    it("Frozen, pending, future start_on, expired, 0 left -> each its own message and code", async () => {
+      await setupP();
+
+      // Case 1: Frozen session plan
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'frozen', 5)`,
+        [subP1, memP1.id, planP],
+      );
+      await assert.rejects(
+        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
+        (e: any) => e.extra?.br === "BR-18" && e.message === "Your session plan is frozen. Unfreeze it at the desk to join a class.",
+      );
+
+      // Case 2: Pending plan
+      await db.query(`update subscriptions set status = 'pending' where id = $1`, [subP1]);
+      await assert.rejects(
+        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
+        (e: any) => e.extra?.br === "BR-18" && e.message === "You need a session plan for this sport to join a class.",
+      );
+
+      // Case 3: Future start_on
+      await db.query(`update subscriptions set status = 'active', start_on = current_date + 5 where id = $1`, [subP1]);
+      await assert.rejects(
+        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
+        (e: any) => e.extra?.br === "BR-18" && e.message.startsWith("Your session plan starts on "),
+      );
+
+      // Case 4: Expired plan (end_on in past)
+      await db.query(`update subscriptions set start_on = current_date - 10, end_on = current_date - 1 where id = $1`, [subP1]);
+      await assert.rejects(
+        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
+        (e: any) => e.extra?.br === "BR-19" && e.message === "Your session plan has ended.",
+      );
+
+      // Case 5: 0 left
+      await db.query(`update subscriptions set end_on = current_date + 30, session_left = 0 where id = $1`, [subP1]);
+      await assert.rejects(
+        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
+        (e: any) => e.extra?.br === "BR-20" && e.message === "You have no sessions left.",
+      );
+    });
+
+    it("Session plan with 3 left: enrol -> 3; Present -> 2; re-save -> 2; Excused -> 3; Absent -> 2; Leave -> 2", async () => {
+      await setupP();
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', 3)`,
+        [subP1, memP1.id, planP],
+      );
+
+      // 1. Enrol -> still 3
+      const enrRes = await withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1));
+      assert.equal(enrRes.status, 201);
+      const enrId = (enrRes.body as any).enrollment.id;
+
+      const sub1 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub1.session_left, 3);
+
+      // 2. Mark Present -> session_left becomes 2
+      const attReqPresent = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "present" }] }),
+      });
+      const attRes1 = await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReqPresent, coachP));
+      assert.equal(attRes1.status, 200);
+
+      const sub2 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub2.session_left, 2);
+
+      const charge1 = (await db.query<{ charged: boolean; subscription_id: string }>(
+        "select charged, subscription_id from session_charges where session_id = $1 and user_id = $2",
+        [sessP, memP1.id],
+      )).rows[0];
+      assert.equal(charge1.charged, true);
+      assert.equal(charge1.subscription_id, subP1);
+
+      // 3. Re-save Present -> still 2
+      const attReqPresent2 = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "present" }] }),
+      });
+      await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReqPresent2, coachP));
+      const sub3 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub3.session_left, 2);
+
+      // 4. Change to Excused -> session_left refunded to 3, charge row deleted
+      const attReqExcused = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "excused" }] }),
+      });
+      await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReqExcused, coachP));
+      const sub4 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub4.session_left, 3);
+
+      const charge2 = (await db.query(
+        "select * from session_charges where session_id = $1 and user_id = $2",
+        [sessP, memP1.id],
+      )).rows[0];
+      assert.equal(charge2, undefined);
+
+      // 5. Mark Absent -> session_left charged to 2
+      const attReqAbsent = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "absent" }] }),
+      });
+      await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReqAbsent, coachP));
+      const sub5 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub5.session_left, 2);
+
+      // 6. Leave class -> balance unchanged at 2 (no refund)
+      await withTx(async (sql) => enrollmentDelete(sql, enrId, memP1));
+      const sub6 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub6.session_left, 2);
+    });
+
+    it("Centre cancels a future session -> balance unchanged", async () => {
+      await setupP();
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', 5)`,
+        [subP1, memP1.id, planP],
+      );
+
+      await withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1));
+
+      const cancelReq = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason: "Weather issues" }),
+      });
+      const cancelRes = await withTx(async (sql) => sessionCancel(sql, sessP, cancelReq, mgrP));
+      assert.equal(cancelRes.status, 200);
+
+      const sub = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub.session_left, 5);
+    });
+
+    it("0 left at marking -> mark saved, uncharged returned, balance stays 0", async () => {
+      await setupP();
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', 1)`,
+        [subP1, memP1.id, planP],
+      );
+
+      await withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1));
+      await db.query(`update subscriptions set session_left = 0 where id = $1`, [subP1]);
+
+      const attReq = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "present" }] }),
+      });
+      const res = await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReq, coachP));
+      assert.equal(res.status, 200);
+      assert.deepEqual((res.body as any).uncharged, [
+        { user_id: memP1.id, reason: "You have no sessions left." },
+      ]);
+
+      const charge = (await db.query<{ charged: boolean }>(
+        "select charged from session_charges where session_id = $1 and user_id = $2",
+        [sessP, memP1.id],
+      )).rows[0];
+      assert.equal(charge.charged, false);
+
+      const sub = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub.session_left, 0);
+    });
+
+    it("prepaid_sessions = 1 -> first Present uses it, plan unchanged; leaving with it unused returns 1", async () => {
+      await setupP();
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', 5)`,
+        [subP1, memP1.id, planP],
+      );
+
+      const enrRes = await withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1));
+      const enrId1 = (enrRes.body as any).enrollment.id;
+      await db.query(`update enrollments set prepaid_sessions = 1 where id = $1`, [enrId1]);
+
+      const attReq = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "present" }] }),
+      });
+      await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReq, coachP));
+
+      const enrAfter = (await db.query<{ prepaid_sessions: number }>("select prepaid_sessions from enrollments where id = $1", [enrId1])).rows[0];
+      assert.equal(enrAfter.prepaid_sessions, 0);
+
+      const sub1 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(sub1.session_left, 5);
+
+      const charge1 = (await db.query<{ charged: boolean; subscription_id: string | null }>(
+        "select charged, subscription_id from session_charges where session_id = $1 and user_id = $2",
+        [sessP, memP1.id],
+      )).rows[0];
+      assert.equal(charge1.charged, true);
+      assert.equal(charge1.subscription_id, null);
+
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', 4)`,
+        [subP2, memP2.id, planP],
+      );
+      const enrRes2 = await withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP2));
+      const enrId2 = (enrRes2.body as any).enrollment.id;
+      await db.query(`update enrollments set prepaid_sessions = 1 where id = $1`, [enrId2]);
+
+      await withTx(async (sql) => enrollmentDelete(sql, enrId2, memP2));
+      const sub2 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP2])).rows[0];
+      assert.equal(sub2.session_left, 5);
+    });
+
+    it("Sport-specific plan is charged before an all plan", async () => {
+      await setupP();
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'all', current_date - 1, current_date + 30, 'active', 5)`,
+        [subP1, memP1.id, planP],
+      );
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', 3)`,
+        [subP2, memP1.id, planP],
+      );
+
+      await withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1));
+
+      const attReq = new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ user_id: memP1.id, result: "present" }] }),
+      });
+      await withTx(async (sql) => sessionAttendancePost(sql, sessP, attReq, coachP));
+
+      const subBadminton = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP2])).rows[0];
+      assert.equal(subBadminton.session_left, 2);
+
+      const subAll = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP1])).rows[0];
+      assert.equal(subAll.session_left, 5);
+
+      const charge = (await db.query<{ subscription_id: string }>(
+        "select subscription_id from session_charges where session_id = $1 and user_id = $2",
+        [sessP, memP1.id],
+      )).rows[0];
+      assert.equal(charge.subscription_id, subP2);
     });
   });

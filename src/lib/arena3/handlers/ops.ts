@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import { flagsMap, requireFlag, type FlagKey } from "../flags";
-import { assertNoClassClash, audit, classSubscription, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
+import { assertNoClassClash, audit, classPlan, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
@@ -162,17 +162,8 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   if (!cl) throw err.notFound();
   await assertNoClassClash(sql, user.id, enr.class_id);
   if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
-  const found = await classSubscription(sql, user.id, cl.sport);
-  if (!found) throw err.br("BR-19", "You need an active plan covering this sport.");
-  const sub = await one<{ id: string; session_left: number | null }>(
-    sql,
-    `select id, session_left from subscriptions where id = $1 for update`,
-    [found.id],
-  );
-  if (!sub) throw err.br("BR-19", "You need an active plan covering this sport.");
-  if (sub.session_left != null && sub.session_left <= 0) {
-    throw err.br("BR-20", "You have no sessions left.");
-  }
+  const planRes = await classPlan(sql, user.id, cl.sport);
+  if (!planRes.ok) throw err.br(planRes.code, planRes.message);
   await sql.query(
     `update enrollments set status = 'confirmed', waitlist_pos = null where id = $1`,
     [enr.id],
@@ -182,18 +173,6 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [enr.class_id],
   );
   await sql.query(`update waitlist_offers set status = 'accepted' where id = $1`, [offerId]);
-  if (sub.session_left != null) {
-    const took = await sql.query(
-      `update subscriptions
-          set session_left = session_left - 1
-        where id = $1 and session_left > 0
-       returning id`,
-      [sub.id],
-    );
-    if (took.length === 0) {
-      throw err.br("BR-20", "You have no sessions left.");
-    }
-  }
   await sql.query(`select waitlist_compact($1::uuid)`, [enr.class_id]);
   return { status: 200, body: { ok: true } };
 }
@@ -359,10 +338,12 @@ export async function sessionAttendanceGet(sql: Sql, sessionId: string, user: Pu
   };
   const roster = await sql.query(
     `select u.id, u.full_name, u.member_code, u.health_notes,
-            a.result, a.at
+            a.result, a.at,
+            (sc.charged = false) as uncharged
        from enrollments e
        join users u on u.id = e.user_id
        left join attendance a on a.session_id = $1 and a.user_id = u.id and a.kind = 'session'
+       left join session_charges sc on sc.session_id = $1 and sc.user_id = u.id
       where e.class_id = $2 and e.status = 'confirmed'
       order by u.full_name`,
     [sessionId, session.class_id],
@@ -463,6 +444,105 @@ export async function sessionAttendancePost(sql: Sql, sessionId: string, request
       [uid, session.id, result],
     );
   }
+
+  // D3, D4: charge per session when marking Present, Late or Absent. Excused is free.
+  const uncharged: Array<{ user_id: string; reason: string }> = [];
+  const chargeOutcomes: Record<string, { charged: boolean; reason?: string; subscription_id?: string | null }> = {};
+
+  for (const [uid, result] of marks) {
+    const existingCharge = await one<{
+      session_id: string;
+      user_id: string;
+      subscription_id: string | null;
+      charged: boolean;
+    }>(
+      sql,
+      `select session_id, user_id, subscription_id, charged from session_charges where session_id = $1 and user_id = $2 for update`,
+      [session.id, uid],
+    );
+
+    if (result === "excused") {
+      if (existingCharge) {
+        if (existingCharge.charged) {
+          if (existingCharge.subscription_id) {
+            await sql.query(
+              `update subscriptions set session_left = session_left + 1 where id = $1`,
+              [existingCharge.subscription_id],
+            );
+          } else {
+            await sql.query(
+              `update enrollments set prepaid_sessions = prepaid_sessions + 1 where class_id = $1 and user_id = $2`,
+              [session.class_id, uid],
+            );
+          }
+        }
+        await sql.query(
+          `delete from session_charges where session_id = $1 and user_id = $2`,
+          [session.id, uid],
+        );
+      }
+    } else {
+      // present, late, absent
+      if (!existingCharge) {
+        const enr = await one<{ id: string; prepaid_sessions: number }>(
+          sql,
+          `select id, prepaid_sessions from enrollments where class_id = $1 and user_id = $2 and status = 'confirmed'`,
+          [session.class_id, uid],
+        );
+        if (enr && enr.prepaid_sessions > 0) {
+          await sql.query(
+            `update enrollments set prepaid_sessions = prepaid_sessions - 1 where id = $1`,
+            [enr.id],
+          );
+          await sql.query(
+            `insert into session_charges (session_id, user_id, subscription_id, charged)
+             values ($1, $2, null, true)`,
+            [session.id, uid],
+          );
+          chargeOutcomes[uid] = { charged: true, subscription_id: null };
+        } else {
+          const planRes = await classPlan(sql, uid, session.sport, true);
+          if (planRes.ok) {
+            await sql.query(
+              `update subscriptions set session_left = session_left - 1 where id = $1`,
+              [planRes.sub.id],
+            );
+            await sql.query(
+              `insert into session_charges (session_id, user_id, subscription_id, charged)
+               values ($1, $2, $3, true)`,
+              [session.id, uid, planRes.sub.id],
+            );
+            chargeOutcomes[uid] = { charged: true, subscription_id: planRes.sub.id };
+          } else {
+            await sql.query(
+              `insert into session_charges (session_id, user_id, subscription_id, charged)
+               values ($1, $2, null, false)`,
+              [session.id, uid],
+            );
+            uncharged.push({ user_id: uid, reason: planRes.message });
+            chargeOutcomes[uid] = { charged: false, reason: planRes.message };
+          }
+        }
+      } else if (!existingCharge.charged) {
+        const planRes = await classPlan(sql, uid, session.sport, true);
+        if (planRes.ok) {
+          await sql.query(
+            `update subscriptions set session_left = session_left - 1 where id = $1`,
+            [planRes.sub.id],
+          );
+          await sql.query(
+            `update session_charges set charged = true, subscription_id = $3, at = now() where session_id = $1 and user_id = $2`,
+            [session.id, uid, planRes.sub.id],
+          );
+          chargeOutcomes[uid] = { charged: true, subscription_id: planRes.sub.id };
+        } else {
+          uncharged.push({ user_id: uid, reason: planRes.message });
+          chargeOutcomes[uid] = { charged: false, reason: planRes.message };
+        }
+      }
+    }
+  }
+
   await audit(
     sql,
     user.id,
@@ -470,12 +550,19 @@ export async function sessionAttendancePost(sql: Sql, sessionId: string, request
     "session",
     session.id,
     before,
-    { marks: Object.fromEntries(marks), ...(reason ? { reason } : {}) },
+    { marks: Object.fromEntries(marks), charges: chargeOutcomes, ...(reason ? { reason } : {}) },
   );
   // BR-36: only a fresh absence can start or extend a streak.
   const absent = [...marks].filter(([, r]) => r === "absent").map(([uid]) => uid);
   await checkAbsentStreaks(sql, session.class_id, absent);
-  return sessionAttendanceGet(sql, session.id, user);
+  const res = await sessionAttendanceGet(sql, session.id, user);
+  return {
+    status: 200,
+    body: {
+      ...res.body,
+      uncharged,
+    },
+  };
 }
 
 export async function trainingList(sql: Sql, request: Request, user: PublicUser) {

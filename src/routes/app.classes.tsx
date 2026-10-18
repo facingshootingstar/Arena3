@@ -10,7 +10,7 @@ import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { apiDelete, apiPost } from "@/lib/arena3/client";
 import { levelLabel, parseWeeklyRrule, rruleLabel, sportLabel } from "@/lib/arena3/labels";
-import { locale, t } from "@/lib/i18n";
+import { locale, t, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { HighlightBadge, useLive } from "@/lib/use-live";
 
@@ -43,8 +43,7 @@ type Enr = {
   next_session_at?: string | null;
   leave_until?: string | null;
 };
-/** What enrolling in a sport would take, from the plan enrolment picks (BR-19, BR-20). */
-type Access = { covered: boolean; session_left: number | null };
+type Access = { covered: boolean; session_left: number | null; code?: string; reason?: string };
 type Offer = { id: string; class_id: string; expires_at: string; sport: string; level: string };
 
 function Page() {
@@ -317,19 +316,9 @@ function Page() {
                       if (!a?.covered) {
                         return (
                           <div className="grid gap-2">
-                            <p className="text-sm text-muted">{t("Needs a {sport} plan", { sport: sportLabel(c.sport).toLowerCase() })}</p>
+                            <p className="text-sm text-muted">{a?.reason ? tServer(a.reason) : t("Needs a {sport} plan", { sport: sportLabel(c.sport).toLowerCase() })}</p>
                             <ButtonLink to="/app/plans" variant="outline" className="w-full">
                               {t("See plans")}
-                            </ButtonLink>
-                          </div>
-                        );
-                      }
-                      if (a.session_left != null && a.session_left <= 0) {
-                        return (
-                          <div className="grid gap-2">
-                            <p className="text-sm text-muted">{t("Your plan has no sessions left")}</p>
-                            <ButtonLink to="/app/plans" variant="outline" className="w-full">
-                              {t("Renew")}
                             </ButtonLink>
                           </div>
                         );
@@ -337,9 +326,7 @@ function Page() {
                       return (
                         <div className="grid gap-2">
                           <p className="text-xs text-muted">
-                            {a.session_left == null
-                              ? t("Included in your plan")
-                              : t("Uses 1 of your {n} sessions", { n: a.session_left })}
+                            {t("{n} sessions left · 1 session is used each time you attend (Present, Late or no-show). Excused absences are free.", { n: a.session_left ?? 0 })}
                           </p>
                           <Button
                             className="w-full"

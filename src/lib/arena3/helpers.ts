@@ -406,22 +406,105 @@ export function ageYears(dob: string): number {
   return age;
 }
 
-/** Active sub covering `sport`. Unlimited (session_left null) wins over quota. */
-export async function classSubscription(
+export type ClassPlanResult =
+  | { ok: true; sub: { id: string; session_left: number | null; sport_scope: string; end_on: string } }
+  | { ok: false; code: "BR-18" | "BR-19" | "BR-20"; message: string };
+
+/** Check session plan eligibility for class enrolment / attendance charging (D1, D2). */
+export async function classPlan(
   sql: Sql,
   userId: string,
   sport: string,
-): Promise<{ id: string; session_left: number | null } | undefined> {
-  return one<{ id: string; session_left: number | null }>(
-    sql,
-    `select id, session_left from subscriptions
-      where user_id = $1 and status = 'active'
-        and end_on >= (now() at time zone 'Asia/Ho_Chi_Minh')::date
-        and (sport_scope = $2 or sport_scope = 'all')
-      order by (session_left is null) desc, (sport_scope = $2) desc
-      limit 1`,
-    [userId, sport],
+  forUpdate = false,
+): Promise<ClassPlanResult> {
+  const subs = await sql.query<{
+    id: string;
+    sport_scope: string;
+    status: string;
+    start_on: string;
+    end_on: string;
+    session_left: number | null;
+  }>(
+      `select id, sport_scope::text as sport_scope, status::text as status,
+              start_on::text as start_on, end_on::text as end_on,
+              session_left
+         from subscriptions
+        where user_id = $1
+          and (sport_scope = $2 or sport_scope = 'all')`,
+      [userId, sport],
+    );
+
+  // 1. No subscription for the sport at all
+  if (subs.length === 0) {
+    return { ok: false, code: "BR-18", message: "You need a session plan for this sport to join a class." };
+  }
+
+  // 2. Only time-based plans
+  const sessionPlans = subs.filter((s) => s.session_left != null);
+  if (sessionPlans.length === 0) {
+    return { ok: false, code: "BR-18", message: "Your plan covers court time, not classes. Buy a session plan to join a class." };
+  }
+
+  const today = (await one<{ today: string }>(sql, `select (now() at time zone 'Asia/Ho_Chi_Minh')::date::text as today`))?.today ?? new Date().toISOString().slice(0, 10);
+
+  // Usable session plans
+  const usable = sessionPlans.filter(
+    (s) => s.status === "active" && s.start_on <= today && s.end_on >= today && (s.session_left ?? 0) > 0,
   );
+
+  if (usable.length > 0) {
+    usable.sort((a, b) => {
+      const aSpecific = a.sport_scope === sport ? 0 : 1;
+      const bSpecific = b.sport_scope === sport ? 0 : 1;
+      if (aSpecific !== bSpecific) return aSpecific - bSpecific;
+      if (a.end_on !== b.end_on) return a.end_on.localeCompare(b.end_on);
+      return a.id.localeCompare(b.id);
+    });
+    const chosen = usable[0];
+    if (forUpdate) {
+      const locked = await one<{ id: string; session_left: number | null; sport_scope: string; end_on: string }>(
+        sql,
+        `select id, session_left, sport_scope::text as sport_scope, end_on::text as end_on
+           from subscriptions where id = $1 for update`,
+        [chosen.id],
+      );
+      return { ok: true, sub: locked! };
+    }
+    return { ok: true, sub: chosen };
+  }
+
+  // Check non-usable in order:
+  // - session plan frozen
+  const frozen = sessionPlans.find((s) => s.status === "frozen");
+  if (frozen) {
+    return { ok: false, code: "BR-18", message: "Your session plan is frozen. Unfreeze it at the desk to join a class." };
+  }
+
+  // - session plan pending
+  const pending = sessionPlans.find((s) => s.status === "pending");
+  if (pending) {
+    return { ok: false, code: "BR-18", message: "You need a session plan for this sport to join a class." };
+  }
+
+  // - session plan not yet started (start_on > today)
+  const future = sessionPlans.find((s) => s.start_on > today);
+  if (future) {
+    return { ok: false, code: "BR-18", message: `Your session plan starts on ${future.start_on}.` };
+  }
+
+  // - session plan expired
+  const expired = sessionPlans.find((s) => s.end_on < today || s.status === "expired");
+  if (expired) {
+    return { ok: false, code: "BR-19", message: "Your session plan has ended." };
+  }
+
+  // - session_left <= 0
+  const zeroLeft = sessionPlans.find((s) => (s.session_left ?? 0) <= 0);
+  if (zeroLeft) {
+    return { ok: false, code: "BR-20", message: "You have no sessions left." };
+  }
+
+  return { ok: false, code: "BR-18", message: "You need a session plan for this sport to join a class." };
 }
 
 export type ClassPattern = { rrule: string; duration_min: number; start_on: string; end_on: string };

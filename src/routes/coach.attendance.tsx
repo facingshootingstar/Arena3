@@ -41,6 +41,7 @@ type AttRow = {
   member_code: string | null;
   health_notes: string | null;
   result: string | null;
+  uncharged?: boolean | null;
 };
 
 type AttMeta = { locked: boolean; lock_at: string | null; status: string };
@@ -247,6 +248,7 @@ function RegisterPanel({
   // Only what the coach changed; every other student shows what the server holds. A roll that has
   // not been marked yet starts with everyone present, as it always did.
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [unchargedMap, setUnchargedMap] = useState<Record<string, boolean>>({});
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -289,10 +291,20 @@ function RegisterPanel({
     setSaving(true);
     setSaveError(null);
     try {
-      await apiPost(`/sessions/${session.id}/attendance`, {
-        items: rows.map((u) => ({ user_id: u.id, result: mark(u) })),
-        ...(locked ? { reason } : {}),
-      });
+      const res = await apiPost<{ uncharged?: Array<{ user_id: string; reason: string }> }>(
+        `/sessions/${session.id}/attendance`,
+        {
+          items: rows.map((u) => ({ user_id: u.id, result: mark(u) })),
+          ...(locked ? { reason } : {}),
+        },
+      );
+      if (res?.uncharged?.length) {
+        const m: Record<string, boolean> = {};
+        for (const item of res.uncharged) {
+          m[item.user_id] = true;
+        }
+        setUnchargedMap(m);
+      }
       toast.success(locked ? t("Register corrected") : t("Register saved"));
       setReason("");
       setJustSaved(true);
@@ -388,6 +400,11 @@ function RegisterPanel({
                 {u.health_notes ? (
                   <p className="mt-0.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm text-danger">
                     {tData(u.health_notes)}
+                  </p>
+                ) : null}
+                {u.uncharged || unchargedMap[u.id] ? (
+                  <p className="mt-1">
+                    <Badge tone="danger">{t("No sessions left: send them to the desk")}</Badge>
                   </p>
                 ) : null}
               </div>

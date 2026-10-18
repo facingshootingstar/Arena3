@@ -127,7 +127,13 @@ export function planBenefits(s: {
 }): string[] {
   const out: string[] = [];
   if ((s.plan_court_hours ?? 0) > 0) out.push(t("{n} court hours left", { n: Number(s.court_hours_left) }));
-  if (s.plan_session_quota != null) out.push(t("{n} sessions left", { n: s.session_left ?? 0 }));
+  if (s.plan_session_quota != null) {
+    out.push(
+      t("{n} sessions left · 1 session is used each time you attend (Present, Late or no-show). Excused absences are free.", {
+        n: s.session_left ?? 0,
+      }),
+    );
+  }
   if ((s.court_discount_pct ?? 0) > 0) out.push(t("{n}% off courts", { n: s.court_discount_pct ?? 0 }));
   return out.length ? out : [t("Membership")];
 }

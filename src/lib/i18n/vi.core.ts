@@ -247,6 +247,8 @@ export const core: Record<string, string> = {
   "Sun": "CN",
   "{n} court hours left": "Còn {n} giờ sân",
   "{n} sessions left": "Còn {n} buổi",
+  "{n} sessions left · 1 session is used each time you attend (Present, Late or no-show). Excused absences are free.": "Còn {n} buổi · mỗi buổi học có mặt, đi trễ hoặc vắng không phép trừ 1 buổi. Vắng có phép không trừ.",
+  "No sessions left: send them to the desk": "Hết buổi tập: mời học viên đến quầy.",
   "{n}% off courts": "Giảm {n}% giá sân",
   "Membership": "Gói hội viên",
   "Cash": "Tiền mặt",
