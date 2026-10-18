@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { isValidVnPhone, normalizePhone, passwordOk, phoneLast9 } from "./phone.ts";
 import { rruleLabel } from "./labels.ts";
 import { numberToVietnamese, vndInWords } from "./money-words.ts";
-import { addDays, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
+import { addDays, ageYears, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
 import { ApiError, mapDbError } from "./errors.ts";
 import { checkOpeningHours, pageParams, parseSettingsPatch } from "./validate.ts";
 import { alignOffset, lastPageOffset, pageWindow } from "../paging.ts";
@@ -58,6 +58,14 @@ describe("time / price slot", () => {
   });
   it("addDays stays on the calendar date", () => {
     assert.equal(addDays("2026-09-30", 1), "2026-10-01");
+  });
+  it("ageYears calculates age in years in ICT", () => {
+    assert.equal(ageYears(null), 0);
+    assert.equal(ageYears(""), 0);
+    assert.equal(ageYears("invalid"), 0);
+    const now = new Date();
+    const twentyYearsAgo = `${now.getFullYear() - 20}-01-01`;
+    assert.equal(ageYears(twentyYearsAgo), 20);
   });
 });
 

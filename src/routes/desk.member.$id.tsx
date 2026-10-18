@@ -1,9 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { AlertTriangle, Calendar, CheckCircle2, Mail, Phone } from "lucide-react";
 import { SectionTitle } from "@/components/section";
 import { PayOnlineButton } from "@/components/pay-online";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   Badge,
   Button,
@@ -26,7 +28,8 @@ import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { ApiClientError, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
-import { METHOD_LABEL, formatDate, refTypeLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
+import { METHOD_LABEL, formatDate, levelLabel, refTypeLabel, rruleLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
+import { ageYears } from "@/lib/arena3/time";
 import { t, tServer, tData } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
@@ -54,7 +57,18 @@ function parseVnd(raw: string) {
 }
 
 type Member = {
-  user: { full_name: string; phone: string; member_code: string | null; date_of_birth: string | null };
+  user: {
+    id: string;
+    full_name: string;
+    phone: string;
+    email: string | null;
+    member_code: string | null;
+    status: string;
+    date_of_birth: string | null;
+    health_notes: string | null;
+    created_at: string | null;
+    avatar_url: string | null;
+  };
   guardian: { name: string | null; phone: string | null };
   subscriptions: Array<{
     id: string;
@@ -63,10 +77,33 @@ type Member = {
     end_on: string;
     sport_scope: string;
     court_hours_left: number;
+    session_left: number | null;
+    plan_session_quota?: number | null;
     frozen_days?: number;
     /** What "Take payment" collects, worked out by the server: price less any code on the order. */
     due_vnd: number;
   }>;
+  enrollments?: Array<{
+    id: string;
+    class_id: string;
+    status: string;
+    sport: string;
+    level: string;
+    rrule: string;
+    duration_min: number;
+    coach_name: string;
+    court_code: string | null;
+    waitlist_pos: number | null;
+    offer_pending: boolean;
+    offer_expires_at: string | null;
+  }>;
+  attendance_summary?: {
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    last_visit_at: string | null;
+  };
   payments: Payment[];
   today: {
     bookings: Array<{ id: string; code: string; start_at: string; status: string; court_code: string; price_vnd: number; paid_vnd: number }>;
@@ -86,6 +123,8 @@ function Page() {
   const flagsRead = useRead<{ capabilities?: { online_payment?: boolean } }>("/flags");
   const onlineOn = Boolean(flagsRead.data?.capabilities?.online_payment);
   const plansRead = useRead<{ items: Array<{ id: string; name: string; price_vnd: number }> }>("/plans");
+  const settingsRead = useRead<{ settings?: { minor_age?: number } }>("/settings");
+  const minorAge = settingsRead.data?.settings?.minor_age ?? 18;
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [transferSub, setTransferSub] = useState<Member["subscriptions"][number] | null>(null);
   const [subMethod, setSubMethod] = useState<Record<string, "cash" | "transfer">>({});
@@ -251,27 +290,140 @@ function Page() {
         ? t("Only {amount} of this payment is still refundable.", { amount: money(refunding.refundable_vnd) })
         : "";
 
+  const age = data.user.date_of_birth ? ageYears(data.user.date_of_birth) : null;
+  const isMinor = age != null && age < minorAge;
+
   return (
-    <Shell
-      role={role}
-      title={data.user.full_name}
-      subtitle={[data.user.member_code, data.user.phone].filter(Boolean).join(" · ")}
-    >
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Button size="sm" variant="outline" onClick={openEdit}>
-          {t("Edit profile")}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            setResetErr("");
-            setResetStep("confirm");
-          }}
-        >
-          {t("Reset password")}
-        </Button>
+    <Shell role={role}>
+      {/* Header block (Task M: Section 5.3) */}
+      <div className="mb-6 rounded-[var(--radius-xl)] border border-line bg-surface p-4 sm:p-6 shadow-[var(--shadow-border)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3.5 sm:gap-4 min-w-0">
+            <div className="size-14 sm:size-[72px] shrink-0">
+              <UserAvatar
+                name={data.user.full_name}
+                url={data.user.avatar_url}
+                className="size-14 sm:size-[72px]"
+                initialsClassName="text-xl sm:text-2xl"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl break-words text-fg">
+                  {data.user.full_name}
+                </h1>
+                {data.user.member_code ? (
+                  <span className="font-mono text-xs tabular-nums text-muted bg-wood px-2 py-0.5 rounded">
+                    {data.user.member_code}
+                  </span>
+                ) : null}
+                <StatusBadge status={data.user.status} />
+                {isMinor ? (
+                  <Badge tone="hold" className="font-semibold">
+                    {t("Minor")}
+                  </Badge>
+                ) : null}
+              </div>
+
+              {/* Line 2: Age + DOB or "Date of birth not recorded" + Add */}
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+                {data.user.date_of_birth ? (
+                  <span>
+                    {t("{age} years · born {date}", {
+                      age: age ?? 0,
+                      date: formatDate(data.user.date_of_birth),
+                    })}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <span>{t("Date of birth not recorded")}</span>
+                    <button
+                      type="button"
+                      onClick={openEdit}
+                      className="text-accent underline hover:opacity-80 cursor-pointer font-medium"
+                    >
+                      {t("Add")}
+                    </button>
+                  </span>
+                )}
+
+                {isMinor && data.guardian.name ? (
+                  <span className="flex items-center gap-1 border-l border-line pl-2 text-xs">
+                    <span className="text-muted">{t("Guardian:")}</span>
+                    <span className="font-medium text-fg">{data.guardian.name}</span>
+                    {data.guardian.phone ? (
+                      <a
+                        href={`tel:${data.guardian.phone}`}
+                        className="text-accent underline ml-1"
+                      >
+                        {data.guardian.phone}
+                      </a>
+                    ) : null}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Line 3: Contact & Member since */}
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                {data.user.phone ? (
+                  <a href={`tel:${data.user.phone}`} className="hover:text-fg underline inline-flex items-center gap-1">
+                    <Phone className="size-3 text-subtle" />
+                    <span>{data.user.phone}</span>
+                  </a>
+                ) : null}
+                {data.user.email ? (
+                  <a href={`mailto:${data.user.email}`} className="hover:text-fg underline inline-flex items-center gap-1">
+                    <Mail className="size-3 text-subtle" />
+                    <span>{data.user.email}</span>
+                  </a>
+                ) : null}
+                {data.user.created_at ? (
+                  <span className="inline-flex items-center gap-1 text-subtle">
+                    <Calendar className="size-3 text-subtle" />
+                    <span>{t("Member since {date}", { date: formatDate(data.user.created_at) })}</span>
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            <Button size="sm" variant="outline" onClick={openEdit}>
+              {t("Edit profile")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setResetErr("");
+                setResetStep("confirm");
+              }}
+            >
+              {t("Reset password")}
+            </Button>
+          </div>
+        </div>
+
+        {/* Health notes callout */}
+        <div className="mt-4 pt-3 border-t border-line/60">
+          {data.user.health_notes ? (
+            <div className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 flex items-start gap-2.5">
+              <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" />
+              <div>
+                <span className="font-semibold text-amber-300 mr-2">{t("Health notes:")}</span>
+                <span className="text-fg">{data.user.health_notes}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted flex items-center gap-1.5">
+              <CheckCircle2 className="size-3.5 text-muted" />
+              <span>{t("No health notes")}</span>
+            </div>
+          )}
+        </div>
       </div>
+
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
         {data.subscriptions.map((s) => (
           <StaggerItem key={s.id} className="h-full">
@@ -283,6 +435,24 @@ function Page() {
             <p className="text-sm text-muted">
               {sportLabel(s.sport_scope)} · {t("through {date}", { date: formatDate(s.end_on) })} · {t("{n} court hours", { n: Number(s.court_hours_left) })}
             </p>
+            {s.session_left != null ? (
+              <p className="mt-1 text-sm font-medium text-accent-2">
+                {t("{left} of {quota} sessions left", {
+                  left: s.session_left,
+                  quota: s.plan_session_quota ?? s.session_left,
+                })}
+              </p>
+            ) : null}
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span>
+                {t("{n} days left", {
+                  n: Math.max(0, Math.ceil((new Date(s.end_on).getTime() - new Date().setHours(0,0,0,0)) / 86400000)),
+                })}
+              </span>
+              {s.frozen_days != null && s.frozen_days > 0 ? (
+                <span>· {t("{n} frozen days used", { n: s.frozen_days })}</span>
+              ) : null}
+            </div>
             {(s.status === "pending" || s.status === "active") && s.due_vnd > 0 ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Select
@@ -366,6 +536,87 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
+
+      <SectionTitle text={t("Classes")} className="mt-8 font-display text-2xl" />
+      {(!data.enrollments || data.enrollments.length === 0) ? (
+        <p className="mt-3 text-sm text-muted">{t("No class enrolments")}</p>
+      ) : (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {data.enrollments.map((enr) => (
+            <Card key={enr.id} className="flex flex-col justify-between p-4">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-fg">
+                    {sportLabel(enr.sport)} · {levelLabel(enr.level)}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {enr.status === "waitlisted" ? (
+                      <Badge tone="hold">
+                        {t("Waitlist #{pos}", { pos: enr.waitlist_pos ?? 1 })}
+                      </Badge>
+                    ) : (
+                      <Badge tone="accent">{t("Confirmed")}</Badge>
+                    )}
+                    {enr.offer_pending ? (
+                      <Badge tone="accent" className="animate-pulse">
+                        {t("Offer pending")}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  {t("Coach: {name}", { name: enr.coach_name })}
+                  {enr.court_code ? ` · ${enr.court_code}` : ""}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {rruleLabel(enr.rrule)}
+                </p>
+              </div>
+              <div className="mt-3 pt-2 border-t border-line/60 flex items-center justify-between">
+                <Link
+                  to={role === "manager" ? "/manager/classes" : "/desk/classes"}
+                  className="text-xs text-accent underline hover:opacity-80"
+                >
+                  {t("View class schedule")}
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <SectionTitle text={t("Attendance, last 30 days")} className="mt-8 font-display text-2xl" />
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="p-3 text-center">
+          <div className="text-2xl font-bold text-accent-2 tabular-nums">
+            {data.attendance_summary?.present ?? 0}
+          </div>
+          <div className="mt-0.5 text-xs text-muted">{t("Present")}</div>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="text-2xl font-bold text-amber-400 tabular-nums">
+            {data.attendance_summary?.late ?? 0}
+          </div>
+          <div className="mt-0.5 text-xs text-muted">{t("Late")}</div>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="text-2xl font-bold text-red-400 tabular-nums">
+            {data.attendance_summary?.absent ?? 0}
+          </div>
+          <div className="mt-0.5 text-xs text-muted">{t("Absent")}</div>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="text-2xl font-bold text-muted tabular-nums">
+            {data.attendance_summary?.excused ?? 0}
+          </div>
+          <div className="mt-0.5 text-xs text-muted">{t("Excused")}</div>
+        </Card>
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        {data.attendance_summary?.last_visit_at
+          ? t("Last visit: {date}", { date: formatDate(data.attendance_summary.last_visit_at) })
+          : t("No visits recorded")}
+      </p>
 
       <SectionTitle text={t("Sell another plan")} className="mt-8 font-display text-2xl" />
       {plansRead.error ? (

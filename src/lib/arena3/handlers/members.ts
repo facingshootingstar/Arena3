@@ -3,7 +3,7 @@ import { hashPassword } from "../crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, phoneLast9, unaccentVi } from "../phone";
-import { requireRole, toPublic, type PublicUser } from "../session";
+import { PUBLIC_COLS, requireRole, toPublic, type PublicUser } from "../session";
 import { one } from "../tx";
 import { revoke, tempPassword } from "./staff";
 import { getActiveSportCodes } from "./sports";
@@ -92,7 +92,7 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
   requireRole(user, ["manager", "receptionist", "coach"]);
   const m = await one<Record<string, unknown>>(
     sql,
-    `select id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password
+    `select ${PUBLIC_COLS}, created_at, pii_consent_at
        from users where id = $1`,
     [id],
   );
@@ -113,7 +113,7 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
     // price less any code already on an unpaid order, or the full price for a renewal. The desk sends
     // this number rather than working it out, so a code on the order can never make it come out wrong.
     `select s.id, s.status, s.start_on::text, s.end_on::text, s.sport_scope, s.court_hours_left, s.session_left,
-            s.frozen_days, p.name as plan_name, coalesce(s.price_vnd, p.price_vnd)::int as price_vnd,
+            s.frozen_days, p.name as plan_name, p.session_quota as plan_session_quota, coalesce(s.price_vnd, p.price_vnd)::int as price_vnd,
             (coalesce(s.price_vnd, p.price_vnd) - case when s.status::text = 'pending' then coalesce(s.promo_discount_vnd, 0) else 0 end)::int as due_vnd
        from subscriptions s join membership_plans p on p.id = s.plan_id
       where s.user_id = $1 order by s.end_on desc`,
@@ -146,41 +146,85 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
             = (now() at time zone 'Asia/Ho_Chi_Minh')::date`,
     [id],
   );
-  /*
-   * What this member has paid, and how much of it is still the centre's to
-   * give back.
-   *
-   * `refundable_vnd` is computed here rather than left to the screen because
-   * the screen cannot see it: refunds are separate rows that carry no link to
-   * the payment they undo, so "how much of this is left" is a question about
-   * the whole ledger for that booking or subscription, not about one row. The
-   * same arithmetic guards the refund endpoint — this is the desk being shown
-   * the answer before it presses the button rather than after.
-   */
-  const payments = await sql.query(
-    `select p.id, p.code, p.method, p.amount_vnd, p.status, p.created_at,
-            p.ref_type, p.ref_id, i.id as invoice_id,
-            least(p.amount_vnd, greatest((
-              select coalesce(sum(q.amount_vnd) filter (where q.amount_vnd > 0 and q.status = 'posted'), 0)
-                   - coalesce(sum(-q.amount_vnd) filter (where q.amount_vnd < 0 and q.status in ('posted','refund_pending')), 0)
-                from payments q
-               where q.ref_type = p.ref_type and q.ref_id = p.ref_id
-            ), 0))::int as refundable_vnd
-       from payments p
-       left join invoices i on i.payment_id = p.id
-      where p.user_id = $1
-      order by p.created_at desc
-      limit 20`,
+
+  const enrollments = await sql.query(
+    `select e.id, e.class_id, e.status::text as status,
+            c.sport::text as sport, c.level, c.rrule, c.duration_min,
+            u_coach.full_name as coach_name,
+            ct.court_code,
+            case when e.status = 'waitlisted' then (
+              select count(*) from enrollments w
+               where w.class_id = e.class_id and w.status = 'waitlisted' and (w.waitlist_pos, w.id) <= (e.waitlist_pos, e.id)
+            ) end as waitlist_pos,
+            exists(
+              select 1 from waitlist_offers o
+               where o.enrollment_id = e.id and o.status = 'pending' and o.expires_at > now()
+            ) as offer_pending,
+            (select o.expires_at from waitlist_offers o where o.enrollment_id = e.id and o.status = 'pending' and o.expires_at > now() limit 1) as offer_expires_at
+       from enrollments e
+       join classes c on c.id = e.class_id
+       join users u_coach on u_coach.id = c.coach_id
+       left join courts ct on ct.id = c.court_id
+      where e.user_id = $1 and e.status in ('confirmed', 'waitlisted')
+      order by e.status, e.waitlist_pos nulls first, c.start_on`,
     [id],
   );
+
+  const attSummary = (await one<{
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    last_visit_at: string | null;
+  }>(
+    sql,
+    `select
+       coalesce(sum(case when kind = 'session' and result = 'present' and at >= now() - interval '30 days' then 1 else 0 end), 0)::int as present,
+       coalesce(sum(case when kind = 'session' and result = 'late' and at >= now() - interval '30 days' then 1 else 0 end), 0)::int as late,
+       coalesce(sum(case when kind = 'session' and result = 'absent' and at >= now() - interval '30 days' then 1 else 0 end), 0)::int as absent,
+       coalesce(sum(case when kind = 'session' and result = 'excused' and at >= now() - interval '30 days' then 1 else 0 end), 0)::int as excused,
+       (select max(at)::text from attendance where user_id = $1) as last_visit_at
+      from attendance
+     where user_id = $1`,
+    [id],
+  )) ?? { present: 0, late: 0, absent: 0, excused: 0, last_visit_at: null };
+
+  let payments: unknown[] = [];
+  if (user.role !== "coach") {
+    payments = await sql.query(
+      `select p.id, p.code, p.method, p.amount_vnd, p.status, p.created_at,
+              p.ref_type, p.ref_id, i.id as invoice_id,
+              least(p.amount_vnd, greatest((
+                select coalesce(sum(q.amount_vnd) filter (where q.amount_vnd > 0 and q.status = 'posted'), 0)
+                     - coalesce(sum(-q.amount_vnd) filter (where q.amount_vnd < 0 and q.status in ('posted','refund_pending')), 0)
+                  from payments q
+                 where q.ref_type = p.ref_type and q.ref_id = p.ref_id
+              ), 0))::int as refundable_vnd
+         from payments p
+         left join invoices i on i.payment_id = p.id
+        where p.user_id = $1
+        order by p.created_at desc
+        limit 20`,
+      [id],
+    );
+  }
+
+  const userObj = {
+    ...toPublic(m),
+    created_at: m.created_at ? new Date(m.created_at as string | Date).toISOString() : null,
+    pii_consent_at: user.role === "coach" ? undefined : (m.pii_consent_at ? new Date(m.pii_consent_at as string | Date).toISOString() : null),
+  };
+
   return {
     status: 200,
     body: {
-      user: toPublic(m),
+      user: userObj,
       guardian: { name: guardian?.guardian_name ?? null, phone: guardian?.guardian_phone ?? null },
       subscriptions: subs,
-      payments,
+      ...(user.role !== "coach" ? { payments } : {}),
       today: { bookings, classes },
+      enrollments,
+      attendance_summary: attSummary,
     },
   };
 }
@@ -338,6 +382,7 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
   const rows = await sql.query(
     `with base as (
        select u.id, u.member_code, u.full_name, u.phone, u.status::text as status, u.created_at,
+              u.date_of_birth::text as date_of_birth,
               u.name_normalized, latest.plan_name, latest.sport_scope, latest.end_on, latest.sub_status,
               (select count(*) from enrollments e where e.user_id = u.id and e.status = 'confirmed')::int as classes,
               case

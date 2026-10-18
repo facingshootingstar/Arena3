@@ -21,7 +21,7 @@ export type PublicUser = {
 
 export type AuthUser = PublicUser & { password_hash: string };
 
-const PUBLIC_COLS =
+export const PUBLIC_COLS =
   "id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password, (select version from user_avatars a where a.user_id = users.id) as avatar_version";
 
 export function toPublic(u: Record<string, unknown>): PublicUser {

@@ -37,6 +37,8 @@ const { setOverridePaymentLinkCreator } = await import("./payos.ts");
 const chatH = await import("./handlers/chat.ts");
 const avatarH = await import("./handlers/avatar.ts");
 const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
+const membersH = await import("./handlers/members.ts");
+const { memberGet, membersDirectory, membersSearch } = membersH;
 
 let db: PGlite;
 
@@ -3800,5 +3802,173 @@ describe("Round 10: Two-way Chat unit tests", () => {
         [sessP, memP1.id],
       )).rows[0];
       assert.equal(charge.subscription_id, subP2);
+    });
+  });
+
+  describe("Task M: full member profile for reception and manager", () => {
+    const memM1 = { id: "e0000000-0000-0000-0000-000000000001", phone: "+84999992001", full_name: "M Member 1", role: "member" } as any;
+    const memM2 = { id: "e0000000-0000-0000-0000-000000000002", phone: "+84999992002", full_name: "M Member 2", role: "member" } as any;
+    const coachM = { id: "e0000000-0000-0000-0000-000000000003", phone: "+84999992003", full_name: "M Coach", role: "coach" } as any;
+    const mgrM = { id: "e0000000-0000-0000-0000-000000000004", phone: "+84999992004", full_name: "M Manager", role: "manager" } as any;
+    const recM = { id: "e0000000-0000-0000-0000-000000000005", phone: "+84999992005", full_name: "M Reception", role: "receptionist" } as any;
+
+    const classM1 = "f0000000-0000-0000-0000-000000000001";
+    const classM2 = "f0000000-0000-0000-0000-000000000002";
+    const courtM = "10000000-0000-0000-0000-000000000001";
+    const planM = "20000000-0000-0000-0000-000000000003";
+    const subM1 = "e1000000-0000-0000-0000-000000000001";
+
+    async function cleanupM() {
+      await db.query("delete from attendance where user_id in ($1, $2)", [memM1.id, memM2.id]);
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id in ($1, $2))", [classM1, classM2]);
+      await db.query("delete from enrollments where class_id in ($1, $2) or user_id in ($3, $4)", [classM1, classM2, memM1.id, memM2.id]);
+      await db.query("delete from classes where id in ($1, $2)", [classM1, classM2]);
+      await db.query("delete from subscriptions where user_id in ($1, $2)", [memM1.id, memM2.id]);
+      await db.query("delete from payments where user_id in ($1, $2)", [memM1.id, memM2.id]);
+      await db.query("delete from users where id in ($1, $2, $3, $4, $5)", [memM1.id, memM2.id, coachM.id, mgrM.id, recM.id]);
+    }
+
+    async function setupM() {
+      await cleanupM();
+      for (const u of [coachM, mgrM, recM]) {
+        await db.query(
+          `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+           values ($1, $2, $3, $4, $5, 'hash')`,
+          [u.id, u.phone, u.full_name, u.full_name.toLowerCase(), u.role],
+        );
+      }
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash, email, status, date_of_birth, pii_consent_at, guardian_name, guardian_phone, created_at)
+         values ($1, $2, $3, $4, 'member', 'hash', 'm1@example.com', 'active', '2008-05-15', now(), 'Guardian One', '+84999992099', now() - interval '60 days')`,
+        [memM1.id, memM1.phone, memM1.full_name, memM1.full_name.toLowerCase()],
+      );
+      await db.query(
+        `insert into users (id, phone, full_name, name_normalized, role, password_hash, status, date_of_birth, created_at)
+         values ($1, $2, $3, $4, 'member', 'hash', 'active', '1995-10-20', now() - interval '100 days')`,
+        [memM2.id, memM2.phone, memM2.full_name, memM2.full_name.toLowerCase()],
+      );
+
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'Beginner', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=18', current_date - 10, current_date + 30, 60, 5, 'open', 1)`,
+        [classM1, coachM.id, courtM],
+      );
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'Advanced', $2, $3, 'FREQ=WEEKLY;BYDAY=TH;BYHOUR=19', current_date - 10, current_date + 30, 60, 5, 'open', 1)`,
+        [classM2, coachM.id, courtM],
+      );
+
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left, price_vnd)
+         values ($1, $2, $3, 'badminton', current_date - 5, current_date + 25, 'active', 7, 500000)`,
+        [subM1, memM1.id, planM],
+      );
+
+      const enr1 = "e2000000-0000-0000-0000-000000000001";
+      const enr2 = "e2000000-0000-0000-0000-000000000002";
+      await db.query(
+        `insert into enrollments (id, class_id, user_id, status, waitlist_pos)
+         values ($1, $2, $3, 'confirmed', null)`,
+        [enr1, classM1, memM1.id],
+      );
+      await db.query(
+        `insert into enrollments (id, class_id, user_id, status, waitlist_pos)
+         values ($1, $2, $3, 'waitlisted', 1)`,
+        [enr2, classM2, memM1.id],
+      );
+      await db.query(
+        `insert into waitlist_offers (id, enrollment_id, status, expires_at)
+         values ('e3000000-0000-0000-0000-000000000001', $1, 'pending', now() + interval '2 hours')`,
+        [enr2],
+      );
+
+      await db.query(
+        `insert into attendance (user_id, kind, result, at)
+         values
+           ($1, 'session', 'present', now() - interval '2 days'),
+           ($1, 'session', 'late', now() - interval '5 days'),
+           ($1, 'session', 'absent', now() - interval '10 days'),
+           ($1, 'session', 'excused', now() - interval '15 days'),
+           ($1, 'session', 'present', now() - interval '40 days')`,
+        [memM1.id],
+      );
+
+      await db.query(
+        `insert into payments (id, user_id, code, method, amount_vnd, vat_rate, status, ref_type, ref_id)
+         values ('e4000000-0000-0000-0000-000000000001', $1, 'PAY-M1', 'cash', 500000, 8, 'posted', 'subscription', $2)`,
+        [memM1.id, subM1],
+      );
+    }
+
+    after(async () => {
+      await cleanupM();
+    });
+
+    it("memberGet returns full profile: user fields, enrollments, attendance_summary, plan_session_quota", async () => {
+      await setupM();
+      const res = await withTx(async (sql) => memberGet(sql, memM1.id, mgrM));
+      assert.equal(res.status, 200);
+      const b = res.body as any;
+
+      assert.equal(b.user.id, memM1.id);
+      assert.equal(b.user.email, "m1@example.com");
+      assert.equal(b.user.status, "active");
+      assert.ok(b.user.created_at);
+      assert.ok(b.user.pii_consent_at);
+
+      assert.equal(b.guardian.name, "Guardian One");
+      assert.equal(b.guardian.phone, "+84999992099");
+
+      assert.equal(b.subscriptions.length, 1);
+      assert.equal(b.subscriptions[0].plan_session_quota, 10);
+      assert.equal(b.subscriptions[0].session_left, 7);
+
+      assert.equal(b.enrollments.length, 2);
+      const conf = b.enrollments.find((e: any) => e.status === "confirmed");
+      assert.ok(conf);
+      assert.equal(conf.coach_name, "M Coach");
+      const wait = b.enrollments.find((e: any) => e.status === "waitlisted");
+      assert.ok(wait);
+      assert.equal(wait.waitlist_pos, 1);
+      assert.equal(wait.offer_pending, true);
+      assert.ok(wait.offer_expires_at);
+
+      assert.equal(b.attendance_summary.present, 1);
+      assert.equal(b.attendance_summary.late, 1);
+      assert.equal(b.attendance_summary.absent, 1);
+      assert.equal(b.attendance_summary.excused, 1);
+      assert.ok(b.attendance_summary.last_visit_at);
+
+      assert.ok(b.payments && b.payments.length >= 1);
+    });
+
+    it("memberGet for coach strips payments and pii_consent_at, forbids non-taught member", async () => {
+      await setupM();
+
+      const res = await withTx(async (sql) => memberGet(sql, memM1.id, coachM));
+      assert.equal(res.status, 200);
+      const b = res.body as any;
+      assert.equal(b.payments, undefined);
+      assert.equal(b.user.pii_consent_at, undefined);
+
+      await assert.rejects(
+        () => withTx(async (sql) => memberGet(sql, memM2.id, coachM)),
+        (err: any) => err.status === 403,
+      );
+    });
+
+    it("membersDirectory returns date_of_birth for members", async () => {
+      await setupM();
+      const req = new Request("http://localhost?limit=10&q=M%20Member");
+      const res = await withTx(async (sql) => membersDirectory(sql, req, mgrM));
+      assert.equal(res.status, 200);
+      const b = res.body as any;
+      const m1 = b.items.find((r: any) => r.id === memM1.id);
+      assert.ok(m1);
+      assert.equal(m1.date_of_birth, "2008-05-15");
+      const m2 = b.items.find((r: any) => r.id === memM2.id);
+      assert.ok(m2);
+      assert.equal(m2.date_of_birth, "1995-10-20");
     });
   });

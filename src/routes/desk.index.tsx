@@ -27,6 +27,7 @@ import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
+import { ageYears } from "@/lib/arena3/time";
 import { t, tServer, tData } from "@/lib/i18n";
 import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
@@ -41,6 +42,7 @@ type Hit = {
   phone: string;
   member_code: string | null;
   status: string;
+  date_of_birth?: string | null;
 };
 
 type Plan = {
@@ -274,6 +276,7 @@ function Page() {
               <div className="font-medium">{m.full_name}</div>
               <div className="text-xs tabular-nums text-muted">
                 {m.member_code} · {m.phone}
+                {m.date_of_birth ? ` · ${t("{age} yrs", { age: ageYears(m.date_of_birth) })}` : ""}
               </div>
             </div>
             <StatusBadge status={m.status} />

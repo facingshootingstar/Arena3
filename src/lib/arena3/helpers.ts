@@ -397,14 +397,7 @@ export function bool(v: unknown): boolean | undefined {
   return undefined;
 }
 
-export function ageYears(dob: string): number {
-  const today = new Date();
-  const d = new Date(dob + "T00:00:00+07:00");
-  let age = today.getFullYear() - d.getFullYear();
-  const m = today.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age -= 1;
-  return age;
-}
+export { ageYears } from "./time";
 
 export type ClassPlanResult =
   | { ok: true; sub: { id: string; session_left: number | null; sport_scope: string; end_on: string } }
