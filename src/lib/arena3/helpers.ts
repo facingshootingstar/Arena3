@@ -494,6 +494,35 @@ export async function classPlan(
   return { ok: false, code: "BR-19", message: "You need a session plan for this sport to join a class." };
 }
 
+/**
+ * Give one prepaid session back to the member's session plan for a sport (spec 4.5).
+ * Picks the session plan (session_left is not null) whatever its balance, status or dates:
+ * active and in-date first, then the sport-specific plan before `all`, then the latest end_on.
+ * The row is locked `for update`. Returns the subscription id, or null when the member has no
+ * session plan at all (the caller must then keep the prepaid session where the desk can see it).
+ */
+export async function returnPrepaidSession(sql: Sql, userId: string, sport: string): Promise<string | null> {
+  const target = await one<{ id: string }>(
+    sql,
+    `select id from subscriptions
+      where user_id = $1
+        and session_left is not null
+        and (sport_scope = $2 or sport_scope = 'all')
+      order by (status = 'active'
+                and start_on <= (now() at time zone 'Asia/Ho_Chi_Minh')::date
+                and end_on >= (now() at time zone 'Asia/Ho_Chi_Minh')::date) desc,
+               (sport_scope = $2) desc,
+               end_on desc,
+               id
+      limit 1
+      for update`,
+    [userId, sport],
+  );
+  if (!target) return null;
+  await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [target.id]);
+  return target.id;
+}
+
 export type ClassPattern = { rrule: string; duration_min: number; start_on: string; end_on: string };
 
 /** True when two weekly classes meet on at least one same date at overlapping hours. */

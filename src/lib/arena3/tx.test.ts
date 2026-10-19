@@ -22,7 +22,7 @@ const { KeepWrites, setOverridePglite, withTx } = await import("./tx.ts");
 const authH = await import("./handlers/auth.ts");
 const { readJson, withIdempotency } = await import("./helpers.ts");
 const opsH = await import("./handlers/ops.ts");
-const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel, classDetail, classRoster } = await import("./handlers/classes.ts");
+const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel, classDetail, classRoster, classesPatch } = await import("./handlers/classes.ts");
 const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
@@ -3773,6 +3773,76 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await withTx(async (sql) => enrollmentDelete(sql, enrId2, memP2));
       const sub2 = (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subP2])).rows[0];
       assert.equal(sub2.session_left, 5);
+    });
+
+    async function prepaidEnrolment(user: any, subId: string, status: string, left: number, end = "current_date + 30") {
+      await db.query(
+        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
+         values ($1, $2, $3, 'badminton', current_date - 10, ${end}, $4, $5)`,
+        [subId, user.id, planP, status, left],
+      );
+      const enrId = (await db.query<{ id: string }>(
+        `insert into enrollments (class_id, user_id, status, prepaid_sessions) values ($1, $2, 'confirmed', 1) returning id`,
+        [classP, user.id],
+      )).rows[0].id;
+      await db.query("update classes set enrolled_count = enrolled_count + 1 where id = $1", [classP]);
+      return enrId;
+    }
+    const leftOf = async (subId: string) =>
+      (await db.query<{ session_left: number }>("select session_left from subscriptions where id = $1", [subId])).rows[0].session_left;
+    const prepaidOf = async (enrId: string) =>
+      (await db.query<{ prepaid_sessions: number }>("select prepaid_sessions from enrollments where id = $1", [enrId])).rows[0].prepaid_sessions;
+
+    it("Prepaid return: plan with 0 left, member leaves -> plan has 1, prepaid_sessions 0", async () => {
+      await setupP();
+      const enrId = await prepaidEnrolment(memP1, subP1, "active", 0);
+      await withTx(async (sql) => enrollmentDelete(sql, enrId, memP1));
+      assert.equal(await leftOf(subP1), 1);
+      assert.equal(await prepaidOf(enrId), 0);
+    });
+
+    it("Prepaid return: plan with 0 left, centre cancels the class -> plan has 1, refunded is 1", async () => {
+      await setupP();
+      const enrId = await prepaidEnrolment(memP1, subP1, "active", 0);
+      const res = await withTx(async (sql) =>
+        classesPatch(sql, classP, new Request("http://localhost", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ status: "cancelled", reason: "Coach unavailable" }),
+        }), mgrP));
+      assert.equal((res.body as any).refunded, 1);
+      assert.equal(await leftOf(subP1), 1);
+      assert.equal(await prepaidOf(enrId), 0);
+    });
+
+    it("Prepaid return: frozen and expired session plans get the session back on leave", async () => {
+      await setupP();
+      const enrId = await prepaidEnrolment(memP1, subP1, "frozen", 2);
+      await withTx(async (sql) => enrollmentDelete(sql, enrId, memP1));
+      assert.equal(await leftOf(subP1), 3);
+      assert.equal(await prepaidOf(enrId), 0);
+
+      await setupP();
+      const enrId2 = await prepaidEnrolment(memP1, subP1, "active", 0, "current_date - 1");
+      await withTx(async (sql) => enrollmentDelete(sql, enrId2, memP1));
+      assert.equal(await leftOf(subP1), 1);
+    });
+
+    it("Prepaid return: no session plan at all -> session is kept on the enrolment row, refunded does not count it", async () => {
+      await setupP();
+      const enrId = (await db.query<{ id: string }>(
+        `insert into enrollments (class_id, user_id, status, prepaid_sessions) values ($1, $2, 'confirmed', 1) returning id`,
+        [classP, memP1.id],
+      )).rows[0].id;
+      await db.query("update classes set enrolled_count = 1 where id = $1", [classP]);
+      const res = await withTx(async (sql) =>
+        classesPatch(sql, classP, new Request("http://localhost", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ status: "cancelled", reason: "Coach unavailable" }),
+        }), mgrP));
+      assert.equal((res.body as any).refunded, 0);
+      assert.equal(await prepaidOf(enrId), 1);
     });
 
     it("Sport-specific plan is charged before an all plan", async () => {

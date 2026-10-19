@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { assertNoClassClash, audit, classPlan, enqueue, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
+import { assertNoClassClash, audit, classPlan, enqueue, returnPrepaidSession, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
@@ -394,16 +394,14 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
       throw err.br("BR-24", "Cancel at least 4 hours before the next session.");
     }
   }
+  // A prepaid session goes back to the member's session plan whatever its balance, status or dates.
+  // With no session plan at all it stays on the cancelled enrolment row, where the desk can see it.
+  let keepPrepaid = enr.prepaid_sessions;
   if (enr.prepaid_sessions > 0) {
     const cl = await one<{ sport: string }>(sql, `select sport from classes where id = $1`, [enr.class_id]);
-    if (cl) {
-      const planRes = await classPlan(sql, enr.user_id, cl.sport);
-      if (planRes.ok) {
-        await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [planRes.sub.id]);
-      }
-    }
+    if (cl && (await returnPrepaidSession(sql, enr.user_id, cl.sport))) keepPrepaid = 0;
   }
-  await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null, prepaid_sessions = 0 where id = $1`, [id]);
+  await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null, prepaid_sessions = $2 where id = $1`, [id, keepPrepaid]);
   await sql.query(
     `update classes set enrolled_count = greatest(enrolled_count - 1, 0) where id = $1`,
     [enr.class_id],
@@ -882,16 +880,21 @@ async function cancelClass(
     await sql.query(`select user_id from enrollments where class_id = $1 and status = 'waitlisted'`, [cl.id])
   ).map((r) => String(r.user_id));
   // Return prepaid sessions if any (4.5)
+  // Only sessions actually returned are counted and cleared. A member with no session plan keeps
+  // prepaid_sessions on the cancelled row (and is named in the audit payload) so the desk can see it.
   let refunded = 0;
+  const returnedEnrs: string[] = [];
+  const unreturned: string[] = [];
   const prepaidEnrs = await sql.query<{ id: string; user_id: string }>(
     `select id, user_id from enrollments where class_id = $1 and status = 'confirmed' and prepaid_sessions > 0`,
     [cl.id],
   );
   for (const pe of prepaidEnrs) {
-    const planRes = await classPlan(sql, pe.user_id, cl.sport);
-    if (planRes.ok) {
-      await sql.query(`update subscriptions set session_left = session_left + 1 where id = $1`, [planRes.sub.id]);
+    if (await returnPrepaidSession(sql, pe.user_id, cl.sport)) {
       refunded += 1;
+      returnedEnrs.push(String(pe.id));
+    } else {
+      unreturned.push(String(pe.user_id));
     }
   }
   await sql.query(
@@ -900,9 +903,11 @@ async function cancelClass(
     [cl.id],
   );
   await sql.query(
-    `update enrollments set status = 'cancelled', waitlist_pos = null, prepaid_sessions = 0
+    `update enrollments
+        set status = 'cancelled', waitlist_pos = null,
+            prepaid_sessions = case when id = any($2::uuid[]) then 0 else prepaid_sessions end
       where class_id = $1 and status in ('confirmed','waitlisted')`,
-    [cl.id],
+    [cl.id, returnedEnrs],
   );
   await sql.query(`update classes set status = 'cancelled', enrolled_count = 0, cancel_reason = $2 where id = $1`, [
     cl.id,
@@ -919,6 +924,8 @@ async function cancelClass(
     status: "cancelled",
     reason,
     sessions: upcoming.length,
+    prepaid_returned: refunded,
+    prepaid_kept_no_plan: unreturned,
   });
   return {
     status: 200,
