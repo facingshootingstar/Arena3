@@ -3462,7 +3462,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
     const memP2 = { id: "a0000000-0000-0000-0000-000000000002", phone: "+84999991002", full_name: "P Member 2", role: "member" } as any;
     const coachP = { id: "a0000000-0000-0000-0000-000000000003", phone: "+84999991003", full_name: "P Coach", role: "coach" } as any;
     const mgrP = { id: "a0000000-0000-0000-0000-000000000004", phone: "+84999991004", full_name: "P Manager", role: "manager" } as any;
-    const courtP = "10000000-0000-0000-0000-000000000001";
+    const courtP = "10000000-0000-0000-0000-0000000000f1"; // test-owned court, never a seed court
     const classP = "b0000000-0000-0000-0000-000000000001";
     const sessP = "c0000000-0000-0000-0000-000000000001";
     const planP = "20000000-0000-0000-0000-000000000002";
@@ -3477,6 +3477,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classP]);
       await db.query("delete from enrollments where class_id = $1 or user_id in ($2, $3)", [classP, memP1.id, memP2.id]);
       await db.query("delete from classes where id = $1", [classP]);
+      await db.query("delete from courts where id = $1", [courtP]);
       await db.query("delete from subscriptions where user_id in ($1, $2)", [memP1.id, memP2.id]);
       await db.query("delete from coach_sports where user_id = $1", [coachP.id]);
       await db.query("delete from outbox where user_id in ($1, $2, $3, $4)", [memP1.id, memP2.id, coachP.id, mgrP.id]);
@@ -3492,6 +3493,10 @@ describe("Round 10: Two-way Chat unit tests", () => {
           [u.id, u.phone, u.full_name, u.full_name.toLowerCase(), u.role],
         );
       }
+      await db.query(
+        `insert into courts (id, court_code, sport, status) values ($1, 'P-TEST', 'badminton', 'ready')`,
+        [courtP],
+      );
       await db.query(
         `insert into coach_sports (user_id, sport) values ($1, 'badminton') on conflict do nothing`,
         [coachP.id],
