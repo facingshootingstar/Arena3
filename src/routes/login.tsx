@@ -3,7 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
-import { Cover, HeroVideo, MediaCaption, media } from "@/components/media";
+import { Cover, HeroVideo, MediaCaption } from "@/components/media";
 import { Button, Card, Field, Input } from "@/components/ui";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GLBackground, Magnet, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
@@ -31,9 +31,9 @@ const DEMO_LOGINS_ON = import.meta.env.PROD
   : import.meta.env.VITE_DEMO_LOGINS !== "off";
 
 const DEMOS: { role: SessionUser["role"]; phone: string; name: string; note: string }[] = [
-  { role: "manager", phone: "0900000001", name: "Arena3 Manager", note: tk("Pricing · classes · reports") },
-  { role: "receptionist", phone: "0900000002", name: "Front Desk", note: tk("Search · take payment · walk-ins") },
-  { role: "coach", phone: "0901110011", name: "Coach Khoa", note: tk("Badminton classes") },
+  { role: "manager", phone: "0900000001", name: "Phạm Quốc Bảo", note: tk("Pricing · classes · reports") },
+  { role: "receptionist", phone: "0900000002", name: "Trần Thu Hà", note: tk("Search · take payment · walk-ins") },
+  { role: "coach", phone: "0901110011", name: "Nguyễn Minh Khoa", note: tk("Badminton classes") },
   { role: "member", phone: "0901230101", name: "Nam", note: tk("All-access plan · court booked today") },
   { role: "member", phone: "0901230102", name: "Linh", note: tk("Plan expires in ~4 days") },
   { role: "member", phone: "0901230106", name: "Ha", note: tk("Expired: needs a renewal") },
@@ -85,12 +85,12 @@ function Login() {
   return (
     <main id="main-content" tabIndex={-1} className="min-h-dvh lg:grid lg:grid-cols-2">
       <div className="grain relative hidden min-h-dvh overflow-hidden lg:block">
-        <HeroVideo src={media.receptionVideo} poster={media.reception} />
+        <HeroVideo slot="auth.login.video" posterSlot="auth.login.image" />
         <div className="hero-scrim absolute inset-0" />
         <GLBackground
           variant="threads"
           className="opacity-55 mix-blend-screen"
-          color="#dbe5ff"
+          color="#e6eed9"
           amplitude={1.1}
           speed={0.5}
           opacity={0.3}
@@ -98,7 +98,7 @@ function Login() {
         <div className="relative flex h-full flex-col justify-between p-10">
           <Link to="/" className="inline-flex items-center gap-2 self-start rounded-full bg-pass/90 px-3 py-1.5 text-pass-fg">
             <ArenaMark className="size-8" />
-            <span className="font-display text-2xl">Arena3</span>
+            <span className="font-display text-2xl">Lê Long Sport</span>
           </Link>
           <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
             <ShinyText className="shiny-on-media text-2xs" speed={6}>
@@ -119,9 +119,9 @@ function Login() {
         <div className="absolute right-4 top-2 z-10 flex items-center gap-2 lg:top-4">
           <LangSwitch />
         </div>
-        <Cover src={media.hallCourts} alt="" scrim="none" className="mb-6 h-36 rounded-[var(--radius-xl)] lg:hidden">
+        <Cover slot="auth.login.image" alt="" scrim="none" className="mb-6 h-36 rounded-[var(--radius-xl)] lg:hidden">
           <MediaCaption>
-            <span className="font-display text-2xl">Arena3</span>
+            <span className="font-display text-2xl">Lê Long Sport</span>
           </MediaCaption>
         </Cover>
         <div className="mb-6 flex items-center gap-2 lg:hidden">

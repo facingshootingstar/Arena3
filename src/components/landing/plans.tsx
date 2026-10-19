@@ -19,12 +19,12 @@ export function PlansScene({ plans }: { plans: CatalogPlan[] }) {
   return (
     <section ref={root} id="plans" className="relative mx-auto max-w-6xl scroll-mt-20 overflow-hidden px-4 pb-20">
       {/* Folded-cloth sheen at very low opacity, so the cards do not float on flat cream. */}
-      <GLBackground variant="silk" className="-z-[1] opacity-70" color="#1e4fd8" speed={0.5} scale={1.7} opacity={0.13} />
+      <GLBackground variant="silk" className="-z-[1] opacity-70" color="#3f7d20" speed={0.5} scale={1.7} opacity={0.13} />
       <p data-rise className="kicker text-2xs text-muted">
         {t("Memberships")}
       </p>
       <h2 className="mt-2 font-display text-4xl sm:text-5xl">
-        <SplitHeading text={t("Buy in the app, settle at the desk")} />
+        <SplitHeading text={t("Buy in the app, pay at the desk")} />
       </h2>
 
       <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -41,7 +41,7 @@ export function PlansScene({ plans }: { plans: CatalogPlan[] }) {
                 <Card interactive className="group flex h-full flex-col overflow-hidden p-0">
                   <GlareHover>
                     <Cover
-                      src={sportPhoto(p.sport_scope)}
+                      slot={sportPhoto(p.sport_scope)}
                       alt=""
                       scrim="none"
                       className="h-36"
@@ -112,10 +112,10 @@ export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
         {t("Open classes")}
       </p>
       <h2 className="mt-2 font-display text-4xl">
-        <SplitHeading text={t("Enrol while seats last")} />
+        <SplitHeading text={t("Classes open for enrolment")} />
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("Coached ladders run on the same calendar as the courts, so a class never sits on an hour you have already bought. Seats are first come.")}
+        {t("Classes with a coach. They never overlap court hours you have booked. Seats go to whoever signs up first.")}
       </p>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -127,7 +127,7 @@ export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
           return (
             <div key={c.id} data-rise className="h-full">
               <Card interactive className="flex h-full gap-4 p-3">
-                <Cover src={sportPhoto(c.sport)} alt="" className="h-28 w-28 shrink-0 rounded-[var(--radius-lg)]" />
+                <Cover slot={sportPhoto(c.sport)} alt="" className="h-28 w-28 shrink-0 rounded-[var(--radius-lg)]" />
                 <div className="flex min-w-0 flex-1 flex-col py-1">
                   <p className="kicker text-2xs text-muted">{sportLabel(c.sport)}</p>
                   <p className="font-display text-xl">{levelLabel(c.level)}</p>

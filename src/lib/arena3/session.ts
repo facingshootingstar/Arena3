@@ -16,12 +16,13 @@ export type PublicUser = {
   date_of_birth: string | null;
   health_notes: string | null;
   must_change_password: boolean;
+  avatar_url: string | null;
 };
 
 export type AuthUser = PublicUser & { password_hash: string };
 
 const PUBLIC_COLS =
-  "id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password";
+  "id, member_code, full_name, phone, email, role, status, date_of_birth, health_notes, must_change_password, (select version from user_avatars a where a.user_id = users.id) as avatar_version";
 
 export function toPublic(u: Record<string, unknown>): PublicUser {
   return {
@@ -35,15 +36,29 @@ export function toPublic(u: Record<string, unknown>): PublicUser {
     date_of_birth: u.date_of_birth ? String(u.date_of_birth).slice(0, 10) : null,
     health_notes: (u.health_notes as string | null) ?? null,
     must_change_password: Boolean(u.must_change_password),
+    avatar_url: u.avatar_version != null ? `/v1/users/${u.id}/avatar?v=${u.avatar_version}` : null,
   };
 }
 
+export async function loadUser(sql: Sql, id: string): Promise<PublicUser> {
+  const u = await one<Record<string, unknown>>(
+    sql,
+    `select ${PUBLIC_COLS} from users where id = $1`,
+    [id],
+  );
+  if (!u) throw err.notFound();
+  return toPublic(u);
+}
+
+import { limit, RULES } from "./ratelimit";
+
 export async function findUserByLogin(sql: Sql, login: string) {
+  const clean = login.trim();
   return one<AuthUser>(
     sql,
     `select ${PUBLIC_COLS}, password_hash from users
-     where phone = $1 or email = $1 limit 1`,
-    [login],
+     where phone = $1 or (email is not null and lower(email) = lower($1)) limit 1`,
+    [clean],
   );
 }
 
@@ -58,10 +73,23 @@ export async function issueSession(sql: Sql, user: PublicUser) {
   return { token, expires_at: expires.toISOString(), user };
 }
 
+/**
+ * EventSource cannot send headers, so the live update stream (GET /api/live) alone may carry
+ * its token in the query string. Every other route needs the Authorization header, which keeps
+ * tokens out of URLs, logs and Referer headers.
+ */
+function liveStreamToken(request: Request): string | null {
+  if (request.method.toUpperCase() !== "GET") return null;
+  const url = new URL(request.url);
+  if (!/\/(api|v1)\/live\/?$/.test(url.pathname)) return null;
+  return url.searchParams.get("token");
+}
+
 export async function authFromRequest(sql: Sql, request: Request): Promise<PublicUser> {
   const hdr = request.headers.get("authorization") ?? "";
   const m = /^Bearer\s+(.+)$/i.exec(hdr);
-  if (!m) throw err.unauth();
+  const token = m ? m[1] : liveStreamToken(request);
+  if (!token) throw err.unauth();
   const row = await one<{
     id: string;
     member_code: string | null;
@@ -75,17 +103,27 @@ export async function authFromRequest(sql: Sql, request: Request): Promise<Publi
     must_change_password: boolean;
     locked_until: string | null;
     expires_at: string;
+    revoked_at: string | null;
+    avatar_version: number | null;
   }>(
     sql,
     `select u.id, u.member_code, u.full_name, u.phone, u.email, u.role, u.status,
             u.date_of_birth, u.health_notes, u.must_change_password,
-            s.expires_at, u.locked_until
+            (select version from user_avatars a where a.user_id = u.id) as avatar_version,
+            s.expires_at, s.revoked_at, u.locked_until
        from sessions_auth s
        join users u on u.id = s.user_id
       where s.token_hash = $1`,
-    [sha256(m[1]!)],
+    [sha256(token)],
   );
   if (!row) throw err.unauth("That session is not valid.");
+  if (row.revoked_at) {
+    const url = new URL(request.url);
+    if (request.method.toUpperCase() === "POST" && /\/v1\/me\/password\/?$/.test(url.pathname)) {
+      limit(`pw:${row.id}`, RULES.passwordChange, "password changes");
+    }
+    throw err.unauth("That session is not valid.");
+  }
   if (new Date(row.expires_at) < new Date()) throw err.unauth("Your session has expired.");
   if (row.status !== "active") throw err.unauth("This account is not active.");
   if (row.locked_until && new Date(row.locked_until) > new Date()) {
@@ -96,7 +134,7 @@ export async function authFromRequest(sql: Sql, request: Request): Promise<Publi
 
 export async function optionalAuth(sql: Sql, request: Request): Promise<PublicUser | null> {
   const hdr = request.headers.get("authorization") ?? "";
-  if (!/^Bearer\s+/i.test(hdr)) return null;
+  if (!/^Bearer\s+/i.test(hdr) && !liveStreamToken(request)) return null;
   try {
     return await authFromRequest(sql, request);
   } catch {

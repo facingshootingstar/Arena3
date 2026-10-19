@@ -213,9 +213,18 @@ function Page() {
                 />
               </GlareHover>
             ) : (
-              <EmptyState title={t("No active plan")} hint={t("Buy a plan to enrol in classes and book courts.")}>
-                <ButtonLink to="/app/plans">{t("Browse plans")}</ButtonLink>
-              </EmptyState>
+              <div className="rounded-[var(--radius-xl)] bg-pass p-6 text-pass-fg">
+                <div className="flex items-center justify-between">
+                  <span className="inline-block rounded-[var(--radius-sm)] border border-pass-fg/20 bg-volt/15 px-2.5 py-1 text-xs font-bold text-volt">
+                    {t("Membership pass")}
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <EmptyState title={t("No active plan")} hint={t("Buy a plan to enrol in classes and book courts.")}>
+                    <ButtonLink to="/app/plans" className="bg-volt text-night font-semibold hover:bg-volt/90">{t("Browse plans")}</ButtonLink>
+                  </EmptyState>
+                </div>
+              </div>
             )}
           </Reveal>
 

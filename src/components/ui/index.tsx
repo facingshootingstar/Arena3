@@ -16,7 +16,6 @@ import {
 } from "react";
 import { createLink } from "@tanstack/react-router";
 import { createPortal } from "react-dom";
-import { Spot, type SpotName } from "../illustrations";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -34,12 +33,12 @@ import { formatDate, statusLabel, statusTone } from "@/lib/arena3/labels";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { EASE_SMOOTH } from "../motion";
 
-type ButtonVariant = "primary" | "ghost" | "outline" | "danger" | "ink";
+type ButtonVariant = "primary" | "ghost" | "outline" | "danger" | "ink" | "espresso";
 type ButtonSize = "md" | "sm" | "lg";
 type ButtonLook = { variant?: ButtonVariant; size?: ButtonSize };
 
 const BUTTON_BASE =
-  "inline-flex items-center whitespace-nowrap justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow,color] duration-150 ease-[var(--ease-smooth)] disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
+  "inline-flex items-center whitespace-nowrap justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow,color] duration-150 ease-[var(--ease-smooth)] disabled:bg-disabled disabled:text-disabled-fg disabled:border-transparent disabled:pointer-events-none disabled:shadow-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 // Softly squared (not pills): sits calmly next to tables, cards and court grids.
 const BUTTON_SIZES = {
   lg: "min-h-13 rounded-[var(--radius-md)] px-7 text-[0.95rem]",
@@ -49,7 +48,8 @@ const BUTTON_SIZES = {
 } as const;
 const BUTTON_STYLES = {
   primary: "bg-accent text-accent-fg hover:bg-accent-hover",
-  ink: "bg-fg text-bg hover:opacity-90",
+  ink: "bg-espresso text-espresso-fg hover:opacity-90",
+  espresso: "bg-espresso text-espresso-fg hover:opacity-90",
   outline: "border border-line-strong/70 bg-surface text-fg hover:bg-wood",
   ghost: "text-fg hover:bg-wood",
   danger: "bg-danger text-bg hover:opacity-90",
@@ -387,9 +387,9 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-border)]",
+        "rounded-[var(--radius-xl)] bg-surface p-5 border border-line shadow-[var(--shadow-soft)]",
         interactive &&
-          "transition-shadow duration-200 hover:shadow-[var(--shadow-soft)]",
+          "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
         className,
       )}
       {...props}
@@ -481,27 +481,6 @@ export function Skeleton({ className }: { className?: string }) {
   );
 }
 
-export function EmptyState({
-  title,
-  hint,
-  art,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  /** Picture to show; defaults to the neutral empty tray (the page header already carries the screen's own picture). */
-  art?: SpotName;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="grid place-items-center rounded-[var(--radius-xl)] border border-dashed border-line-strong/70 px-6 py-10 text-center">
-      <Spot name={art ?? "empty"} className="mb-2 h-24 w-[7.5rem]" />
-      <p className="font-medium">{t(title)}</p>
-      {hint ? <p className="mt-1 max-w-sm text-sm text-muted">{t(hint)}</p> : null}
-      {children ? <div className="mt-4">{children}</div> : null}
-    </div>
-  );
-}
 
 /**
  * What a panel shows when its data would not load: the reason, and a button that asks again.
@@ -933,3 +912,10 @@ export function ShowMore({ shown, total, step, onMore }: { shown: number; total:
     </div>
   );
 }
+
+export { PageHero, type PageHeroStat } from "@/components/page-hero";
+export { StatStrip, type StatItem } from "@/components/stat-strip";
+export { EmptyState, type EmptyStateAction } from "@/components/empty-state";
+export { RowActions, type RowActionItem } from "@/components/row-actions";
+export { ContextLayout, ContextCard } from "@/components/context-layout";
+export { useSports, SportBadge, SportDot, SportThumbnail, type SportInfo } from "@/components/sports-ui";

@@ -1,5 +1,5 @@
 /**
- * Vietnamese for the screens added with deposits, fixed weekly bookings, day passes, points,
+ * Vietnamese for the screens added with deposits, fixed weekly bookings, points,
  * coach commission, maintenance tickets and e-invoice export.
  */
 export const ops: Record<string, string> = {
@@ -63,32 +63,11 @@ export const ops: Record<string, string> = {
   "Yes, stop it": "Đồng ý dừng",
   "Stopping…": "Đang dừng…",
 
-  // ── day passes (and fixed bookings): taking money needs an open till
+  // ── taking money needs an open till, common status
   "Open shift at the front desk": "Mở ca ở Quầy",
-  "Day passes": "Vé ngày",
-  "Day pass {code} sold": "Đã bán vé ngày {code}",
   "Checked in": "Đã cho vào",
-  "Pass voided and refunded": "Đã hủy vé và hoàn tiền",
-  "One-day entry for a walk-in. Sell it, then tick it off when they come through the gate.": "Vé vào cửa một ngày cho khách lẻ. Bán xong, khách vào cổng thì bấm xác nhận.",
-  "Phone (optional)": "Số điện thoại (không bắt buộc)",
-  "Valid on": "Dùng được ngày",
-  "Sell pass": "Bán vé",
-  "Sell pass · {amount}": "Bán vé · {amount}",
-  "Void this pass?": "Hủy vé này?",
-  "The {amount} paid for it is refunded. A big refund waits for a manager to approve it.": "Số tiền {amount} đã thu sẽ được hoàn lại. Khoản hoàn lớn sẽ chờ quản lý duyệt.",
-  "Yes, void it": "Đồng ý hủy vé",
-  "Voiding…": "Đang hủy vé…",
-  "Passes for this day": "Số vé trong ngày",
   "Takings": "Doanh thu",
-  "Passes": "Danh sách vé",
-  "No passes for this day": "Ngày này chưa có vé nào",
-  "Sell one above and it shows up here.": "Bán một vé ở trên, vé sẽ hiện ở đây.",
-  "No phone": "Không có SĐT",
   "sold": "bán lúc",
-  "Not used": "Chưa dùng",
-  "Voided": "Đã hủy",
-  "Let in": "Cho vào",
-  "Void & refund": "Hủy & hoàn tiền",
 
   // ── points
   "Points": "Điểm",
@@ -201,11 +180,10 @@ export const ops: Record<string, string> = {
   "Refund percent": "Phần trăm hoàn",
   "Add a step": "Thêm một mức",
   "The last step must be 0 hours: that is the refund for cancelling at the last minute.": "Mức cuối phải là 0 giờ: đó là mức hoàn khi hủy sát giờ.",
-  "Fixed weekly bookings, points and day pass": "Đặt cố định, tích điểm và vé ngày",
+  "Fixed weekly bookings and points": "Đặt cố định và tích điểm",
   "Fixed booking: fewest weeks": "Đặt cố định: ít nhất (tuần)",
   "Fixed booking: most weeks": "Đặt cố định: nhiều nhất (tuần)",
   "Fixed booking discount (%)": "Giảm giá đặt cố định (%)",
-  "Day pass price (đ)": "Giá vé ngày (đ)",
   "Spend for 1 point (đ)": "Chi tiêu để được 1 điểm (đ)",
   "Value of 1 point (đ)": "Giá trị 1 điểm (đ)",
   "Balance due at the desk: {amount}": "Còn phải thu tại quầy: {amount}",

@@ -7,6 +7,8 @@ import { HoldTimer } from "@/components/media";
 import { PayOnlineButton } from "@/components/pay-online";
 import { TransferQrModal } from "@/components/transfer-qr-modal";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
+import { PageHero } from "@/components/page-hero";
+import { StatStrip } from "@/components/stat-strip";
 import {
   Badge,
   Button,
@@ -169,7 +171,7 @@ function Page() {
   }, []);
   // A manager signs refunds off here and never runs a till, so only the desk asks about one — and
   // only once it is known who is asking.
-  const shiftRead = useRead<{ shift: { id: string } | null }>(me && !isManager ? "/shifts/current?optional=1" : null);
+  const shiftRead = useRead<{ shift: { id: string } | null; totals?: { cash: number } | null }>(me && !isManager ? "/shifts/current?optional=1" : null);
   // undefined = not known (still asking, or the question failed); null = asked, and no till is open.
   const shift = shiftRead.data === null ? undefined : shiftRead.data.shift;
   // Method and busy flag are per-order: the desk works one member at a time,
@@ -207,8 +209,8 @@ function Page() {
   const { reset: resetReceipts } = receiptPaging;
   useEffect(resetReceipts, [payMethod, days, receiptTerm, resetReceipts]);
   // Per-row flooring, not a floor on the total: one over-paid order must not
-  // quietly cancel out what another member still owes.
-  const owed = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
+  // quietly cancel out what another member still has to pay.
+  const toCollect = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
 
   // A receptionist without an open till cannot post anything; saying so once at
   // the top beats a row of buttons that each fail the same way when pressed.
@@ -335,19 +337,26 @@ function Page() {
     }
   }
 
-  // Managers reach this screen for the refund sign-offs; handing them the desk
-  // nav afterwards would strand them a click away from their own reports.
+  const statItems = [
+    { label: t("Waiting payments"), value: orders.length + awaiting.length },
+    { label: t("Amount to collect"), value: money(toCollect) },
+    { label: t("Current shift"), value: shift ? t("Shift open") : t("No open shift") },
+    { label: t("Cash in till"), value: shiftRead.data?.totals?.cash ? money(shiftRead.data.totals.cash) : "0 đ" },
+  ];
+
   return (
-    <Shell
-      role={isManager ? "manager" : "receptionist"}
-      title={t("Payments")}
-      subtitle={t("Plans ordered in the app and waiting to be paid for, refunds waiting on a manager, and every receipt the centre has issued.")}
-    >
+    <Shell role={isManager ? "manager" : "receptionist"}>
+      <PageHero
+        slot="banner.gate"
+        title={t("Payments & refunds")}
+        subtitle={t("Orders waiting for payment, posted receipts, and audit trail.")}
+      />
+      <StatStrip className="mb-6" items={statItems} />
       <GLBackground
         variant="dotgrid"
         position="fixed"
         className="-z-[1]"
-        color="#1e4fd8"
+        color="#3f7d20"
         gap={32}
         dot={1.5}
         radius={130}
@@ -358,10 +367,10 @@ function Page() {
         className="mb-6 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]"
         from="down"
       >
-        {/* "0 waiting · 0đ owed" is a claim; until the queue has answered there is nothing to claim. */}
+        {/* "0 waiting · 0đ to collect" is a claim; until the queue has answered there is nothing to claim. */}
         {data ? (
           <Badge tone={orders.length ? "accent" : "muted"}>
-            {t("{n} waiting · {amount} owed", { n: orders.length, amount: money(owed) })}
+            {t("{n} waiting · {amount} to collect", { n: orders.length, amount: money(toCollect) })}
           </Badge>
         ) : read.error ? null : (
           <Skeleton className="h-6 w-40" />
@@ -382,7 +391,7 @@ function Page() {
         ) : null}
         {/* A manager came here from the manager menu, so "back" is their own
             home — `/desk` is the receptionist's counter, with a till they do not run. */}
-        <ButtonLink to={isManager ? "/manager" : "/desk"} variant="ink" className="ml-auto">
+        <ButtonLink to={isManager ? "/manager" : "/desk"} variant="espresso" className="ml-auto">
           {isManager ? t("Back to reports") : t("Back to the desk")}
         </ButtonLink>
       </Reveal>
@@ -593,7 +602,7 @@ function Page() {
         </Stagger>
       ) : (
         <div className="mt-3">
-          <EmptyState title={t("Nothing owed")} hint={t("Every plan ordered in the app has been paid for.")} />
+          <EmptyState title={t("Nothing to collect")} hint={t("Every plan ordered in the app has been paid for.")} />
         </div>
       )}
 

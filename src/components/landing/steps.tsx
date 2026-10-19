@@ -21,13 +21,13 @@ export function StepsScene() {
     {
       n: "01",
       title: t("Pick your slot"),
-      body: t("Live court map, hour by hour. What you see is what is actually free: holds expire in front of you."),
+      body: t("See which courts are free, hour by hour."),
     },
-    { n: "02", title: t("Hold it for {n} minutes", { n: venue.holdMinutes }), body: t("The slot is yours while you decide. No card up front, no phone call.") },
+    { n: "02", title: t("Hold it for {n} minutes", { n: venue.holdMinutes }), body: t("The slot is held for you. You do not pay yet.") },
     {
       n: "03",
       title: t("Pay at the desk"),
-      body: t("Cash, transfer or straight off your plan's hour balance. Three taps at reception and you are on court."),
+      body: t("Pay at reception by cash, bank transfer or your plan's court hours."),
     },
   ];
 
@@ -59,12 +59,12 @@ export function StepsScene() {
   return (
     <section ref={root} id="how" className="relative mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
       {/* Pointer-reactive dot field: costs nothing while the cursor is still. */}
-      <GLBackground variant="dotgrid" className="-z-[1]" color="#1e4fd8" gap={30} opacity={0.22} />
+      <GLBackground variant="dotgrid" className="-z-[1]" color="#3f7d20" gap={30} opacity={0.22} />
       <p data-rise className="kicker text-2xs text-muted">
         {t("Booking")}
       </p>
       <h2 className="mt-2 max-w-xl font-display text-4xl sm:text-5xl">
-        <SplitHeading text={t("Three steps, no phone call.")} />
+        <SplitHeading text={t("How to book a court")} />
       </h2>
 
       <div className="relative mt-10">

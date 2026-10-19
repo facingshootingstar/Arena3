@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
-import { err, isConflictSlot } from "../errors";
-import { flagOn, flagsMap, requireFlag, type FlagKey } from "../flags";
-import { audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, num, pageOf, readJson, str } from "../helpers";
+import { err } from "../errors";
+import { flagsMap, requireFlag, type FlagKey } from "../flags";
+import { audit, classSubscription, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
@@ -15,6 +15,7 @@ import { one } from "../tx";
 import { payosConfigured } from "../payos";
 import { centreBank } from "../bank";
 import { pageParams, parseInteger } from "../validate";
+import { getActiveSportCodes } from "./sports";
 
 export async function flagsGet(sql: Sql) {
   const settings = await getSettings(sql);
@@ -69,8 +70,15 @@ export async function flagsPatch(sql: Sql, request: Request, user: PublicUser) {
 
 export async function subscriptionFreeze(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager", "receptionist"]);
-  const days = num((await readJson(request)).days) ?? 7;
-  if (days < 1 || days > 90) throw err.validation("Freeze length must be 1–90 days.");
+  const b = await readJson(request);
+  const raw = b.days;
+  let days: number;
+  if (raw === undefined || raw === null || raw === "") {
+    days = 7;
+  } else {
+    days = parseInteger("days", "Freeze length", raw, -Infinity, Infinity);
+    if (days < 1 || days > 90) throw err.validation("Freeze length must be 1–90 days.");
+  }
   const settings = await getSettings(sql);
   const sub = await one<{
     id: string;
@@ -90,20 +98,46 @@ export async function subscriptionFreeze(sql: Sql, id: string, request: Request,
     [id, days, end],
   );
   await audit(sql, user.id, "freeze_sub", "subscription", id, sub, { days, end });
-  return { status: 200, body: await one(sql, `select * from subscriptions where id = $1`, [id]) };
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
 export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUser) {
   requireRole(user, ["manager", "receptionist"]);
-  const sub = await one<{ status: string }>(sql, `select status from subscriptions where id = $1 for update`, [id]);
+  const sub = await one<{ id: string; status: string; end_on: string; frozen_days: number }>(
+    sql,
+    `select id, status, end_on::text, frozen_days from subscriptions where id = $1 for update`,
+    [id],
+  );
   if (!sub) throw err.notFound();
   if (sub.status !== "frozen") throw err.conflictState("That plan is not frozen.");
-  await sql.query(`update subscriptions set status = 'active' where id = $1`, [id]);
-  await audit(sql, user.id, "unfreeze_sub", "subscription", id);
-  return { status: 200, body: await one(sql, `select * from subscriptions where id = $1`, [id]) };
+
+  const lastFreeze = await one<{ at: string; before: any; after: any }>(
+    sql,
+    `select at::text, before, after from audit_logs
+      where action = 'freeze_sub' and entity = 'subscription' and entity_id = $1
+      order by at desc limit 1`,
+    [id],
+  );
+
+  let newEndOn = sub.end_on;
+  if (lastFreeze && lastFreeze.before?.end_on && lastFreeze.after?.days) {
+    const freezeDate = String(lastFreeze.at).slice(0, 10);
+    const today = ictDateString();
+    const dFreeze = new Date(freezeDate);
+    const dToday = new Date(today);
+    const maxDays = Number(lastFreeze.after.days) || 0;
+    const actualDays = Math.min(maxDays, Math.max(0, Math.round((dToday.getTime() - dFreeze.getTime()) / (86400 * 1000))));
+    const originalEndOn = String(lastFreeze.before.end_on).slice(0, 10);
+    newEndOn = addDays(originalEndOn, actualDays);
+  }
+
+  await sql.query(`update subscriptions set status = 'active', end_on = $2 where id = $1`, [id, newEndOn]);
+  await audit(sql, user.id, "unfreeze_sub", "subscription", id, sub, { end_on: newEndOn });
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
 export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser) {
+  requireRole(user, ["member"]);
   const offer = await one<{
     id: string;
     enrollment_id: string;
@@ -119,12 +153,23 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [offer.enrollment_id],
   );
   if (!enr || enr.user_id !== user.id) throw err.forbidden();
-  const cl = await one<{ enrolled_count: number; capacity: number }>(
+  const cl = await one<{ enrolled_count: number; capacity: number; sport: string }>(
     sql,
-    `select enrolled_count, capacity from classes where id = $1 for update`,
+    `select enrolled_count, capacity, sport from classes where id = $1 for update`,
     [enr.class_id],
   );
   if (!cl) throw err.notFound();
+  const found = await classSubscription(sql, user.id, cl.sport);
+  if (!found) throw err.br("BR-19", "You need an active plan covering this sport.");
+  const sub = await one<{ id: string; session_left: number | null }>(
+    sql,
+    `select id, session_left from subscriptions where id = $1 for update`,
+    [found.id],
+  );
+  if (!sub) throw err.br("BR-19", "You need an active plan covering this sport.");
+  if (sub.session_left != null && sub.session_left <= 0) {
+    throw err.br("BR-20", "You have no sessions left.");
+  }
   if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
   await sql.query(
     `update enrollments set status = 'confirmed', waitlist_pos = null where id = $1`,
@@ -135,6 +180,18 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [enr.class_id],
   );
   await sql.query(`update waitlist_offers set status = 'accepted' where id = $1`, [offerId]);
+  if (sub.session_left != null) {
+    const took = await sql.query(
+      `update subscriptions
+          set session_left = session_left - 1
+        where id = $1 and session_left > 0
+       returning id`,
+      [sub.id],
+    );
+    if (took.length === 0) {
+      throw err.br("BR-20", "You have no sessions left.");
+    }
+  }
   return { status: 200, body: { ok: true } };
 }
 
@@ -385,6 +442,10 @@ export async function sessionAttendancePost(sql: Sql, sessionId: string, request
     marks.set(uid, result);
   }
 
+  if (new Date(session.start_at).getTime() > Date.now()) {
+    throw err.field("session_id", "Cannot mark attendance for a session that has not started.");
+  }
+
   const before: Record<string, string | null> = {};
   for (const [uid, result] of marks) {
     const prev = await one<{ result: string | null }>(
@@ -450,25 +511,16 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
   requireRole(user, ["coach", "manager"]);
   await requireFlag(sql, "F5");
   const b = await readJson(request);
-  const sport = str(b.sport) ?? "badminton";
+  const activeSports = await getActiveSportCodes(sql);
+  const sport = str(b.sport) ?? activeSports[0] ?? "general";
   const level = str(b.level) ?? "beginner";
   const goal = str(b.goal) ?? "core technique";
-  const drills: Record<string, Record<string, string[]>> = {
-    badminton: {
-      beginner: ["Six-corner footwork 8′", "Deep clears 12′", "Net shots 10′", "Game to 11"],
-      intermediate: ["Smash off the step 12′", "Flat drive exchanges 10′", "Net coverage 8′", "Set to 21"],
-      advanced: ["Jump smash 10′", "Cross-court attack", "Low defence", "Umpired match play"],
-    },
-    basketball: {
-      beginner: ["Shooting form 10′", "Two-hand dribbling", "Lay-ups both sides", "Half-court 3v3"],
-      intermediate: ["Pick and roll", "Three-point footwork", "2-3 zone defence", "Full-court 5v5"],
-    },
-    volleyball: {
-      beginner: ["Low digs", "Underarm serve", "Setting", "Six-touch rotation"],
-      intermediate: ["Jump serve", "Two-player block", "Outside hitting", "Match set"],
-    },
+  const defaultDrills: Record<string, string[]> = {
+    beginner: ["Warm-up & footwork 8′", "Fundamental technique drills 12′", "Targeted control practice 10′", "Practice game to 11"],
+    intermediate: ["Movement off the step 12′", "Speed & rally exchanges 10′", "Court coverage & defense 8′", "Set to 21"],
+    advanced: ["High-power attack drills 10′", "Cross-court tactics", "Low defence transitions", "Umpired match play"],
   };
-  const list = drills[sport]?.[level] ?? drills.badminton.beginner;
+  const list = defaultDrills[level] ?? defaultDrills.beginner;
   const payload = {
     sport,
     level,

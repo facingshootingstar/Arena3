@@ -1,13 +1,15 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Flip } from "gsap/Flip";
 import { Cover, MediaCaption } from "@/components/media";
 import { Button, ButtonAnchor, Card, Modal, Seg } from "@/components/ui";
 import { GlareHover, SpotlightCard } from "@/components/fx";
+import { initials } from "@/components/shell";
 import { COACHES, type CoachCard } from "@/lib/arena3/coaches";
 import { sportLabel } from "@/lib/arena3/labels";
 import { gsap, motionOff, registerGsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
-import { t } from "@/lib/i18n";
+import { t, useLang } from "@/lib/i18n";
+import { useSports } from "@/components/sports-ui";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 
@@ -21,7 +23,11 @@ registerGsap(Flip);
  * A card carries the three things that decide whether you want to read more (face, sport,
  * role); the rest is one click away in the dialog.
  */
-export function CoachesScene() {
+export function CoachesScene({
+  dbCoaches,
+}: {
+  dbCoaches?: Array<{ id: string; name: string; sports: string[] }>;
+} = {}) {
   const root = useRef<HTMLElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const [sport, setSport] = useState("");
@@ -29,7 +35,32 @@ export function CoachesScene() {
   const flipState = useRef<Flip.FlipState | null>(null);
   const flipHeight = useRef(0);
   const calm = useCalm();
-  const coaches = COACHES.filter((c) => !sport || c.sport === sport);
+
+  const allCoaches = useMemo<CoachCard[]>(() => {
+    if (!dbCoaches || !dbCoaches.length) return COACHES;
+    return dbCoaches.map((dbc) => {
+      const match = COACHES.find((c) => c.userId === dbc.id || c.name === dbc.name);
+      if (match) {
+        return {
+          ...match,
+          userId: dbc.id,
+          slot: `coach.${dbc.id}`,
+        };
+      }
+      const sp = dbc.sports[0] ?? "";
+      return {
+        name: dbc.name,
+        sport: sp,
+        title: `${sportLabel(sp)} Coach`,
+        blurb: "Dedicated coach at Lê Long Sport.",
+        creds: dbc.sports.map((s) => sportLabel(s)),
+        userId: dbc.id,
+        slot: `coach.${dbc.id}`,
+      };
+    });
+  }, [dbCoaches]);
+
+  const coaches = allCoaches.filter((c) => !sport || c.sport === sport);
 
   useScene(root, ({ motion }) => {
     if (motion && root.current) rise(root.current);
@@ -73,16 +104,19 @@ export function CoachesScene() {
     };
   }, [sport]);
 
+  const { sports } = useSports();
+  const lang = useLang();
+
   return (
     <section ref={root} id="coaches" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
       <p data-rise className="kicker text-2xs text-muted">
         {t("The team")}
       </p>
       <h2 className="mt-2 max-w-2xl font-display text-4xl sm:text-5xl">
-        <SplitHeading text={t("Coaches who actually take the session, not poster faces.")} stagger={0.05} />
+        <SplitHeading text={t("Our coaches")} stagger={0.05} />
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("One head coach per sport. Classes never sit on court time you already bought. Sessions show up in the app the moment you join.")}
+        {t("One head coach per sport. After you join a class, its sessions appear in the app.")}
       </p>
 
       <div data-rise className="mt-6">
@@ -91,9 +125,7 @@ export function CoachesScene() {
           onChange={choose}
           options={[
             { value: "", label: t("All") },
-            { value: "badminton", label: t("Badminton") },
-            { value: "basketball", label: t("Basketball") },
-            { value: "volleyball", label: t("Volleyball") },
+            ...sports.map((s) => ({ value: s.code, label: lang === "vi" ? s.name_vi : s.name_en })),
           ]}
         />
       </div>
@@ -105,14 +137,16 @@ export function CoachesScene() {
               <Card interactive className="group flex h-full flex-col overflow-hidden p-0">
                 <GlareHover>
                   <Cover
-                    src={c.photo}
+                    slot={c.slot}
+                    fallbackInitials={initials(c.name)}
+                    initialsClassName="text-3xl font-bold"
                     alt={c.name}
                     scrim="none"
                     className="aspect-[3/4]"
                     imgClassName="transition-transform duration-[900ms] ease-[var(--ease-smooth)] group-hover:scale-105"
                   >
                     <MediaCaption>
-                      <p className="kicker text-2xs text-on-media-muted">{sportLabel(c.sport)}</p>
+                      <p className="kicker text-2xs text-on-media-muted">{sportLabel(c.sport || "")}</p>
                       <p className="athletic mt-1 text-2xl">{c.name}</p>
                     </MediaCaption>
                   </Cover>
@@ -146,9 +180,16 @@ export function CoachesScene() {
       >
         {open ? (
           <div className="grid gap-4 sm:grid-cols-[9rem_1fr]">
-            <Cover src={open.photo} alt={open.name} scrim="none" className="aspect-[3/4] rounded-[var(--radius-lg)]" />
+            <Cover
+              slot={open.slot}
+              fallbackInitials={initials(open.name)}
+              initialsClassName="text-3xl font-bold"
+              alt={open.name}
+              scrim="none"
+              className="aspect-[3/4] rounded-[var(--radius-lg)]"
+            />
             <div>
-              <p className="kicker text-2xs text-muted">{sportLabel(open.sport)}</p>
+              <p className="kicker text-2xs text-muted">{sportLabel(open.sport || "")}</p>
               <p className="mt-1 text-sm font-medium">{t(open.title)}</p>
               <p className="mt-3 text-sm text-muted">{t(open.blurb)}</p>
               <ul className="mt-4 grid gap-1.5 text-sm text-muted">

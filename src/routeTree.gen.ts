@@ -13,7 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as CoachRouteImport } from './routes/coach'
+import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as ForgotRouteImport } from './routes/forgot'
 import { Route as LoginRouteImport } from './routes/login'
@@ -21,6 +23,7 @@ import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAssistantRouteImport } from './routes/app.assistant'
 import { Route as AppBookRouteImport } from './routes/app.book'
@@ -38,7 +41,6 @@ import { Route as DeskIndexRouteImport } from './routes/desk.index'
 import { Route as DeskAtRiskRouteImport } from './routes/desk.at-risk'
 import { Route as DeskClassesRouteImport } from './routes/desk.classes'
 import { Route as DeskCourtsRouteImport } from './routes/desk.courts'
-import { Route as DeskDayPassesRouteImport } from './routes/desk.day-passes'
 import { Route as DeskGateRouteImport } from './routes/desk.gate'
 import { Route as DeskGearRouteImport } from './routes/desk.gear'
 import { Route as DeskMaintenanceRouteImport } from './routes/desk.maintenance'
@@ -49,12 +51,15 @@ import { Route as ManagerAttendanceRouteImport } from './routes/manager.attendan
 import { Route as ManagerAuditRouteImport } from './routes/manager.audit'
 import { Route as ManagerClassesRouteImport } from './routes/manager.classes'
 import { Route as ManagerCommissionRouteImport } from './routes/manager.commission'
+import { Route as ManagerCourtsRouteImport } from './routes/manager.courts'
 import { Route as ManagerInvoicesRouteImport } from './routes/manager.invoices'
+import { Route as ManagerMediaRouteImport } from './routes/manager.media'
 import { Route as ManagerMembersRouteImport } from './routes/manager.members'
 import { Route as ManagerPlansRouteImport } from './routes/manager.plans'
 import { Route as ManagerPricesRouteImport } from './routes/manager.prices'
 import { Route as ManagerPromosRouteImport } from './routes/manager.promos'
 import { Route as ManagerSettingsRouteImport } from './routes/manager.settings'
+import { Route as ManagerSportsRouteImport } from './routes/manager.sports'
 import { Route as ManagerStaffRouteImport } from './routes/manager.staff'
 import { Route as PayReturnRouteImport } from './routes/pay.return'
 import { Route as V1SplatRouteImport } from './routes/v1.$'
@@ -81,9 +86,19 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CoachRoute = CoachRouteImport.update({
   id: '/coach',
   path: '/coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreditsRoute = CreditsRouteImport.update({
+  id: '/credits',
+  path: '/credits',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeskRoute = DeskRouteImport.update({
@@ -119,6 +134,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -206,11 +226,6 @@ const DeskCourtsRoute = DeskCourtsRouteImport.update({
   path: '/courts',
   getParentRoute: () => DeskRoute,
 } as any)
-const DeskDayPassesRoute = DeskDayPassesRouteImport.update({
-  id: '/day-passes',
-  path: '/day-passes',
-  getParentRoute: () => DeskRoute,
-} as any)
 const DeskGateRoute = DeskGateRouteImport.update({
   id: '/gate',
   path: '/gate',
@@ -261,9 +276,19 @@ const ManagerCommissionRoute = ManagerCommissionRouteImport.update({
   path: '/commission',
   getParentRoute: () => ManagerRoute,
 } as any)
+const ManagerCourtsRoute = ManagerCourtsRouteImport.update({
+  id: '/courts',
+  path: '/courts',
+  getParentRoute: () => ManagerRoute,
+} as any)
 const ManagerInvoicesRoute = ManagerInvoicesRouteImport.update({
   id: '/invoices',
   path: '/invoices',
+  getParentRoute: () => ManagerRoute,
+} as any)
+const ManagerMediaRoute = ManagerMediaRouteImport.update({
+  id: '/media',
+  path: '/media',
   getParentRoute: () => ManagerRoute,
 } as any)
 const ManagerMembersRoute = ManagerMembersRouteImport.update({
@@ -289,6 +314,11 @@ const ManagerPromosRoute = ManagerPromosRouteImport.update({
 const ManagerSettingsRoute = ManagerSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => ManagerRoute,
+} as any)
+const ManagerSportsRoute = ManagerSportsRouteImport.update({
+  id: '/sports',
+  path: '/sports',
   getParentRoute: () => ManagerRoute,
 } as any)
 const ManagerStaffRoute = ManagerStaffRouteImport.update({
@@ -322,7 +352,9 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/alerts': typeof AlertsRoute
   '/app': typeof AppRouteWithChildren
+  '/chat': typeof ChatRoute
   '/coach': typeof CoachRouteWithChildren
+  '/credits': typeof CreditsRoute
   '/desk': typeof DeskRouteWithChildren
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
@@ -330,6 +362,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
+  '/api/$': typeof ApiSplatRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/book': typeof AppBookRoute
   '/app/classes': typeof AppClassesRoute
@@ -344,7 +377,6 @@ export interface FileRoutesByFullPath {
   '/desk/at-risk': typeof DeskAtRiskRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
-  '/desk/day-passes': typeof DeskDayPassesRoute
   '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/maintenance': typeof DeskMaintenanceRoute
@@ -354,12 +386,15 @@ export interface FileRoutesByFullPath {
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/commission': typeof ManagerCommissionRoute
+  '/manager/courts': typeof ManagerCourtsRoute
   '/manager/invoices': typeof ManagerInvoicesRoute
+  '/manager/media': typeof ManagerMediaRoute
   '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
   '/manager/promos': typeof ManagerPromosRoute
   '/manager/settings': typeof ManagerSettingsRoute
+  '/manager/sports': typeof ManagerSportsRoute
   '/manager/staff': typeof ManagerStaffRoute
   '/pay/return': typeof PayReturnRoute
   '/v1/$': typeof V1SplatRoute
@@ -374,11 +409,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/alerts': typeof AlertsRoute
+  '/chat': typeof ChatRoute
+  '/credits': typeof CreditsRoute
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
+  '/api/$': typeof ApiSplatRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/book': typeof AppBookRoute
   '/app/classes': typeof AppClassesRoute
@@ -393,7 +431,6 @@ export interface FileRoutesByTo {
   '/desk/at-risk': typeof DeskAtRiskRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
-  '/desk/day-passes': typeof DeskDayPassesRoute
   '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/maintenance': typeof DeskMaintenanceRoute
@@ -403,12 +440,15 @@ export interface FileRoutesByTo {
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/commission': typeof ManagerCommissionRoute
+  '/manager/courts': typeof ManagerCourtsRoute
   '/manager/invoices': typeof ManagerInvoicesRoute
+  '/manager/media': typeof ManagerMediaRoute
   '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
   '/manager/promos': typeof ManagerPromosRoute
   '/manager/settings': typeof ManagerSettingsRoute
+  '/manager/sports': typeof ManagerSportsRoute
   '/manager/staff': typeof ManagerStaffRoute
   '/pay/return': typeof PayReturnRoute
   '/v1/$': typeof V1SplatRoute
@@ -425,7 +465,9 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/alerts': typeof AlertsRoute
   '/app': typeof AppRouteWithChildren
+  '/chat': typeof ChatRoute
   '/coach': typeof CoachRouteWithChildren
+  '/credits': typeof CreditsRoute
   '/desk': typeof DeskRouteWithChildren
   '/forgot': typeof ForgotRoute
   '/login': typeof LoginRoute
@@ -433,6 +475,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/register': typeof RegisterRoute
   '/terms': typeof TermsRoute
+  '/api/$': typeof ApiSplatRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/book': typeof AppBookRoute
   '/app/classes': typeof AppClassesRoute
@@ -447,7 +490,6 @@ export interface FileRoutesById {
   '/desk/at-risk': typeof DeskAtRiskRoute
   '/desk/classes': typeof DeskClassesRoute
   '/desk/courts': typeof DeskCourtsRoute
-  '/desk/day-passes': typeof DeskDayPassesRoute
   '/desk/gate': typeof DeskGateRoute
   '/desk/gear': typeof DeskGearRoute
   '/desk/maintenance': typeof DeskMaintenanceRoute
@@ -457,12 +499,15 @@ export interface FileRoutesById {
   '/manager/audit': typeof ManagerAuditRoute
   '/manager/classes': typeof ManagerClassesRoute
   '/manager/commission': typeof ManagerCommissionRoute
+  '/manager/courts': typeof ManagerCourtsRoute
   '/manager/invoices': typeof ManagerInvoicesRoute
+  '/manager/media': typeof ManagerMediaRoute
   '/manager/members': typeof ManagerMembersRoute
   '/manager/plans': typeof ManagerPlansRoute
   '/manager/prices': typeof ManagerPricesRoute
   '/manager/promos': typeof ManagerPromosRoute
   '/manager/settings': typeof ManagerSettingsRoute
+  '/manager/sports': typeof ManagerSportsRoute
   '/manager/staff': typeof ManagerStaffRoute
   '/pay/return': typeof PayReturnRoute
   '/v1/$': typeof V1SplatRoute
@@ -480,7 +525,9 @@ export interface FileRouteTypes {
     | '/account'
     | '/alerts'
     | '/app'
+    | '/chat'
     | '/coach'
+    | '/credits'
     | '/desk'
     | '/forgot'
     | '/login'
@@ -488,6 +535,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/register'
     | '/terms'
+    | '/api/$'
     | '/app/assistant'
     | '/app/book'
     | '/app/classes'
@@ -502,7 +550,6 @@ export interface FileRouteTypes {
     | '/desk/at-risk'
     | '/desk/classes'
     | '/desk/courts'
-    | '/desk/day-passes'
     | '/desk/gate'
     | '/desk/gear'
     | '/desk/maintenance'
@@ -512,12 +559,15 @@ export interface FileRouteTypes {
     | '/manager/audit'
     | '/manager/classes'
     | '/manager/commission'
+    | '/manager/courts'
     | '/manager/invoices'
+    | '/manager/media'
     | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
     | '/manager/promos'
     | '/manager/settings'
+    | '/manager/sports'
     | '/manager/staff'
     | '/pay/return'
     | '/v1/$'
@@ -532,11 +582,14 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/alerts'
+    | '/chat'
+    | '/credits'
     | '/forgot'
     | '/login'
     | '/privacy'
     | '/register'
     | '/terms'
+    | '/api/$'
     | '/app/assistant'
     | '/app/book'
     | '/app/classes'
@@ -551,7 +604,6 @@ export interface FileRouteTypes {
     | '/desk/at-risk'
     | '/desk/classes'
     | '/desk/courts'
-    | '/desk/day-passes'
     | '/desk/gate'
     | '/desk/gear'
     | '/desk/maintenance'
@@ -561,12 +613,15 @@ export interface FileRouteTypes {
     | '/manager/audit'
     | '/manager/classes'
     | '/manager/commission'
+    | '/manager/courts'
     | '/manager/invoices'
+    | '/manager/media'
     | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
     | '/manager/promos'
     | '/manager/settings'
+    | '/manager/sports'
     | '/manager/staff'
     | '/pay/return'
     | '/v1/$'
@@ -582,7 +637,9 @@ export interface FileRouteTypes {
     | '/account'
     | '/alerts'
     | '/app'
+    | '/chat'
     | '/coach'
+    | '/credits'
     | '/desk'
     | '/forgot'
     | '/login'
@@ -590,6 +647,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/register'
     | '/terms'
+    | '/api/$'
     | '/app/assistant'
     | '/app/book'
     | '/app/classes'
@@ -604,7 +662,6 @@ export interface FileRouteTypes {
     | '/desk/at-risk'
     | '/desk/classes'
     | '/desk/courts'
-    | '/desk/day-passes'
     | '/desk/gate'
     | '/desk/gear'
     | '/desk/maintenance'
@@ -614,12 +671,15 @@ export interface FileRouteTypes {
     | '/manager/audit'
     | '/manager/classes'
     | '/manager/commission'
+    | '/manager/courts'
     | '/manager/invoices'
+    | '/manager/media'
     | '/manager/members'
     | '/manager/plans'
     | '/manager/prices'
     | '/manager/promos'
     | '/manager/settings'
+    | '/manager/sports'
     | '/manager/staff'
     | '/pay/return'
     | '/v1/$'
@@ -636,7 +696,9 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AlertsRoute: typeof AlertsRoute
   AppRoute: typeof AppRouteWithChildren
+  ChatRoute: typeof ChatRoute
   CoachRoute: typeof CoachRouteWithChildren
+  CreditsRoute: typeof CreditsRoute
   DeskRoute: typeof DeskRouteWithChildren
   ForgotRoute: typeof ForgotRoute
   LoginRoute: typeof LoginRoute
@@ -644,6 +706,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RegisterRoute: typeof RegisterRoute
   TermsRoute: typeof TermsRoute
+  ApiSplatRoute: typeof ApiSplatRoute
   PayReturnRoute: typeof PayReturnRoute
   V1SplatRoute: typeof V1SplatRoute
 }
@@ -678,11 +741,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/coach': {
       id: '/coach'
       path: '/coach'
       fullPath: '/coach'
       preLoaderRoute: typeof CoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/credits': {
+      id: '/credits'
+      path: '/credits'
+      fullPath: '/credits'
+      preLoaderRoute: typeof CreditsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/desk': {
@@ -732,6 +809,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -853,13 +937,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskCourtsRouteImport
       parentRoute: typeof DeskRoute
     }
-    '/desk/day-passes': {
-      id: '/desk/day-passes'
-      path: '/day-passes'
-      fullPath: '/desk/day-passes'
-      preLoaderRoute: typeof DeskDayPassesRouteImport
-      parentRoute: typeof DeskRoute
-    }
     '/desk/gate': {
       id: '/desk/gate'
       path: '/gate'
@@ -930,11 +1007,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManagerCommissionRouteImport
       parentRoute: typeof ManagerRoute
     }
+    '/manager/courts': {
+      id: '/manager/courts'
+      path: '/courts'
+      fullPath: '/manager/courts'
+      preLoaderRoute: typeof ManagerCourtsRouteImport
+      parentRoute: typeof ManagerRoute
+    }
     '/manager/invoices': {
       id: '/manager/invoices'
       path: '/invoices'
       fullPath: '/manager/invoices'
       preLoaderRoute: typeof ManagerInvoicesRouteImport
+      parentRoute: typeof ManagerRoute
+    }
+    '/manager/media': {
+      id: '/manager/media'
+      path: '/media'
+      fullPath: '/manager/media'
+      preLoaderRoute: typeof ManagerMediaRouteImport
       parentRoute: typeof ManagerRoute
     }
     '/manager/members': {
@@ -970,6 +1061,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/manager/settings'
       preLoaderRoute: typeof ManagerSettingsRouteImport
+      parentRoute: typeof ManagerRoute
+    }
+    '/manager/sports': {
+      id: '/manager/sports'
+      path: '/sports'
+      fullPath: '/manager/sports'
+      preLoaderRoute: typeof ManagerSportsRouteImport
       parentRoute: typeof ManagerRoute
     }
     '/manager/staff': {
@@ -1058,7 +1156,6 @@ interface DeskRouteChildren {
   DeskAtRiskRoute: typeof DeskAtRiskRoute
   DeskClassesRoute: typeof DeskClassesRoute
   DeskCourtsRoute: typeof DeskCourtsRoute
-  DeskDayPassesRoute: typeof DeskDayPassesRoute
   DeskGateRoute: typeof DeskGateRoute
   DeskGearRoute: typeof DeskGearRoute
   DeskMaintenanceRoute: typeof DeskMaintenanceRoute
@@ -1072,7 +1169,6 @@ const DeskRouteChildren: DeskRouteChildren = {
   DeskAtRiskRoute: DeskAtRiskRoute,
   DeskClassesRoute: DeskClassesRoute,
   DeskCourtsRoute: DeskCourtsRoute,
-  DeskDayPassesRoute: DeskDayPassesRoute,
   DeskGateRoute: DeskGateRoute,
   DeskGearRoute: DeskGearRoute,
   DeskMaintenanceRoute: DeskMaintenanceRoute,
@@ -1089,12 +1185,15 @@ interface ManagerRouteChildren {
   ManagerAuditRoute: typeof ManagerAuditRoute
   ManagerClassesRoute: typeof ManagerClassesRoute
   ManagerCommissionRoute: typeof ManagerCommissionRoute
+  ManagerCourtsRoute: typeof ManagerCourtsRoute
   ManagerInvoicesRoute: typeof ManagerInvoicesRoute
+  ManagerMediaRoute: typeof ManagerMediaRoute
   ManagerMembersRoute: typeof ManagerMembersRoute
   ManagerPlansRoute: typeof ManagerPlansRoute
   ManagerPricesRoute: typeof ManagerPricesRoute
   ManagerPromosRoute: typeof ManagerPromosRoute
   ManagerSettingsRoute: typeof ManagerSettingsRoute
+  ManagerSportsRoute: typeof ManagerSportsRoute
   ManagerStaffRoute: typeof ManagerStaffRoute
   ManagerIndexRoute: typeof ManagerIndexRoute
 }
@@ -1104,12 +1203,15 @@ const ManagerRouteChildren: ManagerRouteChildren = {
   ManagerAuditRoute: ManagerAuditRoute,
   ManagerClassesRoute: ManagerClassesRoute,
   ManagerCommissionRoute: ManagerCommissionRoute,
+  ManagerCourtsRoute: ManagerCourtsRoute,
   ManagerInvoicesRoute: ManagerInvoicesRoute,
+  ManagerMediaRoute: ManagerMediaRoute,
   ManagerMembersRoute: ManagerMembersRoute,
   ManagerPlansRoute: ManagerPlansRoute,
   ManagerPricesRoute: ManagerPricesRoute,
   ManagerPromosRoute: ManagerPromosRoute,
   ManagerSettingsRoute: ManagerSettingsRoute,
+  ManagerSportsRoute: ManagerSportsRoute,
   ManagerStaffRoute: ManagerStaffRoute,
   ManagerIndexRoute: ManagerIndexRoute,
 }
@@ -1122,7 +1224,9 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AlertsRoute: AlertsRoute,
   AppRoute: AppRouteWithChildren,
+  ChatRoute: ChatRoute,
   CoachRoute: CoachRouteWithChildren,
+  CreditsRoute: CreditsRoute,
   DeskRoute: DeskRouteWithChildren,
   ForgotRoute: ForgotRoute,
   LoginRoute: LoginRoute,
@@ -1130,6 +1234,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RegisterRoute: RegisterRoute,
   TermsRoute: TermsRoute,
+  ApiSplatRoute: ApiSplatRoute,
   PayReturnRoute: PayReturnRoute,
   V1SplatRoute: V1SplatRoute,
 }

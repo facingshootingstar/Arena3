@@ -14,15 +14,16 @@ export default tseslint.config(
       ".vercel/**",
       ".nitro/**",
       "node_modules/**",
+      "agent/**",
       "src/routeTree.gen.ts",
-      // Installed agent skills ship their own bundled scripts; they are not app code.
+      // Tooling, agent skills, scripts, and test suites are not app code.
       ".claude/**",
       ".agents/**",
-      // Document tooling from main: built docs (a vendored mermaid.min.js), the CommonJS PDF
-      // printer and the draw.io generators. They produce the SRS, not the app.
+      ".cursor/**",
+      ".gemini/**",
       "docs/**",
-      "scripts/srs_pipeline/**",
-      "scripts/uml2-*.mjs",
+      "scripts/**",
+      "test-output/**",
     ],
   },
   js.configs.recommended,
