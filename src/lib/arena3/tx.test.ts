@@ -2641,11 +2641,11 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(off.status, "accepted");
     });
 
-    it("A1-2: Member accepts offer with unlimited plan (session_left null) -> throws BR-18 court time, not classes", async () => {
+    it("A1-2: Member accepts offer with unlimited plan (session_left null) -> throws BR-19 court time, not classes", async () => {
       const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: null });
       await assert.rejects(
         () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
-        (e: any) => e.extra?.br === "BR-18" && e.message.includes("court time, not classes"),
+        (e: any) => e.extra?.br === "BR-19" && e.message.includes("court time, not classes"),
       );
 
       const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
@@ -2675,11 +2675,11 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(sub.session_left, 0);
     });
 
-    it("A1-4: Member accepts offer without plan for that sport -> throws BR-18, no session deducted, enrollment unchanged", async () => {
+    it("A1-4: Member accepts offer without plan for that sport -> throws BR-19, no session deducted, enrollment unchanged", async () => {
       const { member, subId, enrId, offerId } = await setupTest({ sessionLeft: 5, sport: "basketball" }); // class is badminton
       await assert.rejects(
         () => withTx(async (sql) => waitlistAccept(sql, offerId, member)),
-        (e: any) => e.extra?.br === "BR-18",
+        (e: any) => e.extra?.br === "BR-19",
       );
 
       const enr = (await db.query<{ status: string }>("select status from enrollments where id = $1", [enrId])).rows[0];
@@ -3532,7 +3532,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
 
       await assert.rejects(
         () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-18" && e.message.includes("court time, not classes"),
+        (e: any) => e.extra?.br === "BR-19" && e.message.includes("court time, not classes"),
       );
 
       const enrId = "50000000-0000-0000-0000-000000000001";
@@ -3550,7 +3550,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
 
       await assert.rejects(
         () => withTx(async (sql) => waitlistAccept(sql, offerId, memP1)),
-        (e: any) => e.extra?.br === "BR-18" && e.message.includes("court time, not classes"),
+        (e: any) => e.extra?.br === "BR-19" && e.message.includes("court time, not classes"),
       );
     });
 
@@ -3565,21 +3565,22 @@ describe("Round 10: Two-way Chat unit tests", () => {
       );
       await assert.rejects(
         () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-18" && e.message === "Your session plan is frozen. Unfreeze it at the desk to join a class.",
+        (e: any) => e.extra?.br === "BR-19" && e.message === "Your session plan is frozen. Unfreeze it at the desk to join a class.",
       );
 
       // Case 2: Pending plan
       await db.query(`update subscriptions set status = 'pending' where id = $1`, [subP1]);
+      const pendingStart = (await db.query<{ s: string }>(`select start_on::text as s from subscriptions where id = $1`, [subP1])).rows[0].s;
       await assert.rejects(
         () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-18" && e.message === "You need a session plan for this sport to join a class.",
+        (e: any) => e.extra?.br === "BR-19" && e.message === `Your session plan starts on ${pendingStart}.`,
       );
 
       // Case 3: Future start_on
       await db.query(`update subscriptions set status = 'active', start_on = current_date + 5 where id = $1`, [subP1]);
       await assert.rejects(
         () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-18" && e.message.startsWith("Your session plan starts on "),
+        (e: any) => e.extra?.br === "BR-19" && e.message.startsWith("Your session plan starts on "),
       );
 
       // Case 4: Expired plan (end_on in past)

@@ -181,8 +181,8 @@ A session is spent when the register marks the member Present, Late or Absent; E
 | ID | Requirement | Enforced by |
 | --- | --- | --- |
 | FR-C01 | A member sees the published timetable with remaining places. | `GET /v1/classes` |
-| FR-C02 | Enrolling or accepting a waitlist place requires an active session plan covering that sport; time-based plans cover court time, not classes. | **BR-18** |
-| FR-C03 | An active session plan must not be frozen, must have started, must not have expired, and must have sessions left (`session_left > 0`). Nothing is deducted at enrolment. | **BR-18**, **BR-19**, **BR-20** |
+| FR-C02 | Enrolling or accepting a waitlist place requires an active session plan covering that sport; time-based plans cover court time, not classes. | **BR-19** |
+| FR-C03 | An active session plan must not be frozen, must have started, must not have expired, and must have sessions left (`session_left > 0`). Nothing is deducted at enrolment. | **BR-19**, **BR-20** |
 | FR-C04 | A member cannot enrol in a class that clashes with one they are already in. | **BR-24** |
 | FR-C05 | A member cannot enrol twice in the same class. | **BR-24** |
 | FR-C06 | A class that is not `open` cannot be enrolled in. | **BR-67** |
@@ -529,7 +529,7 @@ message }`, so any refusal in the UI can be traced to the line that made it.
 | BR-14 | Freeze rules: only an active plan; not while frozen. |
 | BR-15 | Freeze allowance per year. |
 | BR-17 | Quota payment needs court hours left. |
-| BR-18 | Enrolling or accepting a waitlist place requires an active session plan covering the sport that is not frozen and has already started; time-based plans do not cover classes. |
+| BR-18 | Session quota must not be exhausted. |
 | BR-20 | Class cancellation window. |
 | BR-21 | No court or coach clash: moving a session or changing coach is refused when the court or coach is busy. |
 | BR-22 | Cannot overfill a class; capacity cannot be set below the number enrolled. |

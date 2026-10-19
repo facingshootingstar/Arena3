@@ -401,7 +401,7 @@ export { ageYears } from "./time";
 
 export type ClassPlanResult =
   | { ok: true; sub: { id: string; session_left: number | null; sport_scope: string; end_on: string } }
-  | { ok: false; code: "BR-18" | "BR-19" | "BR-20"; message: string };
+  | { ok: false; code: "BR-19" | "BR-20"; message: string };
 
 /** Check session plan eligibility for class enrolment / attendance charging (D1, D2). */
 export async function classPlan(
@@ -429,13 +429,13 @@ export async function classPlan(
 
   // 1. No subscription for the sport at all
   if (subs.length === 0) {
-    return { ok: false, code: "BR-18", message: "You need a session plan for this sport to join a class." };
+    return { ok: false, code: "BR-19", message: "You need a session plan for this sport to join a class." };
   }
 
   // 2. Only time-based plans
   const sessionPlans = subs.filter((s) => s.session_left != null);
   if (sessionPlans.length === 0) {
-    return { ok: false, code: "BR-18", message: "Your plan covers court time, not classes. Buy a session plan to join a class." };
+    return { ok: false, code: "BR-19", message: "Your plan covers court time, not classes. Buy a session plan to join a class." };
   }
 
   const today = (await one<{ today: string }>(sql, `select (now() at time zone 'Asia/Ho_Chi_Minh')::date::text as today`))?.today ?? new Date().toISOString().slice(0, 10);
@@ -470,19 +470,13 @@ export async function classPlan(
   // - session plan frozen
   const frozen = sessionPlans.find((s) => s.status === "frozen");
   if (frozen) {
-    return { ok: false, code: "BR-18", message: "Your session plan is frozen. Unfreeze it at the desk to join a class." };
+    return { ok: false, code: "BR-19", message: "Your session plan is frozen. Unfreeze it at the desk to join a class." };
   }
 
-  // - session plan pending
-  const pending = sessionPlans.find((s) => s.status === "pending");
-  if (pending) {
-    return { ok: false, code: "BR-18", message: "You need a session plan for this sport to join a class." };
-  }
-
-  // - session plan not yet started (start_on > today)
-  const future = sessionPlans.find((s) => s.start_on > today);
-  if (future) {
-    return { ok: false, code: "BR-18", message: `Your session plan starts on ${future.start_on}.` };
+  // - session plan pending, or not yet started (start_on > today): both say when it starts
+  const notStarted = sessionPlans.find((s) => s.status === "pending" || s.start_on > today);
+  if (notStarted) {
+    return { ok: false, code: "BR-19", message: `Your session plan starts on ${notStarted.start_on}.` };
   }
 
   // - session plan expired
@@ -497,7 +491,7 @@ export async function classPlan(
     return { ok: false, code: "BR-20", message: "You have no sessions left." };
   }
 
-  return { ok: false, code: "BR-18", message: "You need a session plan for this sport to join a class." };
+  return { ok: false, code: "BR-19", message: "You need a session plan for this sport to join a class." };
 }
 
 export type ClassPattern = { rrule: string; duration_min: number; start_on: string; end_on: string };
