@@ -1290,6 +1290,48 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     }
   });
 
+  it("inviteWaitlist offers one seat per open place, not only the first person", async () => {
+    const coachId = "00000000-0000-0000-0000-000000000011";
+    const classId = "40000000-0000-0000-0000-000000000191";
+    const members = [1, 2, 3].map((n) => ({
+      id: `00000000-0000-0000-0000-00000000019${n}`,
+      phone: `+8490000019${n}`,
+      name: `Wait ${n}`,
+    }));
+    try {
+      await db.query(
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
+         values ($1, 'badminton', 'wl-seats', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=8', current_date + 1, current_date + 14, 60, 3, 'open', 0)`,
+        [classId, coachId, validCourtId],
+      );
+      for (const [i, m] of members.entries()) {
+        await db.query(
+          `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+           values ($1, $2, $3, $4, 'member', 'hash') on conflict (id) do nothing`,
+          [m.id, m.phone, m.name, m.name.toLowerCase()],
+        );
+        await db.query(
+          `insert into enrollments (class_id, user_id, status, waitlist_pos) values ($1, $2, 'waitlisted', $3)`,
+          [classId, m.id, i + 1],
+        );
+      }
+      await withTx(async (sql) => inviteWaitlist(sql, classId));
+      const offers = (
+        await db.query<{ n: number }>(
+          `select count(*)::int as n from waitlist_offers o
+             join enrollments e on e.id = o.enrollment_id
+            where e.class_id = $1 and o.status = 'pending'`,
+          [classId],
+        )
+      ).rows[0];
+      assert.equal(offers.n, 3);
+    } finally {
+      await db.query("delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id = $1)", [classId]);
+      await db.query("delete from enrollments where class_id = $1", [classId]);
+      await db.query("delete from classes where id = $1", [classId]);
+    }
+  });
+
   // F-04: next_member_code past 0099
   it("F-04: seed A3-2026-0099 and A3-2026-0100 -> next code is A3-2026-0101, 150 consecutive calls without collision", async () => {
     const y = new Date().getFullYear();
@@ -2308,6 +2350,33 @@ describe("Round 8 unit tests (AT-12, SB-31 / F-20, F-11, F-19)", () => {
       assert.equal((res.body as any).status, "active");
       // End date is capped at 7 days extension from original end_on: 2026-11-30 + 7 days = 2026-12-07
       assert.equal((res.body as any).end_on.slice(0, 10), "2026-12-07");
+      // The whole freeze was used, so the yearly allowance stays charged.
+      assert.equal((res.body as any).frozen_days, 7);
+    });
+
+    // 3. Unfreeze one day into a 30-day freeze: the 29 unused days go back
+    await db.query("delete from subscriptions where user_id = $1", [testMemberF19b.id]);
+    const subEarly = (
+      await db.query<{ id: string }>(
+        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left, session_left, frozen_days)
+         values ($1, $2, 'badminton', '2026-11-01', '2026-12-30', 'frozen', 10, 10, 30)
+         returning id`,
+        [testMemberF19b.id, plan.id],
+      )
+    ).rows[0].id;
+    const { addDays, ictDateString } = await import("./time.ts");
+    const yesterday = addDays(ictDateString(), -1);
+    await db.query(
+      `insert into audit_logs (actor_id, action, entity, entity_id, at, before, after)
+       values ($1, 'freeze_sub', 'subscription', $2, $3::timestamptz,
+               '{"end_on":"2026-11-30"}'::jsonb, '{"days":30}'::jsonb)`,
+      [mgr.id, subEarly, `${yesterday}T12:00:00+07:00`],
+    );
+    await withTx(async (sql) => {
+      const res = await subscriptionUnfreeze(sql, subEarly, mgr);
+      assert.equal(res.status, 200);
+      assert.equal((res.body as any).end_on.slice(0, 10), "2026-12-01");
+      assert.equal((res.body as any).frozen_days, 1);
     });
   });
 });

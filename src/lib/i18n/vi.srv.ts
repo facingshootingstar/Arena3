@@ -426,6 +426,7 @@ const P: [RegExp, string][] = [
   [/^status must be one of (.+)\.$/, "Trạng thái phải là một trong: $1."],
   [/^This session starts in under (\d+) hours — give a reason to move it\.$/, "Buổi này bắt đầu trong chưa đầy $1 giờ, vui lòng nêu lý do dời buổi."],
   [/^(\d+) members are already enrolled — capacity cannot go below that\.$/, "Đã có $1 hội viên đăng ký, sức chứa không thể thấp hơn số này."],
+  [/^Cancel at least (\d+) hours before the next session\.$/, "Vui lòng hủy trước buổi tiếp theo ít nhất $1 giờ."],
   [/^Over the limit of (\d+) freeze days a year\.$/, "Vượt giới hạn $1 ngày tạm khóa mỗi năm."],
   [/^Your session plan starts on (\S+)\.$/, "Gói tập theo buổi của bạn bắt đầu từ ngày $1."],
   [/^Only (\d+) (.+) left — you asked for (\d+)\.$/, "Chỉ còn $1 $2, bạn yêu cầu $3."],

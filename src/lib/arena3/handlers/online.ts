@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { err } from "../errors";
 import {
   audit,
+  bookingBuyer,
   enqueueReceipt,
   getSettings,
   issueInvoice,
@@ -101,11 +102,13 @@ async function settleOnline(
     );
     // Reuses the same settle path as cash at the desk — occupancy confirmed,
     // invoice issued, member notified — against the row that already exists.
+    const buyer = await bookingBuyer(sql, booking.id);
     await settleHeldBooking(sql, booking, court!, {
       method: "gateway",
       payAmount: pay.amount_vnd,
       quotaHours: 0,
-      buyerName: "",
+      buyerName: buyer.name,
+      buyerPhone: buyer.phone,
       actorId: pay.user_id ?? "",
       existingPaymentId: pay.id,
     });

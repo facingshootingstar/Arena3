@@ -391,7 +391,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
   if (next) {
     const hours = (new Date(next.start_at).getTime() - Date.now()) / 3600000;
     if (hours < settings.cancel_class_hours) {
-      throw err.br("BR-24", "Cancel at least 4 hours before the next session.");
+      throw err.br("BR-24", `Cancel at least ${settings.cancel_class_hours} hours before the next session.`);
     }
   }
   // A prepaid session goes back to the member's session plan whatever its balance, status or dates.

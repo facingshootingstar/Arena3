@@ -164,7 +164,9 @@ export async function liveStreamHandler(request: Request, sql: Sql, user: Public
           streamEnded = true;
           try {
             controller.close();
-          } catch {}
+          } catch {
+            /* stream already closed */
+          }
           return;
         }
 
@@ -174,7 +176,9 @@ export async function liveStreamHandler(request: Request, sql: Sql, user: Public
           streamEnded = true;
           try {
             controller.close();
-          } catch {}
+          } catch {
+            /* stream already closed */
+          }
           return;
         }
 
@@ -204,7 +208,9 @@ export async function liveStreamHandler(request: Request, sql: Sql, user: Public
         streamEnded = true;
         try {
           controller.close();
-        } catch {}
+        } catch {
+          /* stream already closed */
+        }
       });
 
       // Start polling loop

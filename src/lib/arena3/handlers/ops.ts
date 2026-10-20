@@ -120,6 +120,9 @@ export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUse
   );
 
   let newEndOn = sub.end_on;
+  // Freeze charges the whole requested length up front. Days not used come back
+  // onto the yearly allowance; a freeze with no audit row is left as stored.
+  let frozenDays = sub.frozen_days;
   if (lastFreeze && lastFreeze.before?.end_on && lastFreeze.after?.days) {
     const freezeDate = String(lastFreeze.at).slice(0, 10);
     const today = ictDateString();
@@ -127,12 +130,17 @@ export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUse
     const dToday = new Date(today);
     const maxDays = Number(lastFreeze.after.days) || 0;
     const actualDays = Math.min(maxDays, Math.max(0, Math.round((dToday.getTime() - dFreeze.getTime()) / (86400 * 1000))));
+    const unused = Math.max(0, maxDays - actualDays);
+    frozenDays = Math.max(0, sub.frozen_days - unused);
     const originalEndOn = String(lastFreeze.before.end_on).slice(0, 10);
     newEndOn = addDays(originalEndOn, actualDays);
   }
 
-  await sql.query(`update subscriptions set status = 'active', end_on = $2 where id = $1`, [id, newEndOn]);
-  await audit(sql, user.id, "unfreeze_sub", "subscription", id, sub, { end_on: newEndOn });
+  await sql.query(
+    `update subscriptions set status = 'active', end_on = $2, frozen_days = $3 where id = $1`,
+    [id, newEndOn, frozenDays],
+  );
+  await audit(sql, user.id, "unfreeze_sub", "subscription", id, sub, { end_on: newEndOn, frozen_days: frozenDays });
   return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
@@ -178,34 +186,55 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
 }
 
 export async function inviteWaitlist(sql: Sql, classId: string) {
-  const pending = await one(
+  const cl = await one<{ capacity: number; enrolled_count: number }>(
     sql,
-    `select o.id from waitlist_offers o
+    `select capacity, enrolled_count from classes where id = $1 for update`,
+    [classId],
+  );
+  if (!cl) return;
+  const open = cl.capacity - cl.enrolled_count;
+  if (open <= 0) return;
+  const pending = await one<{ n: number }>(
+    sql,
+    `select count(*)::int as n
+       from waitlist_offers o
        join enrollments e on e.id = o.enrollment_id
-      where e.class_id = $1 and o.status = 'pending' and o.expires_at > now()
-      limit 1`,
+      where e.class_id = $1 and o.status = 'pending' and o.expires_at > now()`,
     [classId],
   );
-  if (pending) return;
-  const next = await one<{ id: string; user_id: string }>(
-    sql,
-    `select id, user_id from enrollments
-      where class_id = $1 and status = 'waitlisted'
-      order by waitlist_pos nulls last, id
-      limit 1`,
-    [classId],
+  const room = open - (pending?.n ?? 0);
+  if (room <= 0) return;
+  const next = await sql.query<{ id: string; user_id: string }>(
+    `select e.id, e.user_id from enrollments e
+      where e.class_id = $1 and e.status = 'waitlisted'
+        and not exists (
+          select 1 from waitlist_offers o
+           where o.enrollment_id = e.id and o.status = 'pending' and o.expires_at > now()
+        )
+      order by e.waitlist_pos nulls last, e.id
+      limit $2`,
+    [classId, room],
   );
-  if (!next) return;
+  if (next.length === 0) return;
   const settings = await getSettings(sql);
   const hours = settings.waitlist_offer_hours || 2;
-  const offer = await one<{ id: string }>(
-    sql,
-    `insert into waitlist_offers (enrollment_id, expires_at, status)
-     values ($1, now() + ($2 * interval '1 hour'), 'pending')
-     returning id`,
-    [next.id, hours],
-  );
-  await enqueue(sql, "inapp", "waitlist_offer", next.user_id, { offer_id: offer!.id, class_id: classId }, `wl|${offer!.id}`);
+  for (const row of next) {
+    const offer = await one<{ id: string }>(
+      sql,
+      `insert into waitlist_offers (enrollment_id, expires_at, status)
+       values ($1, now() + ($2 * interval '1 hour'), 'pending')
+       returning id`,
+      [row.id, hours],
+    );
+    await enqueue(
+      sql,
+      "inapp",
+      "waitlist_offer",
+      row.user_id,
+      { offer_id: offer!.id, class_id: classId },
+      `wl|${offer!.id}`,
+    );
+  }
 }
 
 export async function equipmentList(sql: Sql) {
