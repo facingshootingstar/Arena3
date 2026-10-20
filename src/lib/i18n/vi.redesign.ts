@@ -1,8 +1,15 @@
 /** Strings added by the UI redesign (navigation groups, booking grid, landing). */
 export const redesign: Record<string, string> = {
-  // shell.tsx: manager "More" menu groups
+  // shell.tsx: navigation group headings (drop-downs on a laptop, sheet headings on a phone)
+  "Overview": "Tổng quan",
+  "Courts & classes": "Sân & lớp học",
   "Sales & pricing": "Kinh doanh",
   "Operations": "Vận hành",
+  "Teaching": "Giảng dạy",
+  "Customers": "Khách hàng",
+  // Not "Equipment": its Vietnamese, "Dụng cụ", is also the name of the Gear page inside it.
+  "Gear & upkeep": "Dụng cụ & bảo trì",
+  "My account": "Tài khoản của tôi",
 
   // court-grid.tsx
   "Free hours": "Giờ còn trống",
