@@ -284,10 +284,12 @@ function useDropdown() {
 function AccountMenu({
   user,
   role,
+  showName,
   onLogout,
 }: {
   user: SessionUser | null;
   role: SessionUser["role"];
+  showName: boolean;
   onLogout: () => void;
 }) {
   const { open, setOpen, ref, button, panelId, onBlur } = useDropdown();
@@ -311,7 +313,7 @@ function AccountMenu({
             initialsClassName="text-xs font-bold tracking-wide text-accent-fg"
           />
         </span>
-        <span className="hidden text-left xl:block">
+        <span className={cn("hidden text-left", showName && "xl:block")}>
           <span className="block max-w-[10rem] truncate text-sm font-medium leading-tight">{user?.full_name ?? "-"}</span>
           <span className="kicker text-2xs text-muted">{roleLabel(role)}</span>
         </span>
@@ -508,9 +510,39 @@ export function Shell({
   // you, which is why the coach screen read "Teaching / Teaching". Roles with
   // one destination get a plain wordmark and no nav at all.
   const showNav = items.length > 1;
-  const groups = grouped(items);
   const dockItems = items.filter((it) => it.dock !== false);
   const sheetItems = items.filter((it) => it.dock === false);
+  // On a laptop the pages people open every day (the same ones as the phone's bottom bar) are
+  // plain tabs, one click away; the rest wait in a drop-down per group.
+  const menuGroups = grouped(sheetItems);
+  // The header never grows past the 6xl column. A role with several drop-downs (manager, front
+  // desk) has no room for the tabs on a small laptop, so there every group is a drop-down; on a
+  // wide one the tabs come back and the wordmark's text and the user's name make way for them.
+  const crowded = menuGroups.length > 1;
+  const tabsAndMenus = (
+    <>
+      {dockItems.map((it) => {
+        const active = navActive(pathname, it.to, items);
+        return (
+          <Link
+            key={it.to}
+            to={it.to}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex h-9 items-center whitespace-nowrap rounded-[var(--radius-md)] px-2.5 text-sm font-medium transition-colors duration-150",
+              active ? "bg-accent/10 text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
+            )}
+          >
+            {t(it.label)}
+          </Link>
+        );
+      })}
+      {menuGroups.length ? <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" /> : null}
+      {menuGroups.map((g) => (
+        <NavGroupMenu key={g.group} group={g} pathname={pathname} all={items} />
+      ))}
+    </>
+  );
   const [sheet, setSheet] = useState(false);
   // Moving to another page closes the sheet.
   useEffect(() => setSheet(false), [pathname]);
@@ -544,14 +576,20 @@ export function Shell({
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <Link to={home} aria-label={t("Lê Long Sport home")} className="-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start">
             <ArenaMark className="size-8" />
-            {/* At most four group buttons sit beside it, so the wordmark always has room. */}
-            <span className="hidden whitespace-nowrap font-display text-xl font-bold tracking-tight sm:inline">Lê Long Sport</span>
+            <span className={cn("hidden whitespace-nowrap font-display text-xl font-bold tracking-tight sm:inline", crowded && showNav && "xl:hidden")}>
+              Lê Long Sport
+            </span>
           </Link>
           {/* Laptop and wider. A tablet gets the bottom bar, like a phone: it is the thumb-friendly one. */}
           <nav aria-label={t("Main menu")} className={cn("ml-3 items-center gap-1", showNav ? "hidden lg:flex" : "hidden")}>
-            {groups.map((g) => (
-              <NavGroupMenu key={g.group} group={g} pathname={pathname} all={items} />
-            ))}
+            {crowded ? (
+              <div className="flex items-center gap-1 xl:hidden">
+                {grouped(items).map((g) => (
+                  <NavGroupMenu key={g.group} group={g} pathname={pathname} all={items} />
+                ))}
+              </div>
+            ) : null}
+            <div className={cn("items-center gap-1", crowded ? "hidden xl:flex" : "flex")}>{tabsAndMenus}</div>
           </nav>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <LangSwitch />
@@ -574,7 +612,7 @@ export function Shell({
                 <AssistantMark className="size-4" strokeWidth={1.9} />
               </Link>
             ) : null}
-            <AccountMenu user={user} role={role} onLogout={() => void logout()} />
+            <AccountMenu user={user} role={role} showName={!crowded} onLogout={() => void logout()} />
           </div>
         </div>
       </header>
