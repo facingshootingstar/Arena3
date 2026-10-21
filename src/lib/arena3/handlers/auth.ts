@@ -234,13 +234,19 @@ export async function login(sql: Sql, request: Request) {
   return { status: 200, body: session };
 }
 
+/** sha256 of the bearer token on this request, or null. Never returned to the client. */
+async function currentTokenHash(request: Request): Promise<string | null> {
+  const m = /^Bearer\s+(.+)$/i.exec(request.headers.get("authorization") ?? "");
+  if (!m) return null;
+  const { sha256 } = await import("../crypto");
+  return sha256(m[1]!);
+}
+
 export async function logout(sql: Sql, request: Request, user: PublicUser) {
-  const hdr = request.headers.get("authorization") ?? "";
-  const m = /^Bearer\s+(.+)$/i.exec(hdr);
-  if (m) {
-    const { sha256 } = await import("../crypto");
+  const hash = await currentTokenHash(request);
+  if (hash) {
     await sql.query(`delete from sessions_auth where token_hash = $1 and user_id = $2`, [
-      sha256(m[1]!),
+      hash,
       user.id,
     ]);
   }
@@ -439,13 +445,123 @@ export async function mePatch(sql: Sql, request: Request, user: PublicUser) {
     throw err.validation("Changing phone or email needs an OTP (slice 2).");
   }
   limit(`profile:${user.id}`, RULES.profileUpdate, "profile updates");
-  const full_name = str(body.full_name) ?? user.full_name;
-  const health_notes = body.health_notes === undefined ? user.health_notes : str(body.health_notes);
+  let full_name = user.full_name;
+  if (body.full_name !== undefined) {
+    const name = typeof body.full_name === "string" ? body.full_name.trim() : "";
+    if (!name) throw err.field("full_name", "Full name is required.");
+    if (name.length > 120) throw err.field("full_name", "Full name must be at most 120 characters.");
+    full_name = name;
+  }
+  // Health notes are read by coaches before a member's session; staff have none (D1).
+  let health_notes = user.health_notes;
+  if (user.role === "member" && body.health_notes !== undefined) {
+    const notes = typeof body.health_notes === "string" ? body.health_notes.trim() : "";
+    if (notes.length > 1000) throw err.field("health_notes", "Health notes must be at most 1000 characters.");
+    health_notes = notes || null;
+  }
   await sql.query(
     `update users set full_name = $1, name_normalized = $2, health_notes = $3 where id = $4`,
     [full_name, unaccentVi(full_name), health_notes ?? null, user.id],
   );
   return { status: 200, body: { user: await loadUser(sql, user.id) } };
+}
+
+export async function meProfile(sql: Sql, request: Request, user: PublicUser) {
+  const here = await currentTokenHash(request);
+
+  const userQuery = sql.query<{
+    guardian_name: string | null;
+    guardian_phone: string | null;
+    pii_consent_at: Date | string | null;
+  }>(
+    `select guardian_name, guardian_phone, pii_consent_at from users where id = $1`,
+    [user.id],
+  );
+
+  const sessionsQuery = sql.query<{ n: number }>(
+    `select count(*)::int as n from sessions_auth
+      where user_id = $1 and revoked_at is null and expires_at > now()
+        and ($2::text is null or token_hash <> $2)`,
+    [user.id, here],
+  );
+
+  if (user.role === "coach") {
+    const coachSportsQuery = sql.query<{ sports: string[] | null }>(
+      `select array_agg(sport::text order by sport) as sports from coach_sports where user_id = $1`,
+      [user.id],
+    );
+    const coachRatesQuery = sql.query<{ per_session_vnd: number; per_student_vnd: number }>(
+      `select per_session_vnd, per_student_vnd from coach_rates where coach_id = $1`,
+      [user.id],
+    );
+
+    const [sessionsRows, sportsRows, ratesRows] = await Promise.all([
+      sessionsQuery,
+      coachSportsQuery,
+      coachRatesQuery,
+    ]);
+
+    const sportsRow = sportsRows[0];
+    const ratesRow = ratesRows[0];
+    const other_sessions = Number(sessionsRows[0]?.n ?? 0);
+
+    return {
+      status: 200,
+      body: {
+        guardian: null,
+        pii_consent_at: null,
+        coach: {
+          sports: sportsRow?.sports ?? [],
+          per_session_vnd: ratesRow?.per_session_vnd != null ? Number(ratesRow.per_session_vnd) : 150000,
+          per_student_vnd: ratesRow?.per_student_vnd != null ? Number(ratesRow.per_student_vnd) : 10000,
+        },
+        other_sessions,
+      },
+    };
+  }
+
+  const [userRows, sessionsRows] = await Promise.all([userQuery, sessionsQuery]);
+  const uRow = userRows[0];
+  const other_sessions = Number(sessionsRows[0]?.n ?? 0);
+
+  let guardian: { name: string | null; phone: string | null } | null = null;
+  let pii_consent_at: string | null = null;
+
+  if (user.role === "member" && uRow) {
+    if (uRow.guardian_name || uRow.guardian_phone) {
+      guardian = {
+        name: uRow.guardian_name ?? null,
+        phone: uRow.guardian_phone ?? null,
+      };
+    }
+    if (uRow.pii_consent_at) {
+      pii_consent_at = new Date(uRow.pii_consent_at).toISOString();
+    }
+  }
+
+  return {
+    status: 200,
+    body: {
+      guardian,
+      pii_consent_at,
+      coach: null,
+      other_sessions,
+    },
+  };
+}
+
+export async function meSignOutOthers(sql: Sql, request: Request, user: PublicUser) {
+  const here = await currentTokenHash(request);
+  if (!here) throw err.unauth();
+  limit(`signout:${user.id}`, RULES.profileUpdate, "profile updates");
+  const revoked = await sql.query<{ id: string }>(
+    `update sessions_auth set revoked_at = now()
+      where user_id = $1 and revoked_at is null and token_hash <> $2
+      returning id`,
+    [user.id, here],
+  );
+  await audit(sql, user.id, "sign_out_other_sessions", "user", user.id);
+  return { status: 200, body: { signed_out: revoked.length } };
 }
 
 /**
@@ -482,7 +598,14 @@ export async function mePassword(sql: Sql, request: Request, user: PublicUser) {
       where id = $2`,
     [hashPassword(next), user.id],
   );
-  await sql.query(`update sessions_auth set revoked_at = now() where user_id = $1 and revoked_at is null`, [user.id]);
+  // Every other device has to sign in again with the new password; this one stays signed in (D2).
+  const here = await currentTokenHash(request);
+  const revoked = await sql.query<{ id: string }>(
+    `update sessions_auth set revoked_at = now()
+      where user_id = $1 and revoked_at is null and ($2::text is null or token_hash <> $2)
+      returning id`,
+    [user.id, here],
+  );
   await audit(sql, user.id, "change_password", "user", user.id);
-  return { status: 200, body: { ok: true } };
+  return { status: 200, body: { ok: true, signed_out: revoked.length } };
 }

@@ -213,6 +213,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "me" && !p1) {
     return authedRead((sql, user) => authH.meGet(sql, user));
   }
+  if (method === "GET" && p0 === "me" && p1 === "profile" && !p2) {
+    return authedRead((sql, user) => authH.meProfile(sql, request, user));
+  }
   if (method === "GET" && p0 === "me" && p1 === "bookings" && !p2) {
     return authedRead((sql, user) => bookH.meBookings(sql, user));
   }
@@ -239,6 +242,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "POST" && p0 === "me" && p1 === "password") {
     return authed((sql, user) => authH.mePassword(sql, request, user));
+  }
+  if (method === "POST" && p0 === "me" && p1 === "sessions" && p2 === "sign-out-others" && !parts[3]) {
+    return authed((sql, user) => authH.meSignOutOthers(sql, request, user));
   }
   if (method === "GET" && p0 === "occupancy" && p1 === "detail") {
     return authedRead((sql, user) => bookH.occupancyDetail(sql, request, user));

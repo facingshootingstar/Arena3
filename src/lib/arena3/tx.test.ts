@@ -1384,7 +1384,7 @@ describe("Round 7: Group A unit tests (F-08, F-11)", () => {
     });
   });
 
-  it("F-11: 2 sessions -> change password in session 1 -> session 2 is revoked (401)", async () => {
+  it("F-11: change password in session 1 -> session 2 is revoked, session 1 stays signed in", async () => {
     const phone = "0987000011";
     const pwHash = hashPassword("OldPass123!");
     const userId = (
@@ -1423,6 +1423,7 @@ describe("Round 7: Group A unit tests (F-08, F-11)", () => {
       });
       const res = await authH.mePassword(sql, changeReq, userPub);
       assert.equal(res.status, 200);
+      assert.equal((res.body as any).signed_out, 1);
     });
 
     // Session 2 is revoked -> throws 401
@@ -1437,16 +1438,9 @@ describe("Round 7: Group A unit tests (F-08, F-11)", () => {
         },
       );
 
-      // Session 1 is also revoked on subsequent /me calls
-      await assert.rejects(
-        async () => {
-          await authFromRequest(sql, new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${s1.token}` } }));
-        },
-        (err: any) => {
-          assert.equal(err.status, 401);
-          return true;
-        },
-      );
+      // Session 1 stays signed in
+      const u1 = await authFromRequest(sql, new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${s1.token}` } }));
+      assert.equal(u1.id, userId);
     });
   });
 });
@@ -4240,3 +4234,234 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal((finalRoster.body as any).items.find((r: any) => r.id === memV.id)?.avatar_url, null);
     });
   });
+
+describe("Account settings (profile page)", () => {
+  it("validates mePatch full_name and health_notes", async () => {
+    const phone = "0987000021";
+    const pwHash = hashPassword("Pass123!");
+    const userId = (
+      await db.query<{ id: string }>(
+        `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+         values (gen_random_uuid(), $1, 'Member TwentyOne', 'member twentyone', 'member', 'active', $2)
+         returning id`,
+        [phone, pwHash],
+      )
+    ).rows[0].id;
+    const userPub = toPublic((await db.query("select * from users where id = $1", [userId])).rows[0] as any);
+
+    // mePatch with full_name: "   " -> rejects with 400 and field === "full_name"
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ full_name: "   " }),
+      });
+      await assert.rejects(
+        async () => authH.mePatch(sql, req, userPub),
+        (err: any) => {
+          assert.equal(err.status, 400);
+          assert.equal(err.extra?.field, "full_name");
+          return true;
+        },
+      );
+    });
+
+    // mePatch with a 121-character name -> 400, field === "full_name"
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ full_name: "A".repeat(121) }),
+      });
+      await assert.rejects(
+        async () => authH.mePatch(sql, req, userPub),
+        (err: any) => {
+          assert.equal(err.status, 400);
+          assert.equal(err.extra?.field, "full_name");
+          return true;
+        },
+      );
+    });
+
+    // mePatch by a member with 1001-character health_notes -> 400, field === "health_notes"
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ health_notes: "H".repeat(1001) }),
+      });
+      await assert.rejects(
+        async () => authH.mePatch(sql, req, userPub),
+        (err: any) => {
+          assert.equal(err.status, 400);
+          assert.equal(err.extra?.field, "health_notes");
+          return true;
+        },
+      );
+    });
+
+    // mePatch by a member with health_notes: "  " -> stored as null
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ health_notes: "  " }),
+      });
+      const res = await authH.mePatch(sql, req, userPub);
+      assert.equal(res.status, 200);
+      assert.equal((res.body as any).user.health_notes, null);
+    });
+    const checkDb = (await db.query<{ health_notes: string | null }>("select health_notes from users where id = $1", [userId])).rows[0];
+    assert.equal(checkDb.health_notes, null);
+
+    // mePatch by a coach with health_notes: "x" -> 200 and health_notes unchanged in database
+    const coachPhone = "0987000022";
+    const coachId = (
+      await db.query<{ id: string }>(
+        `insert into users (id, phone, full_name, name_normalized, role, status, password_hash, health_notes)
+         values (gen_random_uuid(), $1, 'Coach TwentyTwo', 'coach twentytwo', 'coach', 'active', $2, 'initial notes')
+         returning id`,
+        [coachPhone, pwHash],
+      )
+    ).rows[0].id;
+    const coachPub = toPublic((await db.query("select * from users where id = $1", [coachId])).rows[0] as any);
+
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ health_notes: "x" }),
+      });
+      const res = await authH.mePatch(sql, req, coachPub);
+      assert.equal(res.status, 200);
+    });
+    const coachDb = (await db.query<{ health_notes: string | null }>("select health_notes from users where id = $1", [coachId])).rows[0];
+    assert.equal(coachDb.health_notes, "initial notes");
+  });
+
+  it("handles meProfile for member and coach correctly", async () => {
+    const pwHash = hashPassword("Pass123!");
+    // meProfile for a member with a guardian -> guardian.name matches, coach === null
+    const memberGuardPhone = "0987000023";
+    const memberGuardId = (
+      await db.query<{ id: string }>(
+        `insert into users (id, phone, full_name, name_normalized, role, status, password_hash, guardian_name, guardian_phone, pii_consent_at)
+         values (gen_random_uuid(), $1, 'Member With Guardian', 'member with guardian', 'member', 'active', $2, 'Parent Guardian', '0912345678', now())
+         returning id`,
+        [memberGuardPhone, pwHash],
+      )
+    ).rows[0].id;
+    const memberGuardPub = toPublic((await db.query("select * from users where id = $1", [memberGuardId])).rows[0] as any);
+    let sGuard: any;
+    await withTx(async (sql) => {
+      sGuard = await issueSession(sql, memberGuardPub);
+    });
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me/profile", {
+        headers: { authorization: `Bearer ${sGuard.token}` },
+      });
+      const res = await authH.meProfile(sql, req, memberGuardPub);
+      assert.equal(res.status, 200);
+      const b = res.body as any;
+      assert.equal(b.guardian?.name, "Parent Guardian");
+      assert.equal(b.guardian?.phone, "0912345678");
+      assert.ok(b.pii_consent_at);
+      assert.equal(b.coach, null);
+    });
+
+    // meProfile for a coach with one coach_sports row and no coach_rates row -> sports has that sport, rates are 150000 / 10000, guardian === null
+    const coachProfPhone = "0987000024";
+    const coachProfId = (
+      await db.query<{ id: string }>(
+        `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+         values (gen_random_uuid(), $1, 'Coach Profile', 'coach profile', 'coach', 'active', $2)
+         returning id`,
+        [coachProfPhone, pwHash],
+      )
+    ).rows[0].id;
+    await db.query(`insert into coach_sports (user_id, sport) values ($1, 'badminton')`, [coachProfId]);
+    const coachProfPub = toPublic((await db.query("select * from users where id = $1", [coachProfId])).rows[0] as any);
+    let sCoach: any;
+    await withTx(async (sql) => {
+      sCoach = await issueSession(sql, coachProfPub);
+    });
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me/profile", {
+        headers: { authorization: `Bearer ${sCoach.token}` },
+      });
+      const res = await authH.meProfile(sql, req, coachProfPub);
+      assert.equal(res.status, 200);
+      const b = res.body as any;
+      assert.deepEqual(b.coach?.sports, ["badminton"]);
+      assert.equal(b.coach?.per_session_vnd, 150000);
+      assert.equal(b.coach?.per_student_vnd, 10000);
+      assert.equal(b.guardian, null);
+    });
+  });
+
+  it("handles multi-session counting and sign-out-others", async () => {
+    const pwHash = hashPassword("Pass123!");
+    const multiPhone = "0987000025";
+    const multiId = (
+      await db.query<{ id: string }>(
+        `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+         values (gen_random_uuid(), $1, 'Multi User', 'multi user', 'member', 'active', $2)
+         returning id`,
+        [multiPhone, pwHash],
+      )
+    ).rows[0].id;
+    const multiPub = toPublic((await db.query("select * from users where id = $1", [multiId])).rows[0] as any);
+    let sA: any, sB: any, sC: any;
+    await withTx(async (sql) => {
+      sA = await issueSession(sql, multiPub);
+      sB = await issueSession(sql, multiPub);
+      sC = await issueSession(sql, multiPub);
+    });
+
+    // Three sessions for one user; meProfile called with session A's token -> other_sessions === 2
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me/profile", {
+        headers: { authorization: `Bearer ${sA.token}` },
+      });
+      const res = await authH.meProfile(sql, req, multiPub);
+      assert.equal(res.status, 200);
+      assert.equal((res.body as any).other_sessions, 2);
+    });
+
+    // meSignOutOthers with session A -> signed_out === 2; A still authenticates, B and C get 401; calling it again returns signed_out === 0
+    await withTx(async (sql) => {
+      const req = new Request("http://localhost/v1/me/sessions/sign-out-others", {
+        method: "POST",
+        headers: { authorization: `Bearer ${sA.token}` },
+      });
+      const res = await authH.meSignOutOthers(sql, req, multiPub);
+      assert.equal(res.status, 200);
+      assert.equal((res.body as any).signed_out, 2);
+
+      // A still authenticates
+      const uA = await authFromRequest(sql, new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${sA.token}` } }));
+      assert.equal(uA.id, multiId);
+
+      // B and C get 401
+      await assert.rejects(
+        async () => authFromRequest(sql, new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${sB.token}` } })),
+        (err: any) => {
+          assert.equal(err.status, 401);
+          return true;
+        },
+      );
+      await assert.rejects(
+        async () => authFromRequest(sql, new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${sC.token}` } })),
+        (err: any) => {
+          assert.equal(err.status, 401);
+          return true;
+        },
+      );
+
+      // Calling it again returns signed_out === 0
+      const res2 = await authH.meSignOutOthers(sql, req, multiPub);
+      assert.equal(res2.status, 200);
+      assert.equal((res2.body as any).signed_out, 0);
+    });
+  });
+});
