@@ -4465,3 +4465,26 @@ describe("Account settings (profile page)", () => {
     });
   });
 });
+
+describe("Shared row contracts match the tables", () => {
+  // columns.ts replaces `select *`; a migration that adds or drops a column
+  // must update contracts.ts and columns.ts too, or the API shape drifts.
+  it("lists every column of court_bookings, payments and invoices, and nothing else", async () => {
+    const { BOOKING_COLS, PAYMENT_COLS, INVOICE_COLS } = await import("./columns.ts");
+    for (const [table, cols] of [
+      ["court_bookings", BOOKING_COLS],
+      ["payments", PAYMENT_COLS],
+      ["invoices", INVOICE_COLS],
+    ] as const) {
+      const res = await db.query<{ column_name: string }>(
+        "select column_name from information_schema.columns where table_schema = 'public' and table_name = $1",
+        [table],
+      );
+      assert.deepEqual(
+        cols.split(", ").sort(),
+        res.rows.map((r) => r.column_name).sort(),
+        `${table} columns`,
+      );
+    }
+  });
+});

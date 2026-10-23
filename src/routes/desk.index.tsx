@@ -26,6 +26,7 @@ import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/moti
 import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
+import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
 import { ageYears } from "@/lib/arena3/time";
 import { UserAvatar } from "@/components/user-avatar";
@@ -464,7 +465,7 @@ function Page() {
                   if (!subId) return;
                   setBusy(true);
                   try {
-                    const res = await apiPost<{ invoice: { id: string } }>(
+                    const res = await apiPost<PaymentCreateResponse>(
                       "/payments",
                       {
                         ref_type: "subscription",

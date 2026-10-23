@@ -15,6 +15,7 @@ import { Shell, money, when } from "@/components/shell";
 import { Button, Card, ContextLayout, DateField, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/components/ui";
 import { StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
+import type { ConfirmResponse, HoldResponse, MeBookingsResponse, MyBooking } from "@/lib/arena3/contracts";
 import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
@@ -50,34 +51,10 @@ function nearestFree(
 }
 
 /** One of the member's own upcoming court bookings (M-04). */
-type MyBooking = {
-  id: string;
-  code: string;
-  status: string;
-  start_at: string;
-  end_at: string;
-  court_id: string;
-  court_code: string;
-  sport: string;
-  can_move: boolean;
-  paid_vnd?: number;
-  price_vnd?: number;
-  series_id?: string | null;
-};
-
-type Hold = {
-  booking: { id: string; code: string; hold_until?: string };
-  price: number;
-  /** What is asked up front when only a deposit is due; equals the price otherwise. */
-  due_now_vnd?: number;
-  deposit_vnd?: number;
-  hold_until: string;
+type Hold = HoldResponse & {
   /** Which slot this is, carried from the tap so the card can name it. */
   court_code?: string;
   hour?: number;
-  promo?: { code: string; name: string; discount_vnd: number } | null;
-  /** Court hours on a plan that covers this sport and is live today (BR-12, BR-13). */
-  plan_hours_left?: number;
 };
 
 /** A hold that was refused, and — when another hour would help — where to go instead. */
@@ -129,7 +106,7 @@ function Page() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   async function loadMine() {
     try {
-      const r = await apiGet<{ items: MyBooking[]; window_hours: number }>("/me/bookings");
+      const r = await apiGet<MeBookingsResponse>("/me/bookings");
       setMine(r.items);
       setWindowHours(r.window_hours);
     } catch {
@@ -236,7 +213,7 @@ function Page() {
     const start = `${date}T${String(hour).padStart(2, "0")}:00:00+07:00`;
     setBusy(true);
     try {
-      const res = await apiPost<Hold>(
+      const res = await apiPost<HoldResponse>(
         "/bookings",
         {
           court_id: court.id,
@@ -295,18 +272,14 @@ function Page() {
       // The endpoint issues an invoice and hands back its id. Dropping that on
       // the floor is why a member could pay and never see a receipt — nothing
       // in the UI ever mentioned one existed.
-      const res = await apiPost<{
-        invoice_id?: string;
-        awaiting_transfer?: boolean;
-        hold_until?: string;
-      }>(`/bookings/${hold.booking.id}/confirm`, { method }, true);
+      const res = await apiPost<ConfirmResponse>(`/bookings/${hold.booking.id}/confirm`, { method }, true);
       setHold(null);
       load();
       // A transfer is not a booking yet. Saying "Booking confirmed" here would
       // be the app telling a member their court is theirs while reception has
       // not found a single dong of it in the bank.
-      if (res.awaiting_transfer) {
-        setPending({ amount: hold.due_now_vnd ?? hold.price, until: res.hold_until ?? hold.hold_until, code: hold.booking.code });
+      if ("awaiting_transfer" in res) {
+        setPending({ amount: hold.due_now_vnd, until: res.hold_until, code: hold.booking.code });
         toast.success(t("Transfer noted"), {
           description: t("Your court is held while reception checks the bank."),
         });

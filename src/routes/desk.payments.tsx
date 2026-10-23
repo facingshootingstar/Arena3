@@ -26,6 +26,7 @@ import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion"
 import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { PromoInput } from "@/components/promo-input";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
+import type { PaymentCreateResponse, TransferConfirmResponse, TransferRejectResponse } from "@/lib/arena3/contracts";
 import { refTypeLabel, sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer, tData } from "@/lib/i18n";
 import { usePageState } from "@/lib/use-page-state";
@@ -249,7 +250,7 @@ function Page() {
     const due = dueOf(o);
     setBusy(o.id);
     try {
-      const res = await apiPost<{ invoice: { id: string } }>(
+      const res = await apiPost<PaymentCreateResponse>(
         "/payments",
         {
           ref_type: "subscription",
@@ -303,14 +304,14 @@ function Page() {
   async function settleTransfer(a: Awaiting, received: boolean) {
     setBusy(a.id);
     try {
-      const res = await apiPost<{ invoice_id?: string }>(
+      const res = await apiPost<TransferConfirmResponse | TransferRejectResponse>(
         `/bookings/${a.id}/${received ? "transfer-confirm" : "transfer-reject"}`,
       );
       toast.success(
         received ? t("Confirmed: {court} is booked", { court: a.court_code }) : t("Slot released back to the grid"),
       );
       refresh();
-      if (received && res.invoice_id) {
+      if ("invoice_id" in res) {
         try {
           await openInvoice(res.invoice_id);
         } catch {

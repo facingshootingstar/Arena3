@@ -1,23 +1,10 @@
 import type { Sql } from "@/lib/db";
 import { hashPassword, randomToken, sha256, verifyPassword } from "./crypto";
+import type { PublicUser, Role } from "./contracts";
 import { err } from "./errors";
 import { one, q } from "./tx";
 
-export type Role = "manager" | "coach" | "receptionist" | "member";
-
-export type PublicUser = {
-  id: string;
-  member_code: string | null;
-  full_name: string;
-  phone: string;
-  email: string | null;
-  role: Role;
-  status: string;
-  date_of_birth: string | null;
-  health_notes: string | null;
-  must_change_password: boolean;
-  avatar_url: string | null;
-};
+export type { PublicUser, Role } from "./contracts";
 
 export type AuthUser = PublicUser & { password_hash: string };
 

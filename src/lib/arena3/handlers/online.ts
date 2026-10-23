@@ -24,7 +24,7 @@ import { requireRole, type PublicUser } from "../session";
 import { one } from "../tx";
 import { dueNow } from "../policy";
 import { redeemPromo } from "../promos";
-import { settleHeldBooking } from "./bookings";
+import { HELD_COLS, settleHeldBooking } from "./bookings";
 import { activateSubscription } from "./desk";
 
 /**
@@ -91,7 +91,7 @@ async function settleOnline(
   if (pay.ref_type === "booking") {
     const booking = await one<Parameters<typeof settleHeldBooking>[1]>(
       sql,
-      `select * from court_bookings where id = $1 for update`,
+      `select ${HELD_COLS} from court_bookings where id = $1 for update`,
       [pay.ref_id],
     );
     if (!booking) throw err.notFound("That booking no longer exists.");

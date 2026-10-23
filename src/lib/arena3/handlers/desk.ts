@@ -1,4 +1,6 @@
 import type { Sql } from "@/lib/db";
+import { INVOICE_COLS, PAYMENT_COLS } from "../columns";
+import type { Invoice, Payment, PaymentCreateResponse, Reply } from "../contracts";
 import { err } from "../errors";
 import {
   audit,
@@ -234,7 +236,11 @@ async function describePayment(
   return { description: "Dịch vụ tại trung tâm", unit: "lượt" };
 }
 
-export async function paymentsCreate(sql: Sql, request: Request, user: PublicUser) {
+export async function paymentsCreate(
+  sql: Sql,
+  request: Request,
+  user: PublicUser,
+): Promise<Reply<PaymentCreateResponse>> {
   requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
   const ref_type = str(b.ref_type);
@@ -410,10 +416,10 @@ export async function paymentsCreate(sql: Sql, request: Request, user: PublicUse
     amount_vnd: amount,
     method,
   });
-  const payment = await one(sql, `select * from payments where id = $1`, [pay!.id]);
-  const invoice = await one(sql, `select * from invoices where id = $1`, [invoiceId]);
+  const payment = await one<Payment>(sql, `select ${PAYMENT_COLS} from payments where id = $1`, [pay!.id]);
+  const invoice = await one<Invoice>(sql, `select ${INVOICE_COLS} from invoices where id = $1`, [invoiceId]);
   await audit(sql, user.id, "create_payment", "payment", pay!.id);
-  return { status: 201, body: { payment, invoice } };
+  return { status: 201, body: { payment: payment!, invoice: invoice! } };
 }
 
 export async function paymentsRefund(sql: Sql, id: string, request: Request, user: PublicUser) {
@@ -431,7 +437,7 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
     ref_id: string;
     // `for update` so two clicks on the same payment queue behind each other
     // rather than both reading a ledger neither of them has written to yet.
-  }>(sql, `select * from payments where id = $1 for update`, [id]);
+  }>(sql, `select id, amount_vnd, user_id, vat_rate, ref_type, ref_id from payments where id = $1 for update`, [id]);
 
   if (!orig) throw err.notFound();
   if (orig.amount_vnd <= 0) throw err.validation("That row is already a refund.");

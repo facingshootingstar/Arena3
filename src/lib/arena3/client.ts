@@ -1,5 +1,6 @@
 import { linkDown, linkUp, loadFailed, loadOk } from "@/lib/connection";
 import { tServer } from "@/lib/i18n";
+import type { PublicUser, Role } from "./contracts";
 
 const TOKEN_KEY = "arena3.token";
 const USER_KEY = "arena3.user";
@@ -8,21 +9,13 @@ const EXPIRED_KEY = "arena3.expired";
 /** Fired on `window` when the cached user changes, so the header can follow a profile edit. */
 const USER_EVENT = "arena3:user";
 
-export type Role = "manager" | "coach" | "receptionist" | "member";
+export type { Role };
 
-export type SessionUser = {
-  id: string;
-  member_code: string | null;
-  full_name: string;
-  phone: string;
-  email: string | null;
-  role: Role;
-  status: string;
-  date_of_birth: string | null;
-  health_notes: string | null;
-  must_change_password: boolean;
-  avatar_url?: string | null;
-};
+/**
+ * The signed-in person as cached in the browser. Same shape the server sends,
+ * except that a session saved before avatars existed has no `avatar_url`.
+ */
+export type SessionUser = Omit<PublicUser, "avatar_url"> & { avatar_url?: string | null };
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;

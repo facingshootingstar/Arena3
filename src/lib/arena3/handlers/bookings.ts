@@ -1,4 +1,24 @@
 import type { Sql } from "@/lib/db";
+import { BOOKING_COLS, PAYMENT_COLS } from "../columns";
+import type {
+  Booking,
+  BookingResponse,
+  CancelQuoteResponse,
+  CancelResponse,
+  CheckInResponse,
+  CollectBalanceResponse,
+  ConfirmResponse,
+  HoldResponse,
+  MeBookingsResponse,
+  MyBooking,
+  Payment,
+  Reply,
+  RescheduleResponse,
+  SettledBooking,
+  TransferConfirmResponse,
+  TransferRejectResponse,
+  WalkInResponse,
+} from "../contracts";
 import { ApiError, err, isConflictSlot } from "../errors";
 import {
   audit,
@@ -243,24 +263,10 @@ export async function availabilityGet(sql: Sql, request: Request, user?: PublicU
  * moved. The home screen only shows today's, which left no way to find a
  * booking next week in order to change it.
  */
-export async function meBookings(sql: Sql, user: PublicUser) {
+export async function meBookings(sql: Sql, user: PublicUser): Promise<Reply<MeBookingsResponse>> {
   requireRole(user, ["member"]);
   const settings = await getSettings(sql);
-  const rows = await sql.query<{
-    id: string;
-    code: string;
-    status: string;
-    start_at: string;
-    end_at: string;
-    price_vnd: number;
-    paid_vnd: number;
-    deposit_vnd: number;
-    series_id: string | null;
-    quota_hours: string | number;
-    court_id: string;
-    court_code: string;
-    sport: string;
-  }>(
+  const rows = await sql.query<Omit<MyBooking, "can_move">>(
     `select b.id, b.code, b.status::text as status, b.start_at, b.end_at, b.price_vnd, b.paid_vnd, b.deposit_vnd, b.series_id, b.quota_hours,
             b.court_id, c.court_code, c.sport::text as sport
        from court_bookings b join courts c on c.id = b.court_id
@@ -601,7 +607,7 @@ export async function courtsPatch(sql: Sql, id: string, request: Request, user: 
   return { status: 200, body: { court, upcoming: live?.n ?? 0 } };
 }
 
-export async function bookingsHold(sql: Sql, request: Request, user: PublicUser) {
+export async function bookingsHold(sql: Sql, request: Request, user: PublicUser): Promise<Reply<HoldResponse>> {
   requireRole(user, ["member"]);
   const b = await readJson(request);
   const courtId = str(b.court_id);
@@ -686,11 +692,11 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
       deposit,
     ],
   );
-  const booking = await one(sql, `select * from court_bookings where id = $1`, [bookingId]);
+  const booking = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [bookingId]);
   return {
     status: 201,
     body: {
-      booking,
+      booking: booking!,
       hold_until: holdUntil.toISOString(),
       price,
       deposit_vnd: deposit,
@@ -704,23 +710,27 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
   };
 }
 
-type HeldBooking = {
-  id: string;
-  code?: string;
-  user_id: string;
-  status: string;
-  hold_until: string | null;
-  transfer_requested_at: string | null;
-  occupancy_id: string | null;
-  court_id: string;
-  start_at: string;
-  end_at: string;
-  price_vnd: number;
-  deposit_vnd?: number;
-  discount_pct: number;
-  vat_rate: string | number;
-  quota_hours: string | number;
-};
+/** What settling a hold reads off the booking, locked `for update` by every caller. */
+const HELD_KEYS = [
+  "id",
+  "code",
+  "user_id",
+  "status",
+  "hold_until",
+  "transfer_requested_at",
+  "occupancy_id",
+  "court_id",
+  "start_at",
+  "end_at",
+  "price_vnd",
+  "deposit_vnd",
+  "discount_pct",
+  "vat_rate",
+  "quota_hours",
+] as const satisfies readonly (keyof Booking)[];
+export const HELD_COLS = HELD_KEYS.join(", ");
+/** A hold is always a member's: walk-ins are paid on the spot and never held. */
+type HeldBooking = Omit<Pick<Booking, (typeof HELD_KEYS)[number]>, "user_id"> & { user_id: string };
 
 /**
  * Turn a held booking into a paid, confirmed one: money in, slot locked,
@@ -753,7 +763,7 @@ export async function settleHeldBooking(
      */
     existingPaymentId?: string;
   },
-) {
+): Promise<SettledBooking> {
   // An online payment already has its row: it was written as `pending` when the
   // payOS link was issued, and the gateway's confirmation flipped it to
   // `posted`. Writing a second one here would double the day's takings.
@@ -822,9 +832,9 @@ export async function settleHeldBooking(
       method: opts.method,
     });
   }
-  const fresh = await one(sql, `select * from court_bookings where id = $1`, [booking.id]);
-  const payment = await one(sql, `select * from payments where id = $1`, [pay!.id]);
-  return { booking: fresh, payment, invoice_id: invoiceId };
+  const fresh = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [booking.id]);
+  const payment = await one<Payment>(sql, `select ${PAYMENT_COLS} from payments where id = $1`, [pay!.id]);
+  return { booking: fresh!, payment: payment!, invoice_id: invoiceId };
 }
 
 /**
@@ -843,7 +853,12 @@ export async function settleHeldBooking(
  */
 const MEMBER_SETTLE_METHODS = new Set(["quota", "transfer"]);
 
-export async function bookingsConfirm(sql: Sql, id: string, request: Request, user: PublicUser) {
+export async function bookingsConfirm(
+  sql: Sql,
+  id: string,
+  request: Request,
+  user: PublicUser,
+): Promise<Reply<ConfirmResponse>> {
   requireRole(user, ["member"]);
   const b = await readJson(request);
   const method = str(b.method) ?? "transfer";
@@ -855,7 +870,7 @@ export async function bookingsConfirm(sql: Sql, id: string, request: Request, us
   const settings = await getSettings(sql);
   const booking = await one<HeldBooking>(
     sql,
-    `select * from court_bookings where id = $1 for update`,
+    `select ${HELD_COLS} from court_bookings where id = $1 for update`,
     [id],
   );
   if (!booking) throw err.notFound();
@@ -892,11 +907,11 @@ export async function bookingsConfirm(sql: Sql, id: string, request: Request, us
       { booking_id: booking.id, code: booking.code, amount_vnd: dueNow(booking) },
       `transfer_requested|${booking.id}`,
     );
-    const fresh = await one(sql, `select * from court_bookings where id = $1`, [id]);
+    const fresh = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [id]);
     return {
       status: 202,
       body: {
-        booking: fresh,
+        booking: fresh!,
         payment: null,
         invoice_id: null,
         awaiting_transfer: true,
@@ -934,11 +949,15 @@ export async function bookingsConfirm(sql: Sql, id: string, request: Request, us
  * Staff-only on purpose: the member asking for this would be marking their own
  * transfer as received, which is the whole thing this queue exists to prevent.
  */
-export async function bookingsTransferConfirm(sql: Sql, id: string, user: PublicUser) {
+export async function bookingsTransferConfirm(
+  sql: Sql,
+  id: string,
+  user: PublicUser,
+): Promise<Reply<TransferConfirmResponse>> {
   requireRole(user, ["receptionist", "manager"]);
   const booking = await one<HeldBooking>(
     sql,
-    `select * from court_bookings where id = $1 for update`,
+    `select ${HELD_COLS} from court_bookings where id = $1 for update`,
     [id],
   );
   if (!booking) throw err.notFound();
@@ -972,12 +991,12 @@ export async function bookingsTransferReject(
   id: string,
   request: Request,
   user: PublicUser,
-) {
+): Promise<Reply<TransferRejectResponse>> {
   requireRole(user, ["receptionist", "manager"]);
   const reason = str((await readJson(request)).reason) ?? null;
   const booking = await one<HeldBooking>(
     sql,
-    `select * from court_bookings where id = $1 for update`,
+    `select ${HELD_COLS} from court_bookings where id = $1 for update`,
     [id],
   );
   if (!booking) throw err.notFound();
@@ -999,16 +1018,18 @@ export async function bookingsTransferReject(
   return { status: 200, body: { booking_id: id, released: true } };
 }
 
-type CancelRow = {
-  id: string;
-  user_id: string | null;
-  status: string;
-  start_at: string;
-  price_vnd: number;
-  paid_vnd: number;
-  quota_hours: string | number;
-  court_id: string;
-};
+const CANCEL_KEYS = [
+  "id",
+  "user_id",
+  "status",
+  "start_at",
+  "price_vnd",
+  "paid_vnd",
+  "quota_hours",
+  "court_id",
+] as const satisfies readonly (keyof Booking)[];
+type CancelRow = Pick<Booking, (typeof CANCEL_KEYS)[number]>;
+const CANCEL_COLS = CANCEL_KEYS.join(", ");
 
 /**
  * What cancelling a booking would cost, right now.
@@ -1018,9 +1039,14 @@ type CancelRow = {
  * a flood, an emergency): that is the force-majeure rule — never charge a customer
  * for something that is not their doing.
  */
-export async function bookingsCancelQuote(sql: Sql, id: string, request: Request, user: PublicUser) {
+export async function bookingsCancelQuote(
+  sql: Sql,
+  id: string,
+  request: Request,
+  user: PublicUser,
+): Promise<Reply<CancelQuoteResponse>> {
   requireRole(user, ["member", "receptionist", "manager"]);
-  const booking = await one<CancelRow>(sql, `select * from court_bookings where id = $1`, [id]);
+  const booking = await one<CancelRow>(sql, `select ${CANCEL_COLS} from court_bookings where id = $1`, [id]);
   if (!booking) throw err.notFound();
   if (user.role === "member" && booking.user_id !== user.id) throw err.forbidden();
   if (!["hold", "confirmed"].includes(booking.status)) {
@@ -1041,10 +1067,15 @@ export async function bookingsCancelQuote(sql: Sql, id: string, request: Request
   };
 }
 
-export async function bookingsCancel(sql: Sql, id: string, user: PublicUser, request?: Request) {
+export async function bookingsCancel(
+  sql: Sql,
+  id: string,
+  user: PublicUser,
+  request?: Request,
+): Promise<Reply<CancelResponse>> {
   requireRole(user, ["member", "receptionist", "manager"]);
   const body = request ? await readJson(request) : {};
-  const booking = await one<CancelRow>(sql, `select * from court_bookings where id = $1 for update`, [id]);
+  const booking = await one<CancelRow>(sql, `select ${CANCEL_COLS} from court_bookings where id = $1 for update`, [id]);
   if (!booking) throw err.notFound();
   if (user.role === "member" && booking.user_id !== user.id) throw err.forbidden();
   if (!["hold", "confirmed"].includes(booking.status)) {
@@ -1070,7 +1101,7 @@ export async function bookingsCancel(sql: Sql, id: string, user: PublicUser, req
     quote.refund_pct,
     quote.fee_vnd,
   ]);
-  let refund = null;
+  let refund: Payment | { kind: "quota"; hours: number } | null = null;
   const qh = Number(booking.quota_hours) || 0;
   if (qh > 0 && booking.user_id) {
     // Plan hours cannot be split: half a notice or better gives the hour back.
@@ -1090,12 +1121,13 @@ export async function bookingsCancel(sql: Sql, id: string, user: PublicUser, req
     const amount = -quote.refund_vnd;
     const needMgr = Math.abs(amount) >= settings.refund_manager_vnd;
     const st = needMgr ? "refund_pending" : "posted";
-    refund = await one(
-      sql,
-      `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
-       values ($1,$2,'cash',$3,0,$4,'booking',$5,$6) returning *`,
-      [payCode, booking.user_id, amount, st, id, user.id],
-    );
+    refund =
+      (await one<Payment>(
+        sql,
+        `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
+         values ($1,$2,'cash',$3,0,$4,'booking',$5,$6) returning ${PAYMENT_COLS}`,
+        [payCode, booking.user_id, amount, st, id, user.id],
+      )) ?? null;
     // A full refund gives the member their use of the code back (BR-41).
     if (quote.fee_vnd === 0) await restoreIfFullyRefunded(sql, "booking", id);
   }
@@ -1121,14 +1153,19 @@ export async function bookingsCancel(sql: Sql, id: string, user: PublicUser, req
  * A deposit booking is confirmed with only part of the money in; this is the
  * other part, as a payment row of its own with its own invoice.
  */
-export async function bookingsCollectBalance(sql: Sql, id: string, request: Request, user: PublicUser) {
+export async function bookingsCollectBalance(
+  sql: Sql,
+  id: string,
+  request: Request,
+  user: PublicUser,
+): Promise<Reply<CollectBalanceResponse>> {
   requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
   const method = str(b.method) ?? "cash";
   if (!["cash", "card", "transfer"].includes(method)) throw err.validation("Pick cash, card or transfer.");
-  const booking = await one<CancelRow & { vat_rate: string | number }>(
+  const booking = await one<CancelRow & Pick<Booking, "vat_rate">>(
     sql,
-    `select * from court_bookings where id = $1 for update`,
+    `select ${CANCEL_COLS}, vat_rate from court_bookings where id = $1 for update`,
     [id],
   );
   if (!booking) throw err.notFound();
@@ -1174,8 +1211,8 @@ export async function bookingsCollectBalance(sql: Sql, id: string, request: Requ
     method,
   });
   await audit(sql, user.id, "collect_balance", "booking", id, null, { amount_vnd: due, method });
-  const fresh = await one(sql, `select * from court_bookings where id = $1`, [id]);
-  return { status: 200, body: { booking: fresh, payment_id: pay!.id, invoice_id: invoiceId, amount_vnd: due } };
+  const fresh = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [id]);
+  return { status: 200, body: { booking: fresh!, payment_id: pay!.id, invoice_id: invoiceId, amount_vnd: due } };
 }
 
 /**
@@ -1189,7 +1226,12 @@ export async function bookingsCollectBalance(sql: Sql, id: string, request: Requ
  * different amount is refused rather than adjusted, because the SRS has no
  * formula for the difference; cancel and rebook is the path for that.
  */
-export async function bookingsReschedule(sql: Sql, id: string, request: Request, user: PublicUser) {
+export async function bookingsReschedule(
+  sql: Sql,
+  id: string,
+  request: Request,
+  user: PublicUser,
+): Promise<Reply<RescheduleResponse>> {
   requireRole(user, ["member"]);
   const b = await readJson(request);
   const startAt = str(b.start_at);
@@ -1197,19 +1239,28 @@ export async function bookingsReschedule(sql: Sql, id: string, request: Request,
   const start = new Date(startAt);
   if (Number.isNaN(start.getTime())) throw err.field("start_at", "That time is not valid.");
   const settings = await getSettings(sql);
-  const booking = await one<{
-    id: string;
-    user_id: string | null;
-    status: string;
-    court_id: string;
-    start_at: string;
-    price_vnd: number;
-    discount_pct: number;
-    promo_discount_vnd: number;
-    quota_hours: string | number;
-    occupancy_id: string | null;
-    code: string;
-  }>(sql, `select * from court_bookings where id = $1 for update`, [id]);
+  const booking = await one<
+    Pick<
+      Booking,
+      | "id"
+      | "user_id"
+      | "status"
+      | "court_id"
+      | "start_at"
+      | "price_vnd"
+      | "discount_pct"
+      | "promo_discount_vnd"
+      | "quota_hours"
+      | "occupancy_id"
+      | "code"
+    >
+  >(
+    sql,
+    `select id, user_id, status, court_id, start_at, price_vnd, discount_pct, promo_discount_vnd,
+            quota_hours, occupancy_id, code
+       from court_bookings where id = $1 for update`,
+    [id],
+  );
   if (!booking) throw err.notFound();
   if (booking.user_id !== user.id) throw err.forbidden();
   if (booking.status !== "confirmed" || !booking.occupancy_id) {
@@ -1286,18 +1337,18 @@ export async function bookingsReschedule(sql: Sql, id: string, request: Request,
     start_at: start.toISOString(),
     court_id: courtId,
   });
-  const fresh = await one(sql, `select * from court_bookings where id = $1`, [booking.id]);
-  return { status: 200, body: { booking: fresh } };
+  const fresh = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [booking.id]);
+  return { status: 200, body: { booking: fresh! } };
 }
 
-export async function bookingsCheckIn(sql: Sql, id: string, user: PublicUser) {
+export async function bookingsCheckIn(sql: Sql, id: string, user: PublicUser): Promise<Reply<CheckInResponse>> {
   requireRole(user, ["receptionist", "manager"]);
   const settings = await getSettings(sql);
-  const booking = await one<{
-    id: string;
-    status: string;
-    start_at: string;
-  }>(sql, `select * from court_bookings where id = $1 for update`, [id]);
+  const booking = await one<Pick<Booking, "id" | "status" | "start_at">>(
+    sql,
+    `select id, status, start_at from court_bookings where id = $1 for update`,
+    [id],
+  );
   if (!booking) throw err.notFound();
   if (booking.status !== "confirmed") throw err.conflictState("Only confirmed bookings can be checked in.");
   const start = new Date(booking.start_at).getTime();
@@ -1311,7 +1362,7 @@ export async function bookingsCheckIn(sql: Sql, id: string, user: PublicUser) {
   return { status: 200, body: { status: "in_use" } };
 }
 
-export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
+export async function walkIn(sql: Sql, request: Request, user: PublicUser): Promise<Reply<WalkInResponse>> {
   requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
   const courtId = str(b.court_id);
@@ -1421,16 +1472,15 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser) {
     settings,
   });
   await audit(sql, user.id, "walk_in", "booking", bookingId);
-  const booking = await one(sql, `select * from court_bookings where id = $1`, [bookingId]);
-  const payment = await one(sql, `select * from payments where id = $1`, [pay!.id]);
-  return { status: 201, body: { booking, payment, invoice_id: invoiceId } };
+  const booking = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [bookingId]);
+  const payment = await one<Payment>(sql, `select ${PAYMENT_COLS} from payments where id = $1`, [pay!.id]);
+  return { status: 201, body: { booking: booking!, payment: payment!, invoice_id: invoiceId } };
 }
 
-export async function bookingGet(sql: Sql, id: string, user: PublicUser) {
+export async function bookingGet(sql: Sql, id: string, user: PublicUser): Promise<Reply<BookingResponse>> {
   requireRole(user, ["member", "receptionist", "manager"]);
-  const b = await one(sql, `select * from court_bookings where id = $1`, [id]);
+  const b = await one<Booking>(sql, `select ${BOOKING_COLS} from court_bookings where id = $1`, [id]);
   if (!b) throw err.notFound();
-  const row = b as { user_id: string | null };
-  if (user.role === "member" && row.user_id !== user.id) throw err.forbidden();
+  if (user.role === "member" && b.user_id !== user.id) throw err.forbidden();
   return { status: 200, body: b };
 }

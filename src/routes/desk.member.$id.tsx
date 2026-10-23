@@ -28,6 +28,7 @@ import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { ApiClientError, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
+import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
 import { METHOD_LABEL, formatDate, levelLabel, refTypeLabel, rruleLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
 import { ageYears } from "@/lib/arena3/time";
 import { t, tServer, tData } from "@/lib/i18n";
@@ -472,7 +473,7 @@ function Page() {
                       return;
                     }
                     void act(async () => {
-                      const res = await apiPost<{ invoice: { id: string } }>(
+                      const res = await apiPost<PaymentCreateResponse>(
                         "/payments",
                         { ref_type: "subscription", ref_id: s.id, method: "cash", amount_vnd: s.due_vnd },
                         true,
@@ -937,7 +938,7 @@ function Page() {
           refType="subscription"
           refId={transferSub.id}
           onConfirmManual={async () => {
-            const res = await apiPost<{ invoice: { id: string } }>(
+            const res = await apiPost<PaymentCreateResponse>(
               "/payments",
               { ref_type: "subscription", ref_id: transferSub.id, method: "transfer", amount_vnd: transferSub.due_vnd },
               true,
