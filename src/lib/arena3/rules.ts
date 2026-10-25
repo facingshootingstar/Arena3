@@ -136,12 +136,85 @@ const TICKET_PREFIX = /^[\s\u200B-\u200D\uFEFF]*ticket[\s\u200B-\u200D\uFEFF]*[:
  * about a ticket, and cutting it there would edit their complaint.
  *
  * What is left may be empty ("ticket:", "ticket:ticket:"). Callers refuse that
- * (FR-S03) rather than open a blank request.
+ * (FR-S03) rather than open a blank request. A message with no marker at all
+ * comes back as it was, trimmed — that is the support form's path through here.
  */
 export function ticketBody(message: string): string {
-  let body = message;
-  while (TICKET_PREFIX.test(body)) body = body.replace(TICKET_PREFIX, "");
-  return body.replace(/^[\s\u200B-\u200D\uFEFF]+|[\s\u200B-\u200D\uFEFF]+$/g, "");
+  return stripTicketMarker(message) ?? trimBlank(message);
+}
+
+/**
+ * Whether this message is addressed to the front desk (FR-S01).
+ *
+ * Only a marker at the very start counts. "L\u00E0m sao g\u00F3p \u00FD v\u1EC1 HLV?" and "Is there
+ * a feedback form?" are questions the assistant can answer from the data block,
+ * and routing them to reception meant nobody answered them at all.
+ */
+export function isTicketMessage(message: string): boolean {
+  return stripTicketMarker(message) !== null;
+}
+
+const BLANK_EDGES = /^[\s\u200B-\u200D\uFEFF]+|[\s\u200B-\u200D\uFEFF]+$/g;
+
+/**
+ * Quote pairs a member may put around the whole marker.
+ *
+ * The assistant's greeting used to show the syntax wrapped in guillemets, so
+ * people typed those too, and the ASCII pair is what you write when your
+ * keyboard has none. The desk then read the brackets back to itself.
+ */
+const WRAPPERS: ReadonlyArray<readonly [string, string]> = [
+  ["\u00AB", "\u00BB"],
+  ["<<", ">>"],
+  ["\u201C", "\u201D"],
+  ["\u2018", "\u2019"],
+  ['"', '"'],
+  ["'", "'"],
+];
+
+function trimBlank(s: string): string {
+  return s.replace(BLANK_EDGES, "");
+}
+
+/** The inside of `body` when one quote pair wraps all of it, else `null`. */
+function unwrap(body: string): string | null {
+  for (const [open, close] of WRAPPERS) {
+    if (body.length > open.length + close.length && body.startsWith(open) && body.endsWith(close)) {
+      return trimBlank(body.slice(open.length, body.length - close.length));
+    }
+  }
+  return null;
+}
+
+/**
+ * The note behind a `ticket:` marker, or `null` when there is no marker.
+ *
+ * One pass answers both questions this module is asked \u2014 "is this for the
+ * desk?" and "what does the desk read?" \u2014 because answering them with two
+ * separate tests is how routing came to accept messages that storing then
+ * mangled.
+ *
+ * A wrapping quote pair is stripped only when a marker sits directly inside it.
+ * The support form runs every message through `ticketBody`, so "The lights are
+ * out" \u2014 quotes and all \u2014 has to survive untouched: those quotes are the
+ * member's own.
+ */
+function stripTicketMarker(message: string): string | null {
+  let body = trimBlank(message);
+  let found = false;
+  for (;;) {
+    const inside = unwrap(body);
+    if (inside !== null && TICKET_PREFIX.test(inside)) {
+      body = inside;
+      continue;
+    }
+    if (TICKET_PREFIX.test(body)) {
+      body = trimBlank(body.replace(TICKET_PREFIX, ""));
+      found = true;
+      continue;
+    }
+    return found ? body : null;
+  }
 }
 
 // F4 training (Phase 4C)

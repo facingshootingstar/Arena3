@@ -165,6 +165,8 @@ export const member: Record<string, string> = {
   "Anything you send the desk will be kept here with its reply.": "Mọi tin bạn gửi cho lễ tân sẽ được lưu ở đây cùng câu trả lời.",
   "Answered": "Đã trả lời",
   "Waiting": "Đang chờ",
+  "Sending new messages is switched off right now. Ask at reception — anything you sent before is still below.":
+    "Tính năng gửi tin nhắn đang tắt. Bạn hãy hỏi trực tiếp lễ tân — những gì đã gửi trước đó vẫn còn ở dưới.",
   "Could not load your receipts": "Không tải được biên lai của bạn",
   "No receipts yet": "Chưa có biên lai",
   "Every payment you make (court, class or membership) lands here as a PDF you can download.": "Mỗi khoản thanh toán của bạn, sân, lớp hay gói tập, đều hiện ở đây dưới dạng PDF để tải về.",
@@ -176,7 +178,7 @@ export const member: Record<string, string> = {
   "Which plans are on sale?": "Đang bán những gói tập nào?",
   "Who coaches badminton?": "Ai dạy cầu lông?",
   "How do I cancel a court?": "Làm sao để hủy sân?",
-  "Ask about the timetable, plans, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Type «ticket: …» to send a note to the desk.": "Hỏi về lịch học, gói tập, HLV, cách hủy hoặc danh sách chờ. Mọi câu trả lời dựa trên dữ liệu của trung tâm. Gõ «ticket: …» để gửi ghi chú cho lễ tân.",
+  "Ask about the timetable, plans, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Start a message with ticket: to send a note to the desk.": "Hỏi về lịch học, gói tập, HLV, cách hủy hoặc danh sách chờ. Mọi câu trả lời dựa trên dữ liệu của trung tâm. Bắt đầu tin nhắn bằng ticket: để gửi ghi chú cho lễ tân.",
   "in-house": "nội bộ",
   "The assistant is switched off": "Trợ lý đang tắt",
   "The assistant could not answer.": "Trợ lý chưa trả lời được.",
@@ -186,7 +188,8 @@ export const member: Record<string, string> = {
   "You": "Bạn",
   "Typing": "Đang soạn",
   "Ask about prices, opening hours, coaches…": "Hỏi về giá, giờ mở cửa, HLV…",
-  "That is as long as a question can be.": "Câu hỏi không thể dài hơn nữa.",
+  "That is the whole {max} characters. Shorten it, or send it in two.":
+    "Đã dùng hết {max} ký tự. Bạn rút ngắn lại, hoặc tách làm hai lần gửi.",
   "{n} characters left": "Còn {n} ký tự",
   "No medical advice. Booking still happens on {book} and {classes}.": "Không đưa ra tư vấn y tế. Việc đặt vẫn thực hiện ở {book} và {classes}.",
   // app.book

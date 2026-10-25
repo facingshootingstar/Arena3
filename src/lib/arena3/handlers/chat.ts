@@ -1,7 +1,8 @@
 import type { Sql } from "@/lib/db";
 import { err } from "../errors";
+import { requireFlag } from "../flags";
 import { enqueue, readJson, str } from "../helpers";
-import { limit } from "../ratelimit";
+import { limit, RULES } from "../ratelimit";
 import type { PublicUser } from "../session";
 import { one } from "../tx";
 
@@ -83,6 +84,7 @@ export async function assertCanChat(sql: Sql, user: PublicUser, otherUserId: str
  * List all conversations for the authenticated user, with last message and unread count.
  */
 export async function listConversations(sql: Sql, user: PublicUser) {
+  await requireFlag(sql, "F6");
   const query = `
     select c.id, c.member_id, c.staff_id, c.created_at,
            case when c.member_id = $1 then u_staff.id else u_member.id end as peer_id,
@@ -171,6 +173,7 @@ export async function listConversations(sql: Sql, user: PublicUser) {
  * Open or retrieve an existing conversation with another user.
  */
 export async function createOrGetConversation(sql: Sql, user: PublicUser, request: Request) {
+  await requireFlag(sql, "F6");
   const body = await readJson(request);
   const otherId = str(body.recipient_id ?? body.target_id ?? body.staff_id ?? body.member_id);
   if (!otherId) {
@@ -223,6 +226,7 @@ export async function createOrGetConversation(sql: Sql, user: PublicUser, reques
  * List paginated messages in a conversation.
  */
 export async function listMessages(sql: Sql, user: PublicUser, convId: string, url: URL) {
+  await requireFlag(sql, "F6");
   const conv = await one<ConversationRow>(
     sql,
     `select id, member_id, staff_id, created_at
@@ -257,7 +261,8 @@ export async function listMessages(sql: Sql, user: PublicUser, convId: string, u
  * Send a message into a conversation (Idempotent by client message ID).
  */
 export async function sendMessage(sql: Sql, user: PublicUser, convId: string, request: Request) {
-  limit(`chat:${user.id}`, { windowMs: 10_000, limit: 25 }, "chat messages");
+  await requireFlag(sql, "F6");
+  limit(`chat:${user.id}`, RULES.chatMessage, "chat messages");
 
   const body = await readJson(request);
   const msgId = str(body.id);
@@ -323,6 +328,7 @@ export async function sendMessage(sql: Sql, user: PublicUser, convId: string, re
  * Mark messages in a conversation as read.
  */
 export async function markConversationRead(sql: Sql, user: PublicUser, convId: string) {
+  await requireFlag(sql, "F6");
   const conv = await one<ConversationRow>(
     sql,
     `select id from conversations where id = $1 and (member_id = $2 or staff_id = $2)`,
@@ -348,6 +354,8 @@ export async function markConversationRead(sql: Sql, user: PublicUser, convId: s
  * WebRTC Signaling GET relay /api/rtc?room=...&peer=...&name=...&since=...
  */
 export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Request) {
+  await requireFlag(sql, "F6");
+  limit(`rtc:${user.id}`, RULES.rtcSignal, "signaling calls");
   const url = new URL(request.url);
   const room = str(url.searchParams.get("room"));
   const peer = str(url.searchParams.get("peer"));
@@ -381,8 +389,15 @@ export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Reques
     [room, peer, name],
   );
 
-  // Clean stale peers (> 20s) and fetch alive peers
-  await sql.query(`delete from rtc_peers where last_seen < now() - interval '20 seconds'`);
+  // Clean stale peers (> 20s) and fetch alive peers. Scoped to this room: the
+  // unscoped version swept every room in the centre on every poll, so one busy
+  // conversation was doing housekeeping for all the others several times a
+  // second.
+  //
+  // The trade: a room nobody polls again keeps its last rows. That is a handful
+  // per conversation, bounded and dormant, and the next poll on that room
+  // clears them — but it does mean nothing sweeps rooms that go quiet for good.
+  await sql.query(`delete from rtc_peers where room = $1 and last_seen < now() - interval '20 seconds'`, [room]);
 
   const peers = await sql.query<{ id: string; name: string }>(
     `select peer_id as id, name from rtc_peers where room = $1 and last_seen >= now() - interval '20 seconds'`,
@@ -398,8 +413,8 @@ export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Reques
     [room, peer, since],
   );
 
-  // Clean expired signals (> 60s)
-  await sql.query(`delete from rtc_signals where created_at < now() - interval '60 seconds'`);
+  // Clean expired signals (> 60s), this room's only — same reason as above.
+  await sql.query(`delete from rtc_signals where room = $1 and created_at < now() - interval '60 seconds'`, [room]);
 
   return { peers, signals };
 }
@@ -408,6 +423,7 @@ export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Reques
  * WebRTC Signaling POST relay /api/rtc
  */
 export async function rtcSignalHandler(sql: Sql, user: PublicUser, request: Request) {
+  await requireFlag(sql, "F6");
   const body = await readJson(request);
 
   if (body.op === "leave") {

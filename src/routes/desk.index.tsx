@@ -17,6 +17,7 @@ import {
   LoadError,
   Modal,
   MoneyInput,
+  Seg,
   Select,
   Skeleton,
   StatusBadge,
@@ -28,6 +29,7 @@ import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
 import { t, tServer, tData } from "@/lib/i18n";
+import { lastPageOffset } from "@/lib/paging";
 import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
 
@@ -52,7 +54,18 @@ type Plan = {
   court_hours: number;
 };
 
-type Ticket = { id: string; body: string; full_name: string | null; phone: string | null; created_at: string };
+type Ticket = {
+  id: string;
+  body: string;
+  full_name: string | null;
+  phone: string | null;
+  created_at: string;
+  // Only ever non-null under "All": the open queue is by definition unanswered.
+  status: string;
+  reply: string | null;
+  replied_at: string | null;
+  replied_by_name: string | null;
+};
 type ShiftNow = { shift: { id: string; opened_at: string } | null; totals?: { cash: number } | null };
 
 /**
@@ -82,8 +95,12 @@ function Page() {
   const [closeOpen, setCloseOpen] = useState(false);
   const [cash, setCash] = useState("");
   const ticketPage = usePageState("desk.tickets", 10);
+  // The open queue is the day's work; "All" is for reading back what the desk
+  // told somebody last week. The server has always supported `?status=all` —
+  // nothing here asked for it, so answered requests were unreachable.
+  const [ticketScope, setTicketScope] = useState<"open" | "all">("open");
   const ticketsRead = useRead<{ items: Ticket[]; total: number }>(
-    `/tickets?limit=${ticketPage.pageSize}&offset=${ticketPage.offset}`,
+    `/tickets?limit=${ticketPage.pageSize}&offset=${ticketPage.offset}${ticketScope === "all" ? "&status=all" : ""}`,
     { keepPrevious: true },
   );
   // The server's list, with a request dropped from it here as soon as the desk closes or answers it.
@@ -91,6 +108,15 @@ function Page() {
   useEffect(() => {
     setTickets(ticketsRead.data?.items ?? []);
   }, [ticketsRead.data]);
+  const { offset: ticketOffset, pageSize: ticketSize, setOffset: setTicketOffset } = ticketPage;
+  // Answering the last request on page three used to leave the desk on an empty
+  // page with the pagination gone — the whole section was hidden when the list
+  // ran out, so there was no way back. Follow the list down as it shrinks.
+  useEffect(() => {
+    const data = ticketsRead.data;
+    if (!data || data.items.length > 0 || ticketOffset === 0) return;
+    setTicketOffset(lastPageOffset(data.total, ticketSize));
+  }, [ticketsRead.data, ticketOffset, ticketSize, setTicketOffset]);
   // Which request the desk is writing an answer to, and the answer so far. One
   // at a time: the box opens on the row being answered rather than sitting
   // under all of them, so it is obvious whose complaint is being replied to.
@@ -527,9 +553,36 @@ function Page() {
             />
           </div>
         </div>
-      ) : tickets.length ? (
+      ) : (
         <div>
           <SectionTitle text={t("Requests from the app")} className="font-display text-xl" />
+          <div className="mt-3">
+            <Seg
+              value={ticketScope}
+              onChange={(v) => {
+                setTicketScope(v as "open" | "all");
+                // A different list is a different set of pages: staying on page
+                // four of the open queue would land on an empty page of "All".
+                setTicketOffset(0);
+              }}
+              options={[
+                { value: "open", label: t("Open queue") },
+                { value: "all", label: t("All requests") },
+              ]}
+            />
+          </div>
+          {!tickets.length ? (
+            <div className="mt-3">
+              <EmptyState
+                title={ticketScope === "all" ? t("Nothing here yet") : t("The queue is clear")}
+                hint={
+                  ticketScope === "all"
+                    ? t("Requests from the app show up here with their replies.")
+                    : t("Everything the app has sent in has been answered or closed.")
+                }
+              />
+            </div>
+          ) : null}
           <Stagger className="mt-3 grid gap-2" gap={0.05}>
             {tickets.map((ticket) => (
               <StaggerItem key={ticket.id}>
@@ -543,20 +596,43 @@ function Page() {
                     <p className="mt-1 text-xs text-muted">
                       {ticket.full_name} · {ticket.phone}
                     </p>
+                    {/* Under "All" the answer is the point of the row: reading
+                        back what somebody was told is the whole reason the
+                        desk opens this filter. */}
+                    {ticket.reply ? (
+                      <div className="mt-2 rounded-[var(--radius-md)] bg-accent/5 p-2.5 ring-1 ring-inset ring-accent/15">
+                        <p className="text-2xs font-semibold text-accent-2">
+                          {ticket.replied_by_name ?? t("Reception")}
+                          {ticket.replied_at ? (
+                            <span className="font-normal text-muted"> · {when(ticket.replied_at)}</span>
+                          ) : null}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{ticket.reply}</p>
+                      </div>
+                    ) : ticket.status === "closed" ? (
+                      <p className="mt-2 text-xs text-muted">{t("Closed without a reply.")}</p>
+                    ) : null}
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setReplyTo(replyTo === ticket.id ? null : ticket.id);
-                        setReply("");
-                      }}
-                    >
-                      {replyTo === ticket.id ? t("Cancel") : t("Reply")}
-                    </Button>
+                    {/* One request carries one answer: the server refuses a
+                        second with a 409, so under "All" a Reply button on an
+                        answered row would be a button that cannot work. */}
+                    {ticket.reply ? null : (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setReplyTo(replyTo === ticket.id ? null : ticket.id);
+                          setReply("");
+                        }}
+                      >
+                        {replyTo === ticket.id ? t("Cancel") : t("Reply")}
+                      </Button>
+                    )}
                     {/* Closing without answering is still allowed — a duplicate,
                         or something dealt with at the counter in person — but it
-                        is no longer the only thing the desk can do. */}
+                        is no longer the only thing the desk can do. Already
+                        closed rows show up under "All" and have nothing to do. */}
+                    {ticket.status === "closed" ? null : (
                     <Button
                       size="sm"
                       variant="outline"
@@ -573,6 +649,7 @@ function Page() {
                     >
                       {t("Close")}
                     </Button>
+                    )}
                   </div>
                 </div>
                 {replyTo === ticket.id ? (
@@ -622,7 +699,7 @@ function Page() {
             label={t("Request pages")}
           />
         </div>
-      ) : null}
+      )}
         </aside>
       </div>
 

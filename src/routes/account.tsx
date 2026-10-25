@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Download, Eye, EyeOff, KeyRound, Receipt, UserRound } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Guard, Shell, money, useSessionUser, when } from "@/components/shell";
+import { Guard, Shell, money, useF6, useSessionUser, when } from "@/components/shell";
 import { Badge, Button, Card, EmptyState, Field, Input, Label, LoadError, Pagination, Seg, Skeleton, Textarea } from "@/components/ui";
 import { UserAvatar } from "@/components/user-avatar";
 import { Lift, Stagger, StaggerItem } from "@/components/motion";
@@ -22,6 +22,7 @@ import {
 import { formatDate } from "@/lib/arena3/labels";
 import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
+import { cn } from "@/lib/cn";
 import { t, tk, tServer } from "@/lib/i18n";
 
 export const Route = createFileRoute("/account")({ component: Page });
@@ -503,12 +504,26 @@ type Ticket = {
 /**
  * Customer care, from the member's side.
  *
- * Until now the only way to reach the desk was to type «ticket: …» at the
- * assistant, which opened a row nobody could answer and pointed the member at
- * no screen. Everything else in this app — a booking, a class, a receipt — can
+ * Until now the only way to reach the desk was to start a message with
+ * "ticket:" at the assistant, which opened a row nobody could answer and
+ * pointed the member at no screen. Everything else in this app — a booking, a class, a receipt — can
  * be looked up afterwards; a complaint was the one thing you sent into silence.
  */
+/**
+ * The longest message the desk will take, and where the counter wakes up.
+ *
+ * The server's own number: `ticketsCreate` slices at 2000, so anything past it
+ * was being dropped without a word to the person who typed it.
+ */
+const TICKET_MAX_CHARS = 2000;
+const TICKET_COUNTER_FROM = TICKET_MAX_CHARS - 200;
+
 function Support() {
+  // The tab stays whatever the flag says: `GET /tickets/mine` is not gated, so
+  // what a member has already asked and been told stays readable (FR-S04).
+  // Switching a module off must not take their own history away from them. Only
+  // the box that opens a new request goes, because `POST /tickets` now 403s.
+  const f6 = useF6();
   const [items, setItems] = useState<Ticket[] | null>(null);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
@@ -556,6 +571,14 @@ function Support() {
 
   return (
     <div className="grid gap-5">
+      {!f6 ? (
+        <Card className="p-5">
+          <h2 className="font-display text-xl">{t("Ask the front desk")}</h2>
+          <p className="mt-1 text-sm text-muted">
+            {t("Sending new messages is switched off right now. Ask at reception — anything you sent before is still below.")}
+          </p>
+        </Card>
+      ) : (
       <Card className="p-5">
         <h2 className="font-display text-xl">{t("Ask the front desk")}</h2>
         <p className="mt-1 text-sm text-muted">
@@ -567,13 +590,35 @@ function Support() {
           <Field label={t("Your message")}>
             <Textarea
               rows={3}
-              maxLength={2000}
+              maxLength={TICKET_MAX_CHARS}
               value={body}
-              aria-describedby={error ? "support-error" : undefined}
-              onChange={(e) => setBody(e.target.value)}
+              aria-describedby={
+                [error ? "support-error" : null, body.length >= TICKET_COUNTER_FROM ? "support-remaining" : null]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
+              onChange={(e) => setBody(e.target.value.slice(0, TICKET_MAX_CHARS))}
               placeholder={t("The lights over BC2 have been out since Tuesday…")}
             />
           </Field>
+          {/* Same manners as the assistant's box: quiet until the limit is
+              nearly in reach, then it says how much is left and finally what
+              the ceiling actually is. The box used to just stop accepting
+              typing with nothing on screen to explain why. */}
+          {body.length >= TICKET_COUNTER_FROM ? (
+            <p
+              id="support-remaining"
+              aria-live="polite"
+              className={cn(
+                "text-2xs tabular-nums",
+                body.length >= TICKET_MAX_CHARS ? "text-danger" : "text-muted",
+              )}
+            >
+              {body.length >= TICKET_MAX_CHARS
+                ? t("That is the whole {max} characters. Shorten it, or send it in two.", { max: TICKET_MAX_CHARS })
+                : t("{n} characters left", { n: TICKET_MAX_CHARS - body.length })}
+            </p>
+          ) : null}
           {error ? (
             <p id="support-error" role="alert" className="text-sm text-danger">
               {error}
@@ -588,6 +633,7 @@ function Support() {
           </div>
         </form>
       </Card>
+      )}
 
       {loadError ? <LoadError message={loadError} onRetry={loadAgain} /> : null}
       {!items ? (
@@ -608,8 +654,16 @@ function Support() {
                       the "ticket:ticket:ticket:" that older rows still carry —
                       has nothing to wrap on and pushes the badge off the card. */}
                   <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{tix.body}</p>
-                  <Badge tone={tix.reply ? "accent" : "hold"} className="shrink-0">
-                    {tix.reply ? t("Answered") : t("Waiting")}
+                  {/* Three states, read off `status` and not off `reply`
+                      alone. The desk can close a request without writing an
+                      answer, and judging by `reply` showed those rows as
+                      "Waiting" for good — the one thing the member could be
+                      sure of was that nobody had got to it yet. */}
+                  <Badge
+                    tone={tix.reply ? "accent" : tix.status === "closed" ? "muted" : "hold"}
+                    className="shrink-0"
+                  >
+                    {tix.reply ? t("Answered") : tix.status === "closed" ? t("Closed") : t("Waiting")}
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted">{when(tix.created_at)}</p>

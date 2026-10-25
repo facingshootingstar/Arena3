@@ -40,7 +40,7 @@ const CHIPS = [
 const WELCOME: Msg = {
   role: "bot",
   text: tk(
-    "Ask about the timetable, plans, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Type «ticket: …» to send a note to the desk.",
+    "Ask about the timetable, plans, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Start a message with ticket: to send a note to the desk.",
   ),
 };
 
@@ -58,10 +58,18 @@ function Page() {
   // The question that got no answer, and why. Kept in the thread rather than in a toast that fades, so
   // the member can see what was asked and ask it again without typing it out a second time.
   const [failure, setFailure] = useState<{ message: string; reason: string } | null>(null);
-  const bottom = useRef<HTMLDivElement>(null);
+  const thread = useRef<HTMLDivElement>(null);
 
+  // Scroll the thread, not the document.
+  //
+  // `scrollIntoView` walks every scrollable ancestor, the page included, so
+  // aligning a sentinel to `block: "end"` moved the whole window as well — the
+  // page jumped on each send even though the panel it was scrolling inside was
+  // already fully visible.
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: scrollBehavior(), block: "end" });
+    const el = thread.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() });
   }, [log, busy, failure]);
 
   /** Asks the server about `message`, which is already the last line of `thread`. */
@@ -69,8 +77,11 @@ function Page() {
     setBusy(true);
     setFailure(null);
     try {
+      // Only what the member typed. The server drops anything else anyway —
+      // a browser must not get to write the assistant's side of the thread —
+      // so sending the bot's turns would just be bytes it throws away.
       const history = thread
-        .filter((m) => m !== WELCOME)
+        .filter((m) => m !== WELCOME && m.role === "me")
         .slice(0, -1)
         .map((m) => ({ role: m.role, text: m.text }));
       const r = await apiPost<{ reply: string; source?: Msg["source"] }>("/assistant", { message, history });
@@ -137,7 +148,7 @@ function Page() {
           ) : null}
         </div>
 
-      <div className="relative grid max-h-[min(58vh,34rem)] gap-3 overflow-y-auto p-4">
+      <div ref={thread} className="relative grid max-h-[min(58vh,34rem)] gap-3 overflow-y-auto p-4">
         {log.map((m, i) => (
           <motion.div
             key={`${i}-${m.role}`}
@@ -194,7 +205,6 @@ function Page() {
             onRetry={() => void ask(failure.message, log)}
           />
         ) : null}
-        <div ref={bottom} />
       </div>
 
         <div className="border-t border-line/70 bg-surface/80 p-3">
@@ -256,7 +266,9 @@ function Page() {
               )}
             >
               {q.length >= MAX_CHARS
-                ? t("That is as long as a question can be.")
+                ? // Naming the number is the point: "as long as it can be" tells
+                  // somebody mid-sentence that they are stuck, not what to aim at.
+                  t("That is the whole {max} characters. Shorten it, or send it in two.", { max: MAX_CHARS })
                 : t("{n} characters left", { n: MAX_CHARS - q.length })}
             </p>
           ) : null}

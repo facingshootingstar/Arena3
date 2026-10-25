@@ -248,6 +248,14 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
         body: typeof p.reply === "string" && p.reply ? p.reply : t("Reception answered your message."),
         link: { to: "/account", label: t("Open Support") },
       };
+    // Closed with no answer written. Without this case the default below would
+    // show the member the words "ticket closed".
+    case "ticket_closed":
+      return {
+        title: t("Reception closed your request"),
+        body: t("The front desk has dealt with it. Send another note if it is still open for you."),
+        link: { to: "/account", label: t("Open Support") },
+      };
     default:
       return { title: n.template.replace(/_/g, " "), body: t("Open your account for the details.") };
   }

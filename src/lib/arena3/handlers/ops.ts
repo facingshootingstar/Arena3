@@ -7,7 +7,7 @@ import { requireRole, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../phone";
 import { generateAssistantReply, type ChatTurn } from "../gemini";
 import { COACHES } from "../coaches";
-import { ATTENDANCE_LOCK_HOURS, attendanceLocked, isAttResult, ticketBody } from "../rules";
+import { ATTENDANCE_LOCK_HOURS, attendanceLocked, isAttResult, isTicketMessage, ticketBody } from "../rules";
 import { checkAbsentStreaks, sessionScope } from "./training";
 import { openShift, pickMethod } from "./extras";
 import { addDays, ictDateString } from "../time";
@@ -539,16 +539,37 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
 // importing it from this module has to change.
 export { ticketBody };
 
+/**
+ * The budget for opening a support request.
+ *
+ * One bucket for both doors into the queue — the support form and a `ticket:`
+ * message to the assistant — because to reception they are the same row.
+ * Counting them separately would let one member post a full allowance through
+ * each, which is the hole the assistant route was: it was covered only by
+ * `RULES.assistant`, and twenty a minute is a model-call budget, not a
+ * someone-has-to-read-this budget.
+ */
+function ticketQuota(userId: string): void {
+  limit(`ticket:${userId}`, RULES.ticketCreate, "requests");
+  limit(`ticket:${userId}:hour`, RULES.ticketCreateHourly, "requests");
+}
+
 export async function assistantChat(sql: Sql, request: Request, user: PublicUser) {
   await requireFlag(sql, "F6");
   const body = await readJson(request);
   const message = (str(body.message) ?? "").trim().slice(0, 800);
   if (message.length < 2) throw err.validation("Type a question first.");
-  // Every turn that falls through to the model costs a call upstream.
+  // The ceiling on the endpoint itself (FR-A03), charged before the message is
+  // read: every turn costs a `requireFlag` query whether or not it reaches the
+  // model, so this has to sit ahead of the branch below. A `ticket:` turn pays
+  // this and the desk's own, tighter budget.
   limit(`ai:${user.id}`, RULES.assistant, "questions");
-  const q = message.toLowerCase();
 
-  if (/ticket:|complaint|feedback|khiếu nại|góp ý/.test(q) || q.startsWith("ticket:")) {
+  // Only a marker at the very start goes to the desk (FR-S01). Matching
+  // "complaint", "feedback", "khiếu nại" or "góp ý" anywhere in the message
+  // turned "Is there a feedback form?" into a support request, so the one
+  // question the assistant was asked went unanswered.
+  if (isTicketMessage(message)) {
     const note = ticketBody(message);
     // "ticket:" and nothing else. Opening a blank request would put a row at the
     // desk that nobody can answer, so ask for the rest before writing anything.
@@ -556,11 +577,15 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
       return {
         status: 200,
         body: {
-          reply: "Tell me what happened after «ticket:» and I'll pass it to the front desk.",
+          reply: "Tell me what happened after ticket: and I'll pass it to the front desk.",
           source: "rules" as const,
         },
       };
     }
+    // Twenty a minute is a model-call budget; reception reads these by hand.
+    // After the blank check, so asking for the rest of a sentence costs only
+    // the endpoint ceiling above, not a slot in the desk's queue.
+    ticketQuota(user.id);
     const t = await one<{ id: string }>(
       sql,
       `insert into tickets (user_id, body) values ($1,$2) returning id`,
@@ -570,11 +595,16 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     return {
       status: 200,
       body: {
-        reply: `Opened request ${t!.id.slice(0, 8)} for the front desk. Reception replies during opening hours.`,
+        // Where to read the answer, not just that one is coming: the request
+        // used to vanish into a confirmation, and Account › Support is the
+        // only screen that has it and its reply.
+        reply: `Opened request ${t!.id.slice(0, 8)} for the front desk. Reception replies during opening hours — you will find it, and the reply, under Account › Support.`,
         source: "rules" as const,
       },
     };
   }
+
+  const q = message.toLowerCase();
 
   const settings = await getSettings(sql);
   const plans = await sql.query<{ name: string; price_vnd: number; sport_scope: string; court_hours: number }>(
@@ -612,7 +642,7 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   );
 
   const facts = [
-    `Centre: Arena3. Open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} ICT every day.`,
+    `Centre: ${centreName(settings)}. Open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} ICT every day.`,
     `Court holds last ${settings.hold_minutes} minutes. Cancel a court at least ${settings.cancel_court_hours}h ahead, a class at least ${settings.cancel_class_hours}h ahead. No-shows are not refunded.`,
     `Waitlists are first-come; an offer stands for ${settings.waitlist_offer_hours}h. Under-${settings.minor_age}s cannot book or enrol on their own.`,
     `Plans on sale:\n${plans.map((p) => `• ${p.name} (${p.sport_scope}): ${p.price_vnd.toLocaleString("en-US")}đ · ${p.court_hours} court hours`).join("\n") || "—"}`,
@@ -623,10 +653,10 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     `Today / next 24h:\n${todayBookings.map((b) => `• ${b.court_code} ${b.start_at} (${b.status})`).join("\n") || "Nothing booked."}`,
   ].join("\n\n");
 
-  const system = `You are the Arena3 front-desk assistant inside the member app. Answer in English, keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
+  const system = `You are the ${centreName(settings)} front-desk assistant inside the member app. Answer in English, keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
 No medical advice, no discounts beyond the listed plans, never invent a free slot.
 Only name coaches, plans and classes that appear in the data block.
-If you do not know: tell them to ask the desk or type «ticket: …».
+If you do not know: tell them to ask the desk or start a message with "ticket:" followed by what happened.
 You can walk them through Book / Classes / Plans in the app. Payment is taken at the desk after they order in the app.
 
 DATA BLOCK:
@@ -646,19 +676,47 @@ ${facts}`;
   return { status: 200, body: { reply, source } };
 }
 
+/**
+ * The earlier turns the browser sends up with a question.
+ *
+ * Only the member's own turns are kept. The client used to be able to post
+ * turns as `role: "model"` too, which is the browser telling the model what the
+ * model supposedly already said — a free hand to write the assistant's past for
+ * it, and from there to talk it past the system prompt into quoting a discount
+ * or a free court that does not exist.
+ *
+ * The cost is real and worth naming: with no assistant turns to look back on, a
+ * follow-up that leans on the last answer ("what about the other one?") has
+ * less to go on. Fixing that properly means the server keeping the thread
+ * itself, which needs a table it does not have — this is the honest version
+ * until then, because a confident wrong answer the member themselves planted is
+ * worse than a vaguer right one.
+ */
 function parseHistory(raw: unknown): ChatTurn[] {
   if (!Array.isArray(raw)) return [];
   const out: ChatTurn[] = [];
   for (const item of raw.slice(-8)) {
     if (!item || typeof item !== "object") continue;
     const rec = item as { role?: unknown; text?: unknown };
-    const role =
-      rec.role === "me" || rec.role === "user" ? "user" : rec.role === "bot" || rec.role === "model" ? "model" : null;
+    if (rec.role !== "me" && rec.role !== "user") continue;
     const text = typeof rec.text === "string" ? rec.text.trim().slice(0, 800) : "";
-    if (!role || text.length < 1) continue;
-    out.push({ role, text });
+    if (text.length < 1) continue;
+    out.push({ role: "user", text });
   }
   return out;
+}
+
+/**
+ * What the assistant calls the centre when it talks to a member.
+ *
+ * Read from `center_settings` rather than written into the prompt: the centre
+ * was renamed to Lê Long Sport (migration 0041) and the assistant carried on
+ * introducing itself as Arena3 — to the one audience that would notice. The
+ * fallback matches the invoice header's (`desk.ts`), so a blank row never
+ * leaves a member reading "undefined".
+ */
+function centreName(settings: { legal_name: string | null }): string {
+  return settings.legal_name ?? "Lê Long Sport";
 }
 
 function ruleReply(
@@ -671,7 +729,7 @@ function ruleReply(
     return `Plans on sale:\n${plans.map((p) => `• ${p.name}: ${p.price_vnd.toLocaleString("en-US")}đ`).join("\n")}\nPay at the desk after you order in the app.`;
   }
   if (/hour|open|close|what time|giờ|mở cửa/.test(q)) {
-    return `Arena3 is open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} every day (ICT). Court holds last ${settings.hold_minutes} minutes, and you can cancel a court up to ${settings.cancel_court_hours}h before.`;
+    return `${centreName(settings)} is open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} every day (ICT). Court holds last ${settings.hold_minutes} minutes, and you can cancel a court up to ${settings.cancel_court_hours}h before.`;
   }
   if (/class|coach|lesson|lớp|hlv/.test(q)) {
     return classes.length
@@ -684,15 +742,17 @@ function ruleReply(
   if (/waitlist|full|queue|chờ|đầy/.test(q)) {
     return `When a class is full you join a first-come waitlist. If a seat frees up you get an offer that stands for ${settings.waitlist_offer_hours}h — claim it in the app.`;
   }
-  return "I can help with the timetable, plans, coaches, booking and cancelling, and waitlists at Arena3. Type «ticket: …» to send a note to the desk. I do not give medical advice.";
+  return `I can help with the timetable, plans, coaches, booking and cancelling, and waitlists at ${centreName(settings)}. Start a message with ticket: to send a note to the desk. I do not give medical advice.`;
 }
 
 
 export async function ticketsCreate(sql: Sql, request: Request, user: PublicUser) {
+  await requireFlag(sql, "F6");
   // Same stripping as the assistant route: a member who typed "ticket:" into
   // the support box is repeating the habit the assistant taught them.
   const body = ticketBody(str((await readJson(request)).body) ?? "").slice(0, 2000);
   if (body.length < 2) throw err.validation("The message is empty.");
+  ticketQuota(user.id);
   const row = await one(sql, `insert into tickets (user_id, body) values ($1,$2) returning *`, [user.id, body]);
   return { status: 201, body: row };
 }
@@ -755,17 +815,32 @@ export async function ticketsList(sql: Sql, request: Request, user: PublicUser) 
  * colleague will answer again. Reopening is the member's move — they send
  * another note — which is also the honest signal that the first answer did not
  * land.
+ *
+ * So each request carries exactly one answer. A second attempt is refused
+ * rather than written over the first, which is what used to happen and left
+ * nobody able to see what the member had already been told.
  */
 export async function ticketReply(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["receptionist", "manager"]);
   const reply = (str((await readJson(request)).reply) ?? "").trim().slice(0, 2000);
   if (reply.length < 2) throw err.validation("Write a reply first.");
-  const t = await one<{ id: string; user_id: string | null; status: string }>(
+  const t = await one<{ id: string; user_id: string | null; status: string; reply: string | null }>(
     sql,
-    `select id, user_id, status from tickets where id = $1 for update`,
+    `select id, user_id, status, reply from tickets where id = $1 for update`,
     [id],
   );
   if (!t) throw err.notFound();
+  // An answer already sent is not overwritten. It is what the member was told
+  // and what they can still read on their Support screen; replacing it would
+  // leave no record that the first answer was ever given. 409 rather than 422:
+  // the reply the desk typed is fine, the ticket is simply past this point.
+  //
+  // A ticket closed *without* an answer is still answerable — `ticketClose`
+  // leaves exactly that state, and refusing it would turn Close into a trap
+  // that swallows the request.
+  if (t.reply) {
+    throw err.conflictState("That request has already been answered. The member can reply to reopen it.");
+  }
   const row = await one(
     sql,
     `update tickets
@@ -782,18 +857,47 @@ export async function ticketReply(sql: Sql, id: string, request: Request, user: 
       "ticket_replied",
       t.user_id,
       { ticket_id: id, reply: reply.slice(0, 200) },
-      // Keyed on the reply, not the ticket: if the desk answers again after the
-      // member writes back, that second answer is its own notification.
-      `ticket_replied|${id}|${Date.now()}`,
+      // Keyed on the ticket alone. It used to carry `Date.now()`, which made
+      // every call a new key and so turned `enqueue`'s `on conflict do nothing`
+      // into a no-op — it was there for a second answer to the same ticket,
+      // which the guard above no longer allows. One request, one answer, one
+      // notification, even if Send is double-tapped.
+      `ticket_replied|${id}`,
     );
   }
   await audit(sql, user.id, "ticket_reply", "ticket", id);
   return { status: 200, body: { ticket: row } };
 }
 
+/**
+ * Reception closes a request without writing an answer.
+ *
+ * Used for the ones that need no reply — a duplicate, something already fixed,
+ * a note the member followed up in person. The member is still told: their
+ * Support screen showed "Waiting" for as long as the row existed, so closing
+ * in silence meant the wait simply never visibly ended.
+ *
+ * Closing leaves `reply` null, which `ticketReply` reads as "still answerable":
+ * the desk can change its mind and write back.
+ */
 export async function ticketClose(sql: Sql, id: string, user: PublicUser) {
   requireRole(user, ["receptionist", "manager"]);
+  const t = await one<{ id: string; user_id: string | null; status: string }>(
+    sql,
+    `select id, user_id, status from tickets where id = $1 for update`,
+    [id],
+  );
+  if (!t) throw err.notFound();
+  // Already closed. Answering `ok` is right — the caller wanted it closed and
+  // it is — but a second audit row and a second notification are not: two
+  // clicks on one button are still one decision.
+  if (t.status === "closed") return { status: 200, body: { ok: true } };
   await sql.query(`update tickets set status = 'closed' where id = $1`, [id]);
+  // A request the desk typed in for a walk-in has nobody to notify.
+  if (t.user_id) {
+    // Keyed on the ticket, not the moment: closing happens once.
+    await enqueue(sql, "inapp", "ticket_closed", t.user_id, { ticket_id: id }, `ticket_closed|${id}`);
+  }
   await audit(sql, user.id, "ticket_close", "ticket", id);
   return { status: 200, body: { ok: true } };
 }

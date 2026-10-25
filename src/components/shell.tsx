@@ -39,6 +39,7 @@ import { Spot, spotForPath } from "./illustrations";
 import { UserAvatar } from "./user-avatar";
 import { cn } from "@/lib/cn";
 import { useLive } from "@/lib/use-live";
+import { useRead } from "@/lib/use-read";
 import {
   apiGet,
   apiPost,
@@ -77,6 +78,23 @@ type NavItem = { to: string; label: string; icon: typeof Map; more?: boolean; do
 const G_BUSINESS = tk("Sales & pricing");
 const G_OPS = tk("Operations");
 const G_SYSTEM = tk("System");
+
+/**
+ * Whether the assistant / support / chat module is switched on.
+ *
+ * `/flags` is public and already carries every flag, so this needs nothing new
+ * from the server. It returns `true` while the read is in flight: showing the
+ * UI and letting a rare 403 through beats hiding the nav on every page load and
+ * then putting it back.
+ *
+ * A manager toggling F6 reaches other screens on their next navigation —
+ * `apiGet` de-duplicates concurrent calls but does not cache, so each mount
+ * asks again.
+ */
+export function useF6(): boolean {
+  const { data } = useRead<{ flags?: Record<string, boolean> }>("/flags");
+  return data?.flags?.F6 !== false;
+}
 
 const NAV: Record<string, NavItem[]> = {
   member: [
@@ -221,7 +239,8 @@ function ChatBell({ active }: { active: boolean }) {
     fetchUnread();
   }, [pathname]);
 
-  useLive("chat", fetchUnread);
+  // "chat" is not a topic the server streams — only "chat:<id>" — so the unread
+  // count rides on `notifications`, which is what has been carrying it anyway.
   useLive("notifications", fetchUnread);
 
   return (
@@ -568,7 +587,12 @@ export function Shell({
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const user = useSessionUser();
-  const items = NAV[role] ?? [];
+  const f6 = useF6();
+  // With F6 switched off the assistant, chat and WebRTC routes all answer 403
+  // (BR-52), so a tab pointing at them is a tab that cannot work. While the
+  // flag is still loading they stay — a nav that flickers away and back reads
+  // worse than a button that briefly 403s.
+  const items = (NAV[role] ?? []).filter((it) => f6 || it.to !== "/chat");
   const home = homeFor(role);
   // A single tab is not a choice — it just repeats the page heading back at
   // you, which is why the coach screen read "Teaching / Teaching". Roles with
@@ -675,12 +699,12 @@ export function Shell({
           </nav>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <LangSwitch />
-            <ChatBell active={pathname.startsWith("/chat")} />
+            {f6 ? <ChatBell active={pathname.startsWith("/chat")} /> : null}
             <NotificationBell
               to={role === "member" ? "/app/notifications" : "/alerts"}
               active={pathname.startsWith("/app/notifications") || pathname.startsWith("/alerts")}
             />
-            {role === "member" ? (
+            {role === "member" && f6 ? (
               <Link
                 to="/app/assistant"
                 aria-label={t("Assistant")}
