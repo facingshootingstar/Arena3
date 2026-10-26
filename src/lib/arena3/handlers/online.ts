@@ -75,6 +75,14 @@ export async function settleOnline(
 ): Promise<{ posted: boolean; reason?: string }> {
   if (pay.status === "posted") return { posted: true };
 
+  // A seat link the member withdrew by releasing the hold. Read before the row is
+  // overwritten below; the caller already holds the row lock.
+  const wasReleased =
+    pay.ref_type === "enrollment" &&
+    (
+      await one<{ provider_status: string | null }>(sql, `select provider_status from payments where id = $1`, [pay.id])
+    )?.provider_status === "RELEASED";
+
   // Never trust an amount from outside. A confirmation for less than the price
   // is a partial payment, not a paid booking.
   if (paid.amountPaid < gatewayAmount(pay.amount_vnd)) {
@@ -165,9 +173,10 @@ export async function settleOnline(
   }
 
   if (pay.ref_type === "enrollment") {
-    // The money is in whatever happens to the seat. A late_no_seat outcome is
-    // flagged for staff in the audit log, so the payment stays posted and invoiced.
-    await settleEnrollment(sql, pay.ref_id);
+    // The money is in whatever happens to the seat. An outcome that buys no seat
+    // (late, released, class cancelled, paid twice) is flagged to the desk by
+    // settleEnrollment, so the payment stays posted and invoiced.
+    await settleEnrollment(sql, pay.ref_id, { paymentId: pay.id, released: wasReleased });
     const buyer = await one<{ full_name: string; phone: string | null }>(
       sql,
       `select full_name, phone from users where id = $1`,
@@ -252,6 +261,8 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
   let amount = 0;
   let payerId: string | null = null;
   let label = "";
+  /** When the class seat hold ends (ms since epoch); null for courts and plans. */
+  let holdEndsAt: number | null = null;
 
   if (refType === "booking") {
     const booking = await one<{
@@ -298,13 +309,22 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     payerId = sub.user_id;
     label = "plan";
   } else if (refType === "enrollment") {
-    const enr = await one<{ user_id: string; status: string; price_vnd: number | null; hold_until: string | null }>(
+    const enr = await one<{
+      user_id: string;
+      status: string;
+      price_vnd: number | null;
+      hold_until: string | null;
+      class_status: string;
+    }>(
       sql,
-      `select user_id, status::text as status, price_vnd, hold_until from enrollments where id = $1`,
+      `select e.user_id, e.status::text as status, e.price_vnd, e.hold_until, c.status::text as class_status
+         from enrollments e join classes c on c.id = e.class_id
+        where e.id = $1`,
       [refId],
     );
     if (!enr) throw err.notFound();
     if (!staff && enr.user_id !== user.id) throw err.forbidden();
+    if (enr.class_status === "cancelled") throw err.br("BR-18", "That class is cancelled.");
     if (enr.status !== "hold") throw err.br("BR-28", "That seat is not on hold, so there is nothing to pay.");
     if (!enr.hold_until || new Date(enr.hold_until) < new Date()) {
       throw err.br("BR-28", "This seat hold has expired.");
@@ -312,6 +332,7 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     amount = enr.price_vnd ?? 0;
     payerId = enr.user_id;
     label = "class";
+    holdEndsAt = new Date(enr.hold_until).getTime();
   } else {
     throw err.validation("Online payment covers courts, plans and class seats.");
   }
@@ -407,8 +428,15 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
         returnUrl: `${base}/pay/return?pid=${pay!.id}`,
         cancelUrl: `${base}/pay/return?pid=${pay!.id}&cancelled=1`,
         // Outliving the court hold would let somebody pay for a slot that has
-        // already been released to another member.
-        expiresInSeconds: settings.transfer_hold_minutes * 60,
+        // already been released to another member. A class seat's link also
+        // ends with its own hold, whichever comes first.
+        expiresInSeconds:
+          holdEndsAt === null
+            ? settings.transfer_hold_minutes * 60
+            : Math.max(
+                1,
+                Math.min(settings.transfer_hold_minutes * 60, Math.floor((holdEndsAt - Date.now()) / 1000)),
+              ),
       });
     } catch (e) {
       lastError = e;

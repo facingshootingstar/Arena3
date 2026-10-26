@@ -187,7 +187,11 @@ export async function capacityBody(sql: Sql, from: string, to: string, sport: st
     by_hour: hours.map((h) => ({ hour: h, pct: pct1(byHour.get(h)?.sold ?? 0, byHour.get(h)?.open ?? 0) })),
     hours,
     courts,
-    revenue_by_source: { court_vnd: revenue.booking ?? 0, class_vnd: revenue.class ?? 0 },
+    revenue_by_source: {
+      court_vnd: revenue.booking ?? 0,
+      // Class seats are paid as `enrollment`; `class` is kept for older rows.
+      class_vnd: (revenue.enrollment ?? 0) + (revenue.class ?? 0),
+    },
   };
 }
 

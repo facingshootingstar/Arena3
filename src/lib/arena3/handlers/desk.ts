@@ -3,6 +3,7 @@ import { INVOICE_COLS, PAYMENT_COLS } from "../columns";
 import type { Invoice, Payment, PaymentCreateResponse, Reply } from "../contracts";
 import { err } from "../errors";
 import { settleEnrollment } from "./classes";
+import { lockEnrollmentLinks, withdrawLinks } from "../payos";
 import {
   audit,
   bookingBuyer,
@@ -307,6 +308,7 @@ export async function paymentsCreate(
   let userId: string | null = null;
   let quote: PromoQuote | null = null;
   let subPromo: { id: string; discount: number } | null = null;
+  let enrollmentLinks: Array<{ id: string; provider_order_code: string | number | null }> = [];
   if (ref_type === "booking") {
     // The receipt is made out to whoever the booking is for — the member, or
     // the walk-in's typed name and phone — never to the receptionist taking it.
@@ -319,11 +321,18 @@ export async function paymentsCreate(
     userId = who.userId;
   } else if (ref_type === "enrollment") {
     if (!isUuid(ref_id)) throw err.notFound("Enrollment does not exist.");
-    // Class first, then the enrolment: the same order as enrollment_hold and settleEnrollment.
-    // A retry queues here, re-reads the status and is refused once the seat is confirmed.
+    // Lock order payment → class → enrolment, as settleOnline: the seat's pending payOS links
+    // first, then the class, then the enrolment. A retry queues here, re-reads the status and
+    // is refused once the seat is confirmed.
     const preEnr = await one<{ class_id: string }>(sql, `select class_id from enrollments where id = $1`, [ref_id]);
     if (!preEnr) throw err.notFound("Enrollment does not exist.");
-    await sql.query(`select 1 from classes where id = $1 for update`, [preEnr.class_id]);
+    enrollmentLinks = await lockEnrollmentLinks(sql, [ref_id]);
+    const cls = await one<{ status: string }>(
+      sql,
+      `select status::text as status from classes where id = $1 for update`,
+      [preEnr.class_id],
+    );
+    if (cls?.status === "cancelled") throw err.br("BR-18", "That class is cancelled.");
     const enr = await one<{ user_id: string; status: string; price_vnd: number | null }>(
       sql,
       `select user_id, status::text as status, price_vnd from enrollments where id = $1 for update`,
@@ -433,9 +442,11 @@ export async function paymentsCreate(
   } else if (ref_type === "booking") {
     await redeemForBooking(sql, ref_id, userId, pay!.id);
   } else if (ref_type === "enrollment") {
-    // The money is in whatever happens to the seat. A late_no_seat outcome is
-    // already flagged in the audit log for staff, so the payment and invoice still post.
-    await settleEnrollment(sql, ref_id);
+    // The desk took the money, so the member's payOS link must not take it again.
+    await withdrawLinks(sql, enrollmentLinks, "Paid at the desk", "PAID_AT_DESK");
+    // The seat is on hold (checked above), so this confirms it. Any outcome that
+    // buys no seat would be flagged to the desk by settleEnrollment itself.
+    await settleEnrollment(sql, ref_id, { paymentId: pay!.id });
   }
   const item = await describePayment(sql, ref_type, ref_id);
   const invoiceId = await issueInvoice(sql, {

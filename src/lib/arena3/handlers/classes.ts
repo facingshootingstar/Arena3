@@ -7,6 +7,7 @@ import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../se
 import { addDays, classMinutes, ictDateString, ictDateTime, slotSpan } from "../time";
 import { one } from "../tx";
 import { inviteWaitlist } from "./ops";
+import { lockEnrollmentLinks, withdrawLinks } from "../payos";
 import { assertClassStaff } from "./training";
 import { assertSlotGrid } from "./bookings";
 
@@ -382,22 +383,99 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   }
 }
 
+export type SettleOutcome =
+  | "confirmed"
+  | "already"
+  | "duplicate"
+  | "late_confirmed"
+  | "late_no_seat"
+  | "released"
+  | "class_cancelled";
+
+/** Outcomes where money landed without buying a seat: staff must handle them by hand. */
+const FLAGGED: Record<string, string> = {
+  late_no_seat: "enrollment_paid_no_seat",
+  released: "enrollment_paid_released",
+  class_cancelled: "enrollment_paid_class_cancelled",
+  duplicate: "enrollment_paid_twice",
+};
+
+/**
+ * Money for a class seat that bought no seat: write the audit row and tell the
+ * desk. Every active receptionist and manager gets an in-app notification (the
+ * same fan-out the absence alert uses for managers), keyed per payment and
+ * per person, so a webhook retry does not notify twice.
+ */
+async function flagSeatPayment(
+  sql: Sql,
+  outcome: SettleOutcome,
+  enrollmentId: string,
+  classId: string,
+  paymentId: string | null,
+) {
+  const action = FLAGGED[outcome];
+  if (!action) return;
+  await audit(sql, null, action, "enrollment", enrollmentId, null, paymentId ? { payment_id: paymentId } : null);
+  const who = await one<{ user_id: string; full_name: string; sport: string; level: string }>(
+    sql,
+    `select e.user_id, u.full_name, c.sport::text as sport, c.level
+       from enrollments e join users u on u.id = e.user_id join classes c on c.id = e.class_id
+      where e.id = $1`,
+    [enrollmentId],
+  );
+  const staff = await sql.query<{ id: string }>(
+    `select id from users where role in ('receptionist','manager') and status = 'active'`,
+  );
+  for (const s of staff) {
+    await enqueue(
+      sql,
+      "inapp",
+      "class_payment_exception",
+      s.id,
+      {
+        reason: outcome,
+        enrollment_id: enrollmentId,
+        class_id: classId,
+        payment_id: paymentId,
+        user_id: who?.user_id ?? null,
+        member_name: who?.full_name ?? null,
+        sport: who?.sport ?? null,
+        level: who?.level ?? null,
+      },
+      `class_pay_exc|${paymentId ?? enrollmentId}|${outcome}|${s.id}`,
+    );
+  }
+}
+
 /**
  * Money has arrived for a class seat: turn the hold into a confirmed seat.
- * Locks the enrolment, then its class, so a late payment and the expiry sweep queue.
- * A payment that lands after the hold lapsed takes a seat only if one is still free;
- * otherwise the row is left alone and the audit log flags it for staff.
+ *
+ * This is the one place that decides whether a payment still buys a seat, so
+ * the desk, payOS and any later path agree. Locks the class, then the enrolment
+ * (the order enrollment_hold uses). The callers that hold a payment row lock it
+ * before calling, so the full order is payment → class → enrolment.
+ *
+ * - The class was cancelled: nobody is seated; the money is flagged.
+ * - The seat is held: it is confirmed.
+ * - It is already confirmed: by this payment (a retry) is fine; by another
+ *   payment is a double charge, flagged.
+ * - The member released the hold (`released`): not re-seated; flagged.
+ * - The hold lapsed: seated again only if a seat is free, otherwise flagged.
+ *
+ * A flagged outcome still leaves the payment posted (money did arrive); the
+ * audit row and a notification to the desk make it a by-hand exception.
  */
 export async function settleEnrollment(
   sql: Sql,
   enrollmentId: string,
-): Promise<{ outcome: "confirmed" | "already" | "late_confirmed" | "late_no_seat" }> {
-  // Same order as enrollment_hold: the class first, then the enrolment.
+  opts: { paymentId?: string | null; released?: boolean } = {},
+): Promise<{ outcome: SettleOutcome }> {
+  const paymentId = opts.paymentId ?? null;
   const pre = await one<{ class_id: string }>(sql, `select class_id from enrollments where id = $1`, [enrollmentId]);
   if (!pre) throw err.notFound();
-  const cl = await one<{ enrolled_count: number; capacity: number }>(
+  const cl = await one<{ enrolled_count: number; capacity: number; status: string }>(
     sql,
-    `select enrolled_count, capacity from classes where id = $1 for update`,
+    `select enrolled_count, capacity, status::text as status from classes where id = $1 for update`,
     [pre.class_id],
   );
   if (!cl) throw err.notFound();
@@ -407,6 +485,13 @@ export async function settleEnrollment(
     [enrollmentId],
   );
   if (!enr) throw err.notFound();
+  const done = async (outcome: SettleOutcome) => {
+    await flagSeatPayment(sql, outcome, enrollmentId, enr.class_id, paymentId);
+    return { outcome };
+  };
+  if (cl.status !== "open" && cl.status !== "closed" && enr.status !== "confirmed") {
+    return done("class_cancelled");
+  }
   if (enr.status === "hold") {
     await sql.query(
       `update enrollments set status = 'confirmed', hold_until = null, transfer_requested_at = null where id = $1`,
@@ -414,7 +499,20 @@ export async function settleEnrollment(
     );
     return { outcome: "confirmed" };
   }
-  if (enr.status === "confirmed") return { outcome: "already" };
+  if (enr.status === "confirmed") {
+    if (paymentId) {
+      const other = await one(
+        sql,
+        `select 1 from payments
+          where ref_type = 'enrollment' and ref_id = $1 and id <> $2 and status = 'posted' and amount_vnd > 0
+          limit 1`,
+        [enrollmentId, paymentId],
+      );
+      if (other) return done("duplicate");
+    }
+    return { outcome: "already" };
+  }
+  if (opts.released && enr.status === "cancelled") return done("released");
   if (cl.enrolled_count < cl.capacity) {
     await sql.query(`update classes set enrolled_count = enrolled_count + 1 where id = $1`, [enr.class_id]);
     await sql.query(
@@ -423,20 +521,28 @@ export async function settleEnrollment(
     );
     return { outcome: "late_confirmed" };
   }
-  await audit(sql, null, "enrollment_paid_no_seat", "enrollment", enrollmentId);
-  return { outcome: "late_no_seat" };
+  return done("late_no_seat");
 }
 
 /** The member says they have paid by bank transfer: the hold gets the longer transfer clock. */
 export async function enrollmentTransfer(sql: Sql, id: string, user: PublicUser) {
   if (!isUuid(id)) throw err.notFound();
-  const enr = await one<{ user_id: string; status: string; hold_until: string | null; transfer_requested_at: string | null }>(
+  const enr = await one<{
+    user_id: string;
+    status: string;
+    hold_until: string | null;
+    transfer_requested_at: string | null;
+    class_status: string;
+  }>(
     sql,
-    `select user_id, status::text as status, hold_until, transfer_requested_at from enrollments where id = $1 for update`,
+    `select e.user_id, e.status::text as status, e.hold_until, e.transfer_requested_at, c.status::text as class_status
+       from enrollments e join classes c on c.id = e.class_id
+      where e.id = $1 for update of e`,
     [id],
   );
   if (!enr) throw err.notFound();
   if (enr.user_id !== user.id) throw err.forbidden();
+  if (enr.class_status === "cancelled") throw err.br("BR-18", "That class is cancelled.");
   if (enr.status === "hold" && enr.transfer_requested_at) {
     throw err.conflictState("Reception is already checking the bank for this one.");
   }
@@ -473,8 +579,10 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     if (!cl) throw err.notFound();
     assertClassStaff(cl, user);
   }
-  // Lock the class first, then the enrolment (the order enrollment_hold and settleEnrollment use),
-  // and re-read the row so a payment or expiry that just landed is seen.
+  // Lock order is payment → class → enrolment, the order settleOnline uses (it locks the payment
+  // row, then settleEnrollment locks the class and the enrolment). A hold's pending payOS links are
+  // locked first, then the class, then the row is re-read so a payment or expiry that just landed is seen.
+  const links = enr.status === "hold" ? await lockEnrollmentLinks(sql, [id]) : [];
   await sql.query(`select 1 from classes where id = $1 for update`, [enr.class_id]);
   const locked = await one<{ status: string }>(sql, `select status::text as status from enrollments where id = $1 for update`, [id]);
   if (!locked) throw err.notFound();
@@ -483,11 +591,9 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     // Nothing has been paid for a hold, so letting it go has no cutoff and nothing to refund.
     await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null, hold_until = null where id = $1`, [id]);
     await sql.query(`update classes set enrolled_count = greatest(enrolled_count - 1, 0) where id = $1`, [enr.class_id]);
-    await sql.query(
-      `update payments set status = 'expired', provider_status = 'EXPIRED'
-        where ref_type = 'enrollment' and ref_id = $1 and status::text = 'pending'`,
-      [id],
-    );
+    // Withdraw the link at payOS so a late scan cannot take money for a seat the member gave up.
+    // RELEASED tells settleOnline, should money still arrive, not to seat the member again.
+    await withdrawLinks(sql, links, "Seat released", "RELEASED");
     await inviteWaitlist(sql, enr.class_id);
     return { status: 200, body: { ok: true } };
   }
@@ -931,6 +1037,18 @@ export async function classesAssignCoach(sql: Sql, classId: string, request: Req
 export async function classesPatch(sql: Sql, classId: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const b = await readJson(request);
+  // Cancelling closes the seat holds' payOS links. Those payment rows are locked before the class
+  // (payment → class → enrolment, the order settleOnline uses), so a webhook racing the cancel
+  // queues behind it instead of deadlocking.
+  const cancelLinks =
+    str(b.status) === "cancelled" && isUuid(classId)
+      ? await lockEnrollmentLinks(
+          sql,
+          (
+            await sql.query<{ id: string }>(`select id from enrollments where class_id = $1 and status = 'hold'`, [classId])
+          ).map((r) => String(r.id)),
+        )
+      : [];
   const cl = await one<{
     id: string;
     sport: string;
@@ -950,7 +1068,7 @@ export async function classesPatch(sql: Sql, classId: string, request: Request, 
   if (cl.status === "cancelled") throw err.conflictState("That class is cancelled.");
 
   const status = str(b.status);
-  if (status === "cancelled") return cancelClass(sql, cl, reasonOf(b), user);
+  if (status === "cancelled") return cancelClass(sql, cl, reasonOf(b), user, cancelLinks);
   if (status !== undefined && !["open", "closed"].includes(status)) {
     throw err.field("status", "Status can be open, closed or cancelled.");
   }
@@ -986,6 +1104,7 @@ async function cancelClass(
   cl: { id: string; sport: string; status: string; coach_id: string; assistant_id: string | null },
   reason: string | undefined,
   user: PublicUser,
+  links: Array<{ id: string; provider_order_code: string | number | null }> = [],
 ) {
   if (!reason) throw err.field("reason", "Give a reason for cancelling this class.");
   const upcoming = await sql.query(
@@ -999,6 +1118,10 @@ async function cancelClass(
   const members = await confirmedMembers(sql, cl.id);
   const waiting = (
     await sql.query(`select user_id from enrollments where class_id = $1 and status = 'waitlisted'`, [cl.id])
+  ).map((r) => String(r.user_id));
+  // Members holding an unpaid seat are told too: their hold ends with the class.
+  const holding = (
+    await sql.query(`select user_id from enrollments where class_id = $1 and status = 'hold'`, [cl.id])
   ).map((r) => String(r.user_id));
   // Return prepaid sessions if any (4.5)
   // Only sessions actually returned are counted and cleared. A member with no session plan keeps
@@ -1025,11 +1148,13 @@ async function cancelClass(
   );
   await sql.query(
     `update enrollments
-        set status = 'cancelled', waitlist_pos = null,
+        set status = 'cancelled', waitlist_pos = null, hold_until = null, transfer_requested_at = null,
             prepaid_sessions = case when id = any($2::uuid[]) then 0 else prepaid_sessions end
-      where class_id = $1 and status in ('confirmed','waitlisted')`,
+      where class_id = $1 and status in ('confirmed','waitlisted','hold')`,
     [cl.id, returnedEnrs],
   );
+  // No hold can be paid any more: withdraw its link at payOS so the money never moves.
+  await withdrawLinks(sql, links, "Class cancelled", "CLASS_CANCELLED");
   await sql.query(`update classes set status = 'cancelled', enrolled_count = 0, cancel_reason = $2 where id = $1`, [
     cl.id,
     reason,
@@ -1037,7 +1162,7 @@ async function cancelClass(
   await notifyClass(
     sql,
     cl.id,
-    [...members, ...waiting, cl.coach_id, ...(cl.assistant_id ? [cl.assistant_id] : [])],
+    [...members, ...waiting, ...holding, cl.coach_id, ...(cl.assistant_id ? [cl.assistant_id] : [])],
     { kind: "class_cancelled", reason },
     `class_cancel|${cl.id}`,
   );
@@ -1050,7 +1175,12 @@ async function cancelClass(
   });
   return {
     status: 200,
-    body: { ok: true, sessions_cancelled: upcoming.length, notified: members.length + waiting.length, refunded },
+    body: {
+      ok: true,
+      sessions_cancelled: upcoming.length,
+      notified: members.length + waiting.length + holding.length,
+      refunded,
+    },
   };
 }
 

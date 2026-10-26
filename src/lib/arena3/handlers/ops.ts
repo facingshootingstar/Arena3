@@ -177,12 +177,14 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   if (cl.price_vnd == null) throw err.br("BR-26", "This class is not open for sale yet.");
   const settings = await getSettings(sql);
   // The seat is held, not confirmed: payment confirms it, and the price is locked now.
+  // A free class has nothing to pay, so the seat is confirmed at once (as classesEnroll does).
+  const free = cl.price_vnd === 0;
   await sql.query(
     `update enrollments
-        set status = 'hold', waitlist_pos = null, price_vnd = $2,
-            hold_until = now() + ($3::int * interval '1 minute')
+        set status = $4::enroll_status, waitlist_pos = null, price_vnd = $2,
+            hold_until = case when $5::boolean then null else now() + ($3::int * interval '1 minute') end
       where id = $1`,
-    [enr.id, cl.price_vnd, settings.class_hold_minutes],
+    [enr.id, cl.price_vnd, settings.class_hold_minutes, free ? "confirmed" : "hold", free],
   );
   await sql.query(
     `update classes set enrolled_count = enrolled_count + 1 where id = $1 and enrolled_count < capacity`,
@@ -190,7 +192,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   );
   await sql.query(`update waitlist_offers set status = 'accepted' where id = $1`, [offerId]);
   await sql.query(`select waitlist_compact($1::uuid)`, [enr.class_id]);
-  return { status: 200, body: { ok: true } };
+  return { status: 200, body: { ok: true, status: free ? "confirmed" : "hold" } };
 }
 
 export async function inviteWaitlist(sql: Sql, classId: string) {

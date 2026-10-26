@@ -33,7 +33,7 @@ const { hashPassword, hashOtp } = await import("./crypto.ts");
 const { csvCell } = await import("./handlers/extras.ts");
 const { trainingCreate } = await import("./handlers/training.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
-const { setOverridePaymentLinkCreator } = await import("./payos.ts");
+const { setOverridePaymentLinkCreator, setOverridePaymentLinkCanceller } = await import("./payos.ts");
 const chatH = await import("./handlers/chat.ts");
 const avatarH = await import("./handlers/avatar.ts");
 const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
@@ -4537,5 +4537,213 @@ describe("Sell classes: attendance", () => {
     assert.equal(charges, 0);
     const marked = (await db.query<{ result: string }>("select result::text as result from attendance where session_id = $1 and user_id = $2", [sessionId, m.id])).rows[0];
     assert.equal(marked.result, "present");
+  });
+});
+
+describe("Sell classes: final fixes", () => {
+  const jsonReq = (method: string, body: unknown) =>
+    new Request("http://localhost", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const enrol = (classId: string, m: any) =>
+    withTx((sql) => classesEnroll(sql, classId, new Request("http://localhost"), m));
+  const mgr = { id: "00000000-0000-0000-0000-000000000001", role: "manager", full_name: "Quan ly" } as any;
+  const holdFor = async (classId: string, m: any) => ((await enrol(classId, m)).body as any).enrollment.id as string;
+  const payDesk = (enrollmentId: string, amount: number) =>
+    withTx((sql) =>
+      paymentsCreate(sql, jsonReq("POST", { ref_type: "enrollment", ref_id: enrollmentId, method: "cash", amount_vnd: amount }), mgr),
+    );
+  const linkFor = (enrollmentId: string, u: any) =>
+    withTx((sql) =>
+      onlineCreate(
+        sql,
+        new Request("http://localhost/v1/payments/online", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ref_type: "enrollment", ref_id: enrollmentId }),
+        }),
+        u,
+      ),
+    );
+  const settleLink = (payId: string, txn: string) =>
+    withTx(async (sql) => {
+      const { settleOnline } = await import("./handlers/online.ts");
+      const pay = await sql.query<any>(
+        `select id, code, user_id, amount_vnd, status::text as status, ref_type, ref_id, provider_order_code from payments where id = $1 for update`,
+        [payId],
+      );
+      return settleOnline(sql, pay[0], { amountPaid: 300000, transactionId: txn, providerStatus: "PAID" });
+    });
+  const statusOf = async (enrollmentId: string) =>
+    (await db.query<{ status: string }>("select status::text as status from enrollments where id = $1", [enrollmentId])).rows[0].status;
+  const countOf = async (classId: string) =>
+    (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0].enrolled_count;
+  const staffFlags = async (paymentId: string) =>
+    (
+      await db.query<{ reason: string }>(
+        "select payload->>'reason' as reason from outbox where template = 'class_payment_exception' and payload->>'payment_id' = $1",
+        [paymentId],
+      )
+    ).rows.map((r) => r.reason);
+  const linkRow = async (payId: string) =>
+    (
+      await db.query<{ status: string; ps: string; code: string }>(
+        "select status::text as status, provider_status as ps, provider_order_code::text as code from payments where id = $1",
+        [payId],
+      )
+    ).rows[0];
+
+  let seq = 0;
+  let lastExpires: number | undefined;
+  const withdrawn: number[] = [];
+  before(() => {
+    setOverridePaymentLinkCreator(async (args: any) => {
+      seq += 1;
+      lastExpires = args.expiresInSeconds;
+      return {
+        orderCode: args.orderCode,
+        checkoutUrl: `https://pay.mock/checkout/ff${seq}`,
+        qrCode: "data:image/png;base64,mock",
+        paymentLinkId: `link_ff_${seq}`,
+        expiredAt: Math.floor(Date.now() / 1000) + 900,
+      };
+    });
+    setOverridePaymentLinkCanceller(async (orderCode: number) => {
+      withdrawn.push(orderCode);
+    });
+  });
+  after(() => {
+    setOverridePaymentLinkCreator(null);
+    setOverridePaymentLinkCanceller(null);
+  });
+
+  it("SC-cancel-class-hold: cancelling a class ends its holds and links, and a late payment is flagged, not seated", async () => {
+    const { settleEnrollment } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(80);
+    const id = await holdFor(classId, m);
+    const payId = ((await linkFor(id, m)).body as any).payment_id as string;
+    await db.query("update enrollments set transfer_requested_at = now() where id = $1", [id]);
+    await withTx((sql) => classesPatch(sql, classId, jsonReq("PATCH", { status: "cancelled", reason: "Coach is away" }), mgr));
+    const row = (
+      await db.query<{ status: string; hold_until: string | null; req: string | null }>(
+        "select status::text as status, hold_until, transfer_requested_at as req from enrollments where id = $1",
+        [id],
+      )
+    ).rows[0];
+    assert.equal(row.status, "cancelled");
+    assert.equal(row.hold_until, null);
+    assert.equal(row.req, null);
+    assert.equal(await countOf(classId), 0);
+    const link = await linkRow(payId);
+    assert.equal(link.status, "expired");
+    assert.equal(link.ps, "CLASS_CANCELLED");
+    assert.ok(withdrawn.includes(Number(link.code)));
+    const told = await db.query("select 1 from outbox where user_id = $1 and payload->>'class_id' = $2", [m.id, classId]);
+    assert.ok(told.rows.length >= 1);
+
+    // Money that arrives anyway (paid at payOS before the cancel landed) is flagged, not seated.
+    const out = await withTx((sql) => settleEnrollment(sql, id, { paymentId: payId }));
+    assert.equal(out.outcome, "class_cancelled");
+    assert.equal(await statusOf(id), "cancelled");
+    assert.equal(await countOf(classId), 0);
+    const a = await db.query("select 1 from audit_logs where action = 'enrollment_paid_class_cancelled' and entity_id = $1", [id]);
+    assert.equal(a.rows.length, 1);
+    const flags = await staffFlags(payId);
+    assert.ok(flags.length >= 1);
+    assert.ok(flags.every((r) => r === "class_cancelled"));
+  });
+
+  it("SC-cancel-class-refusals: a cancelled class refuses links, transfer requests and desk payments (BR-18)", async () => {
+    const { enrollmentTransfer } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(81);
+    const id = await holdFor(classId, m);
+    // The class is cancelled behind the hold's back: every way in must still refuse.
+    await db.query("update classes set status = 'cancelled' where id = $1", [classId]);
+    const isBr18 = (e: any) => e.extra?.br === "BR-18";
+    await assert.rejects(() => linkFor(id, m), isBr18);
+    await assert.rejects(() => withTx((sql) => enrollmentTransfer(sql, id, m)), isBr18);
+    await assert.rejects(() => payDesk(id, 300000), isBr18);
+    assert.equal(await statusOf(id), "hold");
+  });
+
+  it("SC-release-link: releasing a hold withdraws its link, and money on that link never re-seats the member", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(82);
+    const id = await holdFor(classId, m);
+    const payId = ((await linkFor(id, m)).body as any).payment_id as string;
+    await withTx((sql) => enrollmentDelete(sql, id, m));
+    const link = await linkRow(payId);
+    assert.equal(link.status, "expired");
+    assert.equal(link.ps, "RELEASED");
+    assert.ok(withdrawn.includes(Number(link.code)));
+    assert.equal(await countOf(classId), 0);
+
+    const out = await settleLink(payId, "TX-FF-REL");
+    assert.equal(out.posted, true);
+    assert.equal(await statusOf(id), "cancelled");
+    assert.equal(await countOf(classId), 0);
+    const a = await db.query("select 1 from audit_logs where action = 'enrollment_paid_released' and entity_id = $1", [id]);
+    assert.equal(a.rows.length, 1);
+    const flags = await staffFlags(payId);
+    assert.ok(flags.length >= 1);
+    assert.ok(flags.every((r) => r === "released"));
+  });
+
+  it("SC-waitlist-free: accepting an offer for a free class confirms the seat at once", async () => {
+    const classId = await seedClass({ price: 0, capacity: 1 });
+    const a = await seedMember(83);
+    const b = await seedMember(84);
+    const idA = await holdFor(classId, a);
+    assert.equal(await statusOf(idA), "confirmed");
+    const idB = await holdFor(classId, b);
+    assert.equal(await statusOf(idB), "waitlisted");
+    await withTx((sql) => enrollmentDelete(sql, idA, a));
+    const offer = (
+      await db.query<{ id: string }>("select id from waitlist_offers where enrollment_id = $1 and status = 'pending'", [idB])
+    ).rows[0];
+    assert.ok(offer);
+    const res = await withTx((sql) => waitlistAccept(sql, offer.id, b));
+    assert.equal((res.body as any).status, "confirmed");
+    const row = (
+      await db.query<{ status: string; hold_until: string | null }>(
+        "select status::text as status, hold_until from enrollments where id = $1",
+        [idB],
+      )
+    ).rows[0];
+    assert.equal(row.status, "confirmed");
+    assert.equal(row.hold_until, null);
+    assert.equal(await countOf(classId), 1);
+  });
+
+  it("SC-desk-then-online: the desk withdraws the open link, and money on it later is flagged to staff", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(85);
+    const id = await holdFor(classId, m);
+    const payId = ((await linkFor(id, m)).body as any).payment_id as string;
+    await payDesk(id, 300000);
+    const link = await linkRow(payId);
+    assert.equal(link.status, "expired");
+    assert.equal(link.ps, "PAID_AT_DESK");
+    assert.ok(withdrawn.includes(Number(link.code)));
+    assert.equal(await statusOf(id), "confirmed");
+
+    const out = await settleLink(payId, "TX-FF-DUP");
+    assert.equal(out.posted, true);
+    assert.equal(await statusOf(id), "confirmed");
+    assert.equal(await countOf(classId), 1);
+    const a = await db.query("select 1 from audit_logs where action = 'enrollment_paid_twice' and entity_id = $1", [id]);
+    assert.equal(a.rows.length, 1);
+    const flags = await staffFlags(payId);
+    assert.ok(flags.length >= 1);
+    assert.ok(flags.every((r) => r === "duplicate"));
+  });
+
+  it("SC-link-expiry: a seat link never outlives the hold", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(86);
+    const id = await holdFor(classId, m);
+    await db.query("update enrollments set hold_until = now() + interval '5 minutes' where id = $1", [id]);
+    await linkFor(id, m);
+    assert.ok(lastExpires !== undefined && lastExpires <= 300 && lastExpires >= 280, `expires in ${lastExpires}`);
   });
 });
