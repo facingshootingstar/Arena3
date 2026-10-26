@@ -60,8 +60,6 @@ export const redesign: Record<string, string> = {
     "Từ thứ Hai đến thứ Sáu tính giờ thường đến 17:00. Cuối tuần áp dụng bảng giá cuối tuần.",
   "{n} hours free {day}": "Còn {n} giờ trống {day}",
   "Fully booked {day}": "Đã kín lịch {day}",
-  "Members draw court hours from their plan or take a discount on every booking.":
-    "Hội viên trừ giờ sân trong gói hoặc được giảm giá cho mỗi lượt đặt.",
   "{n} coached sessions": "{n} buổi tập có HLV",
   "{n}% off court hire": "Giảm {n}% tiền thuê sân",
   "Coached classes run on the same calendar as the courts. Seats go in the order people sign up.":
@@ -169,7 +167,6 @@ export const redesign: Record<string, string> = {
   "Scan with your banking app, or type the details in by hand. Keep the reference exactly as it is, so reception can find your transfer.": "Quét bằng ứng dụng ngân hàng, hoặc nhập tay các thông tin bên dưới. Giữ nguyên nội dung chuyển khoản để lễ tân tìm được khoản tiền của bạn.",
   "A transfer is not a payment until reception finds it in the bank. Your court stays held meanwhile.": "Chuyển khoản chỉ được tính là đã trả khi lễ tân thấy tiền trong tài khoản. Sân của bạn vẫn được giữ trong lúc chờ.",
   "Transfer details": "Thông tin chuyển khoản",
-  "Use plan hours ({n} left)": "Dùng giờ trong gói (còn {n})",
   "Paying in the app is not set up yet. Book this court at the front desk instead.": "Thanh toán trong app chưa được cài đặt. Hãy đặt sân này tại quầy lễ tân.",
   "You have {n}": "Bạn đã đủ {n} lượt",
 
@@ -179,9 +176,6 @@ export const redesign: Record<string, string> = {
   "Leave class…": "Rời lớp…",
   "Waitlist position #{pos}": "Vị trí chờ #{pos}",
   "Leave the waitlist…": "Rời danh sách chờ…",
-  "Needs a {sport} plan": "Cần gói {sport}",
-  "Your plan has no sessions left": "Gói của bạn đã hết buổi",
-  "Included in your plan": "Đã gồm trong gói của bạn",
   "Uses 1 of your {n} sessions": "Dùng 1 trong {n} buổi còn lại",
   "Leave the waitlist for {cls}?": "Rời danh sách chờ lớp {cls}?",
   "Leave {cls}?": "Rời lớp {cls}?",
@@ -214,9 +208,6 @@ export const redesign: Record<string, string> = {
   "Tap a free hour. We hold it for {n} minutes while you pay.": "Chạm vào một giờ còn trống. Sân được giữ {n} phút trong lúc bạn thanh toán.",
 
   // ── AGENT-APP-POLISH ──
-  "Plan quota": "Hạn mức gói tập",
-  "Order a plan": "Đăng ký gói ngay",
-  "No active plan. Buy a plan to get free court hours and member discounts.": "Chưa có gói tập nào đang hoạt động. Mua gói tập để nhận giờ chơi miễn phí và ưu đãi hội viên.",
   "Best free hours this week": "Khung giờ vàng tuần này",
   "Tap to book": "Chạm để đặt",
   "Tomorrow has {n} free hours": "Ngày mai còn {n} giờ trống",
@@ -231,10 +222,7 @@ export const redesign: Record<string, string> = {
   "Active classes": "Lớp đang mở",
   "Your enrolments": "Lớp bạn đã tham gia",
   "Sports": "Môn thể thao",
-  "Available plans": "Gói tập đang mở",
-  "Current plan": "Gói đang dùng",
   "None": "Chưa có",
-  "Renew plan": "Gia hạn gói",
   "Quick compare": "So sánh nhanh",
   "Plan": "Gói tập",
   "Sport": "Môn",
@@ -298,7 +286,6 @@ export const redesign: Record<string, string> = {
   "Occupancy heatmap": "Bản đồ nhiệt lấp đầy",
   "Check in without code": "Check-in không cần mã",
   "No pending payments": "Không có khoản chờ thanh toán",
-  "All court bookings and subscriptions are up to date.": "Tất cả đặt sân và gói tập đều đã được thanh toán.",
   "Amount to collect": "Số tiền cần thu",
   "Quick actions": "Thao tác nhanh",
   "All roles": "Tất cả vai trò",
@@ -321,7 +308,6 @@ export const redesign: Record<string, string> = {
   "No slots match the selected group filter.": "Không có vị trí ảnh nào khớp với bộ lọc nhóm đã chọn.",
   "Show all": "Hiện tất cả",
   "Total members": "Tổng hội viên",
-  "Total plans": "Tổng gói tập",
   "Peak rules": "Khung giờ cao điểm",
   "Off-peak rules": "Khung giờ thường",
   "Total rates": "Tổng bảng giá",

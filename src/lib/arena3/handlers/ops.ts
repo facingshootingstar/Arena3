@@ -572,7 +572,7 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
 No medical advice, no discounts beyond the listed prices, never invent a free slot.
 Only name coaches and classes that appear in the data block.
 If you do not know: tell them to ask the desk or type «ticket: …».
-You can walk them through Book / Classes in the app. Payment is taken at the desk after they enrol in the app.
+You can walk them through Book / Classes in the app. Payment is taken at the desk for each court booking or class they buy in the app.
 
 DATA BLOCK:
 ${facts}`;

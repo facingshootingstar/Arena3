@@ -27,7 +27,7 @@ export function StepsScene() {
     {
       n: "03",
       title: t("Pay at the desk"),
-      body: t("Pay at reception by cash, bank transfer or your plan's court hours."),
+      body: t("Pay for each court booking or class at reception by cash or bank transfer."),
     },
   ];
 

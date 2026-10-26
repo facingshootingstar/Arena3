@@ -54,7 +54,7 @@ const MANUAL_REASONS = [
 
 /** Why someone with no booking or class may still come in. */
 const OVERRIDE_REASONS = [
-  { value: "renewing", label: tk("Renewing right now") },
+  { value: "renewing", label: tk("Paying at the desk right now") },
   { value: "guest_pass", label: tk("Guest pass") },
   { value: "manager_ok", label: tk("Manager approved") },
   { value: "expired_ok", label: tk("Just expired (grace)") },

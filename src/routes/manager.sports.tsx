@@ -61,7 +61,6 @@ export type ManagerSport = {
   active_courts_count: number;
   future_bookings_count: number;
   future_classes_count: number;
-  active_plans_count: number;
   photo_url: string;
 };
 
@@ -386,10 +385,6 @@ function Page() {
                     <div>
                       <span className="text-muted block text-2xs">{t("Active classes")}</span>
                       <span className="font-semibold text-fg">{s.future_classes_count}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted block text-2xs">{t("Active plans")}</span>
-                      <span className="font-semibold text-fg">{s.active_plans_count}</span>
                     </div>
                   </div>
                 </div>

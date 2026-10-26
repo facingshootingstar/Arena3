@@ -3655,6 +3655,19 @@ describe("Sell classes: pay", () => {
     await payDesk(id, 300000);
   });
 
+  it("SC-amount-mismatch: a desk payment for a seat must equal its price to the đồng, or nothing is posted", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(29);
+    const id = await holdFor(classId, m);
+    for (const wrong of [1, 299999, 300001]) {
+      await assert.rejects(() => payDesk(id, wrong), (e: any) => e.extra?.field === "amount_vnd");
+    }
+    const posted = await db.query("select 1 from payments where ref_type = 'enrollment' and ref_id = $1", [id]);
+    assert.equal(posted.rows.length, 0);
+    assert.equal((await db.query<{ status: string }>("select status from enrollments where id = $1", [id])).rows[0].status, "hold");
+    await payDesk(id, 300000);
+  });
+
   it("SC-transfer-repeat: a second transfer request is refused and the hold is unchanged", async () => {
     const { enrollmentTransfer } = await import("./handlers/classes.ts");
     const classId = await seedClass({ price: 300000, capacity: 5 });

@@ -32,7 +32,7 @@ const COUNTER_FROM = MAX_CHARS - 120;
 // The chip's English text is what gets sent to the assistant; only the label drawn is translated.
 const CHIPS = [
   tk("What are your opening hours?"),
-  tk("Which plans are on sale?"),
+  tk("What do courts and classes cost?"),
   tk("Who coaches badminton?"),
   tk("How do I cancel a court?"),
 ];
@@ -40,7 +40,7 @@ const CHIPS = [
 const WELCOME: Msg = {
   role: "bot",
   text: tk(
-    "Ask about the timetable, plans, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Type «ticket: …» to send a note to the desk.",
+    "Ask about the timetable, prices, coaches, cancelling, or waitlists. Every answer is grounded in the centre's own data. Type «ticket: …» to send a note to the desk.",
   ),
 };
 
@@ -96,7 +96,7 @@ function Page() {
     <Shell
       role="member"
       title={t("Assistant")}
-      subtitle={t("Answers use Lê Long Sport's timetable, plans and coaches.")}
+      subtitle={t("Answers use Lê Long Sport's timetable, prices and coaches.")}
     >
       {/* The dot field tracks the cursor behind the thread — it makes an empty
           conversation feel awake without competing with the messages. */}

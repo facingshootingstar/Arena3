@@ -47,7 +47,6 @@ export async function managerSportsList(sql: Sql, user: PublicUser) {
       active_courts_count: number;
       future_bookings_count: number;
       future_classes_count: number;
-      active_plans_count: number;
       photo_url: string;
     }
   >(
@@ -57,8 +56,7 @@ export async function managerSportsList(sql: Sql, user: PublicUser) {
             concat('/v1/site-assets/sport.', s.code, '/file') as photo_url,
             coalesce(c.courts_count, 0)::int as active_courts_count,
             coalesce(b.bookings_count, 0)::int as future_bookings_count,
-            coalesce(cl.classes_count, 0)::int as future_classes_count,
-            coalesce(p.plans_count, 0)::int as active_plans_count
+            coalesce(cl.classes_count, 0)::int as future_classes_count
        from sports s
        left join (
          select sport, count(*)::int as courts_count
@@ -79,12 +77,6 @@ export async function managerSportsList(sql: Sql, user: PublicUser) {
           where status = 'open' and end_on >= current_date
           group by sport
        ) cl on cl.sport = s.code
-       left join (
-         select sport_scope, count(*)::int as plans_count
-           from membership_plans
-          where is_on_sale = true
-          group by sport_scope
-       ) p on p.sport_scope = s.code
       order by s.sort_order asc, s.code asc`,
   );
 
