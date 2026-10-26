@@ -204,7 +204,7 @@ export async function activateSubscription(sql: Sql, subId: string) {
  * "1 x Thu ngan". The payment already knows its `ref_type`/`ref_id`; this looks
  * through to the thing itself so the line names the court and the hour.
  */
-async function describePayment(
+export async function describePayment(
   sql: Sql,
   refType: string,
   refId: string,

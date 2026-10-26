@@ -4741,3 +4741,128 @@ describe("Sell classes: pay", () => {
 async function confirmHold(enrollmentId: string) {
   await db.query("update enrollments set status = 'confirmed', hold_until = null where id = $1", [enrollmentId]);
 }
+
+describe("Sell classes: online", () => {
+  const enrol = (classId: string, m: any) =>
+    withTx((sql) => classesEnroll(sql, classId, new Request("http://localhost"), m));
+  const mgr = { id: "00000000-0000-0000-0000-000000000001", role: "manager", full_name: "Quan ly" } as any;
+  const holdFor = async (classId: string, m: any) => ((await enrol(classId, m)).body as any).enrollment.id as string;
+  const linkFor = (enrollmentId: string, u: any) =>
+    withTx((sql) =>
+      onlineCreate(
+        sql,
+        new Request("http://localhost/v1/payments/online", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ref_type: "enrollment", ref_id: enrollmentId }),
+        }),
+        u,
+      ),
+    );
+  let orderSeq = 0;
+  const useMockLink = () =>
+    setOverridePaymentLinkCreator(async (args) => {
+      orderSeq += 1;
+      return {
+        orderCode: args.orderCode,
+        checkoutUrl: `https://pay.mock/checkout/sc${orderSeq}`,
+        qrCode: "data:image/png;base64,mock",
+        paymentLinkId: `link_sc_${orderSeq}`,
+        expiredAt: Math.floor(Date.now() / 1000) + 900,
+      };
+    });
+  after(() => setOverridePaymentLinkCreator(null));
+
+  it("SC-online-create: owner links their hold at the locked price; others and lapsed holds are refused", async () => {
+    useMockLink();
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(40);
+    const other = await seedMember(41);
+    const id = await holdFor(classId, m);
+    await assert.rejects(() => linkFor(id, other), (e: any) => e.status === 403);
+    const res = await linkFor(id, m);
+    assert.equal(res.status, 201);
+    assert.equal((res.body as any).amount_vnd, 300000);
+    const pay = (await db.query<{ amount_vnd: number; user_id: string }>("select amount_vnd, user_id from payments where id = $1", [(res.body as any).payment_id])).rows[0];
+    assert.equal(pay.amount_vnd, 300000);
+    assert.equal(pay.user_id, m.id);
+
+    const m2 = await seedMember(42);
+    const id2 = await holdFor(await seedClass({ price: 300000, capacity: 5 }), m2);
+    await db.query("update enrollments set hold_until = now() - interval '1 minute' where id = $1", [id2]);
+    await assert.rejects(() => linkFor(id2, m2), (e: any) => e.extra?.br === "BR-28");
+  });
+
+  it("SC-online-expire: a pending link for a lapsed hold is cancelled by the job", async () => {
+    useMockLink();
+    const { expireOnlineLinks } = await import("./handlers/online.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(43);
+    const id = await holdFor(classId, m);
+    const res = await linkFor(id, m);
+    const payId = (res.body as any).payment_id as string;
+    await withTx((sql) => expireOnlineLinks(sql));
+    let st = (await db.query<{ status: string }>("select status::text as status from payments where id = $1", [payId])).rows[0].status;
+    assert.equal(st, "pending");
+    await db.query("update enrollments set hold_until = now() - interval '1 minute' where id = $1", [id]);
+    await withTx((sql) => expireOnlineLinks(sql));
+    st = (await db.query<{ status: string }>("select status::text as status from payments where id = $1", [payId])).rows[0].status;
+    assert.equal(st, "expired");
+  });
+
+  it("SC-online-settle: a paid link confirms the seat, invoices once, and a repeat does nothing", async () => {
+    useMockLink();
+    const { settleOnline } = await import("./handlers/online.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(44);
+    const id = await holdFor(classId, m);
+    const res = await linkFor(id, m);
+    const payId = (res.body as any).payment_id as string;
+    const settle = () =>
+      withTx(async (sql) => {
+        const pay = await sql.query<any>(
+          `select id, code, user_id, amount_vnd, status::text as status, ref_type, ref_id, provider_order_code from payments where id = $1 for update`,
+          [payId],
+        );
+        return settleOnline(sql, pay[0], { amountPaid: 300000, transactionId: "TX-SC", providerStatus: "PAID" });
+      });
+    assert.equal((await settle()).posted, true);
+    assert.equal((await settle()).posted, true);
+    const e = (await db.query<{ status: string }>("select status::text as status from enrollments where id = $1", [id])).rows[0];
+    assert.equal(e.status, "confirmed");
+    const invs = await db.query<{ description: string }>(
+      `select il.description from invoice_lines il join invoices i on i.id = il.invoice_id where i.payment_id = $1`,
+      [payId],
+    );
+    assert.equal(invs.rows.length, 1);
+    assert.ok(invs.rows[0].description.startsWith("Khoá badminton"));
+    const c = (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0];
+    assert.equal(c.enrolled_count, 1);
+  });
+
+  it("SC-online-late: money for a retaken seat stays posted and is invoiced", async () => {
+    useMockLink();
+    const { settleOnline } = await import("./handlers/online.ts");
+    const classId = await seedClass({ price: 300000, capacity: 1 });
+    const m1 = await seedMember(45);
+    const m2 = await seedMember(46);
+    const id1 = await holdFor(classId, m1);
+    const payId = ((await linkFor(id1, m1)).body as any).payment_id as string;
+    // Stand-in for the expiry sweep: the hold lapses, gives its seat back, another member takes it.
+    await db.query("update enrollments set hold_until = now() - interval '1 minute', status = 'cancelled' where id = $1", [id1]);
+    await db.query("update classes set enrolled_count = enrolled_count - 1 where id = $1", [classId]);
+    await holdFor(classId, m2);
+    const out = await withTx(async (sql) => {
+      const pay = await sql.query<any>(
+        `select id, code, user_id, amount_vnd, status::text as status, ref_type, ref_id, provider_order_code from payments where id = $1 for update`,
+        [payId],
+      );
+      return settleOnline(sql, pay[0], { amountPaid: 300000, transactionId: "TX-LATE", providerStatus: "PAID" });
+    });
+    assert.equal(out.posted, true);
+    const st = (await db.query<{ status: string }>("select status::text as status from payments where id = $1", [payId])).rows[0].status;
+    assert.equal(st, "posted");
+    const n = (await db.query("select 1 from invoices where payment_id = $1", [payId])).rows.length;
+    assert.equal(n, 1);
+  });
+});

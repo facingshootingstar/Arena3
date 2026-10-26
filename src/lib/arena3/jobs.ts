@@ -282,8 +282,11 @@ const DUE_PROBE = `
             where sent_at is null and attempts < 5)                                     as notify_flush,
     exists(select 1 from payments p
             left join court_bookings b on p.ref_type = 'booking' and b.id = p.ref_id
+            left join enrollments e on p.ref_type = 'enrollment' and e.id = p.ref_id
             where p.status::text = 'pending' and p.provider = 'payos'
-              and (b.id is null or b.status <> 'hold' or b.hold_until < now()))          as expire_links,
+              and (case when p.ref_type = 'enrollment'
+                        then e.id is null or e.status::text <> 'hold' or e.hold_until < now()
+                        else b.id is null or b.status <> 'hold' or b.hold_until < now() end)) as expire_links,
     exists(select 1 from waitlist_offers
             where status = 'pending' and expires_at < now())                            as waitlist_expire,
     exists(select 1 from sessions
