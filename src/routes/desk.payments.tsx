@@ -345,7 +345,7 @@ function Page() {
     try {
       const res = await apiPost<PaymentCreateResponse>(
         "/payments",
-        { ref_type: "enrollment", ref_id: a.id, method: "transfer", amount_vnd: a.amount_vnd },
+        { ref_type: "enrollment", ref_id: a.id, method: method[a.id] ?? "transfer", amount_vnd: a.amount_vnd },
         true,
       );
       toast.success(t("Confirmed: {name} has the seat", { name: a.member_name ?? t("Walk-in") }));
@@ -457,7 +457,7 @@ function Page() {
         <div className="mb-10">
           <SectionTitle text={t("Transfers to check")} className="font-display text-2xl" />
           <p className="mt-1 text-sm text-muted">
-            {t("A member said they would transfer and the court is being held open for them. Find the money on the statement before you confirm. Nothing has been posted yet.")}
+            {t("A member said they would transfer, and their court or class seat is being held for them. Find the money on the statement before you confirm. Nothing has been posted yet.")}
           </p>
           <Stagger className="mt-3 grid gap-3" gap={0.05}>
             {awaiting.map((a) =>
@@ -486,6 +486,16 @@ function Page() {
                           <p className="font-display text-2xl tabular-nums">{money(a.amount_vnd)}</p>
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <Select
+                            className="w-auto"
+                            value={method[a.id] ?? "transfer"}
+                            onChange={(e) => setMethod((m) => ({ ...m, [a.id]: e.target.value }))}
+                            aria-label={t("Payment method for {name}", { name: a.member_name ?? t("Walk-in") })}
+                          >
+                            <option value="transfer">{t("Bank transfer")}</option>
+                            <option value="cash">{t("Cash")}</option>
+                            <option value="card">{t("Card")}</option>
+                          </Select>
                           <StarBorder speed={4}>
                             <Button disabled={busy === a.id || !canTake} onClick={() => void confirmSeat(a)}>
                               {t("Money received: confirm")}

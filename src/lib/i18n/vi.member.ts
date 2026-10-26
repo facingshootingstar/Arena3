@@ -195,7 +195,7 @@ export const member: Record<string, string> = {
   "Holding {court} · {code}": "Đang giữ {court} · {code}",
   "Holding your court": "Đang giữ sân cho bạn",
   "Holding your seat": "Đang giữ chỗ cho bạn",
-  "Hold expiring": "Sắp hết giờ giữ sân",
+  "Hold expiring": "Sắp hết giờ giữ chỗ",
   "Could not hold that slot": "Không giữ được khung giờ đó",
   "Your court is held while reception checks the bank.": "Sân của bạn được giữ trong lúc lễ tân kiểm tra ngân hàng.",
   "One plan hour deducted": "Đã trừ một giờ trong gói tập",

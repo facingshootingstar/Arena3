@@ -187,11 +187,13 @@ function Page() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    await apiPost(`/waitlist/${o.id}/accept`);
-                    toast.success(t("Seat claimed"));
+                    const r = await apiPost<{ status?: string }>(`/waitlist/${o.id}/accept`);
+                    toast.success(
+                      r?.status === "confirmed" ? t("You are enrolled") : t("Seat held. Pay before the timer runs out."),
+                    );
                     load();
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : t("This offer has expired"));
+                    toast.error(e instanceof Error ? tServer(e.message) : t("This offer has expired"));
                   }
                 }}
               >

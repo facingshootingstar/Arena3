@@ -305,7 +305,7 @@ export const desk: Record<string, string> = {
   "The link may be old, or the member may have been removed. Search for them again from the desk.":
     "Đường dẫn có thể đã cũ, hoặc hội viên đã bị xoá. Hãy tìm lại hội viên từ quầy lễ tân.",
   "Transfers to check": "Chuyển khoản cần đối soát",
-  "A member said they would transfer and the court is being held open for them. Find the money on the statement before you confirm. Nothing has been posted yet.": "Hội viên báo sẽ chuyển khoản và sân đang được giữ cho họ. Hãy tìm khoản tiền trong sao kê trước khi xác nhận, chưa có gì được ghi nhận.",
+  "A member said they would transfer, and their court or class seat is being held for them. Find the money on the statement before you confirm. Nothing has been posted yet.": "Hội viên báo sẽ chuyển khoản, và sân hoặc chỗ học của họ đang được giữ. Hãy tìm khoản tiền trong sao kê trước khi xác nhận, chưa có gì được ghi nhận.",
   "left": "còn lại",
   "No code yet": "Chưa có mã",
   "asked {time}": "yêu cầu lúc {time}",

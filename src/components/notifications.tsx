@@ -4,7 +4,7 @@ import { Button, ButtonLink, Card, Modal } from "@/components/ui";
 import { money, when } from "@/components/shell";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { apiPost, openInvoice } from "@/lib/arena3/client";
-import { sportLabel } from "@/lib/arena3/labels";
+import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { locale, t, tServer } from "@/lib/i18n";
 
 export type Notification = {
@@ -166,9 +166,32 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
     case "waitlist_offer":
       return {
         title: t("A class seat opened"),
-        body: t("A seat is yours if you claim it before the offer runs out."),
+        body: t("Claim it before the offer runs out. A paid class then holds the seat while you pay."),
         link: { to: "/app/classes", label: t("Claim the seat") },
       };
+    case "class_payment_exception": {
+      const name = typeof p.member_name === "string" ? p.member_name : t("A member");
+      const cls =
+        typeof p.sport === "string"
+          ? `${sportLabel(p.sport)}${typeof p.level === "string" ? ` · ${levelLabel(p.level)}` : ""}`
+          : t("a class");
+      const why =
+        p.reason === "duplicate"
+          ? t("{name} paid twice for the same seat in {class}.", { name, class: cls })
+          : p.reason === "released"
+            ? t("{name} paid for a seat in {class} after releasing it.", { name, class: cls })
+            : p.reason === "class_cancelled"
+              ? t("{name} paid for a seat in {class}, which is cancelled.", { name, class: cls })
+              : t("{name} paid for a seat in {class} after the hold ended, and the class is full.", { name, class: cls });
+      return {
+        title: t("Class payment to sort out"),
+        body: `${why} ${t("The money is posted but bought no seat. Settle it with them by hand.")}`,
+        link:
+          typeof p.user_id === "string"
+            ? { to: `/desk/member/${p.user_id}`, label: t("Open their profile") }
+            : { to: "/desk/payments", label: t("Open payments") },
+      };
+    }
     case "waitlist_seat_taken":
       return {
         title: t("Seat taken"),

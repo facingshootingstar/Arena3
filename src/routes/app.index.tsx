@@ -14,7 +14,7 @@ import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
 import { formatDate, levelLabel, planBenefits, sportLabel, todayISO } from "@/lib/arena3/labels";
-import { t, tk, tData } from "@/lib/i18n";
+import { t, tk, tData, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/app/")({
@@ -142,11 +142,13 @@ function Page() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    await apiPost(`/waitlist/${o.id}/accept`);
-                    toast.success(t("Seat claimed"));
+                    const r = await apiPost<{ status?: string }>(`/waitlist/${o.id}/accept`);
+                    toast.success(
+                      r?.status === "confirmed" ? t("You are enrolled") : t("Seat held. Pay before the timer runs out."),
+                    );
                     reload();
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : t("Offer expired"));
+                    toast.error(e instanceof Error ? tServer(e.message) : t("Offer expired"));
                   }
                 }}
               >
