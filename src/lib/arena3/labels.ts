@@ -236,6 +236,7 @@ export function refTypeLabel(r: string) {
       day_pass: tk("Day pass"),
       walkin: tk("Walk-in"),
       equipment: tk("Equipment hire"),
+      enrollment: tk("Class seat"),
     } as Record<string, string>
   )[r];
   return label ? t(label) : r;

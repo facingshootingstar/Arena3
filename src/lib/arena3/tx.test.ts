@@ -1260,6 +1260,11 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
           return true;
         }
       );
+      // The refused accept changed nothing: mem2 is still waitlisted and the offer is still skipped.
+      const mem2After = (await db.query<{ status: string }>("select status from enrollments where id = $1", [(enr2.body as any).enrollment.id])).rows[0];
+      assert.equal(mem2After.status, "waitlisted");
+      const offerStill = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offer.id])).rows[0];
+      assert.equal(offerStill.status, "skipped");
 
       // Cancel mem3 -> triggers new offer for mem2
       await withTx(async (sql) => enrollmentDelete(sql, (enr3.body as any).enrollment.id, mem3));

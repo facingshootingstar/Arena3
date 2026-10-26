@@ -31,6 +31,7 @@ type ClassDetail = {
     level: string;
     status: string;
     capacity: number;
+    price_vnd?: number | null;
     enrolled_count: number;
     rrule: string;
     duration_min: number;
@@ -65,7 +66,7 @@ type ClassDetail = {
 /** What the manager is in the middle of doing to the class. */
 type Action =
   | { kind: "cancel-session" | "move-session"; sessionId: string; label: string; startAt: string }
-  | { kind: "coach" | "capacity" | "cancel-class" };
+  | { kind: "coach" | "capacity" | "price" | "cancel-class" };
 
 /** A `datetime-local` value is the centre's wall clock, which is always UTC+7. */
 const toIctIso = (local: string) => `${local}:00+07:00`;
@@ -308,6 +309,9 @@ export function ClassDetailModal({
                       <Button size="sm" variant="outline" onClick={() => setAction({ kind: "capacity" })}>
                         {t("Edit capacity")}
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => setAction({ kind: "price" })}>
+                        {t("Edit price")}
+                      </Button>
                     </>
                   ) : null}
                   <Button size="sm" variant="outline" onClick={() => setAction({ kind: "cancel-class" })}>
@@ -328,6 +332,7 @@ const ACTION_COPY = {
   "move-session": { title: tk("Move this session"), go: tk("Move session"), needsReason: false },
   coach: { title: tk("Change the coach for every session still to come"), go: tk("Change coach"), needsReason: false },
   capacity: { title: tk("Edit capacity"), go: tk("Save capacity"), needsReason: false },
+  price: { title: tk("Edit price"), go: tk("Save price"), needsReason: false },
   "cancel-class": { title: tk("Cancel the whole class"), go: tk("Cancel class"), needsReason: true },
 } as const;
 
@@ -351,6 +356,7 @@ function ActionForm({
   const coaches = (coachRead.data?.items ?? []).filter((x) => x.id !== classData.coach_id);
   const [coachId, setCoachId] = useState("");
   const [capacity, setCapacity] = useState(String(classData.capacity));
+  const [price, setPrice] = useState(classData.price_vnd == null ? "" : String(classData.price_vnd));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
 
@@ -377,6 +383,9 @@ function ActionForm({
       } else if (action.kind === "capacity") {
         await apiPatch(`/classes/${classData.id}`, { capacity: Number(capacity) });
         toast.success(t("Capacity saved"));
+      } else if (action.kind === "price") {
+        await apiPatch(`/classes/${classData.id}`, { price_vnd: price.trim() === "" ? null : Number(price) });
+        toast.success(t("Price saved"));
       } else {
         await apiPatch(`/classes/${classData.id}`, { status: "cancelled", reason });
         toast.success(t("Class cancelled: everyone enrolled was told"));
@@ -434,12 +443,16 @@ function ActionForm({
         <Field label={t("Capacity ({n} enrolled)", { n: classData.enrolled_count })} hint={at("capacity")}>
           <Input type="number" min={1} max={200} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
         </Field>
+      ) : action.kind === "price" ? (
+        <Field label={t("Price (VND)")} hint={at("price_vnd") ?? t("Leave empty to close the class to new sign-ups.")}>
+          <Input type="number" min={0} step={1000} inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
+        </Field>
       ) : (
         <Field label={reasonLabel} hint={at("reason")}>
           <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
         </Field>
       )}
-      {error && !["start_at", "coach_id", "capacity", "reason"].includes(error.field ?? "") ? (
+      {error && !["start_at", "coach_id", "capacity", "price_vnd", "reason"].includes(error.field ?? "") ? (
         <p role="alert" className="text-sm text-danger">
           {error.message}
         </p>

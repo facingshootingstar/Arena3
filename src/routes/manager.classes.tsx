@@ -1,7 +1,7 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Shell } from "@/components/shell";
+import { Shell, money } from "@/components/shell";
 import { PageHero } from "@/components/page-hero";
 import { StatStrip } from "@/components/stat-strip";
 import { SportBadge, useSports } from "@/components/sports-ui";
@@ -41,6 +41,7 @@ type ClassRow = {
   capacity: number;
   rrule?: string;
   duration_min?: number;
+  price_vnd?: number | null;
 };
 
 function Page() {
@@ -72,6 +73,7 @@ function Page() {
     coach_id: "",
     court_id: "",
     capacity: 12,
+    price: "",
     duration_min: 60,
     start_on: todayISO(),
     end_on: addDaysISO(todayISO(), 60),
@@ -233,6 +235,16 @@ function Page() {
             onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
           />
         </Field>
+        <Field label={t("Price (VND)")} hint={t("Leave empty until the class is ready to sell.")}>
+          <Input
+            type="number"
+            min={0}
+            step={1000}
+            inputMode="numeric"
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: e.target.value })}
+          />
+        </Field>
         <div className="flex flex-col justify-end gap-1">
           {missing ? (
             <p className="text-xs text-danger">
@@ -253,8 +265,10 @@ function Page() {
               if (creating) return;
               setCreating(true);
               try {
+                const { price, ...rest } = form;
                 const row = await apiPost<{ id: string }>("/classes", {
-                  ...form,
+                  ...rest,
+                  price_vnd: price.trim() === "" ? null : Number(price),
                   rrule: composeWeeklyRrule(days, hour),
                 });
                 toast.success(t("Draft created"));
@@ -299,6 +313,7 @@ function Page() {
               {c.coach_name} · {c.court_code} · <HighlightBadge value={c.enrolled_count}>{c.enrolled_count}</HighlightBadge>/{c.capacity}
             </p>
             {c.rrule ? <p className="text-sm">{rruleLabel(c.rrule, c.duration_min)}</p> : null}
+            <p className="text-sm tabular-nums text-muted">{c.price_vnd == null ? t("Price: not set") : money(c.price_vnd)}</p>
             <Button className="mt-3" variant="outline" onClick={() => setDetail(c.id)}>
               {t("Sessions & students")}
             </Button>

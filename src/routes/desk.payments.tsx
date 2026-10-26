@@ -101,8 +101,21 @@ type Awaiting = {
   phone: string | null;
 };
 
+/** A class seat held against a promise to transfer. */
+type AwaitingSeat = {
+  kind: "enrollment";
+  id: string;
+  member_name: string | null;
+  member_code: string | null;
+  phone: string | null;
+  class_label: string;
+  amount_vnd: number;
+  hold_until: string;
+  transfer_requested_at: string;
+};
+
 type Queue = {
-  awaiting: Awaiting[];
+  awaiting: Array<Awaiting | AwaitingSeat>;
   orders: Order[];
   refunds: Refund[];
   /** One page of the receipts in the window, after the method and search filters. */
@@ -325,6 +338,31 @@ function Page() {
     }
   }
 
+  /** Money for a class seat found on the statement: posts it, which confirms the seat. */
+  async function confirmSeat(a: AwaitingSeat) {
+    setBusy(a.id);
+    try {
+      const res = await apiPost<PaymentCreateResponse>(
+        "/payments",
+        { ref_type: "enrollment", ref_id: a.id, method: "transfer", amount_vnd: a.amount_vnd },
+        true,
+      );
+      toast.success(t("Confirmed: {name} has the seat", { name: a.member_name ?? t("Walk-in") }));
+      refresh();
+      if (res.invoice?.id) {
+        try {
+          await openInvoice(res.invoice.id);
+        } catch {
+          toast.warning(t("Confirmed, but the receipt did not open. Reprint it from the profile."));
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? tServer(e.message) : t("Could not settle that transfer"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function settleRefund(r: Refund, approve: boolean) {
     setBusy(r.id);
     try {
@@ -421,7 +459,43 @@ function Page() {
             {t("A member said they would transfer and the court is being held open for them. Find the money on the statement before you confirm. Nothing has been posted yet.")}
           </p>
           <Stagger className="mt-3 grid gap-3" gap={0.05}>
-            {awaiting.map((a) => (
+            {awaiting.map((a) =>
+              "kind" in a ? (
+                <StaggerItem key={a.id}>
+                  <Lift>
+                    <SpotlightCard className="rounded-[var(--radius-xl)]" size={420} strength={0.1}>
+                      <Card className="relative z-[2] border border-hold/30 p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Clock3 className="size-4 text-hold" />
+                              <h3 className="font-display text-xl">{a.member_name ?? t("Walk-in")}</h3>
+                              <Badge tone="hold">
+                                <HoldTimer until={a.hold_until} onExpire={refresh} /> {t("left")}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs tabular-nums text-muted">
+                              {a.member_code ?? t("No code yet")}
+                              {a.phone ? ` · ${a.phone}` : ""} · {t("asked {time}", { time: when(a.transfer_requested_at) })}
+                            </p>
+                            <p className="mt-2 text-sm">
+                              {t("Class seat")} · {a.class_label}
+                            </p>
+                          </div>
+                          <p className="font-display text-2xl tabular-nums">{money(a.amount_vnd)}</p>
+                        </div>
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <StarBorder speed={4}>
+                            <Button disabled={busy === a.id || !canTake} onClick={() => void confirmSeat(a)}>
+                              {t("Money received: confirm")}
+                            </Button>
+                          </StarBorder>
+                        </div>
+                      </Card>
+                    </SpotlightCard>
+                  </Lift>
+                </StaggerItem>
+              ) : (
               <StaggerItem key={a.id}>
                 <Lift>
                   <SpotlightCard className="rounded-[var(--radius-xl)]" size={420} strength={0.1}>
@@ -473,7 +547,8 @@ function Page() {
                   </SpotlightCard>
                 </Lift>
               </StaggerItem>
-            ))}
+              ),
+            )}
           </Stagger>
         </div>
       ) : null}

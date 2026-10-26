@@ -376,12 +376,10 @@ export async function sessionAttendanceGet(sql: Sql, sessionId: string, user: Pu
   const roster = await sql.query(
     `select u.id, u.full_name, u.member_code, u.health_notes,
             ${avatarUrlSql("u")},
-            a.result, a.at,
-            (sc.charged = false) as uncharged
+            a.result, a.at
        from enrollments e
        join users u on u.id = e.user_id
        left join attendance a on a.session_id = $1 and a.user_id = u.id and a.kind = 'session'
-       left join session_charges sc on sc.session_id = $1 and sc.user_id = u.id
       where e.class_id = $2 and e.status = 'confirmed'
       order by u.full_name`,
     [sessionId, session.class_id],

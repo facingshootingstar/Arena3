@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Cover, MediaCaption, sportPhoto } from "@/components/media";
 import { MyAttendance } from "@/components/my-attendance";
-import { Shell, when } from "@/components/shell";
+import { Shell, money, when } from "@/components/shell";
+import { PayOnlineButton } from "@/components/pay-online";
+import { HoldCountdown } from "@/components/moments/hold-countdown";
 import { Badge, Button, ButtonLink, Card, EmptyState, LoadError, Modal, PageHero, Seg, Select, ShowMore, Skeleton, SportBadge, useSports } from "@/components/ui";
 import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
@@ -32,6 +34,14 @@ type Cl = {
   rrule: string;
   duration_min: number;
   status: string;
+  price_vnd: number | null;
+  my_enrollment: {
+    id: string;
+    status: string;
+    hold_until: string | null;
+    price_vnd: number | null;
+    transfer_requested_at: string | null;
+  } | null;
 };
 
 type Enr = {
@@ -90,6 +100,34 @@ function Page() {
   // Leaving a class (or the waitlist) is asked twice: one tap used to give the seat away.
   const [leaving, setLeaving] = useState<{ enr: Enr; cls: Cl } | null>(null);
   const [leaveBusy, setLeaveBusy] = useState(false);
+  // One seat action at a time: asking for a transfer or releasing a hold both settle on the server.
+  const [seatBusy, setSeatBusy] = useState<string | null>(null);
+  async function askTransfer(enrId: string) {
+    if (seatBusy) return;
+    setSeatBusy(enrId);
+    try {
+      await apiPost(`/enrollments/${enrId}/transfer`);
+      toast.success(t("The desk has been told. Your seat stays held."));
+    } catch (e) {
+      toast.error(e instanceof Error ? tServer(e.message) : t("Could not ask the desk"));
+    } finally {
+      setSeatBusy(null);
+      load();
+    }
+  }
+  async function releaseSeat(enrId: string) {
+    if (seatBusy) return;
+    setSeatBusy(enrId);
+    try {
+      await apiDelete(`/enrollments/${enrId}`);
+      toast.success(t("Seat released"));
+    } catch (e) {
+      toast.error(e instanceof Error ? tServer(e.message) : t("Could not release the seat"));
+    } finally {
+      setSeatBusy(null);
+      load();
+    }
+  }
   async function leave() {
     if (!leaving || leaveBusy) return;
     setLeaveBusy(true);
@@ -221,6 +259,8 @@ function Page() {
             const full = c.enrolled_count >= c.capacity;
             const pct = Math.min(100, Math.round((c.enrolled_count / Math.max(1, c.capacity)) * 100));
             const enr = byClass[c.id];
+            const mineHere = c.my_enrollment;
+            const holding = mineHere?.status === "hold" && !!mineHere.hold_until ? mineHere : null;
             return (
               <StaggerItem key={c.id} className="h-full">
               <Lift className="h-full">
@@ -269,7 +309,44 @@ function Page() {
                       each button sat directly under its own text — so a row of
                       four classes showed four buttons at four heights. */}
                   <div className="mt-auto pt-5">
-                  {enr?.status === "confirmed" ? (
+                  <p className="mb-2 font-display text-xl tabular-nums">
+                    {holding?.price_vnd != null ? money(holding.price_vnd) : c.price_vnd == null ? "—" : money(c.price_vnd)}
+                  </p>
+                  {holding ? (
+                    <div className="grid gap-2">
+                      <HoldCountdown until={holding.hold_until!} onExpire={load} />
+                      {holding.transfer_requested_at ? (
+                        <p className="text-sm text-muted">{t("Waiting for the desk to confirm your transfer")}</p>
+                      ) : (
+                        <>
+                          <PayOnlineButton
+                            refType="enrollment"
+                            refId={holding.id}
+                            size="md"
+                            variant="primary"
+                            label={t("Pay online")}
+                            onPaid={load}
+                          />
+                          <Button
+                            className="w-full"
+                            variant="outline"
+                            disabled={seatBusy === holding.id}
+                            onClick={() => void askTransfer(holding.id)}
+                          >
+                            {t("Pay by transfer")}
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        className="w-full"
+                        variant="ghost"
+                        disabled={seatBusy === holding.id}
+                        onClick={() => void releaseSeat(holding.id)}
+                      >
+                        {t("Release seat")}
+                      </Button>
+                    </div>
+                  ) : enr?.status === "confirmed" ? (
                     (() => {
                       const locked = !!enr.leave_until && Date.now() >= new Date(enr.leave_until).getTime();
                       return (
@@ -313,17 +390,28 @@ function Page() {
                           <Button
                             className="w-full"
                             variant={full ? "outline" : "primary"}
+                            disabled={c.price_vnd == null}
                             onClick={async () => {
                               try {
-                                const r = await apiPost<{ waitlisted?: boolean }>(`/classes/${c.id}/enroll`, {});
-                                toast.success(r.waitlisted ? t("Added to the waitlist") : t("You are enrolled"));
+                                const r = await apiPost<{ waitlisted?: boolean; status?: string }>(`/classes/${c.id}/enroll`, {});
+                                toast.success(
+                                  r.waitlisted
+                                    ? t("Added to the waitlist")
+                                    : r.status === "hold"
+                                      ? t("Seat held. Pay before the timer runs out.")
+                                      : t("You are enrolled"),
+                                );
                                 load();
                               } catch (e) {
-                                toast.error(e instanceof Error ? e.message : t("Could not enrol"));
+                                toast.error(e instanceof Error ? tServer(e.message) : t("Could not enrol"));
                               }
                             }}
                           >
-                            {full ? t("Join the waitlist") : t("Enrol")}
+                            {c.price_vnd == null
+                              ? t("Not open yet")
+                              : full
+                                ? t("Join the waitlist")
+                                : t("Enrol · {price}", { price: money(c.price_vnd) })}
                           </Button>
                         </div>
                       );

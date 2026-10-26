@@ -368,4 +368,6 @@ export const desk: Record<string, string> = {
   "Bank transfer (VietQR)": "Chuyển khoản (VietQR)",
   "Show transfer QR · {amount}": "Hiện mã QR chuyển khoản · {amount}",
   "Online link": "Link thanh toán online",
+  "Class seat": "Chỗ học",
+  "Confirmed: {name} has the seat": "Đã xác nhận: {name} đã có chỗ",
 };

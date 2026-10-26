@@ -583,4 +583,11 @@ export const manager: Record<string, string> = {
   "Refresh": "Làm mới",
   "Order: {n}": "Thứ tự: {n}",
   "OK": "Đồng ý",
+  "Price (VND)": "Giá (VND)",
+  "Leave empty until the class is ready to sell.": "Để trống cho đến khi lớp sẵn sàng mở bán.",
+  "Leave empty to close the class to new sign-ups.": "Để trống để ngừng nhận đăng ký mới.",
+  "Price: not set": "Giá: chưa đặt",
+  "Edit price": "Sửa giá",
+  "Save price": "Lưu giá",
+  "Price saved": "Đã lưu giá",
 };

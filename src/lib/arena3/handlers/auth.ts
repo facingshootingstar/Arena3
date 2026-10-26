@@ -13,7 +13,6 @@ import {
 } from "../session";
 import { KeepWrites, one } from "../tx";
 import { pageParams } from "../validate";
-import { getActiveSportCodes } from "./sports";
 
 /**
  * Whether the OTP may be handed straight back to whoever asked for it.
