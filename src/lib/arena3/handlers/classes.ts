@@ -461,7 +461,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     user_id: string;
     status: string;
     prepaid_sessions: number;
-  }>(sql, `select * from enrollments where id = $1 for update`, [id]);
+  }>(sql, `select * from enrollments where id = $1`, [id]);
   if (!enr) throw err.notFound();
   if (user.role === "member" && enr.user_id !== user.id) throw err.forbidden();
   if (user.role === "coach") {
@@ -472,6 +472,24 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     );
     if (!cl) throw err.notFound();
     assertClassStaff(cl, user);
+  }
+  // Lock the class first, then the enrolment (the order enrollment_hold and settleEnrollment use),
+  // and re-read the row so a payment or expiry that just landed is seen.
+  await sql.query(`select 1 from classes where id = $1 for update`, [enr.class_id]);
+  const locked = await one<{ status: string }>(sql, `select status::text as status from enrollments where id = $1 for update`, [id]);
+  if (!locked) throw err.notFound();
+  enr.status = locked.status;
+  if (enr.status === "hold") {
+    // Nothing has been paid for a hold, so letting it go has no cutoff and nothing to refund.
+    await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null, hold_until = null where id = $1`, [id]);
+    await sql.query(`update classes set enrolled_count = greatest(enrolled_count - 1, 0) where id = $1`, [enr.class_id]);
+    await sql.query(
+      `update payments set status = 'expired', provider_status = 'EXPIRED'
+        where ref_type = 'enrollment' and ref_id = $1 and status::text = 'pending'`,
+      [id],
+    );
+    await inviteWaitlist(sql, enr.class_id);
+    return { status: 200, body: { ok: true } };
   }
   if (enr.status === "waitlisted") {
     await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null where id = $1`, [id]);

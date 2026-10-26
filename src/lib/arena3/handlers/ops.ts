@@ -156,25 +156,32 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   if (offer.status === "skipped") throw err.br("BR-21", "The class just filled up.");
   if (offer.status !== "pending") throw err.conflictState();
   if (new Date(offer.expires_at) < new Date()) throw err.br("BR-23", "That offer has expired.");
+  // Same lock order as enrollment_hold: the class first, then the enrolment.
+  const pre = await one<{ class_id: string }>(sql, `select class_id from enrollments where id = $1`, [offer.enrollment_id]);
+  if (!pre) throw err.notFound();
+  const cl = await one<{ enrolled_count: number; capacity: number; price_vnd: number | null }>(
+    sql,
+    `select enrolled_count, capacity, price_vnd from classes where id = $1 for update`,
+    [pre.class_id],
+  );
+  if (!cl) throw err.notFound();
   const enr = await one<{ id: string; class_id: string; user_id: string; status: string }>(
     sql,
     `select * from enrollments where id = $1 for update`,
     [offer.enrollment_id],
   );
   if (!enr || enr.user_id !== user.id) throw err.forbidden();
-  const cl = await one<{ enrolled_count: number; capacity: number; sport: string }>(
-    sql,
-    `select enrolled_count, capacity, sport from classes where id = $1 for update`,
-    [enr.class_id],
-  );
-  if (!cl) throw err.notFound();
   await assertNoClassClash(sql, user.id, enr.class_id);
   if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
-  const planRes = await classPlan(sql, user.id, cl.sport);
-  if (!planRes.ok) throw err.br(planRes.code, planRes.message);
+  if (cl.price_vnd == null) throw err.br("BR-26", "This class is not open for sale yet.");
+  const settings = await getSettings(sql);
+  // The seat is held, not confirmed: payment confirms it, and the price is locked now.
   await sql.query(
-    `update enrollments set status = 'confirmed', waitlist_pos = null where id = $1`,
-    [enr.id],
+    `update enrollments
+        set status = 'hold', waitlist_pos = null, price_vnd = $2,
+            hold_until = now() + ($3::int * interval '1 minute')
+      where id = $1`,
+    [enr.id, cl.price_vnd, settings.class_hold_minutes],
   );
   await sql.query(
     `update classes set enrolled_count = enrolled_count + 1 where id = $1 and enrolled_count < capacity`,
