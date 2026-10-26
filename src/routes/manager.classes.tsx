@@ -235,7 +235,7 @@ function Page() {
             onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
           />
         </Field>
-        <Field label={t("Price (VND)")} hint={t("Leave empty until the class is ready to sell.")}>
+        <Field label={t("Price (VND)")} hint={t("Leave empty until the class is ready to sell.")} tone="muted">
           <Input
             type="number"
             min={0}
