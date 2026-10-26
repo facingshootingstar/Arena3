@@ -753,6 +753,8 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
     member_code: r.member_code,
     phone: r.phone,
     class_label: `${r.sport} · ${r.level}`,
+    sport: r.sport,
+    level: r.level,
     amount_vnd: r.amount_vnd,
     hold_until: r.hold_until,
     transfer_requested_at: r.transfer_requested_at,

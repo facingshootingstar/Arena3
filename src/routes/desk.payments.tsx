@@ -27,7 +27,7 @@ import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { PromoInput } from "@/components/promo-input";
 import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
 import type { PaymentCreateResponse, TransferConfirmResponse, TransferRejectResponse } from "@/lib/arena3/contracts";
-import { refTypeLabel, sportLabel } from "@/lib/arena3/labels";
+import { levelLabel, refTypeLabel, sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer, tData } from "@/lib/i18n";
 import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
@@ -108,7 +108,8 @@ type AwaitingSeat = {
   member_name: string | null;
   member_code: string | null;
   phone: string | null;
-  class_label: string;
+  sport: string;
+  level: string;
   amount_vnd: number;
   hold_until: string;
   transfer_requested_at: string;
@@ -479,7 +480,7 @@ function Page() {
                               {a.phone ? ` · ${a.phone}` : ""} · {t("asked {time}", { time: when(a.transfer_requested_at) })}
                             </p>
                             <p className="mt-2 text-sm">
-                              {t("Class seat")} · {a.class_label}
+                              {t("Class seat")} · {sportLabel(a.sport)} · {levelLabel(a.level)}
                             </p>
                           </div>
                           <p className="font-display text-2xl tabular-nums">{money(a.amount_vnd)}</p>
