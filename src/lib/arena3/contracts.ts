@@ -149,8 +149,6 @@ export type HoldResponse = {
   due_now_vnd: number;
   list_price: number;
   promo: { code: string; name: string; discount_vnd: number } | null;
-  /** Plan hours that would cover this slot right now (BR-12, BR-13). */
-  plan_hours_left: number;
 };
 
 /** A held booking that money (or plan hours) has turned into a confirmed one. */

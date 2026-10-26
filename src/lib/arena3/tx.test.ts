@@ -24,7 +24,7 @@ const { readJson, withIdempotency } = await import("./helpers.ts");
 const opsH = await import("./handlers/ops.ts");
 const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel, classDetail, classRoster, classesPatch } = await import("./handlers/classes.ts");
 const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
-const { bookingGet, bookingsReschedule, walkIn, bookingsHold } = await import("./handlers/bookings.ts");
+const { bookingGet, bookingsReschedule, walkIn, bookingsHold, bookingsConfirm, bookingsCancel } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, subscriptionFreeze, subscriptionUnfreeze, sessionAttendancePost } = await import("./handlers/ops.ts");
 const { waitlistExpire } = await import("./jobs.ts");
@@ -4745,5 +4745,147 @@ describe("Sell classes: final fixes", () => {
     await db.query("update enrollments set hold_until = now() + interval '5 minutes' where id = $1", [id]);
     await linkFor(id, m);
     assert.ok(lastExpires !== undefined && lastExpires <= 300 && lastExpires >= 280, `expires in ${lastExpires}`);
+  });
+});
+
+describe("Remove plans: courts", () => {
+  const receptionistUser = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist", full_name: "Lễ tân RP" } as any;
+  const courtId = "10000000-0000-0000-0000-000000000008";
+  const testDate = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+
+  before(async () => {
+    // The demo seed books most of court 8 on these days; clear the test day as Round 6 does.
+    await db.query(`update court_bookings set occupancy_id = null, status = 'cancelled' where court_id = $1 and (start_at at time zone 'Asia/Ho_Chi_Minh')::date = $2::date`, [courtId, testDate]);
+    await db.query(`update sessions set occupancy_id = null, status = 'cancelled' where court_id = $1 and (start_at at time zone 'Asia/Ho_Chi_Minh')::date = $2::date`, [courtId, testDate]);
+    await db.query(`delete from occupancies where court_id = $1 and (start_at at time zone 'Asia/Ho_Chi_Minh')::date = $2::date`, [courtId, testDate]);
+  });
+
+  async function seedMember(id: string, name: string): Promise<any> {
+    const phone = "+8490" + id.replace(/-/g, "").slice(-7);
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+       values ($1, $2, $3, $4, 'member', 'hash')
+       on conflict (id) do nothing`,
+      [id, phone, name, name.toLowerCase()],
+    );
+    return { id, role: "member", full_name: name } as any;
+  }
+
+  async function seedPlanSubscription(userId: string, courtHoursLeft: number): Promise<void> {
+    const planId = (
+      await db.query<{ id: string }>(
+        `insert into membership_plans (name, sport_scope, duration_days, court_hours, court_discount_pct, price_vnd, is_on_sale)
+         values ('Remove plans RP', 'badminton', 30, 5, 20, 500000, true)
+         returning id`,
+      )
+    ).rows[0].id;
+    await db.query(
+      `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left)
+       values ($1, $2, 'badminton', current_date - 1, current_date + 30, 'active', $3)`,
+      [userId, planId, courtHoursLeft],
+    );
+  }
+
+  function holdReq(start: string, body: Record<string, unknown> = {}): Request {
+    return new Request("http://localhost/v1/bookings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ court_id: courtId, start_at: `${testDate}T${start}:00.000+07:00`, ...body }),
+    });
+  }
+
+  // RP-full-price: a plan with a 20% court discount and hours left no longer changes the price.
+  it("RP-full-price: a member with a plan pays the list price and the hold has no plan hours", async () => {
+    const member = await seedMember("00000000-0000-0000-0000-000000000241", "Member RP1");
+    await seedPlanSubscription(member.id, 5);
+
+    const res = await withTx(async (sql) => bookingsHold(sql, holdReq("09:00"), member));
+    assert.equal(res.status, 201);
+    const body = res.body as any;
+    assert.equal(body.price, body.list_price);
+    assert.equal("plan_hours_left" in body, false);
+
+    const shift = (await db.query<{ id: string }>("insert into cashier_shifts (receptionist_id) values ($1) returning id", [receptionistUser.id])).rows[0];
+    const paid = await withTx(async (sql) =>
+      paymentsCreate(
+        sql,
+        new Request("http://localhost/v1/payments", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ref_type: "booking", ref_id: body.booking.id, method: "cash", amount_vnd: body.due_now_vnd }),
+        }),
+        receptionistUser,
+      ),
+    );
+    assert.equal(paid.status, 201);
+    await db.query("update cashier_shifts set closed_at = now() where id = $1", [shift.id]);
+
+    const sub = (await db.query<{ court_hours_left: number }>(
+      "select court_hours_left from subscriptions where user_id = $1",
+      [member.id],
+    )).rows[0];
+    assert.equal(Number(sub.court_hours_left), 5);
+  });
+
+  // RP-no-quota: "quota" is no longer a way to pay for a court.
+  it("RP-no-quota: confirming a hold with method quota is rejected with 422 on method", async () => {
+    const member = await seedMember("00000000-0000-0000-0000-000000000242", "Member RP2");
+    await seedPlanSubscription(member.id, 5);
+    const hold = await withTx(async (sql) => bookingsHold(sql, holdReq("10:00"), member));
+    const bookingId = (hold.body as any).booking.id;
+
+    await assert.rejects(
+      async () =>
+        withTx(async (sql) =>
+          bookingsConfirm(
+            sql,
+            bookingId,
+            new Request(`http://localhost/v1/bookings/${bookingId}/confirm`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ method: "quota" }),
+            }),
+            member,
+          ),
+        ),
+      (err: any) => {
+        assert.equal(err.status, 422);
+        assert.equal(err.extra?.field, "method");
+        return true;
+      },
+    );
+  });
+
+  // RP-old-quota-cancel: a booking paid with plan hours before plans went can still be cancelled,
+  // but nothing is refunded and no subscription or payment row is touched.
+  it("RP-old-quota-cancel: cancelling an old quota booking refunds nothing and leaves the plan alone", async () => {
+    const member = await seedMember("00000000-0000-0000-0000-000000000243", "Member RP3");
+    await seedPlanSubscription(member.id, 0);
+    const bookingId = "30000000-0000-0000-0000-000000000241";
+    const occId = (
+      await db.query<{ id: string }>(
+        `insert into occupancies (id, court_id, start_at, end_at, kind, ref_id)
+         values (gen_random_uuid(), $1, '2026-12-20 08:00:00+07', '2026-12-20 09:00:00+07', 'booking', $2)
+         returning id`,
+        [courtId, bookingId],
+      )
+    ).rows[0].id;
+    await db.query(
+      `insert into court_bookings (id, court_id, user_id, start_at, end_at, status, price_vnd, deposit_vnd, paid_vnd, code, channel, quota_hours, occupancy_id)
+       values ($1, $2, $3, '2026-12-20 08:00:00+07', '2026-12-20 09:00:00+07', 'confirmed', 100000, 0, 0, 'BK-RP-OLD', 'app', 1, $4)`,
+      [bookingId, courtId, member.id, occId],
+    );
+
+    const res = await withTx(async (sql) => bookingsCancel(sql, bookingId, member));
+    assert.equal(res.status, 200);
+    assert.equal((res.body as any).refund, null);
+
+    const payments = (await db.query<{ n: number }>("select count(*)::int as n from payments where ref_id = $1", [bookingId])).rows[0];
+    assert.equal(payments.n, 0);
+    const sub = (await db.query<{ court_hours_left: number }>(
+      "select court_hours_left from subscriptions where user_id = $1",
+      [member.id],
+    )).rows[0];
+    assert.equal(Number(sub.court_hours_left), 0);
   });
 });

@@ -34,7 +34,7 @@ import {
 } from "../helpers";
 import { isValidVnPhone, normalizePhone } from "../phone";
 import { depositFor, dueNow, quoteCancel } from "../policy";
-import { applyDiscount, lookupPrice, memberDiscount } from "../pricing";
+import { applyDiscount, lookupPrice } from "../pricing";
 import { quotePromo, redeemForBooking, restoreIfFullyRefunded } from "../promos";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictClock, ictDateString, ictDateTime, ictMinutes, ictStamp, roundVnd } from "../time";
@@ -460,24 +460,16 @@ export async function courtsPatch(sql: Sql, id: string, request: Request, user: 
         [cur.sport, id],
       );
       if (!remaining || remaining.cnt === 0) {
-        const activeSubs = await one<{ cnt: number }>(
-          sql,
-          `select count(*)::int as cnt
-             from subscriptions s
-             join membership_plans p on p.id = s.plan_id
-            where s.status = 'active' and (p.sport_scope = $1 or (p.sport_scope = 'all' and $1 in (select code from sports where enabled = true and not is_scope_all and retired_at is null)))`,
-          [cur.sport],
-        );
         const activeClasses = await one<{ cnt: number }>(
           sql,
           `select count(*)::int as cnt from classes where sport = $1 and status = 'open'`,
           [cur.sport],
         );
-        if ((activeSubs?.cnt ?? 0) > 0 || (activeClasses?.cnt ?? 0) > 0) {
+        if ((activeClasses?.cnt ?? 0) > 0) {
           throw new ApiError(
             409,
             "CONFLICT_STATE",
-            "Cannot close the last available court for a sport with active plans or classes.",
+            "Cannot close the last available court for a sport with active classes.",
           );
         }
       }
@@ -628,9 +620,8 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
       requires_confirm: true,
     });
   }
-  const disc = await memberDiscount(sql, user.id, court.sport);
   const list = await lookupPrice(sql, { sport: court.sport, courtId, start });
-  const planPrice = applyDiscount(list.price_vnd, disc.pct, settings.round_vnd);
+  // Every court booking is charged the slot's list price; only promo codes move it.
   // A code is priced into the hold so the member sees what they will pay; the use
   // is only counted when the money posts (BR-41).
   const promoCode = str(b.promo_code);
@@ -640,12 +631,11 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
         userId: user.id,
         scope: "court",
         sport: court.sport,
-        orderVnd: planPrice,
-        planDiscountPct: disc.pct,
+        orderVnd: list.price_vnd,
         listVnd: list.price_vnd,
       })
     : null;
-  const price = promo ? promo.final_vnd : planPrice;
+  const price = promo ? promo.final_vnd : list.price_vnd;
   // A peak slot asks for a deposit up front; the rest is paid at the desk (deposit_vnd = 0 means pay in full).
   const deposit = depositFor({
     priceVnd: price,
@@ -683,7 +673,7 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
       start.toISOString(),
       end.toISOString(),
       price,
-      disc.pct,
+      0,
       Number(settings.vat_rate),
       holdUntil.toISOString(),
       occId,
@@ -703,9 +693,6 @@ export async function bookingsHold(sql: Sql, request: Request, user: PublicUser)
       due_now_vnd: deposit > 0 ? deposit : price,
       list_price: list.price_vnd,
       promo: promo ? { code: promo.code, name: promo.name, discount_vnd: promo.discount_vnd } : null,
-      // Court hours the member can spend on this slot right now (BR-12, BR-13): the same plan
-      // the confirm step would charge, so the card offers "Use plan hours" only when it will work.
-      plan_hours_left: Number(disc.court_hours_left) || 0,
     },
   };
 }
@@ -840,8 +827,8 @@ export async function settleHeldBooking(
 /**
  * What a member is allowed to settle their own booking with.
  *
- * `quota` spends hours they already bought, and `transfer` only asks reception
- * to go and look at the bank — neither one posts money. Everything else means
+ * `transfer` only asks reception to go and look at the bank — it posts no money
+ * itself. (`quota` used to spend plan hours; plans are gone.) Everything else means
  * "cash/card changed hands", which is a claim only somebody standing at the
  * till can make.
  *
@@ -851,7 +838,7 @@ export async function settleHeldBooking(
  * an online payment becomes real when payOS confirms it, never because a
  * client said so.
  */
-const MEMBER_SETTLE_METHODS = new Set(["quota", "transfer"]);
+const MEMBER_SETTLE_METHODS = new Set(["transfer"]);
 
 export async function bookingsConfirm(
   sql: Sql,
@@ -862,6 +849,10 @@ export async function bookingsConfirm(
   requireRole(user, ["member"]);
   const b = await readJson(request);
   const method = str(b.method) ?? "transfer";
+  // Plans are gone, so there are no court hours to spend. Say so on the field.
+  if (method === "quota") {
+    throw new ApiError(422, "VALIDATION", "Court hours are no longer sold; pay the slot price.", { field: "method" });
+  }
   if (!MEMBER_SETTLE_METHODS.has(method)) {
     throw err.forbidden(
       "Pay online, or pay at the front desk — a booking cannot be marked paid from the app.",
@@ -921,22 +912,10 @@ export async function bookingsConfirm(
     };
   }
 
-  let payAmount = dueNow(booking);
-  let quotaHours = 0;
-  if (method === "quota") {
-    const disc = await memberDiscount(sql, user.id, court.sport);
-    if (disc.court_hours_left < 1) throw err.br("BR-13", "You have no court hours left on your plan.");
-    payAmount = 0;
-    quotaHours = 1;
-    await sql.query(
-      `update subscriptions set court_hours_left = court_hours_left - 1 where id = $1 and court_hours_left >= 1`,
-      [disc.sub_id],
-    );
-  }
   const settled = await settleHeldBooking(sql, booking, court, {
     method,
-    payAmount,
-    quotaHours,
+    payAmount: dueNow(booking),
+    quotaHours: 0,
     buyerName: user.full_name,
     actorId: user.id,
   });
@@ -1101,21 +1080,12 @@ export async function bookingsCancel(
     quote.refund_pct,
     quote.fee_vnd,
   ]);
-  let refund: Payment | { kind: "quota"; hours: number } | null = null;
+  let refund: Payment | null = null;
   const qh = Number(booking.quota_hours) || 0;
-  if (qh > 0 && booking.user_id) {
-    // Plan hours cannot be split: half a notice or better gives the hour back.
-    if (quote.refund_pct >= 50) {
-      const court = await courtById(sql, booking.court_id);
-      const disc = await memberDiscount(sql, booking.user_id, court.sport);
-      if (disc.sub_id) {
-        await sql.query(`update subscriptions set court_hours_left = court_hours_left + $2 where id = $1`, [
-          disc.sub_id,
-          qh,
-        ]);
-      }
-      refund = { kind: "quota", hours: qh };
-    }
+  if (qh > 0) {
+    // Old bookings paid with plan hours. Plans no longer exist, so there is
+    // nothing to give back: those hours are history, and no row is touched.
+    refund = null;
   } else if (quote.refund_vnd > 0) {
     const payCode = await nextCode(sql, "PAY");
     const amount = -quote.refund_vnd;
@@ -1401,14 +1371,9 @@ export async function walkIn(sql: Sql, request: Request, user: PublicUser): Prom
     [guest_phone],
   );
   const list = await lookupPrice(sql, { sport: court.sport, courtId, start });
-  let price = list.price_vnd;
-  let discount = 0;
-  if (member) {
-    const disc = await memberDiscount(sql, member.id, court.sport);
-    discount = disc.pct;
-    price = applyDiscount(list.price_vnd, disc.pct, settings.round_vnd);
-  }
-  price = roundVnd(price, settings.round_vnd);
+  // Every court booking is charged the slot price, member or not.
+  const price = roundVnd(list.price_vnd, settings.round_vnd);
+  const discount = 0;
   const bookingId = (await one<{ id: string }>(sql, `select gen_random_uuid() as id`))!.id;
   let occId: string;
   try {

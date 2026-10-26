@@ -265,7 +265,7 @@ function Page() {
     }
   }
 
-  async function confirmPay(method: "quota" | "transfer") {
+  async function confirmPay(method: "transfer") {
     if (!hold) return;
     setBusy(true);
     try {
@@ -287,7 +287,7 @@ function Page() {
       }
       if (res.invoice_id) {
         setReceipt(res.invoice_id);
-        toast.success(method === "quota" ? t("One plan hour deducted") : t("Booking confirmed"), {
+        toast.success(t("Booking confirmed"), {
           description: t("Your receipt is ready."),
           action: {
             label: t("Open receipt"),
@@ -295,7 +295,7 @@ function Page() {
           },
         });
       } else {
-        toast.success(method === "quota" ? t("One plan hour deducted") : t("Booking confirmed"));
+        toast.success(t("Booking confirmed"));
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("Could not confirm the booking"));
@@ -798,8 +798,7 @@ function Page() {
                   {(() => {
                     // Only the ways this member can actually pay are offered (B-4), and only the first
                     // of them, the one most people take, gets the bright border.
-                    const hours = hold.plan_hours_left ?? 0;
-                    const primary = hours >= 1 ? "quota" : onlineOn ? "online" : bankOn ? "transfer" : null;
+                    const primary = onlineOn ? "online" : bankOn ? "transfer" : null;
                     const lift = (key: string, node: ReactNode) =>
                       key === primary ? <StarBorder speed={4} key={key}>{node}</StarBorder> : <span key={key}>{node}</span>;
                     if (!primary) {
@@ -811,14 +810,6 @@ function Page() {
                     }
                     return (
                       <div className="flex flex-wrap gap-2">
-                        {hours >= 1
-                          ? lift(
-                              "quota",
-                              <Button disabled={busy} onClick={() => void confirmPay("quota")}>
-                                {t("Use plan hours ({n} left)", { n: hours })}
-                              </Button>,
-                            )
-                          : null}
                         {/* Online payment settles the slot at once (payOS confirms the money first). A bank
                             transfer only promises it: the court stays on hold until reception finds it. */}
                         {onlineOn
