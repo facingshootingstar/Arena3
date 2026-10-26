@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { assertNoClassClash, audit, enqueue, returnPrepaidSession, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
+import { assertNoClassClash, audit, enqueue, isUuid, returnPrepaidSession, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
@@ -392,18 +392,21 @@ export async function settleEnrollment(
   sql: Sql,
   enrollmentId: string,
 ): Promise<{ outcome: "confirmed" | "already" | "late_confirmed" | "late_no_seat" }> {
+  // Same order as enrollment_hold: the class first, then the enrolment.
+  const pre = await one<{ class_id: string }>(sql, `select class_id from enrollments where id = $1`, [enrollmentId]);
+  if (!pre) throw err.notFound();
+  const cl = await one<{ enrolled_count: number; capacity: number }>(
+    sql,
+    `select enrolled_count, capacity from classes where id = $1 for update`,
+    [pre.class_id],
+  );
+  if (!cl) throw err.notFound();
   const enr = await one<{ id: string; class_id: string; status: string }>(
     sql,
     `select id, class_id, status::text as status from enrollments where id = $1 for update`,
     [enrollmentId],
   );
   if (!enr) throw err.notFound();
-  const cl = await one<{ enrolled_count: number; capacity: number }>(
-    sql,
-    `select enrolled_count, capacity from classes where id = $1 for update`,
-    [enr.class_id],
-  );
-  if (!cl) throw err.notFound();
   if (enr.status === "hold") {
     await sql.query(
       `update enrollments set status = 'confirmed', hold_until = null, transfer_requested_at = null where id = $1`,
@@ -426,13 +429,17 @@ export async function settleEnrollment(
 
 /** The member says they have paid by bank transfer: the hold gets the longer transfer clock. */
 export async function enrollmentTransfer(sql: Sql, id: string, user: PublicUser) {
-  const enr = await one<{ user_id: string; status: string; hold_until: string | null }>(
+  if (!isUuid(id)) throw err.notFound();
+  const enr = await one<{ user_id: string; status: string; hold_until: string | null; transfer_requested_at: string | null }>(
     sql,
-    `select user_id, status::text as status, hold_until from enrollments where id = $1 for update`,
+    `select user_id, status::text as status, hold_until, transfer_requested_at from enrollments where id = $1 for update`,
     [id],
   );
   if (!enr) throw err.notFound();
   if (enr.user_id !== user.id) throw err.forbidden();
+  if (enr.status === "hold" && enr.transfer_requested_at) {
+    throw err.conflictState("Reception is already checking the bank for this one.");
+  }
   if (enr.status !== "hold" || !enr.hold_until || new Date(enr.hold_until) <= new Date()) {
     throw err.br("BR-28", "This seat hold has expired.");
   }

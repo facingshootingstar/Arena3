@@ -319,6 +319,11 @@ export async function paymentsCreate(
     userId = who.userId;
   } else if (ref_type === "enrollment") {
     if (!isUuid(ref_id)) throw err.notFound("Enrollment does not exist.");
+    // Class first, then the enrolment: the same order as enrollment_hold and settleEnrollment.
+    // A retry queues here, re-reads the status and is refused once the seat is confirmed.
+    const preEnr = await one<{ class_id: string }>(sql, `select class_id from enrollments where id = $1`, [ref_id]);
+    if (!preEnr) throw err.notFound("Enrollment does not exist.");
+    await sql.query(`select 1 from classes where id = $1 for update`, [preEnr.class_id]);
     const enr = await one<{ user_id: string; status: string; price_vnd: number | null }>(
       sql,
       `select user_id, status::text as status, price_vnd from enrollments where id = $1 for update`,

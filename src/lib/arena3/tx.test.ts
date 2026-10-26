@@ -4715,6 +4715,18 @@ describe("Sell classes: pay", () => {
     await payDesk(id, 300000);
   });
 
+  it("SC-transfer-repeat: a second transfer request is refused and the hold is unchanged", async () => {
+    const { enrollmentTransfer } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(28);
+    const id = await holdFor(classId, m);
+    await withTx((sql) => enrollmentTransfer(sql, id, m));
+    const before = (await db.query<{ h: string }>("select hold_until::text as h from enrollments where id = $1", [id])).rows[0].h;
+    await assert.rejects(() => withTx((sql) => enrollmentTransfer(sql, id, m)), (e: any) => e.status === 409);
+    const after = (await db.query<{ h: string }>("select hold_until::text as h from enrollments where id = $1", [id])).rows[0].h;
+    assert.equal(after, before);
+  });
+
   it("SC-expired-transfer: a lapsed hold cannot ask for a transfer (BR-28)", async () => {
     const { enrollmentTransfer } = await import("./handlers/classes.ts");
     const classId = await seedClass({ price: 300000, capacity: 5 });
