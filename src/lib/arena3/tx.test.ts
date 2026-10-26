@@ -4610,6 +4610,121 @@ describe("Sell classes: enrol", () => {
   });
 });
 
+describe("Sell classes: pay", () => {
+  const jsonReq = (method: string, body: unknown) =>
+    new Request("http://localhost", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const enrol = (classId: string, m: any) =>
+    withTx((sql) => classesEnroll(sql, classId, new Request("http://localhost"), m));
+  const mgr = { id: "00000000-0000-0000-0000-000000000001", role: "manager", full_name: "Quan ly" } as any;
+  const holdFor = async (classId: string, m: any) => ((await enrol(classId, m)).body as any).enrollment.id as string;
+  const payDesk = (enrollmentId: string, amount: number) =>
+    withTx((sql) =>
+      paymentsCreate(sql, jsonReq("POST", { ref_type: "enrollment", ref_id: enrollmentId, method: "cash", amount_vnd: amount }), mgr),
+    );
+
+  it("SC-transfer: a transfer request extends the hold and shows on the desk list", async () => {
+    const { enrollmentTransfer } = await import("./handlers/classes.ts");
+    const { paymentsPending } = await import("./handlers/desk.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(20);
+    const id = await holdFor(classId, m);
+    const res = await withTx((sql) => enrollmentTransfer(sql, id, m));
+    assert.equal(res.status, 200);
+    const row = (
+      await db.query<{ ok: boolean; req: string | null }>(
+        `select hold_until between now() + interval '119 minutes' and now() + interval '121 minutes' as ok,
+                transfer_requested_at as req from enrollments where id = $1`,
+        [id],
+      )
+    ).rows[0];
+    assert.equal(row.ok, true);
+    assert.ok(row.req);
+    const pend = await withTx((sql) => paymentsPending(sql, new Request("http://localhost/v1/payments/pending"), mgr));
+    const hit = (pend.body as any).awaiting.find((r: any) => r.kind === "enrollment" && r.id === id);
+    assert.ok(hit);
+    assert.equal(hit.amount_vnd, 300000);
+  });
+
+  it("SC-desk-pay: cash at the desk confirms the seat, posts a payment, issues an invoice", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(21);
+    const id = await holdFor(classId, m);
+    await payDesk(id, 300000);
+    const e = (await db.query<{ status: string; hold_until: string | null }>("select status, hold_until from enrollments where id = $1", [id])).rows[0];
+    assert.equal(e.status, "confirmed");
+    assert.equal(e.hold_until, null);
+    const pays = await db.query<{ id: string }>("select id from payments where ref_type = 'enrollment' and ref_id = $1 and status = 'posted'", [id]);
+    assert.equal(pays.rows.length, 1);
+    const lines = await db.query<{ description: string }>(
+      `select il.description from invoice_lines il join invoices i on i.id = il.invoice_id where i.payment_id = $1`,
+      [pays.rows[0].id],
+    );
+    assert.equal(lines.rows.length, 1);
+    assert.ok(lines.rows[0].description.startsWith("Khoá badminton"));
+  });
+
+  it("SC-settle-idempotent: settling twice confirms once and keeps the count", async () => {
+    const { settleEnrollment } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(22);
+    const id = await holdFor(classId, m);
+    assert.equal((await withTx((sql) => settleEnrollment(sql, id))).outcome, "confirmed");
+    assert.equal((await withTx((sql) => settleEnrollment(sql, id))).outcome, "already");
+    const c = (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0];
+    assert.equal(c.enrolled_count, 1);
+  });
+
+  it("SC-settle-late-full: money for an expired hold whose seat was retaken is flagged, not seated", async () => {
+    const { settleEnrollment } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 1 });
+    const m1 = await seedMember(23);
+    const m2 = await seedMember(24);
+    const id1 = await holdFor(classId, m1);
+    // Stand-in for the expiry sweep (Task 5): the hold lapses and gives its seat back.
+    await db.query("update enrollments set hold_until = now() - interval '1 minute' where id = $1", [id1]);
+    await db.query("update enrollments set status = 'cancelled' where id = $1", [id1]);
+    await db.query("update classes set enrolled_count = enrolled_count - 1 where id = $1", [classId]);
+    const id2 = await holdFor(classId, m2);
+    assert.equal((await db.query<{ status: string }>("select status from enrollments where id = $1", [id2])).rows[0].status, "hold");
+    const res = await withTx((sql) => settleEnrollment(sql, id1));
+    assert.equal(res.outcome, "late_no_seat");
+    const c = (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0];
+    assert.equal(c.enrolled_count, 1);
+    const a = await db.query("select 1 from audit_logs where action = 'enrollment_paid_no_seat' and entity_id = $1", [id1]);
+    assert.equal(a.rows.length, 1);
+  });
+
+  it("SC-late-confirmed: money for an expired hold with a free seat still seats the member", async () => {
+    const { settleEnrollment } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 2 });
+    const m = await seedMember(25);
+    const id = await holdFor(classId, m);
+    await db.query("update enrollments set status = 'cancelled' where id = $1", [id]);
+    await db.query("update classes set enrolled_count = enrolled_count - 1 where id = $1", [classId]);
+    assert.equal((await withTx((sql) => settleEnrollment(sql, id))).outcome, "late_confirmed");
+    const c = (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0];
+    assert.equal(c.enrolled_count, 1);
+  });
+
+  it("SC-locked-price: the desk must take the price locked at hold time", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(26);
+    const id = await holdFor(classId, m);
+    await withTx((sql) => classesPatch(sql, classId, jsonReq("PATCH", { price_vnd: 250000 }), mgr));
+    await assert.rejects(() => payDesk(id, 250000), (e: any) => e.extra?.field === "amount_vnd");
+    await payDesk(id, 300000);
+  });
+
+  it("SC-expired-transfer: a lapsed hold cannot ask for a transfer (BR-28)", async () => {
+    const { enrollmentTransfer } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(27);
+    const id = await holdFor(classId, m);
+    await db.query("update enrollments set hold_until = now() - interval '1 minute' where id = $1", [id]);
+    await assert.rejects(() => withTx((sql) => enrollmentTransfer(sql, id, m)), (e: any) => e.extra?.br === "BR-28");
+  });
+});
+
 /** Stands in for a confirmed payment: turns a held seat into a confirmed one. */
 async function confirmHold(enrollmentId: string) {
   await db.query("update enrollments set status = 'confirmed', hold_until = null where id = $1", [enrollmentId]);

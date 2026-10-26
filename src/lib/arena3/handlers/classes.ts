@@ -382,6 +382,71 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   }
 }
 
+/**
+ * Money has arrived for a class seat: turn the hold into a confirmed seat.
+ * Locks the enrolment, then its class, so a late payment and the expiry sweep queue.
+ * A payment that lands after the hold lapsed takes a seat only if one is still free;
+ * otherwise the row is left alone and the audit log flags it for staff.
+ */
+export async function settleEnrollment(
+  sql: Sql,
+  enrollmentId: string,
+): Promise<{ outcome: "confirmed" | "already" | "late_confirmed" | "late_no_seat" }> {
+  const enr = await one<{ id: string; class_id: string; status: string }>(
+    sql,
+    `select id, class_id, status::text as status from enrollments where id = $1 for update`,
+    [enrollmentId],
+  );
+  if (!enr) throw err.notFound();
+  const cl = await one<{ enrolled_count: number; capacity: number }>(
+    sql,
+    `select enrolled_count, capacity from classes where id = $1 for update`,
+    [enr.class_id],
+  );
+  if (!cl) throw err.notFound();
+  if (enr.status === "hold") {
+    await sql.query(
+      `update enrollments set status = 'confirmed', hold_until = null, transfer_requested_at = null where id = $1`,
+      [enrollmentId],
+    );
+    return { outcome: "confirmed" };
+  }
+  if (enr.status === "confirmed") return { outcome: "already" };
+  if (cl.enrolled_count < cl.capacity) {
+    await sql.query(`update classes set enrolled_count = enrolled_count + 1 where id = $1`, [enr.class_id]);
+    await sql.query(
+      `update enrollments set status = 'confirmed', hold_until = null, transfer_requested_at = null, waitlist_pos = null where id = $1`,
+      [enrollmentId],
+    );
+    return { outcome: "late_confirmed" };
+  }
+  await audit(sql, null, "enrollment_paid_no_seat", "enrollment", enrollmentId);
+  return { outcome: "late_no_seat" };
+}
+
+/** The member says they have paid by bank transfer: the hold gets the longer transfer clock. */
+export async function enrollmentTransfer(sql: Sql, id: string, user: PublicUser) {
+  const enr = await one<{ user_id: string; status: string; hold_until: string | null }>(
+    sql,
+    `select user_id, status::text as status, hold_until from enrollments where id = $1 for update`,
+    [id],
+  );
+  if (!enr) throw err.notFound();
+  if (enr.user_id !== user.id) throw err.forbidden();
+  if (enr.status !== "hold" || !enr.hold_until || new Date(enr.hold_until) <= new Date()) {
+    throw err.br("BR-28", "This seat hold has expired.");
+  }
+  const settings = await getSettings(sql);
+  await sql.query(
+    `update enrollments
+        set hold_until = now() + ($2::int * interval '1 minute'), transfer_requested_at = now()
+      where id = $1`,
+    [id, settings.transfer_hold_minutes],
+  );
+  const fresh = await one(sql, `select * from enrollments where id = $1`, [id]);
+  return { status: 200, body: { enrollment: fresh } };
+}
+
 export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
   const enr = await one<{
     id: string;

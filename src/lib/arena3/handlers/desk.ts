@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { INVOICE_COLS, PAYMENT_COLS } from "../columns";
 import type { Invoice, Payment, PaymentCreateResponse, Reply } from "../contracts";
 import { err } from "../errors";
+import { settleEnrollment } from "./classes";
 import {
   audit,
   bookingBuyer,
@@ -231,6 +232,14 @@ async function describePayment(
       unit: "giờ",
     };
   }
+  if (refType === "enrollment") {
+    const row = await one<{ sport: string; level: string }>(
+      sql,
+      `select c.sport::text as sport, c.level from enrollments e join classes c on c.id = e.class_id where e.id = $1`,
+      [refId],
+    );
+    return { description: row ? `Khoá ${row.sport} · ${row.level}` : "Khoá học", unit: "khoá" };
+  }
   if (refType === "walkin") return { description: "Vé lẻ vào cửa", unit: "lượt" };
   if (refType === "equipment") return { description: "Thuê thiết bị", unit: "lượt" };
   return { description: "Dịch vụ tại trung tâm", unit: "lượt" };
@@ -254,8 +263,8 @@ export async function paymentsCreate(
   if (!ALLOWED_PAYMENT_METHODS.includes(method as any)) {
     throw err.field("method", `Payment method must be one of ${ALLOWED_PAYMENT_METHODS.join(", ")}.`);
   }
-  if (ref_type !== "booking" && ref_type !== "subscription") {
-    throw err.field("ref_type", "ref_type must be booking or subscription.");
+  if (ref_type !== "booking" && ref_type !== "subscription" && ref_type !== "enrollment") {
+    throw err.field("ref_type", "ref_type must be booking, subscription or enrollment.");
   }
   // Money in is a positive whole number of đồng. Zero and negative amounts used
   // to post: a -5,000 "payment" quietly lowered what the member had paid, and a
@@ -308,6 +317,26 @@ export async function paymentsCreate(
     buyer = who.name;
     buyerPhone = who.phone;
     userId = who.userId;
+  } else if (ref_type === "enrollment") {
+    if (!isUuid(ref_id)) throw err.notFound("Enrollment does not exist.");
+    const enr = await one<{ user_id: string; status: string; price_vnd: number | null }>(
+      sql,
+      `select user_id, status::text as status, price_vnd from enrollments where id = $1 for update`,
+      [ref_id],
+    );
+    if (!enr) throw err.notFound("Enrollment does not exist.");
+    if (enr.status !== "hold") throw err.br("BR-28", "That seat is not on hold, so there is nothing to pay.");
+    const expected = enr.price_vnd ?? 0;
+    if (amount !== expected) {
+      throw err.field(
+        "amount_vnd",
+        `A class seat is paid in full: ${expected.toLocaleString("en-US")}đ.`,
+        { expected_vnd: expected },
+      );
+    }
+    userId = enr.user_id;
+    const u = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [userId]);
+    buyer = u?.full_name ?? buyer;
   } else if (ref_type === "subscription") {
     if (!isUuid(ref_id)) throw err.field("ref_id", "That value is not in the right format.");
     // Locked for the rest of the transaction: two taps on "Take payment" queue
@@ -398,6 +427,10 @@ export async function paymentsCreate(
     await activateSubscription(sql, ref_id);
   } else if (ref_type === "booking") {
     await redeemForBooking(sql, ref_id, userId, pay!.id);
+  } else if (ref_type === "enrollment") {
+    // The money is in whatever happens to the seat. A late_no_seat outcome is
+    // already flagged in the audit log for staff, so the payment and invoice still post.
+    await settleEnrollment(sql, ref_id);
   }
   const item = await describePayment(sql, ref_type, ref_id);
   const invoiceId = await issueInvoice(sql, {
@@ -663,7 +696,10 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
               (select count(*) from payments where status = 'refund_pending')::int as refunds,
               (select count(*) from court_bookings
                 where status = 'hold' and transfer_requested_at is not null
-                  and hold_until > now())::int as awaiting`,
+                  and hold_until > now())::int
+              + (select count(*) from enrollments
+                  where status = 'hold' and transfer_requested_at is not null
+                    and hold_until > now())::int as awaiting`,
     );
     return {
       status: 200,
@@ -691,6 +727,31 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
         and b.hold_until > now()
       order by b.transfer_requested_at asc`,
   );
+
+  // Class seats on hold with a transfer promised, in the same list under their own kind.
+  const seatRows = await sql.query(
+    `select e.id, e.price_vnd as amount_vnd, e.hold_until, e.transfer_requested_at,
+            u.full_name as member_name, u.member_code, u.phone,
+            c.sport, c.level
+       from enrollments e
+       join classes c on c.id = e.class_id
+       join users u on u.id = e.user_id
+      where e.status = 'hold'
+        and e.transfer_requested_at is not null
+        and e.hold_until > now()
+      order by e.transfer_requested_at asc`,
+  );
+  const seats = seatRows.map((r: any) => ({
+    kind: "enrollment",
+    id: r.id,
+    member_name: r.member_name,
+    member_code: r.member_code,
+    phone: r.phone,
+    class_label: `${r.sport} · ${r.level}`,
+    amount_vnd: r.amount_vnd,
+    hold_until: r.hold_until,
+    transfer_requested_at: r.transfer_requested_at,
+  }));
 
   // `paid_vnd` calculated directly from posted payments: the desk wants to see a part payment
   // for what it is ("2 of 5 taken"), not just the balance left over.
@@ -769,7 +830,7 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
 
   return {
     status: 200,
-    body: { awaiting, orders, refunds, receipts: receipts.items, receipts_total: receipts.total, days, capped: false },
+    body: { awaiting: [...awaiting, ...seats], orders, refunds, receipts: receipts.items, receipts_total: receipts.total, days, capped: false },
   };
 }
 

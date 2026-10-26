@@ -391,6 +391,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "coach" && p1 === "classes") {
     return authedRead((sql, user) => classH.coachClasses(sql, user));
   }
+  if (method === "POST" && p0 === "enrollments" && p1 && p2 === "transfer") {
+    return authed((sql, user) => classH.enrollmentTransfer(sql, p1, user));
+  }
   if (method === "DELETE" && p0 === "enrollments" && p1) {
     return authed((sql, user) => classH.enrollmentDelete(sql, p1, user));
   }
