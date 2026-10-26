@@ -92,14 +92,6 @@ function Page() {
   const [mine, setMine] = useState<MyBooking[] | null>(null);
   const [windowHours, setWindowHours] = useState(2);
   const [showAllMine, setShowAllMine] = useState(false);
-  type MySub = {
-    plan_name: string;
-    sport_scope: string;
-    court_hours_left: string | number;
-    end_on: string;
-  };
-  const [mySubs, setMySubs] = useState<MySub[]>([]);
-
   // The booking being moved: the grid's next tap lands on it instead of making a new hold.
   const [moving, setMoving] = useState<MyBooking | null>(null);
   const [moveError, setMoveError] = useState("");
@@ -111,14 +103,6 @@ function Page() {
       setWindowHours(r.window_hours);
     } catch {
       // Keep the list that is already on screen
-    }
-    try {
-      const me = await apiGet<{ subscriptions?: MySub[] }>("/me");
-      if (Array.isArray(me.subscriptions)) {
-        setMySubs(me.subscriptions);
-      }
-    } catch {
-      // Ignore if /me subscriptions unavailable
     }
   }
   const [taken, setTaken] = useState<Taken | null>(null);
@@ -363,38 +347,6 @@ function Page() {
     </Card>
   ) : null;
 
-  const planQuotaCard = (
-    <Card className="p-4">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold">{t("Plan quota")}</h2>
-        <Link to="/app/plans" className="text-xs font-medium text-accent-2 hover:underline">
-          {t("Order a plan")}
-        </Link>
-      </div>
-      {mySubs.length > 0 ? (
-        <ul className="divide-y divide-line">
-          {mySubs.map((sub, idx) => (
-            <li key={idx} className="py-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-fg">{sub.plan_name}</span>
-                <span className="rounded-[var(--radius-pill)] bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent-2">
-                  {sub.court_hours_left} {t("hours")}
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-muted">
-                {sportLabel(sub.sport_scope)} · {t("Ends {date}", { date: sub.end_on })}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-xs text-muted leading-relaxed">
-          {t("No active plan. Buy a plan to get free court hours and member discounts.")}
-        </p>
-      )}
-    </Card>
-  );
-
   const bestFreeDays = Object.entries(avail ?? {})
     .filter(([d, info]) => d >= todayISO() && info.free > 0)
     .sort((a, b) => b[1].free - a[1].free)
@@ -501,7 +453,6 @@ function Page() {
         context={
           <>
             {myCourts}
-            {planQuotaCard}
             {bestFreeHoursCard}
           </>
         }

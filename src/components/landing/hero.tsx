@@ -215,11 +215,6 @@ export function Hero({
                 price: <span className="tabular-nums text-on-media">{money(cheapestHour)}</span>,
               },
             )}
-            <span className="mt-1 block">
-              <a href="#plans" className="link-underline hit text-on-media">
-                {t("Or see membership plans")}
-              </a>
-            </span>
           </p>
         </div>
       </div>

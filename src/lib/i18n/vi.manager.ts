@@ -3,6 +3,11 @@
  * attendance panels. One `"English": "Tiếng Việt",` per line.
  */
 export const manager: Record<string, string> = {
+  "Classes joined": "Lượt vào lớp",
+  "New members, class sign-ups and how full each class is.": "Hội viên mới, lượt đăng ký lớp và mức lấp đầy của từng lớp.",
+  "New members and classes joined, month by month.": "Hội viên mới và lượt vào lớp, theo từng tháng.",
+  "Two things put someone here: absent three sessions running, or no visit for {n}+ days. Contacting them is a courtesy call, never a penalty.": "Có hai lý do đưa người ta vào đây: vắng ba buổi liên tiếp, hoặc {n} ngày trở lên không đến. Liên hệ họ là một cuộc gọi quan tâm, không bao giờ là hình phạt.",
+  "Everyone has been in recently.": "Gần đây mọi người đều đã đến.",
   // ---- attendance panels -------------------------------------------------------
   "From": "Từ",
   "To": "Đến",
@@ -28,17 +33,14 @@ export const manager: Record<string, string> = {
   "Leaving": "Sắp rời bỏ",
   "No answer": "Không nghe máy",
   "Most urgent first": "Khẩn cấp nhất trước",
-  "Plan ends soonest": "Gói sắp hết hạn trước",
   "Away the longest": "Vắng lâu nhất trước",
   "Name A-Z": "Tên A-Z",
   "Absent in a row": "Vắng liên tiếp",
   "No visit {n}+ days": "Không đến {n}+ ngày",
-  "Plan ending · low attendance": "Gói sắp hết · điểm danh thấp",
   "Contact saved": "Đã lưu liên hệ",
   "To call": "Cần gọi",
   "Already contacted": "Đã liên hệ",
   "Everyone": "Tất cả",
-  "Plan ending soon": "Gói sắp hết hạn",
   "Who ends up on this list?": "Ai sẽ nằm trong danh sách này?",
   "Three things put someone here: absent three sessions running, no visit for {n}+ days on a live plan, or a plan ending soon with low attendance. Contacting them is a courtesy call, never a penalty.": "Có ba lý do đưa một người vào đây: vắng ba buổi liên tiếp, không đến {n}+ ngày dù gói còn hiệu lực, hoặc gói sắp hết hạn và điểm danh thấp. Liên hệ chỉ là cuộc gọi hỏi thăm, không phải hình phạt.",
   "Filter the list": "Lọc danh sách",
@@ -54,7 +56,6 @@ export const manager: Record<string, string> = {
   "no phone": "chưa có số điện thoại",
   "last seen {date}": "đến lần cuối {date}",
   "never seen": "chưa từng đến",
-  "Plan ends {date}": "Gói hết hạn {date}",
   "No live plan": "Không có gói đang hiệu lực",
   "Attendance {pct}%": "Điểm danh {pct}%",
   "Contacted": "Đã liên hệ",
@@ -279,7 +280,7 @@ export const manager: Record<string, string> = {
   "No plan": "Chưa có gói",
   "Could not load members": "Không thể tải danh sách hội viên",
   "Ends this week": "Hết hạn tuần này",
-  "Everyone with an account. Open a member for their plan, classes, balance and attendance.": "Tất cả người có tài khoản. Mở một hội viên để xem gói tập, lớp học, số dư và điểm danh.",
+  "Everyone with an account. Open a member for their classes, balance and attendance.": "Tất cả người có tài khoản. Mở một hội viên để xem lớp học, số dư và điểm danh.",
   "Plan state": "Tình trạng gói",
   "Search members": "Tìm hội viên",
   "Account status": "Trạng thái tài khoản",
@@ -332,7 +333,7 @@ export const manager: Record<string, string> = {
 
   // ---- prices ------------------------------------------------------------------
   "Pricing saved": "Đã lưu bảng giá",
-  "A new price only applies to new transactions: bookings and plans already sold keep theirs.": "Giá mới chỉ áp dụng cho giao dịch mới. Lượt đặt sân và gói đã bán vẫn giữ giá cũ.",
+  "A new price only applies to new transactions: bookings already made keep theirs.": "Giá mới chỉ áp dụng cho giao dịch mới. Lượt đặt sân đã có sẵn vẫn giữ giá cũ.",
   "Court rates": "Giá sân",
   "Price per hour, by sport, day and time of day. Peak hours are the busy evening slots.": "Giá theo giờ, tùy môn, loại ngày và khung giờ. Giờ cao điểm là các khung buổi tối đông khách.",
   "No court rates yet": "Chưa có giá sân",
@@ -394,7 +395,6 @@ export const manager: Record<string, string> = {
   "Starts (optional)": "Bắt đầu (không bắt buộc)",
   "Ends (optional)": "Kết thúc (không bắt buộc)",
   "Total uses (blank = unlimited)": "Tổng số lượt dùng (để trống = không giới hạn)",
-  "Only this plan": "Chỉ gói này",
   "Any plan": "Mọi gói",
   "Applies to": "Áp dụng cho",
   "Court bookings": "Đặt sân",

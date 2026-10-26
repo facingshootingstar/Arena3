@@ -1,11 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SectionTitle } from "@/components/section";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowUpRight, Banknote, Clock3, CreditCard, Landmark, Ticket, Undo2 } from "lucide-react";
+import { Banknote, Clock3, CreditCard, Landmark, Ticket, Undo2 } from "lucide-react";
 import { HoldTimer } from "@/components/media";
-import { PayOnlineButton } from "@/components/pay-online";
-import { TransferQrModal } from "@/components/transfer-qr-modal";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
 import { PageHero } from "@/components/page-hero";
 import { StatStrip } from "@/components/stat-strip";
@@ -24,35 +22,16 @@ import {
 } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
-import { PromoInput } from "@/components/promo-input";
-import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
+import { apiPost, openInvoice } from "@/lib/arena3/client";
 import type { PaymentCreateResponse, TransferConfirmResponse, TransferRejectResponse } from "@/lib/arena3/contracts";
 import { levelLabel, refTypeLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer, tData } from "@/lib/i18n";
+import { t, tk, tServer } from "@/lib/i18n";
 import { usePageState } from "@/lib/use-page-state";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/desk/payments")({
   component: Page,
 });
-
-type Order = {
-  id: string;
-  sport_scope: string;
-  ordered_on: string;
-  end_on: string;
-  user_id: string;
-  full_name: string;
-  phone: string;
-  member_code: string | null;
-  plan_name: string;
-  price_vnd: number;
-  paid_vnd: number;
-  plan_id: string;
-  /** A code the member already put on the order in the app. */
-  promo_code: string | null;
-  promo_discount_vnd: number;
-};
 
 type Refund = {
   id: string;
@@ -117,7 +96,6 @@ type AwaitingSeat = {
 
 type Queue = {
   awaiting: Array<Awaiting | AwaitingSeat>;
-  orders: Order[];
   refunds: Refund[];
   /** One page of the receipts in the window, after the method and search filters. */
   receipts: Receipt[];
@@ -157,12 +135,6 @@ function MethodIcon({ method }: { method: string }) {
   return <Icon className="size-4 shrink-0 text-muted" />;
 }
 
-/** Whole days between an ICT date string and today, floored at zero. */
-function daysWaiting(dateOnly: string) {
-  const then = new Date(`${dateOnly}T00:00:00+07:00`).getTime();
-  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
-}
-
 function Page() {
   const me = useSessionUser();
   const isManager = me?.role === "manager";
@@ -176,14 +148,6 @@ function Page() {
     const timer = setTimeout(() => setReceiptTerm(receiptQuery.trim()), 250);
     return () => clearTimeout(timer);
   }, [receiptQuery]);
-  // Whether this centre has payOS set up at all. Read once: the button must be
-  // absent rather than present-and-broken when it has not been configured.
-  const [onlineOn, setOnlineOn] = useState(false);
-  useEffect(() => {
-    void apiGet<{ capabilities?: { online_payment?: boolean } }>("/flags")
-      .then((r) => setOnlineOn(Boolean(r.capabilities?.online_payment)))
-      .catch(() => setOnlineOn(false));
-  }, []);
   // A manager signs refunds off here and never runs a till, so only the desk asks about one — and
   // only once it is known who is asking.
   const shiftRead = useRead<{ shift: { id: string } | null; totals?: { cash: number } | null }>(me && !isManager ? "/shifts/current?optional=1" : null);
@@ -193,7 +157,6 @@ function Page() {
   // but a slow network should never grey out the whole queue.
   const [method, setMethod] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [promo, setPromo] = useState<Record<string, { code: string; discount_vnd: number } | null>>({});
 
   // Every refresh here runs straight after a mutation, and `reload()` never joins a read that was
   // already in flight: two rows actioned in quick succession would otherwise let the second one adopt
@@ -207,7 +170,7 @@ function Page() {
   if (receiptTerm) receiptParams.set("receipt_q", receiptTerm);
   const read = useRead<Queue>(`/payments/pending?${receiptParams}`);
   // Only the receipts depend on the window. The last answer stays on screen while another window is
-  // being asked for, so the transfers, orders and refunds do not vanish and come back with each tap.
+  // being asked for, so the transfers and refunds do not vanish and come back with each tap.
   const [last, setLast] = useState<Queue | null>(null);
   useEffect(() => {
     if (read.data) setLast(read.data);
@@ -216,17 +179,12 @@ function Page() {
   const data = read.error ? null : (read.data ?? last);
 
   const awaiting = data?.awaiting ?? [];
-  const orders = data?.orders ?? [];
   const refunds = data?.refunds ?? [];
   // The server filters and pages the receipts across the whole window, so every row in it can be
   // reached when the list is read back against a bank statement; this is one page of them.
   const receiptPage = data?.receipts ?? [];
   const { reset: resetReceipts } = receiptPaging;
   useEffect(resetReceipts, [payMethod, days, receiptTerm, resetReceipts]);
-  // Per-row flooring, not a floor on the total: one over-paid order must not
-  // quietly cancel out what another member still has to pay.
-  const toCollect = orders.reduce((sum, o) => sum + Math.max(0, o.price_vnd - o.paid_vnd), 0);
-
   // A receptionist without an open till cannot post anything; saying so once at
   // the top beats a row of buttons that each fail the same way when pressed.
   const canTake = isManager || !!shift;
@@ -244,68 +202,6 @@ function Page() {
    */
   function refresh() {
     read.reload();
-  }
-
-  // What the desk is charging for an order: list price, less any code the member
-  // already applied, less one the desk typed in. Partial payments are not taken (BR-19).
-  const dueOf = useCallback(
-    (o: Order) => o.price_vnd - (promo[o.id]?.discount_vnd ?? o.promo_discount_vnd),
-    [promo],
-  );
-
-  const [transferTarget, setTransferTarget] = useState<Order | null>(null);
-
-  async function takePayment(o: Order, forceMethod?: string) {
-    const activeMethod = forceMethod ?? (method[o.id] ?? "cash");
-    if (!forceMethod && activeMethod === "transfer") {
-      setTransferTarget(o);
-      return;
-    }
-    const due = dueOf(o);
-    setBusy(o.id);
-    try {
-      const res = await apiPost<PaymentCreateResponse>(
-        "/payments",
-        {
-          ref_type: "subscription",
-          ref_id: o.id,
-          method: activeMethod,
-          amount_vnd: due,
-          ...(promo[o.id]?.code ? { promo_code: promo[o.id]!.code } : {}),
-        },
-        true,
-      );
-      toast.success(t("Paid: {name} is on {plan}", { name: o.full_name, plan: o.plan_name }));
-      // The money is taken the moment that POST returns, so the queue is
-      // refreshed before anything else is attempted. Printing is the step most
-      // likely to fail — a blocked popup is enough — and a failed print must
-      // not leave a paid row sitting here inviting somebody to charge it twice.
-      refresh();
-      if (res.invoice?.id) {
-        try {
-          await openInvoice(res.invoice.id);
-        } catch {
-          toast.warning(t("Paid, but the receipt did not open. Reprint it from the member's profile."));
-        }
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? tServer(e.message) : t("Payment did not go through"));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function decline(o: Order) {
-    setBusy(o.id);
-    try {
-      await apiPost(`/subscriptions/${o.id}/decline`);
-      toast.success(t("Order cleared from the queue"));
-      refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? tServer(e.message) : t("Could not clear that order"));
-    } finally {
-      setBusy(null);
-    }
   }
 
   /**
@@ -378,8 +274,7 @@ function Page() {
   }
 
   const statItems = [
-    { label: t("Waiting payments"), value: orders.length + awaiting.length },
-    { label: t("Amount to collect"), value: money(toCollect) },
+    { label: t("Waiting payments"), value: awaiting.length },
     { label: t("Current shift"), value: shift ? t("Shift open") : t("No open shift") },
     { label: t("Cash in till"), value: shiftRead.data?.totals?.cash ? money(shiftRead.data.totals.cash) : "0 đ" },
   ];
@@ -389,7 +284,7 @@ function Page() {
       <PageHero
         slot="banner.gate"
         title={t("Payments & refunds")}
-        subtitle={t("Orders waiting for payment, posted receipts, and audit trail.")}
+        subtitle={t("Transfers waiting to be checked, refunds, and posted receipts.")}
       />
       <StatStrip className="mb-6" items={statItems} />
       <GLBackground
@@ -407,14 +302,6 @@ function Page() {
         className="mb-6 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]"
         from="down"
       >
-        {/* "0 waiting · 0đ to collect" is a claim; until the queue has answered there is nothing to claim. */}
-        {data ? (
-          <Badge tone={orders.length ? "accent" : "muted"}>
-            {t("{n} waiting · {amount} to collect", { n: orders.length, amount: money(toCollect) })}
-          </Badge>
-        ) : read.error ? null : (
-          <Skeleton className="h-6 w-40" />
-        )}
         {awaiting.length ? (
           <Badge tone="hold">{t("{n} transfers to check", { n: awaiting.length })}</Badge>
         ) : null}
@@ -446,7 +333,7 @@ function Page() {
         </div>
       ) : null}
 
-      {/* One alert for the whole queue: the transfers, orders, refunds and receipts all come from the same answer. */}
+      {/* One alert for the whole queue: the transfers, refunds and receipts all come from the same answer. */}
       {read.error ? (
         <div className="mb-6">
           <LoadError message={read.error.message} onRetry={read.error.refused ? undefined : read.reload} />
@@ -563,135 +450,6 @@ function Page() {
           </Stagger>
         </div>
       ) : null}
-
-      <SectionTitle text={t("Waiting for payment")} className="font-display text-2xl" />
-      <p className="mt-1 text-sm text-muted">
-        {t("A member picked a plan in the app and still owes for it. Taking payment here activates the plan and prints the receipt.")}
-      </p>
-      {read.error ? null : !data ? (
-        <div className="mt-3 grid gap-3">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-        </div>
-      ) : orders.length ? (
-        <Stagger className="mt-3 grid gap-3" gap={0.06}>
-          {orders.map((o) => {
-            // Floored at zero. An order can only reach this state through a
-            // part payment plus a price change, or a refund posted back against
-            // it — rare, but a negative balance would render "Take -200,000đ"
-            // and then ask the server to take a negative payment.
-            const due = Math.max(0, dueOf(o) - o.paid_vnd);
-            const settled = due === 0;
-            const waited = daysWaiting(o.ordered_on);
-            return (
-              <StaggerItem key={o.id}>
-                <Lift>
-                  <SpotlightCard className="rounded-[var(--radius-xl)]" size={420} strength={0.1}>
-                    <Card className="relative z-[2] p-5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-display text-xl">{o.full_name}</h3>
-                            <Badge tone="accent">{sportLabel(o.sport_scope)}</Badge>
-                            {waited >= 3 ? (
-                              <Badge tone="hold">{t("Waiting {n} days", { n: waited })}</Badge>
-                            ) : null}
-                          </div>
-                          <p className="mt-1 text-xs tabular-nums text-muted">
-                            {o.member_code ?? t("No code yet")} · {o.phone}
-                          </p>
-                          <p className="mt-2 text-sm">
-                            {tData(o.plan_name)} · {t("runs to {date}", { date: o.end_on })}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-display text-2xl tabular-nums">{money(due)}</p>
-                          {o.paid_vnd > 0 ? (
-                            <p className="text-xs tabular-nums text-muted">
-                              {t("{paid} of {total} already taken", { paid: money(o.paid_vnd), total: money(o.price_vnd) })}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-muted">{t("Ordered {date}", { date: o.ordered_on })}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {o.promo_code ? (
-                        <p className="mt-2 text-xs text-accent">
-                          {t("{code} already applied: −{amount}", { code: o.promo_code, amount: money(o.promo_discount_vnd) })}
-                        </p>
-                      ) : o.paid_vnd === 0 ? (
-                        <div className="mt-3 max-w-xs">
-                          <PromoInput
-                            scope="plan"
-                            compact
-                            target={{ plan_id: o.plan_id, user_id: o.user_id }}
-                            onChange={(q) =>
-                              setPromo((m) => ({ ...m, [o.id]: q ? { code: q.code, discount_vnd: q.discount_vnd } : null }))
-                            }
-                          />
-                        </div>
-                      ) : null}
-
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <Select
-                          className="w-auto"
-                          value={method[o.id] ?? "cash"}
-                          onChange={(e) => setMethod((m) => ({ ...m, [o.id]: e.target.value }))}
-                          aria-label={t("Payment method for {name}", { name: o.full_name })}
-                        >
-                          <option value="cash">{t("Cash")}</option>
-                          <option value="transfer">{t("Bank transfer")}</option>
-                          <option value="card">{t("Card")}</option>
-                        </Select>
-                        <StarBorder speed={4}>
-                          <Button
-                            disabled={busy === o.id || !canTake || settled}
-                            onClick={() => void takePayment(o)}
-                          >
-                            {settled
-                              ? t("Paid in full: ask a manager")
-                              : noTill
-                                ? t("Open a shift first")
-                                : (method[o.id] === "transfer"
-                                    ? t("Show transfer QR · {amount}", { amount: money(due) })
-                                    : t("Take {amount} & print", { amount: money(due) }))}
-                          </Button>
-                        </StarBorder>
-                        <ButtonLink to="/desk/member/$id" params={{ id: o.user_id }} variant="outline">
-                          {t("Profile")} <ArrowUpRight className="ml-1 size-4" />
-                        </ButtonLink>
-                        {onlineOn && !settled && due > 0 ? (
-                          <PayOnlineButton
-                            refType="subscription"
-                            refId={o.id}
-                            label={t("Online link")}
-                            size="sm"
-                            variant="ghost"
-                            onPaid={refresh}
-                          />
-                        ) : null}
-                        <Button
-                          variant="ghost"
-                          className="ml-auto"
-                          disabled={busy === o.id || o.paid_vnd > 0}
-                          onClick={() => void decline(o)}
-                        >
-                          {t("Clear")}
-                        </Button>
-                      </div>
-                    </Card>
-                  </SpotlightCard>
-                </Lift>
-              </StaggerItem>
-            );
-          })}
-        </Stagger>
-      ) : (
-        <div className="mt-3">
-          <EmptyState title={t("Nothing to collect")} hint={t("Every plan ordered in the app has been paid for.")} />
-        </div>
-      )}
 
       {refunds.length ? (
         <div className="mt-10">
@@ -819,23 +577,6 @@ function Page() {
         />
       </div>
 
-      {transferTarget ? (
-        <TransferQrModal
-          open={!!transferTarget}
-          onClose={() => setTransferTarget(null)}
-          amountVnd={dueOf(transferTarget)}
-          code={transferTarget.member_code ?? transferTarget.id.slice(-6).toUpperCase()}
-          buyerName={transferTarget.full_name}
-          refType="subscription"
-          refId={transferTarget.id}
-          onConfirmManual={async () => {
-            const target = transferTarget;
-            setTransferTarget(null);
-            await takePayment(target, "transfer");
-          }}
-          onPaid={refresh}
-        />
-      ) : null}
     </Shell>
   );
 }

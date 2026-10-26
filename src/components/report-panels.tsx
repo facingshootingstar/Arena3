@@ -399,12 +399,8 @@ type MembersReport = {
   members: {
     new: number;
     active: number;
-    expiring: number;
-    plans_ended: number;
-    plans_renewed: number;
-    renewal_rate: number | null;
   };
-  trend: Array<{ month: string; new_members: number; plans_started: number }>;
+  trend: Array<{ month: string; new_members: number; classes_joined: number }>;
   attendance_on: boolean;
   classes: Array<{
     id: string;
@@ -437,7 +433,7 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
           id="mem-h"
           icon={Users}
           text={tk("Members and class sign-ups")}
-          hint={t("New members, plan renewals and how full each class is.")}
+          hint={t("New members, class sign-ups and how full each class is.")}
         />
         <div className="flex flex-wrap items-center gap-2">
           <SportSelect value={sport} onChange={setSport} />
@@ -453,19 +449,12 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
         <Skeleton className="mt-4 h-64" />
       ) : (
         <>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="mt-4 grid gap-3">
             <Stat label={t("New members")} value={data.members.new} icon={UserPlus} note={t("Signed up in this period")} />
-            <Stat label={t("Active plans")} value={data.members.active} hint={t("members with a plan running")} />
-            <Stat label={t("Plans ending")} value={data.members.expiring} hint={t("and not renewed yet")} />
-            <Stat
-              label={t("Renewal rate")}
-              value={pctText(data.members.renewal_rate)}
-              hint={t("{a} of {b} ended plans", { a: data.members.plans_renewed, b: data.members.plans_ended })}
-            />
           </div>
 
           <Card className="mt-3">
-            <CardTitle icon={TrendingUp} title={t("Last 12 months")} hint={t("New members and plans started, month by month.")} />
+            <CardTitle icon={TrendingUp} title={t("Last 12 months")} hint={t("New members and classes joined, month by month.")} />
             {chartReady ? (
               <div className="mt-3 h-52">
                 <ResponsiveContainer width="100%" height="100%">
@@ -497,7 +486,7 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                     <Bar dataKey="new_members" name={t("New members")} fill="var(--color-accent)" radius={[4, 4, 0, 0]} maxBarSize={18} />
-                    <Bar dataKey="plans_started" name={t("Plans started")} fill="var(--color-line-strong)" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                    <Bar dataKey="classes_joined" name={t("Classes joined")} fill="var(--color-line-strong)" radius={[4, 4, 0, 0]} maxBarSize={18} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -2,7 +2,7 @@ import { Navigate, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { freeHours, useNowMinute } from "@/components/court-grid";
 import { ClassTicker } from "@/components/landing/ticker";
-import { ClassesScene, PlansScene } from "@/components/landing/plans";
+import { ClassesScene } from "@/components/landing/plans";
 import { ClosingCta, SiteFooter } from "@/components/landing/closing";
 import { CoachesScene } from "@/components/landing/coaches";
 import { CourtsScene } from "@/components/landing/courts";
@@ -62,7 +62,7 @@ function Home() {
  * its own scene with its own GSAP timeline, and none of them use `motion` (CLAUDE.md, rule 3).
  */
 function Landing() {
-  const { plans, classes, prices, availability, venue: venueRaw, coaches: dbCoaches } = Route.useLoaderData();
+  const { classes, prices, availability, venue: venueRaw, coaches: dbCoaches } = Route.useLoaderData();
   // The centre's own hours and hold length, for every section's copy and the grid.
   const venue = useMemo(() => venueFrom(venueRaw), [venueRaw]);
   const { scrollToId } = useLandingScroll();
@@ -158,7 +158,6 @@ function Landing() {
       <CoachesScene dbCoaches={dbCoaches} />
       <FacilitiesScene courts={sched.courts} />
       <PricingScene weekday={weekday} />
-      <PlansScene plans={plans} />
       <ClassesScene classes={classes} />
       <Testimonials />
       <GalleryScene />

@@ -22,7 +22,6 @@ const NAV: [string, string][] = [
   ["#courts", tk("Courts & pricing")],
   ["#classes", tk("Classes")],
   ["#coaches", tk("Coaches")],
-  ["#plans", tk("Plans")],
 ];
 
 /**

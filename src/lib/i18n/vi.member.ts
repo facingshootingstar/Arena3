@@ -251,7 +251,6 @@ export const member: Record<string, string> = {
   "Frozen plans": "Gói tập tạm khóa",
   "{plans}. Ask the desk to unfreeze.": "{plans}, hãy nhờ lễ tân mở khóa.",
   "{plan} · new end date {date}": "{plan} · ngày hết hạn mới {date}",
-  "Plans expiring soon": "Gói tập sắp hết hạn",
   "{plans}. Renew to keep your class seats.": "{plans}, gia hạn để giữ chỗ trong lớp.",
   "{plan}: {n} days left (until {date})": "{plan}: còn {n} ngày (đến {date})",
   "Renew": "Gia hạn",

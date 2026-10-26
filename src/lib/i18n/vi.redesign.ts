@@ -30,7 +30,6 @@ export const redesign: Record<string, string> = {
   "Next day": "Ngày hôm sau",
 
   // desk.index.tsx
-  "Find a member, sell a plan, take payment.": "Tìm hội viên, bán gói tập, thu tiền.",
   "e.g. Trần Minh Anh": "Ví dụ: Trần Minh Anh",
   "Right now": "Ngay lúc này",
   "On court": "Đang chơi",

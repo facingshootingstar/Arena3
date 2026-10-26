@@ -93,7 +93,6 @@ const NAV: Record<string, NavItem[]> = {
     { to: "/app/classes", label: tk("Classes"), icon: Ticket, group: G_PLAY },
     // A phone's bottom bar holds five: the four things a member does on the way to court, then More.
     { to: "/app/train", label: tk("Progress"), icon: Activity, group: G_ACCOUNT, dock: false },
-    { to: "/app/plans", label: tk("Plans"), icon: Wallet, group: G_ACCOUNT, dock: false },
     { to: "/app/points", label: tk("Points"), icon: Star, group: G_ACCOUNT, dock: false },
     { to: "/chat", label: tk("Messages"), icon: MessageSquare, group: G_ACCOUNT, dock: false },
     { to: "/app/pass", label: tk("Pass"), icon: QrCode, group: G_ACCOUNT },
@@ -131,7 +130,6 @@ const NAV: Record<string, NavItem[]> = {
     // Refund sign-off lives on the payments screen, which has always taken a
     // manager — nothing in this menu pointed at it (B-02).
     { to: "/desk/payments", label: tk("Payments"), icon: Wallet, group: G_BUSINESS },
-    { to: "/manager/plans", label: tk("Plans"), icon: Wallet, group: G_BUSINESS, dock: false },
     { to: "/manager/promos", label: tk("Promos"), icon: Tag, group: G_BUSINESS, dock: false },
     { to: "/manager/prices", label: tk("Pricing"), icon: Coins, group: G_BUSINESS, dock: false },
     { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, group: G_BUSINESS, dock: false },

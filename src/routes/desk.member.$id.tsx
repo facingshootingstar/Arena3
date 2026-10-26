@@ -1,7 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, Calendar, CheckCircle2, Mail, Phone } from "lucide-react";
 import { SectionTitle } from "@/components/section";
-import { PayOnlineButton } from "@/components/pay-online";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money, useSessionUser, when } from "@/components/shell";
@@ -18,20 +17,16 @@ import {
   LoadError,
   Modal,
   MoneyInput,
-  Select,
   Skeleton,
   StatusBadge,
   Textarea,
 } from "@/components/ui";
-import { TransferQrModal } from "@/components/transfer-qr-modal";
-import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
-import { SpotlightCard } from "@/components/fx";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { ApiClientError, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
-import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
 import { METHOD_LABEL, formatDate, levelLabel, refTypeLabel, rruleLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
 import { ageYears } from "@/lib/arena3/time";
-import { t, tServer, tData } from "@/lib/i18n";
+import { t, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/desk/member/$id")({
@@ -71,19 +66,6 @@ type Member = {
     avatar_url: string | null;
   };
   guardian: { name: string | null; phone: string | null };
-  subscriptions: Array<{
-    id: string;
-    status: string;
-    plan_name: string;
-    end_on: string;
-    sport_scope: string;
-    court_hours_left: number;
-    session_left: number | null;
-    plan_session_quota?: number | null;
-    frozen_days?: number;
-    /** What "Take payment" collects, worked out by the server: price less any code on the order. */
-    due_vnd: number;
-  }>;
   enrollments?: Array<{
     id: string;
     class_id: string;
@@ -119,16 +101,9 @@ function Page() {
   const read = useRead<Member>(`/members/${id}`);
   const data = read.data;
   const reload = read.reload;
-  // Leave the online button out when the centre has no payOS keys, rather
-  // than offering reception a button that errors in front of a customer.
-  const flagsRead = useRead<{ capabilities?: { online_payment?: boolean } }>("/flags");
-  const onlineOn = Boolean(flagsRead.data?.capabilities?.online_payment);
-  const plansRead = useRead<{ items: Array<{ id: string; name: string; price_vnd: number }> }>("/plans");
   const settingsRead = useRead<{ settings?: { minor_age?: number } }>("/settings");
   const minorAge = settingsRead.data?.settings?.minor_age ?? 18;
   const [cancelId, setCancelId] = useState<string | null>(null);
-  const [transferSub, setTransferSub] = useState<Member["subscriptions"][number] | null>(null);
-  const [subMethod, setSubMethod] = useState<Record<string, "cash" | "transfer">>({});
   // The payment a refund is being raised against, plus what the desk typed.
   const [refunding, setRefunding] = useState<Payment | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
@@ -425,119 +400,6 @@ function Page() {
         </div>
       </div>
 
-      <Stagger className="grid gap-3 md:grid-cols-2" gap={0.07}>
-        {data.subscriptions.map((s) => (
-          <StaggerItem key={s.id} className="h-full">
-          <Lift className="h-full">
-          <SpotlightCard className="h-full rounded-[var(--radius-xl)]" size={320} strength={0.1}>
-          <Card interactive className="relative z-[2] h-full">
-            <StatusBadge status={s.status} />
-            <h2 className="mt-2 font-display text-2xl">{tData(s.plan_name)}</h2>
-            <p className="text-sm text-muted">
-              {sportLabel(s.sport_scope)} · {t("through {date}", { date: formatDate(s.end_on) })} · {t("{n} court hours", { n: Number(s.court_hours_left) })}
-            </p>
-            {s.session_left != null ? (
-              <p className="mt-1 text-sm font-medium text-accent-2">
-                {t("{left} of {quota} sessions left", {
-                  left: s.session_left,
-                  quota: s.plan_session_quota ?? s.session_left,
-                })}
-              </p>
-            ) : null}
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <span>
-                {t("{n} days left", {
-                  n: Math.max(0, Math.ceil((new Date(s.end_on).getTime() - new Date().setHours(0,0,0,0)) / 86400000)),
-                })}
-              </span>
-              {s.frozen_days != null && s.frozen_days > 0 ? (
-                <span>· {t("{n} frozen days used", { n: s.frozen_days })}</span>
-              ) : null}
-            </div>
-            {(s.status === "pending" || s.status === "active") && s.due_vnd > 0 ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Select
-                  className="w-auto"
-                  value={subMethod[s.id] ?? "cash"}
-                  onChange={(e) => setSubMethod((m) => ({ ...m, [s.id]: e.target.value as "cash" | "transfer" }))}
-                  aria-label={t("Payment method")}
-                >
-                  <option value="cash">{t("Cash")}</option>
-                  <option value="transfer">{t("Bank transfer (VietQR)")}</option>
-                </Select>
-                <Button
-                  disabled={working}
-                  onClick={() => {
-                    if ((subMethod[s.id] ?? "cash") === "transfer") {
-                      setTransferSub(s);
-                      return;
-                    }
-                    void act(async () => {
-                      const res = await apiPost<PaymentCreateResponse>(
-                        "/payments",
-                        { ref_type: "subscription", ref_id: s.id, method: "cash", amount_vnd: s.due_vnd },
-                        true,
-                      );
-                      toast.success(t("Payment recorded"));
-                      reload();
-                      if (res.invoice?.id) await openInvoice(res.invoice.id);
-                    }, t("Something went wrong"));
-                  }}
-                >
-                  {(subMethod[s.id] ?? "cash") === "transfer"
-                    ? t("Show transfer QR · {amount}", { amount: money(s.due_vnd) })
-                    : t("Take payment · {amount}", { amount: money(s.due_vnd) })}
-                </Button>
-                {onlineOn ? (
-                  <PayOnlineButton
-                    refType="subscription"
-                    refId={s.id}
-                    label={t("Online link")}
-                    size="sm"
-                    variant="ghost"
-                    onPaid={reload}
-                  />
-                ) : null}
-              </div>
-            ) : null}
-            {s.status === "active" ? (
-              <Button
-                className="mt-2"
-                variant="outline"
-                disabled={working}
-                onClick={() =>
-                  void act(async () => {
-                    await apiPost(`/subscriptions/${s.id}/freeze`, { days: 7 });
-                    toast.success(t("Frozen for 7 days: the end date moves out to match"));
-                    reload();
-                  }, t("Could not freeze the plan"))
-                }
-              >
-                {t("Freeze for 7 days")}
-              </Button>
-            ) : null}
-            {s.status === "frozen" ? (
-              <Button
-                className="mt-3"
-                disabled={working}
-                onClick={() =>
-                  void act(async () => {
-                    await apiPost(`/subscriptions/${s.id}/unfreeze`);
-                    toast.success(t("Plan resumed"));
-                    reload();
-                  }, t("Something went wrong"))
-                }
-              >
-                {t("Resume plan")}
-              </Button>
-            ) : null}
-          </Card>
-          </SpotlightCard>
-          </Lift>
-          </StaggerItem>
-        ))}
-      </Stagger>
-
       <SectionTitle text={t("Classes")} className="mt-8 font-display text-2xl" />
       {(!data.enrollments || data.enrollments.length === 0) ? (
         <p className="mt-3 text-sm text-muted">{t("No class enrolments")}</p>
@@ -618,36 +480,6 @@ function Page() {
           ? t("Last visit: {date}", { date: formatDate(data.attendance_summary.last_visit_at) })
           : t("No visits recorded")}
       </p>
-
-      <SectionTitle text={t("Sell another plan")} className="mt-8 font-display text-2xl" />
-      {plansRead.error ? (
-        <div className="mt-3">
-          <LoadError message={plansRead.error.message} onRetry={plansRead.error.refused ? undefined : plansRead.reload} />
-        </div>
-      ) : !plansRead.data ? (
-        <Skeleton className="mt-3 h-11" />
-      ) : plansRead.data.items.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">{t("No plans on sale right now")}</p>
-      ) : (
-        <Reveal className="mt-3 flex flex-wrap gap-2">
-          {plansRead.data.items.map((p) => (
-            <Button
-              key={p.id}
-              variant="outline"
-              disabled={working}
-              onClick={() =>
-                void act(async () => {
-                  await apiPost("/subscriptions", { plan_id: p.id, user_id: id });
-                  toast.success(t("Order created: take payment to activate"));
-                  reload();
-                }, t("Something went wrong"))
-              }
-            >
-              {tData(p.name)} · {money(p.price_vnd)}
-            </Button>
-          ))}
-        </Reveal>
-      )}
 
       <SectionTitle text={t("Payments")} className="mt-8 font-display text-2xl" />
       <p className="mt-1 text-sm text-muted">
@@ -928,27 +760,6 @@ function Page() {
         )}
       </Modal>
 
-      {transferSub ? (
-        <TransferQrModal
-          open={!!transferSub}
-          onClose={() => setTransferSub(null)}
-          amountVnd={transferSub.due_vnd}
-          code={transferSub.id.slice(-6).toUpperCase()}
-          buyerName={data.user.full_name}
-          refType="subscription"
-          refId={transferSub.id}
-          onConfirmManual={async () => {
-            const res = await apiPost<PaymentCreateResponse>(
-              "/payments",
-              { ref_type: "subscription", ref_id: transferSub.id, method: "transfer", amount_vnd: transferSub.due_vnd },
-              true,
-            );
-            toast.success(t("Payment recorded"));
-            reload();
-            if (res.invoice?.id) await openInvoice(res.invoice.id);
-          }}
-        />
-      ) : null}
     </Shell>
   );
 }
