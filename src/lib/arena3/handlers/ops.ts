@@ -171,6 +171,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [offer.enrollment_id],
   );
   if (!enr || enr.user_id !== user.id) throw err.forbidden();
+  if (enr.status !== "waitlisted") throw err.conflictState("You are no longer on the waitlist for this class.");
   await assertNoClassClash(sql, user.id, enr.class_id);
   if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
   if (cl.price_vnd == null) throw err.br("BR-26", "This class is not open for sale yet.");

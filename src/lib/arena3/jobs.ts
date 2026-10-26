@@ -182,6 +182,8 @@ export async function waitlistExpire() {
         where o.status = 'pending' and o.expires_at < now()`,
     );
     for (const r of stale) {
+      // Class first, then the enrolment, as enrollmentDelete does.
+      await sql.query(`select 1 from classes where id = $1 for update`, [r.class_id]);
       await sql.query(`update waitlist_offers set status = 'expired' where id = $1`, [r.id]);
       await sql.query(
         `update enrollments set status = 'cancelled', waitlist_pos = null where id = $1 and status = 'waitlisted'`,

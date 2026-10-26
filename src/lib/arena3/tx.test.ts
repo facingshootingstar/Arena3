@@ -4851,6 +4851,21 @@ describe("Sell classes: lifecycle", () => {
     assert.equal(await statusOf(idB), "waitlisted");
   });
 
+  it("SC-waitlist-left: accepting an offer after leaving the waitlist is refused", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 1 });
+    const a = await seedMember(69);
+    const b = await seedMember(70);
+    const idA = await holdFor(classId, a);
+    const idB = await holdFor(classId, b);
+    await leave(idA, a);
+    const offer = await pendingOffer(idB);
+    assert.ok(offer);
+    await leave(idB, b);
+    await assert.rejects(() => withTx((sql) => waitlistAccept(sql, offer.id, b)), (e: any) => e.status === 409);
+    assert.equal(await statusOf(idB), "cancelled");
+    assert.equal(await countOf(classId), 0);
+  });
+
   it("SC-release: releasing a hold frees the seat and skips the cancel cutoff", async () => {
     const court = await quietCourt("10000000-0000-0000-0000-0000000c0007");
     const classId = await seedClass({ price: 300000, capacity: 3, courtId: court });
@@ -4917,6 +4932,9 @@ describe("Sell classes: lifecycle", () => {
     assert.equal(await statusOf(idA), "cancelled");
     assert.equal(await countOf(classId), 0);
     assert.ok(await pendingOffer(idB));
+    await expireEnrollmentHolds(); // a second sweep must not decrement again
+    assert.equal(await statusOf(idA), "cancelled");
+    assert.equal(await countOf(classId), 0);
   });
 
   it("SC-leave-confirmed: a confirmed seat still obeys the cutoff and no refund row appears", async () => {
