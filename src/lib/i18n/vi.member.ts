@@ -194,6 +194,7 @@ export const member: Record<string, string> = {
   "Could not move that booking": "Không chuyển được lượt đặt đó",
   "Holding {court} · {code}": "Đang giữ {court} · {code}",
   "Holding your court": "Đang giữ sân cho bạn",
+  "Holding your seat": "Đang giữ chỗ cho bạn",
   "Hold expiring": "Sắp hết giờ giữ sân",
   "Could not hold that slot": "Không giữ được khung giờ đó",
   "Your court is held while reception checks the bank.": "Sân của bạn được giữ trong lúc lễ tân kiểm tra ngân hàng.",

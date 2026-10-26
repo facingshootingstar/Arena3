@@ -309,12 +309,12 @@ function Page() {
                       each button sat directly under its own text — so a row of
                       four classes showed four buttons at four heights. */}
                   <div className="mt-auto pt-5">
-                  <p className="mb-2 font-display text-xl tabular-nums">
-                    {holding?.price_vnd != null ? money(holding.price_vnd) : c.price_vnd == null ? "—" : money(c.price_vnd)}
-                  </p>
+                  {(holding?.price_vnd ?? c.price_vnd) != null && (
+                    <p className="mb-2 font-display text-xl tabular-nums">{money((holding?.price_vnd ?? c.price_vnd)!)}</p>
+                  )}
                   {holding ? (
                     <div className="grid gap-2">
-                      <HoldCountdown until={holding.hold_until!} onExpire={load} />
+                      <HoldCountdown until={holding.hold_until!} onExpire={load} label={t("Holding your seat")} />
                       {holding.transfer_requested_at ? (
                         <p className="text-sm text-muted">{t("Waiting for the desk to confirm your transfer")}</p>
                       ) : (
@@ -393,11 +393,11 @@ function Page() {
                             disabled={c.price_vnd == null}
                             onClick={async () => {
                               try {
-                                const r = await apiPost<{ waitlisted?: boolean; status?: string }>(`/classes/${c.id}/enroll`, {});
+                                const r = await apiPost<{ waitlisted?: boolean; enrollment?: { status?: string } }>(`/classes/${c.id}/enroll`, {});
                                 toast.success(
                                   r.waitlisted
                                     ? t("Added to the waitlist")
-                                    : r.status === "hold"
+                                    : r.enrollment?.status === "hold"
                                       ? t("Seat held. Pay before the timer runs out.")
                                       : t("You are enrolled"),
                                 );
