@@ -213,7 +213,7 @@ export const pub: Record<string, string> = {
   "Code generated. Check with the front desk.": "Đã tạo mã, vui lòng hỏi lễ tân.",
   "Could not create the account": "Không thể tạo tài khoản",
   "That OTP is not right": "Mã xác nhận không đúng",
-  "An active plan lets you book courts and join classes.": "Có gói đang hoạt động thì bạn đặt được sân và tham gia lớp học.",
+  "Book a court by the hour, or pay for one class at a time.": "Đặt sân theo giờ, hoặc mua từng lớp học khi cần.",
   "Full name": "Họ và tên",
   "Phone number": "Số điện thoại",
   "Date of birth": "Ngày sinh",

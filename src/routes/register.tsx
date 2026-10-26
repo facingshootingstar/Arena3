@@ -175,7 +175,7 @@ function Register() {
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
               <SplitText
                 as="p"
-                text={t("An active plan lets you book courts and join classes.")}
+                text={t("Book a court by the hour, or pay for one class at a time.")}
                 splitBy="words"
                 stagger={0.05}
                 delay={0.2}
@@ -243,7 +243,17 @@ function Register() {
                 />
               </Field>
               <Field label={t("Date of birth")}>
-                <DateField value={form.dob} onChange={(v) => setForm({ ...form, dob: v })} aria-label={t("Date of birth")} />
+                <DateField
+                  value={form.dob}
+                  onChange={(v) => {
+                    setForm({ ...form, dob: v });
+                    // A new birthday may make this an adult: close the guardian step and let the
+                    // server ask again, or its required inputs block the form before it is sent.
+                    setAskGuardian(false);
+                    if (error?.field === "guardian_name") setError(null);
+                  }}
+                  aria-label={t("Date of birth")}
+                />
               </Field>
               {askGuardian ? (
                 <>
