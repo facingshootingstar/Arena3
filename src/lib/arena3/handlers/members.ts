@@ -109,17 +109,6 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
     );
     if (!taught) throw err.forbidden("Coaches can only view members in their own classes.");
   }
-  const subs = await sql.query(
-    // due_vnd is what "Take payment" has to collect — exactly what POST /payments will accept: the plan
-    // price less any code already on an unpaid order, or the full price for a renewal. The desk sends
-    // this number rather than working it out, so a code on the order can never make it come out wrong.
-    `select s.id, s.status, s.start_on::text, s.end_on::text, s.sport_scope, s.court_hours_left, s.session_left,
-            s.frozen_days, p.name as plan_name, p.session_quota as plan_session_quota, coalesce(s.price_vnd, p.price_vnd)::int as price_vnd,
-            (coalesce(s.price_vnd, p.price_vnd) - case when s.status::text = 'pending' then coalesce(s.promo_discount_vnd, 0) else 0 end)::int as due_vnd
-       from subscriptions s join membership_plans p on p.id = s.plan_id
-      where s.user_id = $1 order by s.end_on desc`,
-    [id],
-  );
   // Guardian details are not part of the public user shape, but the desk needs
   // them to correct a profile that was filled in wrongly.
   const guardian = await one<{ guardian_name: string | null; guardian_phone: string | null }>(
@@ -221,7 +210,6 @@ export async function memberGet(sql: Sql, id: string, user: PublicUser) {
     body: {
       user: userObj,
       guardian: { name: guardian?.guardian_name ?? null, phone: guardian?.guardian_phone ?? null },
-      subscriptions: subs,
       ...(user.role !== "coach" ? { payments } : {}),
       today: { bookings, classes },
       enrollments,
@@ -348,16 +336,12 @@ export async function membersUpdate(sql: Sql, id: string, request: Request, user
   return { status: 200, body: { ok: true, changed } };
 }
 
-const PLAN_STATES = ["active", "expiring", "expired", "none"] as const;
-
 /**
  * The manager's member list (FR-MEM-04): everyone with an account, filtered by
- * status, sport and plan state, in name order and paged.
+ * status and sport, in name order and paged.
  *
- * `plan_state` comes from the member's latest plan: live and ending within a
- * week is `expiring`, live is `active`, lapsed is `expired`, and nobody who has
- * never bought one is `none`. Filtering by `active` includes `expiring` — a plan
- * that ends next Tuesday is still a live plan.
+ * A sport matches a member with a confirmed place in a class of that sport or a
+ * court booking on a court of that sport. Plans no longer exist, so nothing here reads them.
  */
 export async function membersDirectory(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
@@ -367,8 +351,6 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
   if (status && !["active", "locked", "disabled"].includes(status)) throw err.field("status", "Unknown status.");
   const sport = sp.get("sport");
   if (sport && !(await getActiveSportCodes(sql)).includes(sport)) throw err.field("sport", "Unknown sport.");
-  const plan = sp.get("plan");
-  if (plan && !(PLAN_STATES as readonly string[]).includes(plan)) throw err.field("plan", "Unknown plan state.");
   const intParam = (name: string, fallback: number, min: number, max: number) => {
     const raw = sp.get(name);
     if (raw === null) return fallback;
@@ -385,24 +367,9 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
        select u.id, u.member_code, u.full_name, u.phone, u.status::text as status, u.created_at,
               u.date_of_birth::text as date_of_birth,
               ${avatarUrlSql("u")},
-              u.name_normalized, latest.plan_name, latest.sport_scope, latest.end_on, latest.sub_status,
-              (select count(*) from enrollments e where e.user_id = u.id and e.status = 'confirmed')::int as classes,
-              case
-                when latest.id is null then 'none'
-                when latest.sub_status in ('active','frozen') and latest.end_on >= today.d then
-                  case when latest.end_on <= today.d + 7 then 'expiring' else 'active' end
-                else 'expired'
-              end as plan_state
+              u.name_normalized,
+              (select count(*) from enrollments e where e.user_id = u.id and e.status = 'confirmed')::int as classes
          from users u
-        cross join (select (now() at time zone 'Asia/Ho_Chi_Minh')::date as d) today
-         left join lateral (
-           select s.id, mp.name as plan_name, s.sport_scope::text as sport_scope, s.end_on,
-                  s.status::text as sub_status
-             from subscriptions s join membership_plans mp on mp.id = s.plan_id
-            where s.user_id = u.id and s.status in ('active','frozen','expired')
-            order by (s.status in ('active','frozen')) desc, s.end_on desc
-            limit 1
-         ) latest on true
         where u.role = 'member'
           and ($1::text is null or u.status::text = $1)
           and ($2::text is null
@@ -412,13 +379,16 @@ export async function membersDirectory(sql: Sql, request: Request, user: PublicU
      )
      select *, count(*) over ()::int as total
        from base
-      where ($5::text is null or sport_scope = $5 or sport_scope = 'all')
-        and ($6::text is null
-             or plan_state = $6
-             or ($6 = 'active' and plan_state = 'expiring'))
+      where ($5::text is null
+             or exists (
+                  select 1 from enrollments e join classes cl on cl.id = e.class_id
+                   where e.user_id = base.id and e.status = 'confirmed' and cl.sport = $5::text)
+             or exists (
+                  select 1 from court_bookings b join courts c on c.id = b.court_id
+                   where b.user_id = base.id and b.status in ('confirmed','in_use','completed') and c.sport = $5::text))
       order by name_normalized, id
-      limit $7 offset $8`,
-    [status, nq, q.replace(/[\s-]/g, ""), q, sport, plan, limit, offset],
+      limit $6 offset $7`,
+    [status, nq, q.replace(/[\s-]/g, ""), q, sport, limit, offset],
   );
   const total = rows.length ? Number(rows[0]!.total) : 0;
   return {

@@ -2942,7 +2942,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await cleanupM();
     });
 
-    it("memberGet returns full profile: user fields, enrollments, attendance_summary, plan_session_quota", async () => {
+    it("memberGet returns full profile: user fields, enrollments, attendance_summary, no plan key", async () => {
       await setupM();
       const res = await withTx(async (sql) => memberGet(sql, memM1.id, mgrM));
       assert.equal(res.status, 200);
@@ -2957,9 +2957,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(b.guardian.name, "Guardian One");
       assert.equal(b.guardian.phone, "+84999992099");
 
-      assert.equal(b.subscriptions.length, 1);
-      assert.equal(b.subscriptions[0].plan_session_quota, 10);
-      assert.equal(b.subscriptions[0].session_left, 7);
+      assert.equal("subscriptions" in b, false);
 
       assert.equal(b.enrollments.length, 2);
       const conf = b.enrollments.find((e: any) => e.status === "confirmed");
@@ -4454,5 +4452,120 @@ describe("Remove plans: sales", () => {
       await db.query<{ n: number }>("select count(*)::int as n from payments where id = $1 and status = 'posted'", [pay.id])
     ).rows[0];
     assert.equal(posted.n, 0);
+  });
+});
+
+describe("Remove plans: reads", () => {
+  const receptionist = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist", full_name: "Lễ tân RP-reads" } as any;
+  const manager = { id: "00000000-0000-0000-0000-000000000001", role: "manager", full_name: "Quản lý RP-reads" } as any;
+  const planId = "20000000-0000-0000-0000-000000000002";
+  const ictToday = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+
+  async function seedMember(id: string, name: string): Promise<any> {
+    const phone = "+8491" + id.replace(/-/g, "").slice(-7);
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+       values ($1, $2, $3, $4, 'member', 'hash')
+       on conflict (id) do nothing`,
+      [id, phone, name, name.toLowerCase()],
+    );
+    return { id, role: "member", full_name: name } as any;
+  }
+
+  async function seedSubscription(userId: string, start: string, end: string): Promise<void> {
+    await db.query(
+      `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status)
+       values ($1, $2, 'badminton', $3::date, $4::date, 'active')`,
+      [userId, planId, start, end],
+    );
+  }
+
+  async function seedCourt(id: string, code: string): Promise<string> {
+    await db.query(
+      `insert into courts (id, court_code, sport, status) values ($1, $2, 'badminton', 'ready') on conflict (id) do nothing`,
+      [id, code],
+    );
+    return id;
+  }
+
+  async function seedBooking(bookingId: string, courtId: string, userId: string, startAt: string, code: string): Promise<void> {
+    const endAt = new Date(new Date(startAt).getTime() + 3600_000).toISOString();
+    const occId = (
+      await db.query<{ id: string }>(
+        `insert into occupancies (id, court_id, start_at, end_at, kind, ref_id)
+         values (gen_random_uuid(), $1, $2, $3, 'booking', $4)
+         returning id`,
+        [courtId, startAt, endAt, bookingId],
+      )
+    ).rows[0].id;
+    await db.query(
+      `insert into court_bookings (id, court_id, user_id, start_at, end_at, status, price_vnd, deposit_vnd, paid_vnd, code, channel, occupancy_id)
+       values ($1, $2, $3, $4, $5, 'confirmed', 100000, 0, 0, $6, 'app', $7)`,
+      [bookingId, courtId, userId, startAt, endAt, code, occId],
+    );
+  }
+
+  // RP-gate-no-plan: an active subscription alone lets nobody in, and the gate no longer talks about plans.
+  it("RP-gate-no-plan: a member with only a subscription and nothing today is not entitled, and no plan warnings", async () => {
+    const member = await seedMember("00000000-0000-0000-0000-000000000301", "Member RP-gate-1");
+    await seedSubscription(member.id, "2026-01-01", "2099-12-31");
+    const { gateCheckin } = await import("./handlers/checkin.ts");
+    const res = await withTx((sql) =>
+      gateCheckin(
+        sql,
+        new Request("http://localhost/v1/gate/checkin", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ member_id: member.id, reason: "forgot" }),
+        }),
+        receptionist,
+      ),
+    );
+    const body = res.body as any;
+    assert.equal(body.allowed, false);
+    assert.equal(body.needs_override, true);
+    assert.equal("plans" in body, false);
+    const planKinds = ["no_plan", "frozen", "expired", "scheduled", "expiring", "no_sessions"];
+    assert.deepEqual(
+      body.warnings.filter((w: { kind: string }) => planKinds.includes(w.kind)),
+      [],
+    );
+  });
+
+  // RP-gate-booking: a court booked today is enough to walk through the gate.
+  it("RP-gate-booking: a member with a confirmed booking today is entitled", async () => {
+    const member = await seedMember("00000000-0000-0000-0000-000000000302", "Member RP-gate-2");
+    const courtId = await seedCourt("10000000-0000-0000-0000-0000000000a2", "RPG2");
+    await seedBooking("30000000-0000-0000-0000-000000000302", courtId, member.id, `${ictToday}T10:00:00+07:00`, "BKRPG2");
+    const { gateCheckin } = await import("./handlers/checkin.ts");
+    const res = await withTx((sql) =>
+      gateCheckin(
+        sql,
+        new Request("http://localhost/v1/gate/checkin", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ member_id: member.id, reason: "forgot" }),
+        }),
+        receptionist,
+      ),
+    );
+    const body = res.body as any;
+    assert.equal(body.allowed, true);
+    assert.equal(body.needs_override, false);
+    assert.equal(body.today.bookings.length, 1);
+  });
+
+  // RP-report-active: a subscription no longer makes anyone an active member; a booking in range does.
+  it("RP-report-active: active members count bookings in range, not subscriptions", async () => {
+    const booker = await seedMember("00000000-0000-0000-0000-000000000303", "Member RP-report-1");
+    const subOnly = await seedMember("00000000-0000-0000-0000-000000000304", "Member RP-report-2");
+    const courtId = await seedCourt("10000000-0000-0000-0000-0000000000a3", "RPR3");
+    await seedBooking("30000000-0000-0000-0000-000000000303", courtId, booker.id, "2099-01-10T10:00:00+07:00", "BKRPR3");
+    await seedSubscription(subOnly.id, "2098-12-01", "2099-12-31");
+    const { membersReportBody } = await import("./handlers/reports.ts");
+    const body = await withTx((sql) => membersReportBody(sql, "2099-01-01", "2099-01-31", null));
+    assert.equal(body.members.active, 1);
+    assert.equal("expiring" in body.members, false);
+    assert.equal("plans_ended" in body.members, false);
   });
 });

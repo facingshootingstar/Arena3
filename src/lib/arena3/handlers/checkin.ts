@@ -9,9 +9,9 @@
  *  2. Manual: no phone → look the member up, pick a reason.            method = manual
  *  3. Self (optional, off by default): the member scans the desk's QR. method = self
  *
- * A plan that has lapsed, is frozen or does not exist is not a hard stop —
- * a member may be there for a court they booked — but if there is nothing at all
- * to let them in on, reception must say why, and the visit is flagged (BR-31).
+ * Nothing booked and no class today is not a hard stop — reception decides —
+ * but if there is nothing at all to let them in on, reception must say why,
+ * and the visit is flagged (BR-31). Plans no longer exist, so they are not read here.
  */
 import type { Sql } from "@/lib/db";
 import { ApiError, err } from "../errors";
@@ -71,49 +71,12 @@ async function findMember(sql: Sql, b: Record<string, unknown>): Promise<Member>
   return rows[0];
 }
 
-type PlanRow = {
-  id: string;
-  name: string;
-  sport_scope: string;
-  status: string;
-  start_on: string | null;
-  end_on: string;
-  session_left: number | null;
-  court_hours_left: string;
-};
-
 /** What reception needs to see in the five seconds after a scan. */
 async function memberToday(sql: Sql, memberId: string) {
   const today = ictDateString();
   const dayStart = ictDateTime(today, "00:00").toISOString();
   const dayEnd = ictDateTime(addDays(today, 1), "00:00").toISOString();
-  const plans = await sql.query<PlanRow>(
-    `select s.id, p.name, s.sport_scope::text as sport_scope, s.status::text as status, s.start_on::text as start_on, s.end_on::text as end_on,
-            s.session_left, s.court_hours_left
-       from subscriptions s join membership_plans p on p.id = s.plan_id
-      where s.user_id = $1 and s.status in ('active','frozen')
-      order by s.end_on`,
-    [memberId],
-  );
   const warnings: { kind: string; message: string }[] = [];
-  let usable = false;
-  for (const p of plans) {
-    const left = Math.round((ictDateTime(p.end_on, "00:00").getTime() - ictDateTime(today, "00:00").getTime()) / DAY_MS);
-    if (p.status === "frozen") warnings.push({ kind: "frozen", message: `${p.name} is frozen.` });
-    else if (left < 0) warnings.push({ kind: "expired", message: `${p.name} ended ${-left} day${left === -1 ? "" : "s"} ago.` });
-    else if (p.start_on && p.start_on > today) {
-      // Bought ahead: it grants nothing until its first day (BR-12).
-      warnings.push({ kind: "scheduled", message: `${p.name} starts on ${p.start_on}.` });
-    } else {
-      usable = true;
-      if (left <= 7) warnings.push({ kind: "expiring", message: `${p.name} ends in ${left} day${left === 1 ? "" : "s"}.` });
-      // Walking through the gate spends no session (BR-32), so this is a heads-up only.
-      if (p.session_left !== null && p.session_left <= 0) {
-        warnings.push({ kind: "no_sessions", message: `${p.name} has no sessions left.` });
-      }
-    }
-  }
-  if (plans.length === 0) warnings.push({ kind: "no_plan", message: "No active membership." });
   const bookings = await sql.query(
     `select b.id, b.code, b.start_at, b.end_at, c.court_code, b.status::text as status
        from court_bookings b join courts c on c.id = b.court_id
@@ -131,9 +94,9 @@ async function memberToday(sql: Sql, memberId: string) {
       order by s.start_at`,
     [memberId, dayStart, dayEnd],
   );
-  // Something to let them in on: a live plan, a court booked today, or a class today.
-  const entitled = usable || bookings.length > 0 || sessions.length > 0;
-  return { plans, warnings, bookings, sessions, entitled };
+  // Something to let them in on: a court booked today or a class today.
+  const entitled = bookings.length > 0 || sessions.length > 0;
+  return { warnings, bookings, sessions, entitled };
 }
 
 type VisitInput = {
@@ -269,7 +232,6 @@ async function overrideOrAsk(
         needs_override: true,
         duplicate: false,
         checked_in_at: null,
-        plans: today.plans,
         warnings: today.warnings,
         today: { bookings: today.bookings, sessions: today.sessions },
       },
@@ -303,7 +265,6 @@ function result(
       needs_override: false,
       checked_in_at: visit.at,
       duplicate: visit.duplicate,
-      plans: today.plans,
       warnings: today.warnings,
       today: { bookings: today.bookings, sessions: today.sessions },
       ...extra,

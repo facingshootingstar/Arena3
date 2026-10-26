@@ -57,36 +57,6 @@ export async function completeBookings() {
   });
 }
 
-export async function expiryReminders() {
-  return withTx(async (sql) => {
-    const today = ictDateString();
-    const targets = await sql.query<{ id: string; user_id: string; end_on: string }>(
-      `select id, user_id, end_on::text
-         from subscriptions
-        where status = 'active'
-          and end_on in (
-            ($1::date + 7),
-            ($1::date + 3),
-            $1::date
-          )`,
-      [today],
-    );
-    for (const t of targets) {
-      const days = Math.round(
-        (new Date(t.end_on).getTime() - new Date(today).getTime()) / 86400000,
-      );
-      const key = `${t.user_id}|${days}|${today}`;
-      await sql.query(
-        `insert into outbox (channel, template, user_id, payload, dedupe_key, sent_at)
-         values ('inapp', 'sub_expiring', $1, $2::jsonb, $3, now())
-         on conflict (dedupe_key) do nothing`,
-        [t.user_id, JSON.stringify({ days, end_on: t.end_on }), key],
-      );
-    }
-    return targets.length;
-  });
-}
-
 /**
  * Hand queued notifications to their transport.
  *
@@ -312,12 +282,7 @@ const DUE_PROBE = `
     exists(select 1 from enrollments
             where status = 'hold' and hold_until < now())                               as expire_enrollment_holds,
     exists(select 1 from sessions
-            where status = 'scheduled' and end_at + interval '2 hours' < now())         as lock_attendance,
-    exists(select 1 from subscriptions
-            where status = 'active'
-              and end_on in ((now() at time zone 'Asia/Ho_Chi_Minh')::date + 7,
-                             (now() at time zone 'Asia/Ho_Chi_Minh')::date + 3,
-                             (now() at time zone 'Asia/Ho_Chi_Minh')::date))            as expiry_reminders
+            where status = 'scheduled' and end_at + interval '2 hours' < now())         as lock_attendance
 `;
 
 type DueFlags = {
@@ -329,7 +294,6 @@ type DueFlags = {
   waitlist_expire: boolean;
   expire_enrollment_holds: boolean;
   lock_attendance: boolean;
-  expiry_reminders: boolean;
 };
 
 export async function runDueJobs() {
@@ -346,7 +310,6 @@ export async function runDueJobs() {
     if (due.waitlist_expire) await waitlistExpire();
     if (due.expire_enrollment_holds) await expireEnrollmentHolds();
     if (due.lock_attendance) await lockAttendance();
-    if (due.expiry_reminders) await expiryReminders();
     const now = Date.now();
     if (elapsedAtLeast(g.__arena3GenAt__, now, GENERATE_SESSIONS_EVERY_MS)) {
       g.__arena3GenAt__ = now;

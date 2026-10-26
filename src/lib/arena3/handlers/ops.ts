@@ -530,9 +530,6 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   }
 
   const settings = await getSettings(sql);
-  const plans = await sql.query<{ name: string; price_vnd: number; sport_scope: string; court_hours: number }>(
-    `select name, price_vnd, sport_scope, court_hours from membership_plans where is_on_sale = true order by price_vnd`,
-  );
   const classes = await sql.query<{
     sport: string;
     level: string;
@@ -540,19 +537,15 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     enrolled_count: number;
     capacity: number;
     coach_name: string | null;
+    price_vnd: number | null;
   }>(
-    `select cl.sport, cl.level, cl.rrule, cl.enrolled_count, cl.capacity, u.full_name as coach_name
+    `select cl.sport, cl.level, cl.rrule, cl.enrolled_count, cl.capacity, cl.price_vnd, u.full_name as coach_name
        from classes cl
        left join users u on u.id = cl.coach_id
-      where cl.status = 'open'`,
+      where cl.status = 'open'
+      order by cl.sport, cl.level`,
   );
-  const subs = await sql.query<{ plan_name: string; status: string; end_on: string; court_hours_left: string | number }>(
-    `select p.name as plan_name, s.status, s.end_on::text, s.court_hours_left
-       from subscriptions s join membership_plans p on p.id = s.plan_id
-      where s.user_id = $1 and s.status in ('active','frozen','pending')
-      order by s.end_on desc limit 3`,
-    [user.id],
-  );
+  const onSale = classes.filter((c): c is typeof c & { price_vnd: number } => c.price_vnd !== null).sort((a, b) => a.price_vnd - b.price_vnd);
   const todayBookings = await sql.query<{ court_code: string; start_at: string; status: string }>(
     `select c.court_code, b.start_at::text, b.status
        from court_bookings b join courts c on c.id = b.court_id
@@ -568,19 +561,18 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     `Centre: Arena3. Open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} ICT every day.`,
     `Court holds last ${settings.hold_minutes} minutes. Cancel a court at least ${settings.cancel_court_hours}h ahead, a class at least ${settings.cancel_class_hours}h ahead. No-shows are not refunded.`,
     `Waitlists are first-come; an offer stands for ${settings.waitlist_offer_hours}h. Under-${settings.minor_age}s cannot book or enrol on their own.`,
-    `Plans on sale:\n${plans.map((p) => `• ${p.name} (${p.sport_scope}): ${p.price_vnd.toLocaleString("en-US")}đ · ${p.court_hours} court hours`).join("\n") || "—"}`,
+    `Classes on sale:\n${onSale.map((c) => `• ${c.sport} ${c.level} · coach ${c.coach_name ?? "—"} · ${c.price_vnd.toLocaleString("en-US")}đ`).join("\n") || "—"}`,
     `Open classes:\n${classes.map((c) => `• ${c.sport} ${c.level} · coach ${c.coach_name ?? "—"} · ${c.enrolled_count}/${c.capacity}`).join("\n") || "No classes are open."}`,
     `Coaches:\n${COACHES.map((c) => `• ${c.name} — ${c.title}. ${c.blurb}`).join("\n")}`,
     `Member asking: ${user.full_name} (${user.member_code ?? "no member code yet"}).`,
-    `Their plans:\n${subs.map((s) => `• ${s.plan_name} · ${s.status} · through ${s.end_on.slice(0, 10)} · ${s.court_hours_left} court hours left`).join("\n") || "No plan yet."}`,
     `Today / next 24h:\n${todayBookings.map((b) => `• ${b.court_code} ${b.start_at} (${b.status})`).join("\n") || "Nothing booked."}`,
   ].join("\n\n");
 
   const system = `You are the Arena3 front-desk assistant inside the member app. Answer in English, keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
-No medical advice, no discounts beyond the listed plans, never invent a free slot.
-Only name coaches, plans and classes that appear in the data block.
+No medical advice, no discounts beyond the listed prices, never invent a free slot.
+Only name coaches and classes that appear in the data block.
 If you do not know: tell them to ask the desk or type «ticket: …».
-You can walk them through Book / Classes / Plans in the app. Payment is taken at the desk after they order in the app.
+You can walk them through Book / Classes in the app. Payment is taken at the desk after they enrol in the app.
 
 DATA BLOCK:
 ${facts}`;
@@ -589,7 +581,7 @@ ${facts}`;
   const turns: ChatTurn[] = [...history, { role: "user", text: message }];
 
   const ai = await generateAssistantReply(system, turns);
-  const reply = ai?.text ?? ruleReply(q, settings, plans, classes);
+  const reply = ai?.text ?? ruleReply(q, settings, onSale, classes);
   const source = ai?.source ?? "rules";
 
   await audit(sql, user.id, "assistant", "chat", user.id, null, {
@@ -617,11 +609,13 @@ function parseHistory(raw: unknown): ChatTurn[] {
 function ruleReply(
   q: string,
   settings: Awaited<ReturnType<typeof getSettings>>,
-  plans: Array<{ name: string; price_vnd: number }>,
+  onSale: Array<{ sport: string; level: string; price_vnd: number }>,
   classes: Array<{ sport: string; level: string; enrolled_count: number; capacity: number }>,
 ): string {
-  if (/price|cost|how much|plan|giá|gói/.test(q)) {
-    return `Plans on sale:\n${plans.map((p) => `• ${p.name}: ${p.price_vnd.toLocaleString("en-US")}đ`).join("\n")}\nPay at the desk after you order in the app.`;
+  if (/price|cost|how much|fee|giá/.test(q)) {
+    return onSale.length
+      ? `Classes on sale:\n${onSale.map((c) => `• ${c.sport} ${c.level}: ${c.price_vnd.toLocaleString("en-US")}đ`).join("\n")}\nPay at the desk after you enrol in the app.`
+      : "No class has a price listed right now — ask the desk.";
   }
   if (/hour|open|close|what time|giờ|mở cửa/.test(q)) {
     return `Arena3 is open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} every day (ICT). Court holds last ${settings.hold_minutes} minutes, and you can cancel a court up to ${settings.cancel_court_hours}h before.`;
@@ -637,7 +631,7 @@ function ruleReply(
   if (/waitlist|full|queue|chờ|đầy/.test(q)) {
     return `When a class is full you join a first-come waitlist. If a seat frees up you get an offer that stands for ${settings.waitlist_offer_hours}h — claim it in the app.`;
   }
-  return "I can help with the timetable, plans, coaches, booking and cancelling, and waitlists at Arena3. Type «ticket: …» to send a note to the desk. I do not give medical advice.";
+  return "I can help with the timetable, classes, coaches, booking and cancelling, and waitlists at Arena3. Type «ticket: …» to send a note to the desk. I do not give medical advice.";
 }
 
 

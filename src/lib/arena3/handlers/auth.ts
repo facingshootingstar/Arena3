@@ -284,21 +284,11 @@ export async function forgot(sql: Sql, request: Request) {
 }
 
 export async function meGet(sql: Sql, user: PublicUser) {
-  // Seven independent reads. Awaited one at a time this was the slowest request
+  // Six independent reads. Awaited one at a time this was the slowest request
   // in the app — and it is on the critical path of every sign-in. Issued
   // together they each land on their own pooled connection, so the handler
   // costs one round trip instead of seven.
-  const [subs, inbox, today, classesToday, enrollments, offers, flags] = await Promise.all([
-    sql.query(
-      `select s.id, s.plan_id, s.sport_scope, s.start_on::text, s.end_on::text, s.status,
-              s.court_hours_left, s.session_left, p.name as plan_name, p.court_discount_pct,
-              p.court_hours as plan_court_hours, p.session_quota as plan_session_quota
-         from subscriptions s
-         join membership_plans p on p.id = s.plan_id
-        where s.user_id = $1
-        order by s.status = 'active' desc, s.end_on desc`,
-      [user.id],
-    ),
+  const [inbox, today, classesToday, enrollments, offers, flags] = await Promise.all([
     sql.query(
       `select id, template, payload, sent_at, read_at from inbox
         where user_id = $1 order by sent_at desc limit 30`,
@@ -361,7 +351,6 @@ export async function meGet(sql: Sql, user: PublicUser) {
     status: 200,
     body: {
       user,
-      subscriptions: subs,
       inbox,
       enrollments,
       offers,

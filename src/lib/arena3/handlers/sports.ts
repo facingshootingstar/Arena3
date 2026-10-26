@@ -269,7 +269,7 @@ export async function managerSportRetire(sql: Sql, code: string, user: PublicUse
     throw err.conflict("Cannot retire the last active sport.");
   }
 
-  // Check blockers: active courts, future bookings, future classes, active plans
+  // Check blockers: active courts, future bookings, future classes
   const blockers: string[] = [];
 
   const activeCourts = await one<{ cnt: number }>(
@@ -300,15 +300,6 @@ export async function managerSportRetire(sql: Sql, code: string, user: PublicUse
   );
   if ((futureClasses?.cnt ?? 0) > 0) {
     blockers.push(`${futureClasses!.cnt} active or upcoming class(es) exist for this sport.`);
-  }
-
-  const activePlans = await one<{ cnt: number }>(
-    sql,
-    `select count(*)::int as cnt from membership_plans where sport_scope = $1 and is_on_sale = true`,
-    [code],
-  );
-  if ((activePlans?.cnt ?? 0) > 0) {
-    blockers.push(`${activePlans!.cnt} active membership plan(s) cover this sport.`);
   }
 
   if (blockers.length > 0) {
