@@ -1752,14 +1752,14 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
 
     const occNoRes = (await db.query<{ id: string }>(`
       insert into occupancies (court_id, start_at, end_at, kind, ref_id)
-      values ($1, now() + interval '30 days', now() + interval '30 days 1 hour', 'session', gen_random_uuid())
+      values ($1, now() + interval '300 days', now() + interval '300 days 1 hour', 'session', gen_random_uuid())
       returning id
     `, [badmintonCourtId])).rows[0].id;
 
     const sessNoResults = (
       await db.query<{ id: string }>(
         `insert into sessions (class_id, court_id, start_at, end_at, status, occupancy_id)
-         values ($1, $2, now() + interval '30 days', now() + interval '30 days 1 hour', 'scheduled', $3)
+         values ($1, $2, now() + interval '300 days', now() + interval '300 days 1 hour', 'scheduled', $3)
          returning id`,
         [clId, badmintonCourtId, occNoRes],
       )
@@ -4421,6 +4421,8 @@ describe("Remove plans: sales", () => {
 
   // RP-no-plan-route: the plan sale endpoint no longer exists.
   it("RP-no-plan-route: POST /v1/subscriptions is a 404", async () => {
+    // handleApi starts the 15 s job loop unless it already runs; that interval would keep the test process alive.
+    (globalThis as any).__arena3Jobs__ = true;
     const res = await handleApi(
       new Request("http://localhost/v1/subscriptions", {
         method: "POST",
