@@ -1203,12 +1203,12 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     await db.query("delete from enrollments where class_id = $1", [classId]);
     await db.query("delete from classes where id = $1", [classId]);
     await db.query(
-      `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
-       values ($1, 'badminton', 'f26-test', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', current_date + 1, current_date + 14, 60, 1, 'open', 0)`,
+      `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+       values ($1, 'badminton', 'f26-test', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', current_date + 1, current_date + 14, 60, 1, 'open', 0, 300000)`,
       [classId, coachId, validCourtId]
     );
 
-    // Give members active subscriptions
+    // waitlistAccept still checks a plan until the waitlist moves to paying (Task 5); enrol no longer does
     const planId = "20000000-0000-0000-0000-000000000002";
     const mem1 = { id: "00000000-0000-0000-0000-000000000104", phone: "+84900000104", name: "Mem 1", role: "member" } as any;
     const mem2 = { id: "00000000-0000-0000-0000-000000000105", phone: "+84900000105", name: "Mem 2", role: "member" } as any;
@@ -1231,10 +1231,10 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
         );
       }
 
-      // 1. mem1 enrolls -> confirmed (1/1)
+      // 1. mem1 enrolls -> hold (1/1)
       const enr1 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem1));
       assert.equal(enr1.status, 201);
-      assert.equal((enr1.body as any).enrollment?.status, "confirmed");
+      assert.equal((enr1.body as any).enrollment?.status, "hold");
 
       // 2. mem2 enrolls -> waitlisted
       const enr2 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem2));
@@ -1242,6 +1242,7 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
       assert.equal((enr2.body as any).enrollment?.status, "waitlisted");
 
       // 3. mem1 cancels -> triggers inviteWaitlist -> creates offer for mem2
+      await confirmHold((enr1.body as any).enrollment.id); // leaving needs a paid seat until holds can be cancelled
       await withTx(async (sql) => enrollmentDelete(sql, (enr1.body as any).enrollment.id, mem1));
       await withTx(async (sql) => inviteWaitlist(sql, classId));
 
@@ -1251,10 +1252,10 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
       )).rows[0];
       assert.ok(offer);
 
-      // 4. mem3 (newcomer) attempts to enroll while offer is pending -> confirmed (D5: free seat is not held)
+      // 4. mem3 (newcomer) attempts to enroll while offer is pending -> hold (D5: free seat is not held back)
       const enr3 = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), mem3));
       assert.equal(enr3.status, 201);
-      assert.equal((enr3.body as any).enrollment?.status, "confirmed");
+      assert.equal((enr3.body as any).enrollment?.status, "hold");
 
       // offer for mem2 was skipped
       const offerAfter = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offer.id])).rows[0];
@@ -1270,6 +1271,7 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
       );
 
       // Cancel mem3 -> triggers new offer for mem2
+      await confirmHold((enr3.body as any).enrollment.id); // leaving needs a paid seat until holds can be cancelled
       await withTx(async (sql) => enrollmentDelete(sql, (enr3.body as any).enrollment.id, mem3));
       const newOffer = (await db.query<{ id: string }>(
         "select o.id from waitlist_offers o join enrollments e on e.id = o.enrollment_id where e.class_id = $1 and o.status = 'pending'",
@@ -3367,6 +3369,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
         [memA.id, memA.phone, memA.full_name, memH.id, memH.phone, memH.full_name, memN.id, memN.phone, memN.full_name, memL.id, memL.phone, memL.full_name, coachW.id, coachW.full_name],
       );
 
+      // waitlistAccept still checks a plan until Task 5; enrol no longer does
       const planId = "20000000-0000-0000-0000-000000000002";
       for (const m of [memA, memH, memN, memL]) {
         await db.query(
@@ -3377,8 +3380,8 @@ describe("Round 10: Two-way Chat unit tests", () => {
       }
 
       await db.query(
-        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
-         values ($1, 'badminton', 'w-test', $2, $3, 'FREQ=WEEKLY;BYDAY=TU;BYHOUR=14', current_date + 1, current_date + 14, 60, 1, 'open', 0)`,
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+         values ($1, 'badminton', 'w-test', $2, $3, 'FREQ=WEEKLY;BYDAY=TU;BYHOUR=14', current_date + 1, current_date + 14, 60, 1, 'open', 0, 300000)`,
         [classW, coachW.id, courtW],
       );
     }
@@ -3386,10 +3389,10 @@ describe("Round 10: Two-way Chat unit tests", () => {
     it("W-1: QA scenario with capacity 1 and per-session plans (steps 1 to 6)", async () => {
       await setupW();
 
-      // 1. A enrols (confirmed). H joins (waitlist 1). A leaves -> H has a pending offer.
+      // 1. A enrols (hold). H joins (waitlist 1). A leaves -> H has a pending offer.
       const enrA = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memA));
       assert.equal(enrA.status, 201);
-      assert.equal((enrA.body as any).enrollment?.status, "confirmed");
+      assert.equal((enrA.body as any).enrollment?.status, "hold");
 
       const enrH = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memH));
       assert.equal(enrH.status, 201);
@@ -3398,6 +3401,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(hRow1.waitlist_pos, 1);
 
       // A leaves -> triggers inviteWaitlist -> creates pending offer for H
+      await confirmHold((enrA.body as any).enrollment.id); // leaving needs a paid seat until holds can be cancelled
       await withTx(async (sql) => enrollmentDelete(sql, (enrA.body as any).enrollment.id, memA));
       const offerH = (await db.query<{ id: string; status: string }>(
         "select id, status from waitlist_offers where enrollment_id = $1 and status = 'pending'",
@@ -3406,10 +3410,10 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.ok(offerH);
       assert.equal(offerH.status, "pending");
 
-      // 2. N enrols -> confirmed (takes the seat); H's offer is skipped; H is still waitlist 1
+      // 2. N enrols -> hold (takes the seat); H's offer is skipped; H is still waitlist 1
       const enrN = await withTx(async (sql) => classesEnroll(sql, classW, new Request("http://localhost"), memN));
       assert.equal(enrN.status, 201);
-      assert.equal((enrN.body as any).enrollment?.status, "confirmed");
+      assert.equal((enrN.body as any).enrollment?.status, "hold");
 
       const offerHAfter = (await db.query<{ status: string }>("select status from waitlist_offers where id = $1", [offerH.id])).rows[0];
       assert.equal(offerHAfter.status, "skipped");
@@ -3445,6 +3449,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(hRow3.waitlist_pos, 1);
 
       // 5. N leaves -> H gets a new offer, accepts -> confirmed; L is now waitlist 1
+      await confirmHold((enrN.body as any).enrollment.id); // leaving needs a paid seat until holds can be cancelled
       await withTx(async (sql) => enrollmentDelete(sql, (enrN.body as any).enrollment.id, memN));
       const newOfferH = (await db.query<{ id: string; status: string }>(
         "select id, status from waitlist_offers where enrollment_id = $1 and status = 'pending'",
@@ -3565,8 +3570,8 @@ describe("Round 10: Two-way Chat unit tests", () => {
         [coachP.id],
       );
       await db.query(
-        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count)
-         values ($1, 'badminton', 'p-test', $2, $3, 'FREQ=WEEKLY;BYDAY=WE;BYHOUR=15', current_date + 1, current_date + 14, 60, 5, 'open', 0)`,
+        `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+         values ($1, 'badminton', 'p-test', $2, $3, 'FREQ=WEEKLY;BYDAY=WE;BYHOUR=15', current_date + 1, current_date + 14, 60, 5, 'open', 0, 0)`,
         [classP, coachP.id, courtP],
       );
       const occId = (await db.query<{ id: string }>(`
@@ -3585,17 +3590,12 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await cleanupP();
     });
 
-    it("Time-based plan only -> enrol refused with 'court time, not classes'; waitlist accept too", async () => {
+    it("Time-based plan only -> waitlist accept refused with 'court time, not classes'", async () => {
       await setupP();
       await db.query(
         `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
          values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'active', null)`,
         [subP1, memP1.id, planP],
-      );
-
-      await assert.rejects(
-        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-19" && e.message.includes("court time, not classes"),
       );
 
       const enrId = "50000000-0000-0000-0000-000000000001";
@@ -3614,50 +3614,6 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await assert.rejects(
         () => withTx(async (sql) => waitlistAccept(sql, offerId, memP1)),
         (e: any) => e.extra?.br === "BR-19" && e.message.includes("court time, not classes"),
-      );
-    });
-
-    it("Frozen, pending, future start_on, expired, 0 left -> each its own message and code", async () => {
-      await setupP();
-
-      // Case 1: Frozen session plan
-      await db.query(
-        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
-         values ($1, $2, $3, 'badminton', current_date - 1, current_date + 30, 'frozen', 5)`,
-        [subP1, memP1.id, planP],
-      );
-      await assert.rejects(
-        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-19" && e.message === "Your session plan is frozen. Unfreeze it at the desk to join a class.",
-      );
-
-      // Case 2: Pending plan
-      await db.query(`update subscriptions set status = 'pending' where id = $1`, [subP1]);
-      const pendingStart = (await db.query<{ s: string }>(`select start_on::text as s from subscriptions where id = $1`, [subP1])).rows[0].s;
-      await assert.rejects(
-        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-19" && e.message === `Your session plan starts on ${pendingStart}.`,
-      );
-
-      // Case 3: Future start_on
-      await db.query(`update subscriptions set status = 'active', start_on = current_date + 5 where id = $1`, [subP1]);
-      await assert.rejects(
-        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-19" && e.message.startsWith("Your session plan starts on "),
-      );
-
-      // Case 4: Expired plan (end_on in past)
-      await db.query(`update subscriptions set start_on = current_date - 10, end_on = current_date - 1 where id = $1`, [subP1]);
-      await assert.rejects(
-        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-19" && e.message === "Your session plan has ended.",
-      );
-
-      // Case 5: 0 left
-      await db.query(`update subscriptions set end_on = current_date + 30, session_left = 0 where id = $1`, [subP1]);
-      await assert.rejects(
-        () => withTx(async (sql) => classesEnroll(sql, classP, new Request("http://localhost"), memP1)),
-        (e: any) => e.extra?.br === "BR-20" && e.message === "You have no sessions left.",
       );
     });
 
@@ -4492,17 +4448,18 @@ describe("Shared row contracts match the tables", () => {
 let scClassSeq = 0;
 
 /** An open badminton class with a unique weekly slot, so classes never clash. */
-async function seedClass(opts: { price: number | null; capacity: number }): Promise<string> {
+async function seedClass(opts: { price: number | null; capacity: number; courtId?: string; slot?: string }): Promise<string> {
   scClassSeq += 1;
   const days = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
   const day = days[scClassSeq % 7];
   const hour = 6 + (Math.floor(scClassSeq / 7) % 16);
+  const rrule = opts.slot ?? `FREQ=WEEKLY;BYDAY=${day};BYHOUR=${hour}`;
   const rows = await db.query<{ id: string }>(
     `insert into classes (sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
-     values ('badminton', $1, '00000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001',
+     values ('badminton', $1, '00000000-0000-0000-0000-000000000011', $5,
              $2, current_date + 1, current_date + 60, 60, $3, 'open', 0, $4)
      returning id`,
-    [`sc-level-${scClassSeq}`, `FREQ=WEEKLY;BYDAY=${day};BYHOUR=${hour}`, opts.capacity, opts.price],
+    [`sc-level-${scClassSeq}`, rrule, opts.capacity, opts.price, opts.courtId ?? "10000000-0000-0000-0000-000000000001"],
   );
   return rows.rows[0].id;
 }
@@ -4563,3 +4520,97 @@ describe("Sell classes: schema", () => {
     assert.equal(s.class_hold_minutes, 15);
   });
 });
+
+describe("Sell classes: enrol", () => {
+  const jsonReq = (method: string, body: unknown) =>
+    new Request("http://localhost", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const enrol = (classId: string, m: any) =>
+    withTx((sql) => classesEnroll(sql, classId, new Request("http://localhost"), m));
+  const mgr = { id: "00000000-0000-0000-0000-000000000001", role: "manager" } as any;
+
+  it("SC-enrol-hold: a priced class holds a seat with the price locked, no plan needed", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(10);
+    const res = await enrol(classId, m);
+    assert.equal(res.status, 201);
+    const e = (res.body as any).enrollment;
+    assert.equal(e.status, "hold");
+    assert.equal(e.price_vnd, 300000);
+    assert.ok(e.hold_until);
+    const c = (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0];
+    assert.equal(c.enrolled_count, 1);
+  });
+
+  it("SC-enrol-unpriced: a class with no price is not open for sale (BR-26)", async () => {
+    const classId = await seedClass({ price: null, capacity: 5 });
+    const m = await seedMember(11);
+    await assert.rejects(() => enrol(classId, m), (e: any) => e.extra?.br === "BR-26");
+  });
+
+  it("SC-enrol-free: a free class confirms at once with no payment row", async () => {
+    const classId = await seedClass({ price: 0, capacity: 5 });
+    const m = await seedMember(12);
+    const res = await enrol(classId, m);
+    const e = (res.body as any).enrollment;
+    assert.equal(e.status, "confirmed");
+    assert.equal(e.hold_until, null);
+    const p = await db.query("select 1 from payments where ref_id = $1", [e.id]);
+    assert.equal(p.rows.length, 0);
+  });
+
+  it("SC-enrol-full: the second member on a one-seat class is waitlisted", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 1 });
+    const m1 = await seedMember(13);
+    const m2 = await seedMember(14);
+    assert.equal(((await enrol(classId, m1)).body as any).enrollment.status, "hold");
+    assert.equal(((await enrol(classId, m2)).body as any).enrollment.status, "waitlisted");
+  });
+
+  it("SC-clash-hold: a held class blocks another class in the same weekly slot", async () => {
+    const slot = "FREQ=WEEKLY;BYDAY=MO;BYHOUR=21";
+    const a = await seedClass({ price: 100000, capacity: 5, slot });
+    const b = await seedClass({ price: 100000, capacity: 5, slot, courtId: "10000000-0000-0000-0000-000000000002" });
+    const m = await seedMember(15);
+    await enrol(a, m);
+    await assert.rejects(() => enrol(b, m), (e: any) => e.extra?.br === "BR-22" && /clashes/.test(e.message));
+  });
+
+  it("SC-price-patch: a manager sets the price; bad values are field errors; holds keep their price", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(16);
+    const held = (await enrol(classId, m)).body as any;
+    const patch = (price: unknown) =>
+      withTx((sql) => classesPatch(sql, classId, jsonReq("PATCH", { price_vnd: price }), mgr));
+    await patch(250000);
+    const row = (await db.query<{ price_vnd: number }>("select price_vnd from classes where id = $1", [classId])).rows[0];
+    assert.equal(row.price_vnd, 250000);
+    for (const bad of [-1, "abc", 1.5, 100_000_001]) {
+      await assert.rejects(() => patch(bad), (e: any) => e.extra?.field === "price_vnd");
+    }
+    await patch(null);
+    const e = (await db.query<{ price_vnd: number }>("select price_vnd from enrollments where id = $1", [held.enrollment.id])).rows[0];
+    assert.equal(e.price_vnd, 300000);
+  });
+
+  it("SC-list-mine: classesList shows my_enrollment for the holder only", async () => {
+    const { classesList } = await import("./handlers/classes.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(17);
+    const other = await seedMember(18);
+    await enrol(classId, m);
+    const find = async (u: any) => {
+      const r = await withTx((sql) => classesList(sql, new Request("http://localhost/v1/classes"), u));
+      return (r.body as any).items.find((c: any) => c.id === classId);
+    };
+    const mine = await find(m);
+    assert.equal(mine.price_vnd, 300000);
+    assert.equal(mine.my_enrollment.status, "hold");
+    assert.equal((await find(other)).my_enrollment, null);
+    assert.equal((await find(null)).my_enrollment, null);
+  });
+});
+
+/** Stands in for a confirmed payment: turns a held seat into a confirmed one. */
+async function confirmHold(enrollmentId: string) {
+  await db.query("update enrollments set status = 'confirmed', hold_until = null where id = $1", [enrollmentId]);
+}

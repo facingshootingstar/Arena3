@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { assertNoClassClash, audit, classPlan, enqueue, returnPrepaidSession, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
+import { assertNoClassClash, audit, enqueue, returnPrepaidSession, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
@@ -11,6 +11,17 @@ import { assertClassStaff } from "./training";
 import { assertSlotGrid } from "./bookings";
 
 export const MAX_CLASS_CAPACITY = 200;
+export const MAX_CLASS_PRICE_VND = 100_000_000;
+
+/** A class price from a request body: null/"" clears it, a whole number of dong from 0 to 100,000,000 sets it. */
+function parsePrice(raw: unknown): number | null {
+  if (raw === null || raw === "") return null;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw.trim()) ? Number(raw) : NaN;
+  if (!Number.isInteger(n) || n < 0 || n > MAX_CLASS_PRICE_VND) {
+    throw err.field("price_vnd", "Price must be a whole number of dong, or empty.");
+  }
+  return n;
+}
 
 export async function classesList(sql: Sql, request: Request, user: PublicUser | null) {
   const sport = new URL(request.url).searchParams.get("sport");
@@ -18,10 +29,19 @@ export async function classesList(sql: Sql, request: Request, user: PublicUser |
   const items = await sql.query(
     `select cl.id, cl.sport, cl.level, cl.capacity, cl.enrolled_count, cl.rrule, cl.duration_min,
             cl.start_on::text, cl.end_on::text, cl.status, cl.court_id, c.court_code,
-            cl.coach_id, u.full_name as coach_name, made.at as created_at
+            cl.coach_id, u.full_name as coach_name, made.at as created_at, cl.price_vnd,
+            case when me.id is null then null else jsonb_build_object(
+              'id', me.id, 'status', me.status, 'hold_until', me.hold_until,
+              'price_vnd', me.price_vnd, 'transfer_requested_at', me.transfer_requested_at) end as my_enrollment
        from classes cl
        join courts c on c.id = cl.court_id
        join users u on u.id = cl.coach_id
+       left join lateral (
+         select e.id, e.status, e.hold_until, e.price_vnd, e.transfer_requested_at
+           from enrollments e
+          where e.class_id = cl.id and e.user_id = $3::uuid and e.status <> 'cancelled'
+          limit 1
+       ) me on true
        left join lateral (
          select max(a.at) as at from audit_logs a
           where a.action = 'create_class' and a.entity_id = cl.id
@@ -30,7 +50,7 @@ export async function classesList(sql: Sql, request: Request, user: PublicUser |
         and ($2::text is null or cl.sport::text = $2)
       order by case cl.status when 'open' then 0 when 'closed' then 1 when 'draft' then 2 else 3 end,
                made.at desc nulls last, cl.start_on desc, cl.level`,
-    [manager, sport],
+    [manager, sport, user && user.role === "member" ? user.id : null],
   );
   return {
     status: 200,
@@ -62,6 +82,7 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   if (duration_min == null) {
     throw err.validation("A class runs for whole court hours (60, 120 or 180).");
   }
+  const price_vnd = b.price_vnd === undefined ? null : parsePrice(b.price_vnd);
   if (!sport || !level || !coach_id || !court_id || !rrule || !start_on || !end_on) {
     throw err.validation("Class details are incomplete.");
   }
@@ -128,8 +149,8 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   const row = await one(
     sql,
     `insert into classes
-       (sport, level, coach_id, assistant_id, court_id, capacity, rrule, duration_min, start_on, end_on, status)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft')
+       (sport, level, coach_id, assistant_id, court_id, capacity, rrule, duration_min, start_on, end_on, status, price_vnd)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11)
      returning *`,
     [
       sport,
@@ -142,6 +163,7 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
       duration_min,
       start_on,
       end_on,
+      price_vnd,
     ],
   );
   await audit(sql, user.id, "create_class", "class", (row as { id: string }).id);
@@ -300,19 +322,24 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
     sport: string;
     capacity: number;
     enrolled_count: number;
+    price_vnd: number | null;
   }>(sql, `select * from classes where id = $1`, [id]);
   if (!cl) throw err.notFound();
   if (cl.status !== "open") throw err.br("BR-18", "That class is not open yet.");
-  const planRes = await classPlan(sql, userId, cl.sport);
-  if (!planRes.ok) throw err.br(planRes.code, planRes.message);
+  if (cl.price_vnd == null) throw err.br("BR-26", "This class is not open for sale yet.");
+  const settings = await getSettings(sql);
   await assertNoClassClash(sql, userId, id);
   await sql.query("savepoint sp_enroll");
   try {
-    const row = await one<{ enrollment_confirm: string }>(
+    const row = await one<{ enrollment_hold: string }>(
       sql,
-      `select enrollment_confirm($1::uuid, $2::uuid) as enrollment_confirm`,
-      [id, userId],
+      `select enrollment_hold($1::uuid, $2::uuid, $3::int, $4::int) as enrollment_hold`,
+      [id, userId, settings.class_hold_minutes, cl.price_vnd],
     );
+    if (cl.price_vnd === 0) {
+      // A free class has nothing to pay: the seat is confirmed at once.
+      await sql.query(`update enrollments set status = 'confirmed', hold_until = null where id = $1`, [row!.enrollment_hold]);
+    }
     await sql.query("release savepoint sp_enroll");
     const updatedClass = await one<{ enrolled_count: number; capacity: number }>(
       sql,
@@ -332,7 +359,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
         await enqueue(sql, "inapp", "waitlist_seat_taken", po.user_id, { class_id: id, offer_id: po.id }, `wl_st|${po.id}`);
       }
     }
-    const enr = await one(sql, `select * from enrollments where id = $1`, [row!.enrollment_confirm]);
+    const enr = await one(sql, `select * from enrollments where id = $1`, [row!.enrollment_hold]);
     return { status: 201, body: { enrollment: enr } };
   } catch (e) {
     try {
@@ -480,12 +507,13 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
     assistant_id: string | null;
     coach_name: string;
     assistant_name: string | null;
+    price_vnd: number | null;
   }>(
     sql,
     `select cl.id, cl.sport::text as sport, cl.level, cl.status::text as status, cl.capacity, cl.enrolled_count,
             cl.rrule, cl.duration_min, cl.start_on::text as start_on, cl.end_on::text as end_on,
             cl.court_id, c.court_code, cl.coach_id, cl.assistant_id,
-            co.full_name as coach_name, asst.full_name as assistant_name
+            co.full_name as coach_name, asst.full_name as assistant_name, cl.price_vnd
        from classes cl
        join courts c on c.id = cl.court_id
        join users co on co.id = cl.coach_id
@@ -527,7 +555,7 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
   return {
     status: 200,
     body: {
-      class: { ...cl, code: classCode(cl.sport, cl.level, cl.id) },
+      class: { ...cl, my_enrollment: null, code: classCode(cl.sport, cl.level, cl.id) },
       sessions,
       roster: roster.map(withAvatarUrl),
     },
@@ -850,12 +878,15 @@ export async function classesPatch(sql: Sql, classId: string, request: Request, 
   const level = b.level === undefined ? cl.level : str(b.level);
   if (!level || level.length > 24) throw err.field("level", "Level is required (24 characters at most).");
 
+  const priceSet = b.price_vnd !== undefined;
+  const price_vnd = priceSet ? parsePrice(b.price_vnd) : undefined;
   await sql.query(
-    `update classes set capacity = $2, level = $3, status = coalesce($4::class_status, status) where id = $1`,
-    [classId, capacity, level, status ?? null],
+    `update classes set capacity = $2, level = $3, status = coalesce($4::class_status, status),
+            price_vnd = case when $5::boolean then $6::int else price_vnd end where id = $1`,
+    [classId, capacity, level, status ?? null, priceSet, price_vnd ?? null],
   );
   if (capacity > cl.capacity && (status ?? cl.status) === "open") await inviteWaitlist(sql, classId);
-  const after = { capacity, level, status: status ?? cl.status };
+  const after = { capacity, level, status: status ?? cl.status, ...(priceSet ? { price_vnd } : {}) };
   await audit(sql, user.id, "edit_class", "class", classId, { capacity: cl.capacity, level: cl.level, status: cl.status }, after);
   return { status: 200, body: { ok: true, class: { id: classId, ...after } } };
 }

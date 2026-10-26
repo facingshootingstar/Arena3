@@ -553,7 +553,7 @@ export async function assertNoClassClash(sql: Sql, userId: string, classId: stri
     sql,
     `select 1
        from sessions s
-       join enrollments e on e.class_id = s.class_id and e.user_id = $1 and e.status = 'confirmed'
+       join enrollments e on e.class_id = s.class_id and e.user_id = $1 and e.status in ('confirmed','hold')
       where e.class_id <> $2
         and s.status = 'scheduled'
         and exists (
@@ -574,7 +574,7 @@ export async function assertNoClassClash(sql: Sql, userId: string, classId: stri
   const others = await sql.query<ClassPattern>(
     `select cl.rrule, cl.duration_min, cl.start_on::text, cl.end_on::text
        from classes cl
-       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
+       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status in ('confirmed','hold')
       where cl.id <> $2 and cl.status <> 'cancelled'`,
     [userId, classId],
   );
