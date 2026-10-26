@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { err, isConflictSlot } from "../errors";
-import { assertNoClassClash, audit, enqueue, isUuid, returnPrepaidSession, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
+import { assertNoClassClash, audit, enqueue, isUuid, getSettings, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode, parseWeeklyRrule } from "../labels";
 import { expandWeekly } from "../rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
@@ -566,7 +566,6 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
     class_id: string;
     user_id: string;
     status: string;
-    prepaid_sessions: number;
   }>(sql, `select * from enrollments where id = $1`, [id]);
   if (!enr) throw err.notFound();
   if (user.role === "member" && enr.user_id !== user.id) throw err.forbidden();
@@ -617,14 +616,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
       throw err.br("BR-24", `Cancel at least ${settings.cancel_class_hours} hours before the next session.`);
     }
   }
-  // A prepaid session goes back to the member's session plan whatever its balance, status or dates.
-  // With no session plan at all it stays on the cancelled enrolment row, where the desk can see it.
-  let keepPrepaid = enr.prepaid_sessions;
-  if (enr.prepaid_sessions > 0) {
-    const cl = await one<{ sport: string }>(sql, `select sport from classes where id = $1`, [enr.class_id]);
-    if (cl && (await returnPrepaidSession(sql, enr.user_id, cl.sport))) keepPrepaid = 0;
-  }
-  await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null, prepaid_sessions = $2 where id = $1`, [id, keepPrepaid]);
+  await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null where id = $1`, [id]);
   await sql.query(
     `update classes set enrolled_count = greatest(enrolled_count - 1, 0) where id = $1`,
     [enr.class_id],
@@ -1123,24 +1115,6 @@ async function cancelClass(
   const holding = (
     await sql.query(`select user_id from enrollments where class_id = $1 and status = 'hold'`, [cl.id])
   ).map((r) => String(r.user_id));
-  // Return prepaid sessions if any (4.5)
-  // Only sessions actually returned are counted and cleared. A member with no session plan keeps
-  // prepaid_sessions on the cancelled row (and is named in the audit payload) so the desk can see it.
-  let refunded = 0;
-  const returnedEnrs: string[] = [];
-  const unreturned: string[] = [];
-  const prepaidEnrs = await sql.query<{ id: string; user_id: string }>(
-    `select id, user_id from enrollments where class_id = $1 and status = 'confirmed' and prepaid_sessions > 0`,
-    [cl.id],
-  );
-  for (const pe of prepaidEnrs) {
-    if (await returnPrepaidSession(sql, pe.user_id, cl.sport)) {
-      refunded += 1;
-      returnedEnrs.push(String(pe.id));
-    } else {
-      unreturned.push(String(pe.user_id));
-    }
-  }
   await sql.query(
     `update waitlist_offers set status = 'expired'
       where status = 'pending' and enrollment_id in (select id from enrollments where class_id = $1)`,
@@ -1148,10 +1122,9 @@ async function cancelClass(
   );
   await sql.query(
     `update enrollments
-        set status = 'cancelled', waitlist_pos = null, hold_until = null, transfer_requested_at = null,
-            prepaid_sessions = case when id = any($2::uuid[]) then 0 else prepaid_sessions end
+        set status = 'cancelled', waitlist_pos = null, hold_until = null, transfer_requested_at = null
       where class_id = $1 and status in ('confirmed','waitlisted','hold')`,
-    [cl.id, returnedEnrs],
+    [cl.id],
   );
   // No hold can be paid any more: withdraw its link at payOS so the money never moves.
   await withdrawLinks(sql, links, "Class cancelled", "CLASS_CANCELLED");
@@ -1170,8 +1143,6 @@ async function cancelClass(
     status: "cancelled",
     reason,
     sessions: upcoming.length,
-    prepaid_returned: refunded,
-    prepaid_kept_no_plan: unreturned,
   });
   return {
     status: 200,
@@ -1179,7 +1150,6 @@ async function cancelClass(
       ok: true,
       sessions_cancelled: upcoming.length,
       notified: members.length + waiting.length + holding.length,
-      refunded,
     },
   };
 }

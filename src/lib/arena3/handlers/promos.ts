@@ -17,8 +17,8 @@ import { parseInteger } from "../validate";
 import { getActiveSportCodes } from "./sports";
 
 const INT4 = 2_147_483_647;
-// Class sign-ups carry no price in Arena3, so a code can only apply to plans and courts.
-const SCOPES: PromoScope[] = ["plan", "court"];
+// Plans are no longer sold and class sign-ups carry no price, so a code only applies to courts.
+const SCOPES: PromoScope[] = ["court"];
 const CODE_RE = /^[A-Z0-9_-]{3,24}$/;
 
 function isBlank(v: unknown) {
@@ -37,8 +37,8 @@ function optDate(field: string, v: unknown): string | null {
 }
 
 function parseScopes(v: unknown): string[] {
-  if (v === undefined) return ["plan", "court"];
-  if (!Array.isArray(v) || v.length === 0) throw err.field("applies_to", "Pick plans, courts or both.");
+  if (v === undefined) return ["court"];
+  if (!Array.isArray(v) || v.length === 0) throw err.field("applies_to", "Pick courts.");
   const out = [...new Set(v.map(String))];
   for (const s of out) {
     if (!(SCOPES as string[]).includes(s)) throw err.field("applies_to", `"${s}" is not something a code can apply to.`);
@@ -59,7 +59,6 @@ type Parsed = {
   max_per_member: number;
   applies_to: string[];
   sport: string | null;
-  plan_id: string | null;
   stackable: boolean;
 };
 
@@ -100,7 +99,6 @@ async function parseBody(sql: Sql, b: Record<string, unknown>, partial: boolean)
     if (sport && !valid.includes(sport)) throw err.field("sport", "Pick a sport or leave it for all.");
     out.sport = sport === "all" ? null : sport;
   }
-  if (!partial || has("plan_id")) out.plan_id = isBlank(b.plan_id) ? null : String(b.plan_id);
   if (!partial || has("stackable")) out.stackable = bool(b.stackable) ?? false;
   return out;
 }
@@ -149,19 +147,16 @@ export async function promosCreate(sql: Sql, request: Request, user: PublicUser)
   if (await one(sql, `select 1 as ok from promotions where upper(code) = $1`, [p.code])) {
     throw err.field("code", "That code already exists.");
   }
-  if (p.plan_id && !(await one(sql, `select 1 as ok from membership_plans where id = $1`, [p.plan_id]))) {
-    throw err.field("plan_id", "No such plan.");
-  }
   const row = await one<{ id: string }>(
     sql,
     `insert into promotions
        (code, name, kind, value, max_discount_vnd, min_order_vnd, starts_at, ends_at, max_uses, max_per_member,
-        applies_to, sport, plan_id, stackable, created_by)
-     values ($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz, now()),$8,$9,$10,$11,$12,$13,$14,$15)
+        applies_to, sport, stackable, created_by)
+     values ($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz, now()),$8,$9,$10,$11,$12,$13,$14)
      returning id`,
     [
       p.code, p.name, p.kind, p.value, p.max_discount_vnd, p.min_order_vnd, p.starts_at, p.ends_at,
-      p.max_uses, p.max_per_member, p.applies_to, p.sport, p.plan_id, p.stackable, user.id,
+      p.max_uses, p.max_per_member, p.applies_to, p.sport, p.stackable, user.id,
     ],
   );
   await audit(sql, user.id, "create_promo", "promotion", row!.id, null, { code: p.code });
@@ -248,24 +243,12 @@ export async function promosRedemptions(sql: Sql, id: string, user: PublicUser) 
 export async function promosValidate(sql: Sql, request: Request, user: PublicUser) {
   const b = await readJson(request);
   const scope = str(b.scope) as PromoScope | undefined;
-  if (!scope || !SCOPES.includes(scope)) throw err.field("scope", "scope must be plan or court.");
+  if (!scope || !SCOPES.includes(scope)) throw err.field("scope", "scope must be court.");
   const code = str(b.code);
   if (!code) throw err.field("promo_code", "Enter a promo code.");
   const staff = user.role === "receptionist" || user.role === "manager";
   const targetUser = staff && str(b.user_id) ? str(b.user_id)! : user.id;
 
-  if (scope === "plan") {
-    const planId = str(b.plan_id);
-    if (!planId) throw err.field("plan_id", "plan_id is required.");
-    const plan = await one<{ price_vnd: number; sport_scope: string }>(
-      sql,
-      `select price_vnd, sport_scope::text as sport_scope from membership_plans where id = $1`,
-      [planId],
-    );
-    if (!plan) throw err.notFound("No such plan.");
-    const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: plan.sport_scope, planId, orderVnd: plan.price_vnd });
-    return { status: 200, body: { valid: true, order_vnd: plan.price_vnd, ...q } };
-  }
   {
     const courtId = str(b.court_id);
     const startAt = str(b.start_at);
@@ -281,5 +264,4 @@ export async function promosValidate(sql: Sql, request: Request, user: PublicUse
     const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: court.sport, orderVnd: order, listVnd: list.price_vnd });
     return { status: 200, body: { valid: true, order_vnd: order, ...q } };
   }
-  throw err.field("scope", "scope must be plan or court.");
 }

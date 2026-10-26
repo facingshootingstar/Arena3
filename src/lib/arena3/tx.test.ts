@@ -23,16 +23,16 @@ const authH = await import("./handlers/auth.ts");
 const { readJson, withIdempotency } = await import("./helpers.ts");
 const opsH = await import("./handlers/ops.ts");
 const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel, classDetail, classRoster, classesPatch } = await import("./handlers/classes.ts");
-const { subscriptionsCreate, plansPatch } = await import("./handlers/plans.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold, bookingsConfirm, bookingsCancel } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
-const { waitlistAccept, inviteWaitlist, subscriptionFreeze, subscriptionUnfreeze, sessionAttendancePost } = await import("./handlers/ops.ts");
+const { waitlistAccept, inviteWaitlist, sessionAttendancePost } = await import("./handlers/ops.ts");
 const { waitlistExpire } = await import("./jobs.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
 const { hashPassword, hashOtp } = await import("./crypto.ts");
 const { csvCell } = await import("./handlers/extras.ts");
 const { trainingCreate } = await import("./handlers/training.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
+const { handleApi } = await import("./router.ts");
 const { setOverridePaymentLinkCreator, setOverridePaymentLinkCanceller } = await import("./payos.ts");
 const chatH = await import("./handlers/chat.ts");
 const avatarH = await import("./handlers/avatar.ts");
@@ -231,63 +231,6 @@ describe("readJson unit tests", () => {
   });
 });
 
-describe("subscriptionFreeze days validation unit tests", () => {
-  it("rejects non-integer days 'abc' with 400", async () => {
-    const req = new Request("http://localhost/v1/subscriptions/mock/freeze", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ days: "abc" }),
-    });
-    const mockUser = { id: "00000000-0000-0000-0000-000000000001", role: "manager" } as any;
-
-    await assert.rejects(
-      async () => opsH.subscriptionFreeze({} as any, "99999999-9999-4999-8999-999999999999", req, mockUser),
-      (err: any) => {
-        assert.equal(err.status, 400);
-        assert.equal(err.extra?.field, "days");
-        return true;
-      }
-    );
-  });
-
-  it("rejects out-of-range days (0 and 91) with 422", async () => {
-    const mockUser = { id: "00000000-0000-0000-0000-000000000001", role: "manager" } as any;
-    for (const d of [0, 91]) {
-      const req = new Request("http://localhost/v1/subscriptions/mock/freeze", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ days: d }),
-      });
-      await assert.rejects(
-        async () => opsH.subscriptionFreeze({} as any, "99999999-9999-4999-8999-999999999999", req, mockUser),
-        (err: any) => {
-          assert.equal(err.status, 422);
-          assert.equal(err.message, "Freeze length must be 1–90 days.");
-          return true;
-        }
-      );
-    }
-  });
-
-  it("accepts valid days '7' and defaults missing days to 7", async () => {
-    const mockUser = { id: "00000000-0000-0000-0000-000000000001", role: "manager" } as any;
-    for (const body of [{ days: "7" }, {}]) {
-      const req = new Request("http://localhost/v1/subscriptions/mock/freeze", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      await assert.rejects(
-        async () => withTx(async (sql) => opsH.subscriptionFreeze(sql, "99999999-9999-4999-8999-999999999999", req, mockUser)),
-        (err: any) => {
-          assert.equal(err.status, 404);
-          return true;
-        }
-      );
-    }
-  });
-});
-
 describe("foreign keys & subscription role unit tests (Vòng 3: F-24, F-25, F-18, F-21)", () => {
   const managerUser = { id: "00000000-0000-0000-0000-000000000001", role: "manager" } as any;
   const receptionistUser = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist" } as any;
@@ -296,7 +239,6 @@ describe("foreign keys & subscription role unit tests (Vòng 3: F-24, F-25, F-18
 
   const validCourtId = "10000000-0000-0000-0000-000000000001";
   const nonexistentId = "99999999-9999-4999-8999-999999999999";
-  const validPlanId = "20000000-0000-0000-0000-000000000001";
   const asstCoachId = "00000000-0000-0000-0000-000000000005";
 
   before(async () => {
@@ -382,67 +324,6 @@ describe("foreign keys & subscription role unit tests (Vòng 3: F-24, F-25, F-18
     assert.equal(res.status, 201);
   });
 
-  // 5. user_id không tồn tại (nonexistent user_id for subscription -> 400 field: user_id)
-  it("rejects nonexistent user_id for subscription with 400", async () => {
-    const req = new Request("http://localhost/v1/subscriptions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ plan_id: validPlanId, user_id: nonexistentId }),
-    });
-    await assert.rejects(
-      async () => withTx(async (sql) => subscriptionsCreate(sql, req, receptionistUser)),
-      (err: any) => {
-        assert.equal(err.status, 400);
-        assert.equal(err.extra?.field, "user_id");
-        return true;
-      }
-    );
-  });
-
-  // 6. user_id là coach (subscription for coach -> 403)
-  it("rejects coach as subscription recipient with 403", async () => {
-    const req = new Request("http://localhost/v1/subscriptions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ plan_id: validPlanId, user_id: coachUser.id }),
-    });
-    await assert.rejects(
-      async () => withTx(async (sql) => subscriptionsCreate(sql, req, receptionistUser)),
-      (err: any) => {
-        assert.equal(err.status, 403);
-        assert.equal(err.code, "FORBIDDEN");
-        return true;
-      }
-    );
-  });
-
-  // 7. user_id là member (vẫn bán được -> creates subscription)
-  it("creates subscription when user_id is member", async () => {
-    const req = new Request("http://localhost/v1/subscriptions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ plan_id: validPlanId, user_id: memberUser.id }),
-    });
-    const res = await withTx(async (sql) => subscriptionsCreate(sql, req, receptionistUser));
-    assert.equal(res.status, 201);
-  });
-
-  // 8. nhân viên không gửi user_id (staff buying without user_id -> 403)
-  it("rejects staff buying without user_id with 403", async () => {
-    const req = new Request("http://localhost/v1/subscriptions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ plan_id: validPlanId }),
-    });
-    await assert.rejects(
-      async () => withTx(async (sql) => subscriptionsCreate(sql, req, receptionistUser)),
-      (err: any) => {
-        assert.equal(err.status, 403);
-        assert.equal(err.code, "FORBIDDEN");
-        return true;
-      }
-    );
-  });
 });
 
 describe("authorization & role check order unit tests (Vòng 4: F-10, F-03, F-23)", () => {
@@ -1459,105 +1340,6 @@ describe("Round 7: Group B unit tests (F-15, F-20, F-19)", () => {
     assert.equal(csvCell("-50000"), "-50000");
   });
 
-  it("F-19: unfreezing same day restores original end_on without bonus days", async () => {
-    const mgr = toPublic((await db.query("select * from users where role = 'manager' limit 1")).rows[0] as any);
-    const plan = (await db.query<{ id: string }>("select id from membership_plans limit 1")).rows[0];
-
-    const testMemberF19 = { id: "00000000-0000-0000-0000-000000000219", role: "member", full_name: "Member F19" } as any;
-    await db.query(
-      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
-       values ($1, '0987000219', 'Member F19', 'member f19', 'member', 'active', 'hash')
-       on conflict (id) do nothing`,
-      [testMemberF19.id],
-    );
-    await db.query("delete from subscriptions where user_id = $1", [testMemberF19.id]);
-
-    // Create an active subscription
-    const subId = (
-      await db.query<{ id: string }>(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left, session_left)
-         values ($1, $2, 'badminton', '2026-11-01', '2026-11-30', 'active', 10, 10)
-         returning id`,
-        [testMemberF19.id, plan.id],
-      )
-    ).rows[0].id;
-
-    // Freeze for 10 days
-    await withTx(async (sql) => {
-      const req = new Request(`http://localhost/v1/subscriptions/${subId}/freeze`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ days: 10 }),
-      });
-      const res = await subscriptionFreeze(sql, subId, req, mgr);
-      assert.equal(res.status, 200);
-      assert.equal((res.body as any).end_on.slice(0, 10), "2026-12-10");
-    });
-
-    // Unfreeze on the same day -> end_on must revert back to 2026-11-30
-    await withTx(async (sql) => {
-      const res = await subscriptionUnfreeze(sql, subId, mgr);
-      assert.equal(res.status, 200);
-      assert.equal((res.body as any).status, "active");
-      assert.equal((res.body as any).end_on.slice(0, 10), "2026-11-30");
-    });
-
-    // Negative case: unfreezing an active plan throws conflict 409
-    await withTx(async (sql) => {
-      await assert.rejects(
-        async () => {
-          await subscriptionUnfreeze(sql, subId, mgr);
-        },
-        (err: any) => {
-          assert.equal(err.status, 409);
-          return true;
-        },
-      );
-    });
-  });
-
-  it("F-20 (NEEDS-HUMAN): payment of incorrect amount (400,000 instead of expected) is rejected", async () => {
-    const mgr = toPublic((await db.query("select * from users where role = 'manager' limit 1")).rows[0] as any);
-    const plan = (await db.query<{ id: string; price_vnd: number }>("select id, price_vnd from membership_plans limit 1")).rows[0];
-
-    const testMemberF20 = { id: "00000000-0000-0000-0000-000000000220", role: "member", full_name: "Member F20" } as any;
-    await db.query(
-      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
-       values ($1, '0987000220', 'Member F20', 'member f20', 'member', 'active', 'hash')
-       on conflict (id) do nothing`,
-      [testMemberF20.id],
-    );
-    await db.query("delete from subscriptions where user_id = $1", [testMemberF20.id]);
-
-    // Create a pending subscription
-    const subId = (
-      await db.query<{ id: string }>(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left, session_left)
-         values ($1, $2, 'badminton', '2026-11-01', '2026-11-30', 'pending', 10, 10)
-         returning id`,
-        [testMemberF20.id, plan.id],
-      )
-    ).rows[0].id;
-
-    // Negative test: paying incorrect amount throws validation error
-    await withTx(async (sql) => {
-      const req = new Request("http://localhost/v1/payments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ref_type: "subscription", ref_id: subId, method: "cash", amount_vnd: plan.price_vnd - 10000 }),
-      });
-      await assert.rejects(
-        async () => {
-          await paymentsCreate(sql, req, mgr);
-        },
-        (err: any) => {
-          assert.equal(err.status, 400);
-          assert.equal(err.extra?.field, "amount_vnd");
-          return true;
-        },
-      );
-    });
-  });
 });
 
 describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20, AT-12, TR-47)", () => {
@@ -2135,93 +1917,6 @@ describe("Round 8 unit tests (AT-12, SB-31 / F-20, F-11, F-19)", () => {
     });
   });
 
-  it("SB-31 / F-20: locks subscription price at order time; payment follows locked price after manager price change", async () => {
-    const mgr = toPublic((await db.query("select * from users where role = 'manager' limit 1")).rows[0] as any);
-
-    // Create a plan with initial price 500,000 VND
-    const planId = (
-      await db.query<{ id: string }>(
-        `insert into membership_plans (name, sport_scope, duration_days, court_hours, price_vnd, is_on_sale)
-         values ('Plan Lock Test', 'badminton', 30, 10, 500000, true)
-         returning id`,
-      )
-    ).rows[0].id;
-
-    const testMember = { id: "00000000-0000-0000-0000-000000000231", role: "member", full_name: "Member SB31" } as any;
-    await db.query(
-      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
-       values ($1, '0987000231', 'Member SB31', 'member sb31', 'member', 'active', 'hash')
-       on conflict (id) do nothing`,
-      [testMember.id],
-    );
-    await db.query("delete from subscriptions where user_id = $1", [testMember.id]);
-
-    // Member orders subscription when plan is 500,000
-    let subId = "";
-    await withTx(async (sql) => {
-      const orderReq = new Request("http://localhost/v1/subscriptions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan_id: planId }),
-      });
-      const res = await subscriptionsCreate(sql, orderReq, testMember);
-      assert.equal(res.status, 201);
-      subId = (res.body as any).subscription.id;
-      assert.equal((res.body as any).subscription.price_vnd, 500000);
-    });
-
-    // Manager updates plan price to 600,000 VND
-    await withTx(async (sql) => {
-      const patchReq = new Request(`http://localhost/v1/plans/${planId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ price_vnd: 600000 }),
-      });
-      const patchRes = await plansPatch(sql, planId, patchReq, mgr);
-      assert.equal(patchRes.status, 200);
-      assert.equal((patchRes.body as any).price_vnd, 600000);
-    });
-
-    // Negative case (counter-verification): paying the new plan price (600,000) is rejected
-    await withTx(async (sql) => {
-      const payReqBad = new Request("http://localhost/v1/payments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ref_type: "subscription",
-          ref_id: subId,
-          method: "cash",
-          amount_vnd: 600000,
-        }),
-      });
-      await assert.rejects(
-        async () => paymentsCreate(sql, payReqBad, mgr),
-        (err: any) => {
-          assert.equal(err.status, 400);
-          assert.equal(err.extra?.field, "amount_vnd");
-          assert.equal(err.extra?.expected_vnd, 500000);
-          return true;
-        },
-      );
-    });
-
-    // Positive case: paying the locked order price (500,000) succeeds with 201
-    await withTx(async (sql) => {
-      const payReqGood = new Request("http://localhost/v1/payments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ref_type: "subscription",
-          ref_id: subId,
-          method: "cash",
-          amount_vnd: 500000,
-        }),
-      });
-      const payRes = await paymentsCreate(sql, payReqGood, mgr);
-      assert.equal(payRes.status, 201);
-    });
-  });
-
   it("F-11: password reset via OTP revokes all sessions of the user", async () => {
     const rawPhone = "0987000211";
     const phone = "+84987000211";
@@ -2286,203 +1981,6 @@ describe("Round 8 unit tests (AT-12, SB-31 / F-20, F-11, F-19)", () => {
     });
   });
 
-  it("F-19: unfreeze without freeze_sub audit log does not crash 500, unfreeze after full duration caps at actual days", async () => {
-    const mgr = toPublic((await db.query("select * from users where role = 'manager' limit 1")).rows[0] as any);
-    const plan = (await db.query<{ id: string }>("select id from membership_plans limit 1")).rows[0];
-
-    const testMemberF19b = { id: "00000000-0000-0000-0000-000000000218", role: "member", full_name: "Member F19b" } as any;
-    await db.query(
-      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
-       values ($1, '0987000218', 'Member F19b', 'member f19b', 'member', 'active', 'hash')
-       on conflict (id) do nothing`,
-      [testMemberF19b.id],
-    );
-    await db.query("delete from subscriptions where user_id = $1", [testMemberF19b.id]);
-
-    // 1. Unfreeze when there is NO audit log for freeze_sub (imported or legacy data)
-    const subNoAudit = (
-      await db.query<{ id: string }>(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left, session_left, frozen_days)
-         values ($1, $2, 'badminton', '2026-11-01', '2026-11-30', 'frozen', 10, 10, 7)
-         returning id`,
-        [testMemberF19b.id, plan.id],
-      )
-    ).rows[0].id;
-
-    await withTx(async (sql) => {
-      const res = await subscriptionUnfreeze(sql, subNoAudit, mgr);
-      assert.equal(res.status, 200);
-      assert.equal((res.body as any).status, "active");
-      assert.equal((res.body as any).end_on.slice(0, 10), "2026-11-30");
-    });
-
-    // 2. Unfreeze after entire freeze duration has elapsed
-    await db.query("delete from subscriptions where user_id = $1", [testMemberF19b.id]);
-    const subWithAudit = (
-      await db.query<{ id: string }>(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left, session_left, frozen_days)
-         values ($1, $2, 'badminton', '2026-11-01', '2026-12-07', 'frozen', 10, 10, 7)
-         returning id`,
-        [testMemberF19b.id, plan.id],
-      )
-    ).rows[0].id;
-
-    // Seed audit log for freeze_sub 10 days ago (more than the 7 frozen days)
-    await db.query(
-      `insert into audit_logs (actor_id, action, entity, entity_id, at, before, after)
-       values ($1, 'freeze_sub', 'subscription', $2, now() - interval '10 days',
-               '{"end_on":"2026-11-30"}'::jsonb, '{"days":7,"end":"2026-12-07"}'::jsonb)`,
-      [mgr.id, subWithAudit],
-    );
-
-    await withTx(async (sql) => {
-      const res = await subscriptionUnfreeze(sql, subWithAudit, mgr);
-      assert.equal(res.status, 200);
-      assert.equal((res.body as any).status, "active");
-      // End date is capped at 7 days extension from original end_on: 2026-11-30 + 7 days = 2026-12-07
-      assert.equal((res.body as any).end_on.slice(0, 10), "2026-12-07");
-      // The whole freeze was used, so the yearly allowance stays charged.
-      assert.equal((res.body as any).frozen_days, 7);
-    });
-
-    // 3. Unfreeze one day into a 30-day freeze: the 29 unused days go back
-    await db.query("delete from subscriptions where user_id = $1", [testMemberF19b.id]);
-    const subEarly = (
-      await db.query<{ id: string }>(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left, session_left, frozen_days)
-         values ($1, $2, 'badminton', '2026-11-01', '2026-12-30', 'frozen', 10, 10, 30)
-         returning id`,
-        [testMemberF19b.id, plan.id],
-      )
-    ).rows[0].id;
-    const { addDays, ictDateString } = await import("./time.ts");
-    const yesterday = addDays(ictDateString(), -1);
-    await db.query(
-      `insert into audit_logs (actor_id, action, entity, entity_id, at, before, after)
-       values ($1, 'freeze_sub', 'subscription', $2, $3::timestamptz,
-               '{"end_on":"2026-11-30"}'::jsonb, '{"days":30}'::jsonb)`,
-      [mgr.id, subEarly, `${yesterday}T12:00:00+07:00`],
-    );
-    await withTx(async (sql) => {
-      const res = await subscriptionUnfreeze(sql, subEarly, mgr);
-      assert.equal(res.status, 200);
-      assert.equal((res.body as any).end_on.slice(0, 10), "2026-12-01");
-      assert.equal((res.body as any).frozen_days, 1);
-    });
-  });
-});
-
-describe("Round 9 unit tests (SB-31 online flow price lock)", () => {
-  after(() => {
-    setOverridePaymentLinkCreator(null);
-  });
-
-  it("SB-31 online: creates online payment link with locked price minus promo after manager price change", async () => {
-    const mgr = toPublic((await db.query("select * from users where role = 'manager' limit 1")).rows[0] as any);
-    const rec = toPublic((await db.query("select * from users where role = 'receptionist' limit 1")).rows[0] as any);
-
-    // 1. Create a member
-    const testMemberOnline = { id: "00000000-0000-0000-0000-000000000301", role: "member", full_name: "Member Online" } as any;
-    await db.query(
-      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
-       values ($1, '0987000301', 'Member Online', 'member online', 'member', 'active', 'hash')
-       on conflict (id) do nothing`,
-      [testMemberOnline.id],
-    );
-    await db.query("delete from subscriptions where user_id = $1", [testMemberOnline.id]);
-
-    // 2. Create a test plan with initial price 500,000 VND
-    const planId = (
-      await db.query<{ id: string }>(
-        `insert into membership_plans (name, sport_scope, duration_days, price_vnd, court_hours, is_on_sale)
-         values ('Plan Online SB31', 'badminton', 30, 500000, 10, true)
-         returning id`,
-      )
-    ).rows[0].id;
-
-    // 3. Create a promo code with 50,000 VND discount
-    await db.query(
-      `insert into promotions (code, name, kind, value, max_discount_vnd, min_order_vnd, starts_at, ends_at, applies_to, stackable, status)
-       values ('PROMOONLINE', 'Promo Online', 'amount', 50000, 50000, 0, now() - interval '1 day', now() + interval '30 days', ARRAY['plan'], false, 'active')
-       on conflict do nothing`,
-    );
-
-    // 4. Member orders the plan with promo code
-    let subId = "";
-    await withTx(async (sql) => {
-      const orderReq = new Request("http://localhost/v1/subscriptions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan_id: planId, promo_code: "PROMOONLINE" }),
-      });
-      const orderRes = await subscriptionsCreate(sql, orderReq, testMemberOnline);
-      assert.equal(orderRes.status, 201);
-      subId = (orderRes.body as any).subscription.id;
-      // Locked price should be 500,000, discount 50,000
-      assert.equal((orderRes.body as any).subscription.price_vnd, 500000);
-      assert.equal((orderRes.body as any).subscription.promo_discount_vnd, 50000);
-    });
-
-    // 5. Manager changes the plan price to 700,000 VND
-    await withTx(async (sql) => {
-      const patchReq = new Request(`http://localhost/v1/plans/${planId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ price_vnd: 700000 }),
-      });
-      const patchRes = await plansPatch(sql, planId, patchReq, mgr);
-      assert.equal(patchRes.status, 200);
-    });
-
-    // 6. Set up mock payment link creator to capture args
-    let capturedArgs: any = null;
-    setOverridePaymentLinkCreator(async (args) => {
-      capturedArgs = args;
-      return {
-        orderCode: args.orderCode,
-        checkoutUrl: "https://pay.mock/checkout/123",
-        qrCode: "data:image/png;base64,mock",
-        paymentLinkId: "link_mock_123",
-        expiredAt: Math.floor(Date.now() / 1000) + 900,
-      };
-    });
-
-    try {
-      // 7. Receptionist creates online payment link for the pending subscription
-      await withTx(async (sql) => {
-        const linkReq = new Request("http://localhost/v1/payments/online", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ref_type: "subscription", ref_id: subId }),
-        });
-        const linkRes = await onlineCreate(sql, linkReq, rec);
-        assert.equal(linkRes.status, 201);
-        // Expected amount = locked price (500,000) - discount (50,000) = 450,000
-        assert.equal((linkRes.body as any).amount_vnd, 450000);
-        assert.equal(capturedArgs?.amountVnd, 450000);
-        // Counter-verification: must NOT be 650,000 (700,000 - 50,000)
-        assert.notEqual(capturedArgs?.amountVnd, 650000);
-      });
-
-      // 8. Counter-verification: if subscription.price_vnd was NULL, it falls back to current plan price
-      await db.query("delete from payments where ref_id = $1", [subId]);
-      await db.query("update subscriptions set price_vnd = null where id = $1", [subId]);
-      await withTx(async (sql) => {
-        const linkReq = new Request("http://localhost/v1/payments/online", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ref_type: "subscription", ref_id: subId }),
-        });
-        const linkRes = await onlineCreate(sql, linkReq, rec);
-        assert.equal(linkRes.status, 201);
-        // Fallback to 700,000 - 50,000 = 650,000
-        assert.equal((linkRes.body as any).amount_vnd, 650000);
-        assert.equal(capturedArgs?.amountVnd, 650000);
-      });
-    } finally {
-      setOverridePaymentLinkCreator(null);
-    }
-  });
 });
 
 describe("Round 10: Two-way Chat unit tests", () => {
@@ -4887,5 +4385,72 @@ describe("Remove plans: courts", () => {
       [member.id],
     )).rows[0];
     assert.equal(Number(sub.court_hours_left), 0);
+  });
+});
+
+describe("Remove plans: sales", () => {
+  const receptionist = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist", full_name: "Lễ tân RP-sales" } as any;
+
+  // RP-no-sub-payment: a plan order can no longer be paid at the desk.
+  it("RP-no-sub-payment: paymentsCreate refuses ref_type subscription with 422 on ref_type", async () => {
+    await assert.rejects(
+      async () =>
+        withTx(async (sql) =>
+          paymentsCreate(
+            sql,
+            new Request("http://localhost/v1/payments", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                ref_type: "subscription",
+                ref_id: "50000000-0000-0000-0000-000000000299",
+                method: "cash",
+                amount_vnd: 500000,
+              }),
+            }),
+            receptionist,
+          ),
+        ),
+      (err: any) => {
+        assert.equal(err.status, 422);
+        assert.equal(err.extra?.field, "ref_type");
+        return true;
+      },
+    );
+  });
+
+  // RP-no-plan-route: the plan sale endpoint no longer exists.
+  it("RP-no-plan-route: POST /v1/subscriptions is a 404", async () => {
+    const res = await handleApi(
+      new Request("http://localhost/v1/subscriptions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plan_id: "20000000-0000-0000-0000-000000000001" }),
+      }),
+    );
+    assert.equal(res.status, 404);
+  });
+
+  // RP-old-link: a payOS link raised for a plan before plans went is settled as ignored.
+  it("RP-old-link: a paid link for an old plan order posts nothing and activates nothing", async () => {
+    const { settleOnline } = await import("./handlers/online.ts");
+    const pay = {
+      id: "40000000-0000-0000-0000-000000000299",
+      code: "PAY-RP-OLD-LINK",
+      user_id: "00000000-0000-0000-0000-000000000004",
+      amount_vnd: 500000,
+      status: "pending",
+      ref_type: "subscription",
+      ref_id: "50000000-0000-0000-0000-000000000299",
+      provider_order_code: 987654321,
+    } as any;
+    const res = await withTx(async (sql) =>
+      settleOnline(sql, pay, { amountPaid: 500000, transactionId: "TX-RP-OLD", providerStatus: "PAID" }),
+    );
+    assert.equal(res.posted, false);
+    const posted = (
+      await db.query<{ n: number }>("select count(*)::int as n from payments where id = $1 and status = 'posted'", [pay.id])
+    ).rows[0];
+    assert.equal(posted.n, 0);
   });
 });
