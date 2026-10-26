@@ -4488,3 +4488,78 @@ describe("Shared row contracts match the tables", () => {
     }
   });
 });
+
+let scClassSeq = 0;
+
+/** An open badminton class with a unique weekly slot, so classes never clash. */
+async function seedClass(opts: { price: number | null; capacity: number }): Promise<string> {
+  scClassSeq += 1;
+  const days = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
+  const day = days[scClassSeq % 7];
+  const hour = 6 + (Math.floor(scClassSeq / 7) % 16);
+  const rows = await db.query<{ id: string }>(
+    `insert into classes (sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+     values ('badminton', $1, '00000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001',
+             $2, current_date + 1, current_date + 60, 60, $3, 'open', 0, $4)
+     returning id`,
+    [`sc-level-${scClassSeq}`, `FREQ=WEEKLY;BYDAY=${day};BYHOUR=${hour}`, opts.capacity, opts.price],
+  );
+  return rows.rows[0].id;
+}
+
+/** A member user with a fixed id 0000...0500 + n, shaped like a PublicUser. */
+async function seedMember(n: number) {
+  const id = `00000000-0000-0000-0000-0000000005${String(n).padStart(2, "0")}`;
+  const phone = `+8490000${String(500 + n)}`;
+  const name = `Sell Member ${n}`;
+  await db.query(
+    `insert into users (id, phone, full_name, name_normalized, role, password_hash)
+     values ($1, $2, $3, $4, 'member', 'hash')
+     on conflict (id) do nothing`,
+    [id, phone, name, name.toLowerCase()],
+  );
+  return { id, phone, full_name: name, role: "member" } as any;
+}
+
+describe("Sell classes: schema", () => {
+  it("SC-schema-hold: enrollment_hold writes a priced, timed hold", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 1 });
+    const m1 = await seedMember(1);
+    const r = await db.query<{ id: string }>("select enrollment_hold($1,$2,15,300000) as id", [classId, m1.id]);
+    const row = (
+      await db.query<{ status: string; price_vnd: number; ok: boolean }>(
+        `select status, price_vnd,
+                hold_until between now() + interval '14 minutes' and now() + interval '16 minutes' as ok
+           from enrollments where id = $1`,
+        [r.rows[0].id],
+      )
+    ).rows[0];
+    assert.equal(row.status, "hold");
+    assert.equal(row.price_vnd, 300000);
+    assert.equal(row.ok, true);
+    const cnt = (await db.query<{ enrolled_count: number }>("select enrolled_count from classes where id = $1", [classId])).rows[0];
+    assert.equal(cnt.enrolled_count, 1);
+  });
+
+  it("SC-schema-errors: duplicate hold, full class and the default hold setting", async () => {
+    const classId = await seedClass({ price: 300000, capacity: 1 });
+    const m1 = await seedMember(1);
+    const m2 = await seedMember(2);
+    await db.query("select enrollment_hold($1,$2,15,300000)", [classId, m1.id]);
+    await assert.rejects(
+      () => db.query("select enrollment_hold($1,$2,15,300000)", [classId, m1.id]),
+      /ALREADY_ENROLLED/,
+    );
+    await assert.rejects(
+      () => db.query("select enrollment_hold($1,$2,15,300000)", [classId, m2.id]),
+      /CLASS_FULL/,
+    );
+    await assert.rejects(
+      () => db.query("select enrollment_waitlist($1,$2)", [classId, m1.id]),
+      /ALREADY_ENROLLED/,
+    );
+    const { getSettings } = await import("./helpers.ts");
+    const s = await withTx((sql) => getSettings(sql));
+    assert.equal(s.class_hold_minutes, 15);
+  });
+});

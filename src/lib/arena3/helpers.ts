@@ -42,6 +42,8 @@ export type Settings = {
   series_discount_pct: number;
   loyalty_earn_vnd: number;
   loyalty_redeem_vnd: number;
+  /** How long a seat is held while a member pays for a class. */
+  class_hold_minutes: number;
 };
 
 export async function getSettings(sql: Sql): Promise<Settings> {
@@ -55,7 +57,8 @@ export async function getSettings(sql: Sql): Promise<Settings> {
             self_checkin_enabled, gate_dedup_minutes, at_risk_idle_days,
             tax_code, legal_name, address,
             deposit_pct, deposit_peak_only, cancel_tiers, series_min_weeks, series_max_weeks,
-            series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd
+            series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd,
+            class_hold_minutes
        from center_settings where id = 1`,
   );
   if (!row) throw err.validation("center_settings is missing.");
