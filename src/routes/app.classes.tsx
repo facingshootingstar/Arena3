@@ -43,12 +43,11 @@ type Enr = {
   next_session_at?: string | null;
   leave_until?: string | null;
 };
-type Access = { covered: boolean; session_left: number | null; code?: string; reason?: string };
 type Offer = { id: string; class_id: string; expires_at: string; sport: string; level: string };
 
 function Page() {
   const classesRead = useRead<{ items: Cl[] }>("/classes");
-  const meRead = useRead<{ enrollments?: Enr[]; offers?: Offer[]; class_access?: Record<string, Access> }>("/me");
+  const meRead = useRead<{ enrollments?: Enr[]; offers?: Offer[] }>("/me");
   // The list is only shown once the member's own enrolments are known too: without them every class would read "Enrol".
   const items = classesRead.data && meRead.data ? classesRead.data.items : null;
   const mine = meRead.data?.enrollments ?? [];
@@ -88,7 +87,6 @@ function Page() {
   const shown = matching.slice(0, limit);
   useEffect(() => setLimit(6), [sport, coach, day, part]);
   const byClass = Object.fromEntries(mine.map((e) => [e.class_id, e]));
-  const access = meRead.data?.class_access ?? {};
   // Leaving a class (or the waitlist) is asked twice: one tap used to give the seat away.
   const [leaving, setLeaving] = useState<{ enr: Enr; cls: Cl } | null>(null);
   const [leaveBusy, setLeaveBusy] = useState(false);
@@ -310,24 +308,8 @@ function Page() {
                     </div>
                   ) : (
                     (() => {
-                      // Said before the tap, not after (C-2, C-3): whether the member can enrol, and what
-                      // it costs them. The server applies the same rules (BR-19, BR-20).
-                      const a = access[c.sport];
-                      if (!a?.covered) {
-                        return (
-                          <div className="grid gap-2">
-                            <p className="text-sm text-muted">{a?.reason ? tServer(a.reason) : t("Needs a {sport} plan", { sport: sportLabel(c.sport).toLowerCase() })}</p>
-                            <ButtonLink to="/app/plans" variant="outline" className="w-full">
-                              {t("See plans")}
-                            </ButtonLink>
-                          </div>
-                        );
-                      }
                       return (
                         <div className="grid gap-2">
-                          <p className="text-xs text-muted">
-                            {t("{n} sessions left · 1 session is used each time you attend (Present, Late or no-show). Excused absences are free.", { n: a.session_left ?? 0 })}
-                          </p>
                           <Button
                             className="w-full"
                             variant={full ? "outline" : "primary"}
