@@ -11,6 +11,7 @@ import { GLBackground, Magnet, SplitText, SpotlightCard } from "@/components/fx"
 import { ApiClientError, apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
 import { LangSwitch } from "@/components/lang-switch";
 import { t, tServer } from "@/lib/i18n";
+import { ageYears } from "@/lib/arena3/time";
 import { LegalBody } from "@/components/legal-page";
 import { PRIVACY, TERMS } from "@/lib/legal";
 
@@ -51,6 +52,9 @@ function ConsentLabel({ onOpen }: { onOpen: (which: "terms" | "privacy") => void
   );
 }
 
+/** The default `minor_age` setting; the sign-up page has no session to read the real one with. */
+const MINOR_AGE = 18;
+
 /** Puts a styled node where a translated sentence has its single placeholder. */
 const SLOT = "";
 const slot = (text: string, node: ReactNode) => {
@@ -87,7 +91,7 @@ function Register() {
     dob: "",
     pii_consent: false,
   });
-  /** Opens when the date of birth makes this a minor — the server decides the age, so the form asks only then. */
+  /** The server asked for a guardian (its minor age is a setting and may be above 18). Cleared when the birthday changes. */
   const [askGuardian, setAskGuardian] = useState(false);
   const [guardian, setGuardian] = useState({ name: "", phone: "" });
   /** The masked address the code went to, e.g. `ng****@example.com`. */
@@ -104,6 +108,9 @@ function Register() {
 
   // Only complain once there is something to complain about — a red line under
   // an empty box the moment the page loads is noise, not help.
+  // The guardian step follows the birthday as it is picked, so going back to an adult date closes it
+  // at once. 18 is the default minor age; a centre that set it higher still gets asked by the server.
+  const needGuardian = askGuardian || (form.dob !== "" && ageYears(form.dob) < MINOR_AGE);
   const mismatch = confirm.length > 0 && confirm !== form.password;
   const tooWeak =
     form.password.length > 0 && !(form.password.length >= 8 && /[A-Za-z]/.test(form.password) && /\d/.test(form.password));
@@ -119,7 +126,7 @@ function Register() {
     try {
       const res = await apiPost<{ otp?: string; sent_to?: string | null }>(
         "/auth/register",
-        askGuardian ? { ...form, guardian_name: guardian.name, guardian_phone: guardian.phone } : form,
+        needGuardian ? { ...form, guardian_name: guardian.name, guardian_phone: guardian.phone } : form,
       );
       setShown(res.otp ?? "");
       setSentTo(res.sent_to ?? null);
@@ -247,20 +254,20 @@ function Register() {
                   value={form.dob}
                   onChange={(v) => {
                     setForm({ ...form, dob: v });
-                    // A new birthday may make this an adult: close the guardian step and let the
-                    // server ask again, or its required inputs block the form before it is sent.
+                    // The server's request was about the old birthday; the new one decides by itself.
                     setAskGuardian(false);
                     if (error?.field === "guardian_name") setError(null);
                   }}
                   aria-label={t("Date of birth")}
                 />
               </Field>
-              {askGuardian ? (
+              {needGuardian ? (
                 <>
                   <Field label={t("Guardian name")} hint={error?.field === "guardian_name" ? error.message : undefined}>
                     <Input
                       required
-                      autoFocus
+                      // Only when the server sent the person here; on a date pick, focus stays on the date.
+                      autoFocus={askGuardian}
                       autoComplete="off"
                       value={guardian.name}
                       onChange={(e) => setGuardian({ ...guardian, name: e.target.value })}
