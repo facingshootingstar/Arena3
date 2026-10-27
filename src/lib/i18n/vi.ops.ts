@@ -188,10 +188,6 @@ export const ops: Record<string, string> = {
   "Balance collected": "Đã thu nốt phần còn lại",
   "Collect balance (cash)": "Thu nốt (tiền mặt)",
   "Deposit (of {total})": "Tiền cọc, trên tổng {total}",
-  // ── membership pass card
-  "Membership pass": "Thẻ hội viên",
-  "Includes": "Gồm có",
-  "Valid through": "Có hiệu lực đến",
   // ── payment kinds, audit log
   "Day pass": "Vé ngày",
   "Equipment hire": "Thuê dụng cụ",
