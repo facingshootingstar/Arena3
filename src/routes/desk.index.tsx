@@ -1,9 +1,10 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Dumbbell, Repeat, UserMinus, Wrench } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SectionTitle } from "@/components/section";
 import { Shell, money, when } from "@/components/shell";
+import { cn } from "@/lib/cn";
 import { PageHero } from "@/components/page-hero";
 import { SportBadge } from "@/components/sports-ui";
 import {
@@ -156,15 +157,11 @@ function Page() {
 
   return (
     <Shell role="receptionist">
+      {/* The shift's state, cash and waiting payments are the bar below; they are not repeated here. */}
       <PageHero
-        slot="banner.gate"
+        variant="compact"
         title={t("Front desk")}
         subtitle={t("Find a member, sell a plan, take payment.")}
-        stats={[
-          { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
-          { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
-          { label: t("Waiting payments"), value: waiting },
-        ]}
       />
       {/* Kept well under the text: this console is stared at all shift, so the
           field is a texture, not a feature. */}
@@ -172,13 +169,12 @@ function Page() {
         variant="dotgrid"
         position="fixed"
         className="-z-[1]"
-        color="#1e4fd8"
         gap={32}
         dot={1.5}
         radius={130}
         opacity={0.22}
       />
-      <Reveal className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border)]" from="down">
+      <Reveal className="mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] bg-surface p-3 shadow-[var(--shadow-border),var(--shadow-sm)]" from="down">
         {shiftRead.error ? (
           // Not "no till is open": the screen does not know, and saying so would send the desk to open a second one.
           <div className="w-full">
@@ -227,15 +223,15 @@ function Page() {
             {t("Close shift")}
           </Button>
         ) : null}
-        <ButtonLink to="/desk/payments" variant="outline" className="ml-auto">
+        <ButtonLink to="/desk/payments" variant="gray" className="ml-auto">
           {t("Payments")}
           {waiting ? (
-            <span className="rounded-full bg-hold px-2 py-0.5 text-2xs font-semibold tabular-nums text-bg">
+            <span className="rounded-full bg-warning-tint px-2 py-0.5 text-caption font-semibold tabular-nums text-hold-text">
               {waiting}
             </span>
           ) : null}
         </ButtonLink>
-        <ButtonLink to="/desk/courts" variant="espresso">
+        <ButtonLink to="/desk/courts" variant="tinted">
           {t("Court map")}
         </ButtonLink>
       </Reveal>
@@ -245,12 +241,17 @@ function Page() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="min-w-0">
       <Field label={t("Find a member")} tone="muted">
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t("Name, phone or member code")}
-          autoFocus={hasKeyboard()}
-        />
+        {/* The field a shift is run from: large, lifted and first, like a launcher's search. */}
+        <span className="relative block">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-subtle" strokeWidth={1.9} />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t("Name, phone or member code")}
+            autoFocus={hasKeyboard()}
+            className="h-14 rounded-[var(--radius-lg)] bg-surface pl-12 text-body shadow-[var(--shadow-md)]"
+          />
+        </span>
       </Field>
       <div className="mt-3 grid gap-2">
         {q.trim().length > 0 && q.trim().length < 3 ? (
@@ -502,21 +503,6 @@ function Page() {
         <aside className="grid content-start gap-6">
           <DeskNow />
       {/* The tab row only has room for the busiest pages, and on a tablet or phone the rest sit behind "More". */}
-      <nav aria-label={t("Quick links")} className="grid grid-cols-2 gap-2">
-        {(
-          [
-            { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },
-            { to: "/desk/gear" as const, label: t("Gear"), Icon: Dumbbell },
-            { to: "/desk/maintenance" as const, label: t("Maintenance"), Icon: Wrench },
-            { to: "/desk/at-risk" as const, label: t("At risk"), Icon: UserMinus },
-          ] as const
-        ).map((a) => (
-          <ButtonLink key={a.to} to={a.to} variant="outline" size="sm" className="justify-start">
-            <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-            {a.label}
-          </ButtonLink>
-        ))}
-      </nav>
       {ticketsRead.error ? (
         <div>
           <SectionTitle text={t("Requests from the app")} className="font-display text-xl" />
@@ -690,18 +676,21 @@ function DeskNow() {
     <Card className="relative z-[2] p-4">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="font-display text-xl">{t("Right now")}</h2>
-        <Link to="/desk/courts" className="hit inline-flex items-center gap-1 text-sm font-medium text-accent-2 hover:underline">
+        <Link to="/desk/courts" className="hit inline-flex items-center gap-1 text-subheadline font-medium text-accent-text hover:underline">
           {t("Court map")}
           <ArrowRight aria-hidden className="size-3.5" />
         </Link>
       </div>
-      <dl className="mt-3 grid grid-cols-3 gap-2">
+      {playing.length === 0 && soon.length === 0 && freeNow === 0 ? (
+        <p className="mt-3 text-subheadline text-muted">{t("Nobody is on court, nothing starts within the hour and no court is free.")}</p>
+      ) : null}
+      <dl className={cn("mt-3 grid grid-cols-3 gap-2", playing.length === 0 && soon.length === 0 && freeNow === 0 && "hidden")}>
         {[
           { label: t("On court"), value: playing.length },
           { label: t("Arriving within the hour"), value: soon.length },
           { label: t("Courts free this hour"), value: freeNow },
         ].map((x) => (
-          <div key={x.label} className="rounded-[var(--radius-md)] bg-wood/70 px-3 py-2.5">
+          <div key={x.label} className="rounded-[var(--radius-md)] bg-fill px-3 py-2.5">
             <dd className="figure text-2xl">
               <CountUp to={x.value} duration={0.9} />
             </dd>

@@ -463,4 +463,9 @@ export const redesign: Record<string, string> = {
   "More actions": "Thao tác khác",
   "Expand menu": "Mở rộng menu",
   "Collapse menu": "Thu gọn menu",
+  "Export": "Xuất",
+  "Nobody is on court, nothing starts within the hour and no court is free.": "Chưa có ai trên sân, chưa có lượt nào bắt đầu trong giờ tới và không còn sân trống.",
+  "Key": "Chú giải",
+  "Options": "Tùy chọn",
+  "View": "Chế độ xem",
 };

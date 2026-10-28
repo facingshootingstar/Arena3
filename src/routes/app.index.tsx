@@ -9,7 +9,7 @@ import { NotificationList, type Notification } from "@/components/notifications"
 import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
 import { Shell, hhmm } from "@/components/shell";
-import { Button, ButtonLink, Card, EmptyState, LoadError, Skeleton, StatusBadge } from "@/components/ui";
+import { Button, ButtonLink, Card, LoadError, Skeleton, StatusBadge } from "@/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { GlareHover, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
@@ -213,17 +213,19 @@ function Page() {
                 />
               </GlareHover>
             ) : (
-              <div className="rounded-[var(--radius-xl)] bg-pass p-6 text-pass-fg">
-                <div className="flex items-center justify-between">
-                  <span className="inline-block rounded-[var(--radius-sm)] border border-pass-fg/20 bg-volt/15 px-2.5 py-1 text-xs font-bold text-volt">
-                    {t("Membership pass")}
-                  </span>
-                </div>
-                <div className="mt-4">
-                  <EmptyState title={t("No active plan")} hint={t("Buy a plan to enrol in classes and book courts.")}>
-                    <ButtonLink to="/app/plans" className="bg-volt text-night font-semibold hover:bg-volt/90">{t("Browse plans")}</ButtonLink>
-                  </EmptyState>
-                </div>
+              // One card, not a card around an empty state: what the pass is, why there is none, the one
+              // thing to do. The action is the app's action colour, the same as everywhere else.
+              <div className="rounded-[var(--radius-xl)] bg-pass p-6 text-pass-fg shadow-[var(--shadow-md)]">
+                <span className="inline-block rounded-[var(--radius-pill)] bg-volt/15 px-2.5 py-1 text-caption font-semibold text-volt">
+                  {t("Membership pass")}
+                </span>
+                <h2 className="mt-4 font-display text-title-2">{t("No active plan")}</h2>
+                <p className="mt-1 max-w-xs text-subheadline text-pass-muted">
+                  {t("Buy a plan to enrol in classes and book courts.")}
+                </p>
+                <ButtonLink to="/app/plans" className="mt-5">
+                  {t("Browse plans")}
+                </ButtonLink>
               </div>
             )}
           </Reveal>

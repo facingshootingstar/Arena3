@@ -95,7 +95,7 @@ export function Button({
   disabled,
   children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & ButtonLook & { loading?: boolean }) {
+}: ComponentProps<"button"> & ButtonLook & { loading?: boolean }) {
   return (
     <button
       className={cn(buttonClass({ variant, size }), loading && "disabled:opacity-100 disabled:saturate-100", className)}

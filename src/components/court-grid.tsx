@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, CircleHelp, Plus } from "lucide-react";
 import { availLabel, type AvailMap } from "@/components/availability-calendar";
 import { cn } from "@/lib/cn";
 import { locale, t } from "@/lib/i18n";
@@ -77,13 +77,15 @@ export type SlotState =
  */
 const STATE_CLASS: Record<SlotState, string> = {
   free: "bg-surface text-accent-text ring-1 ring-inset ring-accent/45",
-  hold: "stripes border border-dashed border-hold bg-hold/15 text-hold",
-  booked: "bg-accent/15 text-accent-2",
-  in_use: "bg-accent-strong text-accent-fg",
+  hold: "stripes border border-dashed border-hold bg-warning-tint text-hold-text",
+  // Sold and in use are states, not actions, so they are painted in the success green and leave the
+  // accent outline to the one thing that can be pressed: a free hour.
+  booked: "bg-success-tint text-success",
+  in_use: "bg-success text-accent-fg",
   class: "bg-slot-class text-on-media",
-  maintenance: "stripes bg-wood text-muted",
+  maintenance: "stripes bg-fill-strong text-muted",
   closed: "stripes bg-line-strong/45 text-subtle",
-  past: "bg-wood/50 text-subtle/70",
+  past: "bg-fill text-subtle/70",
 };
 
 /**
@@ -226,10 +228,10 @@ export function DateStrip({
             type="button"
             onClick={() => onChange(it.iso)}
             className={cn(
-              "flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color,transform,box-shadow] duration-200 active:scale-95",
+              "press flex min-h-16 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] px-3 transition-[background-color,color,transform,box-shadow] duration-200 ease-[var(--ease-spring)]",
               on
-                ? "bg-accent text-accent-fg shadow-[0_8px_20px_-12px_rgba(30,79,216,0.9)]"
-                : "bg-surface text-fg shadow-[var(--shadow-border)] hover:-translate-y-0.5 hover:bg-wood",
+                ? "bg-accent text-accent-fg shadow-[var(--shadow-accent-lg)]"
+                : "bg-surface text-fg shadow-[var(--shadow-border)] hover:bg-fill-strong",
             )}
           >
             <span className="text-2xs font-medium opacity-90 dark:opacity-100">
@@ -252,18 +254,37 @@ export function DateStrip({
  * schedule reads in one line instead of two.
  */
 export function CourtLegend({ compact = false }: { compact?: boolean }) {
+  // On a phone eight labels would take two lines above the thing the screen is for, so the key
+  // folds behind a small "Key" button there; from a tablet up it is one line, always on.
+  const [open, setOpen] = useState(false);
   const order: SlotState[] = compact
     ? ["free", "hold", "booked", "in_use", "class", "past"]
     : ["free", "hold", "booked", "in_use", "class", "maintenance", "closed", "past"];
   return (
-    <ul className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-2xs text-muted">
-      {order.map((s) => (
-        <li key={s} className="inline-flex items-center gap-1.5">
-          <span className={cn("size-2.5 rounded-[2px]", STATE_CLASS[s])} />
-          {slotStateLabel(s)}
-        </li>
-      ))}
-    </ul>
+    <div className="min-w-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="hit inline-flex items-center gap-1.5 text-footnote font-medium text-muted sm:hidden"
+      >
+        <CircleHelp aria-hidden="true" className="size-4" strokeWidth={1.9} />
+        {t("Key")}
+      </button>
+      <ul
+        className={cn(
+          "min-w-0 flex-wrap gap-x-3 gap-y-1 text-caption text-muted sm:mt-0 sm:flex",
+          open ? "mt-1 flex" : "hidden",
+        )}
+      >
+        {order.map((s) => (
+          <li key={s} className="inline-flex items-center gap-1.5">
+            <span aria-hidden="true" className={cn("size-3 rounded-[var(--radius-xs)]", STATE_CLASS[s])} />
+            {slotStateLabel(s)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

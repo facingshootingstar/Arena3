@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Flame, Gauge, LayoutGrid, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, ChevronDown, Download, Flame, Gauge, LayoutGrid, TrendingUp, UserPlus, Users } from "lucide-react";
 import { CardTitle, SectionTitle } from "@/components/section";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -50,6 +50,105 @@ export function ExportButtons({
       <Button variant="outline" size="sm" disabled={disabled || busy !== null} onClick={() => void go("pdf")}>
         {busy === "pdf" ? t("Preparing…") : t("Export PDF")}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * The same exports as ExportButtons, behind one "Export" button: three buttons of equal weight
+ * beside a period picker read as three more filters. `items` adds formats the screen produces
+ * itself (a CSV of what it is showing).
+ */
+export function ExportMenu({
+  kind,
+  from,
+  to,
+  extra = {},
+  disabled = false,
+  items = [],
+}: {
+  kind: Kind;
+  from: string;
+  to: string;
+  extra?: Record<string, string | null | undefined>;
+  disabled?: boolean;
+  items?: { label: string; onClick: () => void; disabled?: boolean }[];
+}) {
+  const [busy, setBusy] = useState<"xlsx" | "pdf" | null>(null);
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  async function go(format: "xlsx" | "pdf") {
+    setOpen(false);
+    setBusy(format);
+    try {
+      const q = new URLSearchParams({ from, to, format });
+      for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
+      const name = await downloadReport(`/reports/${kind}/export?${q}`, `lelong-${kind}-${from}_${to}.${format}`);
+      toast.success(t("Saved {name}", { name }));
+    } catch (e) {
+      toast.error(tServer((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+  const row =
+    "flex min-h-11 w-full items-center rounded-[var(--radius-xs)] px-3 text-left text-subheadline text-fg transition-colors hover:bg-fill-strong disabled:opacity-45 sm:min-h-9";
+  return (
+    <div ref={box} className="relative">
+      <Button
+        variant="gray"
+        size="sm"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        loading={busy !== null}
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {busy === null ? <Download aria-hidden="true" className="size-4" strokeWidth={1.9} /> : null}
+        {busy !== null ? t("Preparing…") : t("Export")}
+        <ChevronDown aria-hidden="true" className={"size-3.5 transition-transform duration-200 " + (open ? "rotate-180" : "")} />
+      </Button>
+      {open ? (
+        <div
+          role="menu"
+          className="material-thick absolute right-0 top-full z-30 mt-1.5 w-48 rounded-[var(--radius-md)] border border-line p-1 shadow-[var(--shadow-lg)]"
+        >
+          <button type="button" role="menuitem" className={row} onClick={() => void go("xlsx")}>
+            {t("Export Excel")}
+          </button>
+          <button type="button" role="menuitem" className={row} onClick={() => void go("pdf")}>
+            {t("Export PDF")}
+          </button>
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              className={row}
+              disabled={it.disabled}
+              onClick={() => {
+                setOpen(false);
+                it.onClick();
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
