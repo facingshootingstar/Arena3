@@ -651,7 +651,7 @@ function Sidebar({
         {groups.map((g, gi) => (
           <div key={g.group ?? gi} className={cn(gi > 0 && (collapsed ? "mt-2 border-t border-separator pt-2" : "mt-1"))}>
             {g.group && !collapsed ? (
-              <p className="px-3 pb-1 pt-4 text-caption font-semibold text-subtle">{t(g.group)}</p>
+              <p className="px-3 pb-1 pt-3 text-caption font-semibold text-subtle">{t(g.group)}</p>
             ) : null}
             <ul className="grid gap-0.5">
               {g.items.map((it) => {
@@ -664,7 +664,7 @@ function Sidebar({
                       activeOptions={{ exact: true }}
                       title={collapsed ? t(it.label) : undefined}
                       className={cn(
-                        "press relative flex h-10 items-center gap-3 rounded-[var(--radius-md)] px-3 text-subheadline font-medium transition-colors duration-150",
+                        "press relative flex h-9 items-center gap-3 rounded-[var(--radius-md)] px-3 text-subheadline font-medium transition-colors duration-150",
                         collapsed && "justify-center",
                         active ? "text-accent-text" : "text-muted hover:bg-fill-strong hover:text-fg",
                       )}

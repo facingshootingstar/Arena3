@@ -112,3 +112,24 @@ Rules:
 ## Copy
 
 No em or en dashes in visible text (use a comma, full stop or colon; ranges use `-`). No internal codes (UUID, table names, F4/F5). No benefit of zero. New strings: English literal in `t("...")`, Vietnamese in `src/lib/i18n/vi.redesign.ts`, then `node scripts/i18n-check.mjs`.
+
+## Shell
+
+| Role | Desktop (lg and up) | Phone |
+| --- | --- | --- |
+| Manager, front desk, coach | Sidebar (`material-thick`, foldable to icons, remembered in `localStorage`), a thin header with the window title, chat, notifications and the account menu | Floating tab bar (`material-regular`, at most five) and a sheet for the rest |
+| Member | Row of tabs with a "More" menu | Same tab bar |
+
+The sidebar lists Sales, Operations and System in that order and never lists Messages (the header has them). The language switch lives in the account menu. The page's own Large Title scrolls away and the bar takes over with the same words. Toasts sit at the bottom, above the tab bar on a phone, so they never cover a page title.
+
+## Components added or changed in this pass
+
+`PageHero` (`variant="compact"` for working screens, photo variant where a banner earns it), `StatStrip` and `Stat` (a zero is "Nothing yet"), `ShiftStatus`, `ExportMenu`, `Popover`, `ListGroup` and `ListRow` (inset grouped list), `Button` (`primary`, `tinted`, `gray`, `plain`, `destructive`, `loading`), `Badge` and `StatusBadge` (a glyph per tone), `Seg` (a raised thumb on a gray track, on a spring), `FilterChip`, `Modal` (a draggable bottom sheet on a phone, a dialog elsewhere), `RowActions`, `EmptyState`, `CourtLegend` (folds behind a "Key" button on a phone).
+
+## Known exceptions to "no literal colours"
+
+WebGL and canvas colours (`GLBackground` props in the landing hero, login and register), QR code colours (the library takes literals, and a QR must stay black on white in both themes), the `theme-color` meta tag, and `fx.tsx`, `gl.tsx`, `illustrations.tsx`.
+
+## Checks that guard this file
+
+`node scripts/tests/apple-contrast.mjs` (every text and fill pair at 4.5:1 in both themes), `node scripts/tests/apple-motion-check.mjs` (nothing stuck hidden at 10x CPU slowdown, nothing moving under reduced motion, no sideways scroll at 390 px), `node scripts/tests/apple-capture.mjs <dir>` and `node scripts/tests/apple-compare.mjs` (screenshots and the before/after page).

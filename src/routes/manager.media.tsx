@@ -232,7 +232,7 @@ function Page() {
             className="mb-6"
           />
 
-          <div className="grid gap-6">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Seg value={selectedGroup} onChange={setSelectedGroup} options={groups} />
         </div>
