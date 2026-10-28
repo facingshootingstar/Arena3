@@ -180,12 +180,14 @@ function useArrival<T extends HTMLElement>({
     let controls: ReturnType<typeof animate> | null = null;
     let net = 0;
     let io: IntersectionObserver | null = null;
+    let poll = 0;
     const hide = () => {
       el.style.opacity = "0";
       el.style.transform = `translate3d(${start.x}px, ${start.y}px, 0)`;
     };
     const settle = () => {
       window.clearTimeout(net);
+      window.clearInterval(poll);
       controls?.stop();
       el.style.removeProperty("opacity");
       el.style.removeProperty("transform");
@@ -219,6 +221,18 @@ function useArrival<T extends HTMLElement>({
         { rootMargin: "0px 0px -64px 0px", threshold: 0.12 },
       );
       io.observe(el);
+      // The observer is the way in, but a busy main thread can deliver its callback late. A cheap
+      // look every half second makes sure an element that has come on screen is never left waiting.
+      if (!repeat) {
+        poll = window.setInterval(() => {
+          const b = el.getBoundingClientRect();
+          if (b.top < window.innerHeight - 32 && b.bottom > 0) {
+            io?.disconnect();
+            window.clearInterval(poll);
+            play();
+          }
+        }, 500);
+      }
       // An element that never meets the observer (a collapsed tab, a clipped box) is not lost.
       net = window.setTimeout(settle, 8000);
     } else {

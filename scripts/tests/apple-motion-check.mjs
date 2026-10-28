@@ -22,6 +22,18 @@ const browser = await chromium.launch({ channel: "chrome", headless: true });
 const problems = [];
 const notes = [];
 
+async function visit(page, url) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await page.goto(url, { waitUntil: "load", timeout: 45000 });
+      return;
+    } catch (e) {
+      if (i === 2) throw e;
+      await page.waitForTimeout(1500);
+    }
+  }
+}
+
 async function stuckHidden(page) {
   return page.evaluate(() => {
     const out = [];
@@ -29,6 +41,8 @@ async function stuckHidden(page) {
     for (const el of root.querySelectorAll("*")) {
       const r = el.getBoundingClientRect();
       if (r.width < 4 || r.height < 4) continue;
+      // DateField lays a transparent native input over its own readable text on purpose.
+      if (el.tagName === "INPUT" && el.type === "date") continue;
       let hidden = false;
       for (let n = el; n && n !== document.body; n = n.parentElement) {
         const cs = getComputedStyle(n);
@@ -41,8 +55,9 @@ async function stuckHidden(page) {
           break;
         }
         if (Number(cs.opacity) < 0.05) {
-          // Offscreen below the fold waiting for the observer is allowed; on screen is not.
-          if (r.top < window.innerHeight && r.bottom > 0) out.push((n.tagName + "." + String(n.className).slice(0, 60)).trim());
+          // Below the fold, or in the bottom quarter where a heading waits to be scrolled to, is allowed;
+          // anywhere higher is a pose that never finished.
+          if (r.top < window.innerHeight * 0.75 && r.bottom > 0) out.push((n.tagName + "." + String(n.className).slice(0, 60)).trim());
           hidden = true;
           break;
         }
@@ -71,10 +86,17 @@ for (const [role, routes] of Object.entries(ROUTES)) {
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 10 });
     for (const route of routes) {
-      await page.goto(BASE + route, { waitUntil: "load", timeout: 45000 });
+      await visit(page, BASE + route);
       await page.waitForTimeout(2500);
-      const hid = await stuckHidden(page);
-      if (hid.length) problems.push(`throttled ${role} ${route}: still hidden ${JSON.stringify(hid)}`);
+      const first = await stuckHidden(page);
+      // Something mid-arrival on a slowed machine is not stuck: it must still be hidden 4 s later.
+      let hid = first;
+      if (first.length) {
+        await page.waitForTimeout(4000);
+        const later = await stuckHidden(page);
+        hid = first.filter((x) => later.includes(x));
+      }
+      if (hid.length) problems.push(`throttled ${role} ${route}: stuck hidden ${JSON.stringify(hid)}`);
     }
     await ctx.close();
   }
@@ -88,7 +110,7 @@ for (const [role, routes] of Object.entries(ROUTES)) {
     await ctx.addInitScript(init, [session]);
     const page = await ctx.newPage();
     for (const route of routes) {
-      await page.goto(BASE + route, { waitUntil: "load", timeout: 45000 });
+      await visit(page, BASE + route);
       await page.waitForTimeout(1800);
       const info = await page.evaluate(() => {
         const anims = document

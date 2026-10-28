@@ -1,5 +1,7 @@
 # Arena3: quy tắc giao diện sau đợt redesign (10/2026)
 
+> **Đã được thay thế một phần bởi [`DESIGN.md`](../DESIGN.md)** (đợt nâng cấp theo nguyên tắc Apple, 28/10/2026). Khi hai tài liệu mâu thuẫn thì `DESIGN.md` thắng. Các điểm dưới đây đã lỗi thời: thang bo góc (nay là 6/8/12/16/20/pill), mục "Chuyển động" (hiệu ứng trong `fx.tsx`, `gl.tsx` đã được khôi phục, xem mục "Effect library"), "ngôn ngữ mặc định là tiếng Việt" (nay là tiếng Anh trước, tiếng Việt sau) và "đầu trang nội bộ không dùng ảnh" (trang làm việc dùng `PageHero variant="compact"`, trang có banner có ý nghĩa vẫn dùng ảnh). Phần "Câu chữ" và "Việc thuộc về dữ liệu" vẫn đúng.
+
 Tài liệu này ghi lại các quyết định thiết kế của đợt redesign, để mọi màn mới làm theo cùng một chuẩn. Đợt này không đụng dữ liệu: không sửa seed, migration hay API.
 
 ## Định hướng
