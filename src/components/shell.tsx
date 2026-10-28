@@ -16,6 +16,8 @@ import {
   LogOut,
   Map,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   QrCode,
   Repeat,
   Star,
@@ -33,7 +35,8 @@ import {
 } from "lucide-react";
 import { type FocusEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArenaMark, AssistantMark } from "./mark";
-import { AnimatePresence, PageIn, motion } from "./motion";
+import { useDragControls, useMotionValue } from "motion/react";
+import { AnimatePresence, PageIn, SPRING, motion, project, useReducedMotion } from "./motion";
 import { GradualBlur } from "./fx";
 import { Spot, spotForPath } from "./illustrations";
 import { UserAvatar } from "./user-avatar";
@@ -191,7 +194,7 @@ function NotificationBell({ active, to }: { active: boolean; to: string }) {
       aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
       className={cn(
         "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
-        active ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-fg hover:bg-wood",
+        active ? "bg-accent-tint text-accent-text" : "text-fg hover:bg-fill-strong",
       )}
     >
       <Bell className="size-4" strokeWidth={1.9} />
@@ -231,7 +234,7 @@ function ChatBell({ active }: { active: boolean }) {
       aria-label={unread ? t("Messages, {n} unread", { n: unread }) : t("Messages")}
       className={cn(
         "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
-        active ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-fg hover:bg-wood",
+        active ? "bg-accent-tint text-accent-text" : "text-fg hover:bg-fill-strong",
       )}
     >
       <MessageSquare className="size-4" strokeWidth={1.9} />
@@ -304,7 +307,7 @@ function AccountMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className="flex items-center gap-2 rounded-[var(--radius-pill)] py-1 pl-1 pr-1 transition-colors duration-150 hover:bg-wood sm:pr-3"
+        className="flex items-center gap-2 rounded-[var(--radius-pill)] py-1 pl-1 pr-1 transition-colors duration-150 hover:bg-fill-strong sm:pr-3"
         aria-label={t("Account menu: {name}", { name: user?.full_name ?? "" })}
       >
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold tracking-wide text-accent-fg">
@@ -328,8 +331,8 @@ function AccountMenu({
             initial={{ opacity: 0, y: -6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-56 origin-top-right overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]"
+            transition={SPRING.snappy}
+            className="material-thick absolute right-0 top-[calc(100%+0.5rem)] z-30 w-64 origin-top-right overflow-hidden rounded-[var(--radius-lg)] border border-line p-1.5 shadow-[var(--shadow-lg)]"
           >
             <div className={cn("border-b border-line/70 px-3 pb-2.5 pt-2", compact ? "" : "xl:hidden")}>
               <p className="truncate text-sm font-medium">{user?.full_name ?? "-"}</p>
@@ -340,11 +343,27 @@ function AccountMenu({
                 <Link
                   to="/account"
                   onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-sm transition-colors duration-150 hover:bg-wood"
+                  className="flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-subheadline transition-colors duration-150 hover:bg-fill-strong"
                 >
                   <UserCog aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
                   {t("Account settings")}
                 </Link>
+              </li>
+              {role === "member" ? (
+                <li>
+                  <Link
+                    to="/app/assistant"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-subheadline transition-colors duration-150 hover:bg-fill-strong"
+                  >
+                    <AssistantMark aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
+                    {t("Assistant")}
+                  </Link>
+                </li>
+              ) : null}
+              <li className="flex min-h-11 items-center justify-between gap-2 px-3">
+                <span className="text-subheadline text-muted">{t("Language")}</span>
+                <LangSwitch />
               </li>
               <li>
                 <button
@@ -353,7 +372,7 @@ function AccountMenu({
                     setOpen(false);
                     onLogout();
                   }}
-                  className="flex min-h-11 w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-left text-sm text-danger transition-colors duration-150 hover:bg-danger/10"
+                  className="flex min-h-11 w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-left text-subheadline text-danger transition-colors duration-150 hover:bg-danger-tint"
                 >
                   <LogOut aria-hidden="true" className="size-4" strokeWidth={1.75} />
                   {t("Sign out")}
@@ -369,8 +388,8 @@ function AccountMenu({
 
 /** Shape of a header tab; the real tab and its invisible twin (see `useFittingTabs`) must agree on it. */
 const tabShape = (dense: boolean) =>
-  cn(dense ? "px-2.5" : "px-3.5", "relative flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] text-sm font-medium");
-const MORE_SHAPE = "flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] px-3.5 text-sm font-medium";
+  cn(dense ? "px-2.5" : "px-3.5", "relative flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] text-subheadline font-medium");
+const MORE_SHAPE = "flex h-9 items-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] px-3.5 text-subheadline font-medium";
 /** Gap between header tabs, in px (`gap-1`). */
 const TAB_GAP = 4;
 
@@ -421,7 +440,7 @@ function useFittingTabs(count: number, staticMore: boolean) {
   return { box, ruler, fit: Math.min(fit, count) };
 }
 
-/** Items split into their groups: ungrouped first, then each group in the order it first appears. */
+/** Items split into their groups: ungrouped first, then Sales, Operations and System. */
 function grouped(items: NavItem[]) {
   const out: { group?: string; items: NavItem[] }[] = [{ group: undefined, items: [] }];
   for (const it of items) {
@@ -429,7 +448,9 @@ function grouped(items: NavItem[]) {
     if (bucket) bucket.items.push(it);
     else out.push({ group: it.group, items: [it] });
   }
-  return out.filter((g) => g.items.length > 0);
+  // Always Sales, then Operations, then System, whichever destination happens to be listed first.
+  const rank = (g?: string) => (g === G_BUSINESS ? 1 : g === G_OPS ? 2 : g === G_SYSTEM ? 3 : 0);
+  return out.filter((g) => g.items.length > 0).sort((x, y) => rank(x.group) - rank(y.group));
 }
 
 /** Desktop: the tabs that did not fit in the row live under one "More" button. */
@@ -448,7 +469,7 @@ function MoreMenu({ items, pathname, all }: { items: NavItem[]; pathname: string
         className={cn(
           MORE_SHAPE,
           "transition-colors duration-150",
-          inside ? "bg-accent/10 text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
+          inside ? "bg-accent-tint text-accent-text" : "text-muted hover:bg-fill-strong hover:text-fg",
         )}
       >
         <Ellipsis aria-hidden="true" className="size-4" strokeWidth={1.75} />
@@ -456,7 +477,7 @@ function MoreMenu({ items, pathname, all }: { items: NavItem[]; pathname: string
         <ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")} />
       </button>
       {open ? (
-        <div id={panelId} className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-56 rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]">
+        <div id={panelId} className="material-thick absolute left-0 top-[calc(100%+0.5rem)] z-30 w-56 rounded-[var(--radius-lg)] border border-line p-1.5 shadow-[var(--shadow-lg)]">
           {grouped(items).map((g, gi) => (
             <div key={g.group ?? gi} className={cn(gi > 0 && "mt-1 border-t border-line pt-1")}>
               {g.group ? <p className="px-3 pb-1 pt-2 text-xs font-semibold text-subtle">{t(g.group)}</p> : null}
@@ -471,8 +492,8 @@ function MoreMenu({ items, pathname, all }: { items: NavItem[]; pathname: string
                         aria-current={active ? "page" : undefined}
                         onClick={() => setOpen(false)}
                         className={cn(
-                          "flex min-h-10 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-sm transition-colors duration-150 hover:bg-wood",
-                          active && "bg-wood font-semibold",
+                          "flex min-h-10 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-subheadline transition-colors duration-150 hover:bg-fill-strong",
+                          active && "bg-fill-strong font-semibold",
                         )}
                       >
                         <Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
@@ -490,7 +511,7 @@ function MoreMenu({ items, pathname, all }: { items: NavItem[]; pathname: string
   );
 }
 
-/** Phone: a slide-up sheet with the tabs that do not fit in the bottom bar. */
+/** Phone: a sheet with the tabs that do not fit in the bottom bar. Pull it down to dismiss. */
 function MoreSheet({
   items,
   pathname,
@@ -505,41 +526,158 @@ function MoreSheet({
   onClose: () => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+  const drag = useDragControls();
+  const dragY = useMotionValue(0);
   // Focus moves into the sheet, Tab stays in it, Escape closes it, focus returns to "More".
   useDialog(open, panel, onClose);
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 lg:hidden">
-      <div role="presentation" aria-hidden="true" className="absolute inset-0 bg-fg/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("More pages")}
-        tabIndex={-1}
-        className="absolute inset-x-0 bottom-0 rounded-t-[var(--radius-xl)] bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[var(--shadow-soft)] outline-none"
+    <AnimatePresence>
+      {open ? (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <motion.div
+            role="presentation"
+            aria-hidden="true"
+            className="absolute inset-0 bg-scrim/45 backdrop-blur-[3px]"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22 }}
+          />
+          <motion.div
+            ref={panel}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("More pages")}
+            tabIndex={-1}
+            className="material-thick absolute inset-x-0 bottom-0 rounded-t-[var(--radius-xl)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[var(--shadow-lg)] outline-none"
+            style={reduced ? undefined : { y: dragY }}
+            initial={reduced ? { opacity: 0 } : { y: "100%" }}
+            animate={reduced ? { opacity: 1 } : { y: 0 }}
+            exit={reduced ? { opacity: 0 } : { y: "100%" }}
+            transition={reduced ? { duration: 0.15 } : SPRING.bouncy}
+            drag={reduced ? false : "y"}
+            dragControls={drag}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.06, bottom: 0.9 }}
+            onDragEnd={(_, info) => {
+              // Where a throw would land decides, not where the finger let go.
+              const lands = info.offset.y + project(info.velocity.y);
+              if (lands > (panel.current?.offsetHeight ?? 300) * 0.4 || info.velocity.y > 900) onClose();
+            }}
+          >
+            <div
+              onPointerDown={(e) => !reduced && drag.start(e)}
+              className={cn("-mx-4 -mt-4 px-4 pb-1 pt-4", !reduced && "cursor-grab touch-none active:cursor-grabbing")}
+            >
+              <div aria-hidden="true" className="mx-auto mb-3 h-1 w-9 rounded-full bg-line-strong" />
+            </div>
+            {grouped(items).map((g, gi) => (
+              <div key={g.group ?? gi} className={cn(gi > 0 && "mt-3")}>
+                {g.group ? <p className="mb-1.5 px-1 text-footnote font-semibold text-subtle">{t(g.group)}</p> : null}
+                <ul className="grid grid-cols-3 gap-2">
+                  {g.items.map((it) => {
+                    const Icon = it.icon;
+                    const active = navActive(pathname, it.to, all);
+                    return (
+                      <li key={it.to} className="grid">
+                        <Link
+                          to={it.to}
+                          aria-current={active ? "page" : undefined}
+                          onClick={onClose}
+                          className={cn(
+                            "press flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-[var(--radius-lg)] px-1 text-center text-caption font-medium transition-colors duration-150",
+                            active ? "bg-accent text-accent-fg" : "bg-fill-strong text-fg",
+                          )}
+                        >
+                          <Icon aria-hidden="true" className="size-5" strokeWidth={1.75} />
+                          {t(it.label)}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+export { roleLabel };
+
+const SIDEBAR_KEY = "arena3.sidebar";
+
+/**
+ * The source list of the working roles (manager, front desk, coach) on a laptop or wider, in the
+ * manner of a Mac app: a thick material that the page's colour shows through, the destinations in
+ * their jobs, a button to fold it to icons. It replaces the row of tabs and its "More" menu, so a
+ * destination is listed once and nothing is hidden. Messages are not listed: the header has them.
+ */
+function Sidebar({
+  items,
+  pathname,
+  collapsed,
+  onToggle,
+  home,
+}: {
+  items: NavItem[];
+  pathname: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  home: string;
+}) {
+  const groups = grouped(items.filter((it) => it.to !== "/chat"));
+  return (
+    <aside
+      className={cn(
+        "material-thick fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-separator transition-[width] duration-300 ease-[var(--ease-spring)] lg:flex",
+        collapsed ? "w-[4.5rem]" : "w-64",
+      )}
+    >
+      <Link
+        to={home}
+        aria-label={t("Lê Long Sport home")}
+        className="flex h-14 shrink-0 items-center gap-2.5 px-5"
       >
-        <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong/60" />
-        {grouped(items).map((g, gi) => (
-          <div key={g.group ?? gi} className={cn(gi > 0 && "mt-3")}>
-            {g.group ? <p className="mb-1.5 px-1 text-xs font-semibold text-subtle">{t(g.group)}</p> : null}
-            <ul className="grid grid-cols-3 gap-2">
+        <ArenaMark className="size-8 shrink-0" />
+        <span className={cn("truncate font-display text-title-3 font-bold", collapsed && "sr-only")}>Lê Long Sport</span>
+      </Link>
+      <nav aria-label={t("Main menu")} className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        {groups.map((g, gi) => (
+          <div key={g.group ?? gi} className={cn(gi > 0 && (collapsed ? "mt-2 border-t border-separator pt-2" : "mt-1"))}>
+            {g.group && !collapsed ? (
+              <p className="px-3 pb-1 pt-4 text-caption font-semibold text-subtle">{t(g.group)}</p>
+            ) : null}
+            <ul className="grid gap-0.5">
               {g.items.map((it) => {
                 const Icon = it.icon;
-                const active = navActive(pathname, it.to, all);
+                const active = navActive(pathname, it.to, items);
                 return (
-                  <li key={it.to} className="grid">
+                  <li key={it.to}>
                     <Link
                       to={it.to}
-                      aria-current={active ? "page" : undefined}
-                      onClick={onClose}
+                      activeOptions={{ exact: true }}
+                      title={collapsed ? t(it.label) : undefined}
                       className={cn(
-                        "flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-[var(--radius-lg)] px-1 text-center text-xs font-medium transition-colors duration-150",
-                        active ? "bg-accent text-accent-fg" : "bg-wood text-fg",
+                        "press relative flex h-10 items-center gap-3 rounded-[var(--radius-md)] px-3 text-subheadline font-medium transition-colors duration-150",
+                        collapsed && "justify-center",
+                        active ? "text-accent-text" : "text-muted hover:bg-fill-strong hover:text-fg",
                       )}
                     >
-                      <Icon aria-hidden="true" className="size-5" strokeWidth={1.75} />
-                      {t(it.label)}
+                      {active ? (
+                        <motion.span
+                          layoutId="sidebar-active"
+                          className="absolute inset-0 rounded-[var(--radius-md)] bg-accent-tint"
+                          transition={SPRING.snappy}
+                        />
+                      ) : null}
+                      <Icon aria-hidden="true" className="relative z-[1] size-[1.125rem] shrink-0" strokeWidth={active ? 2.1 : 1.75} />
+                      <span className={cn("relative z-[1] truncate", collapsed && "sr-only")}>{t(it.label)}</span>
                     </Link>
                   </li>
                 );
@@ -547,12 +685,30 @@ function MoreSheet({
             </ul>
           </div>
         ))}
+      </nav>
+      <div className="shrink-0 border-t border-separator p-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={collapsed}
+          aria-label={collapsed ? t("Expand menu") : t("Collapse menu")}
+          title={collapsed ? t("Expand menu") : t("Collapse menu")}
+          className={cn(
+            "press flex h-10 w-full items-center gap-3 rounded-[var(--radius-md)] px-3 text-subheadline font-medium text-muted transition-colors duration-150 hover:bg-fill-strong hover:text-fg",
+            collapsed && "justify-center",
+          )}
+        >
+          {collapsed ? (
+            <PanelLeftOpen aria-hidden="true" className="size-[1.125rem]" strokeWidth={1.75} />
+          ) : (
+            <PanelLeftClose aria-hidden="true" className="size-[1.125rem]" strokeWidth={1.75} />
+          )}
+          <span className={cn(collapsed && "sr-only")}>{t("Collapse menu")}</span>
+        </button>
       </div>
-    </div>
+    </aside>
   );
 }
-
-export { roleLabel };
 
 export function Shell({
   children,
@@ -570,12 +726,15 @@ export function Shell({
   const user = useSessionUser();
   const items = NAV[role] ?? [];
   const home = homeFor(role);
-  // A single tab is not a choice — it just repeats the page heading back at
+  // A single tab is not a choice, it just repeats the page heading back at
   // you, which is why the coach screen read "Teaching / Teaching". Roles with
   // one destination get a plain wordmark and no nav at all.
   const showNav = items.length > 1;
-  // Roles with a long tab row (and Vietnamese labels run longer) drop the wordmark text and the
-  // name beside the avatar, and tighten the tabs.
+  // The working roles get a sidebar on a laptop; a member keeps the row of tabs, because their
+  // destinations are few and the page is the product, not the chrome.
+  const sidebar = role !== "member" && showNav;
+  // Members' long tab row (and Vietnamese labels run longer) drops the wordmark text and the
+  // name beside the avatar, and tightens the tabs.
   const dense = items.length > 4;
   const wantedRow = items.filter((it) => !it.more);
   const alwaysMore = items.filter((it) => it.more);
@@ -589,6 +748,39 @@ export function Shell({
   // Moving to another page closes the sheet.
   useEffect(() => setSheet(false), [pathname]);
 
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(SIDEBAR_KEY) === "1");
+    } catch {
+      // storage blocked: the sidebar simply starts open
+    }
+  }, []);
+  const toggleSidebar = () =>
+    setCollapsed((v) => {
+      try {
+        localStorage.setItem(SIDEBAR_KEY, v ? "0" : "1");
+      } catch {
+        // storage blocked: the choice lasts until the page is reloaded
+      }
+      return !v;
+    });
+
+  // The page's own Large Title scrolls away; once it has, the bar takes over with the same words,
+  // small. The sentinel sits where the title ends, so no scroll handler is needed.
+  const sentinel = useRef<HTMLDivElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    setScrolled(false);
+    const el = sentinel.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setScrolled(!!e && !e.isIntersecting && e.boundingClientRect.top < 56), {
+      rootMargin: "-56px 0px 0px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pathname]);
+
   // The browser tab and history say which screen this is, not just "Lê Long Sport" on every one.
   const navLabel = [...items]
     .filter((it) => pathname === it.to || pathname.startsWith(`${it.to}/`))
@@ -601,7 +793,7 @@ export function Shell({
   async function logout() {
     // Drop the local session immediately, before awaiting the server call.
     // `api()` reads the token synchronously, so the logout request still carries
-    // it — but any fetch a page fires while that request is in flight would
+    // it, but any fetch a page fires while that request is in flight would
     // otherwise go out with a token the server has already deleted and pop an
     // alarming "That session is not valid." toast on a *successful* sign-out.
     const done = apiPost("/auth/logout").catch(() => undefined);
@@ -614,172 +806,202 @@ export function Shell({
     // `isolate` gives the page its own stacking context, so a background field at `-z-[1]` (the
     // desk's dot grid) paints above the body's own background instead of disappearing behind it.
     <div className="isolate min-h-dvh text-fg">
-      <header className="sticky top-0 z-20 border-b border-line/80 bg-surface/80 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-          <Link to={home} aria-label={t("Lê Long Sport home")} className="-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start">
-            <ArenaMark className="size-8" />
-            {/* The header is the same width on every wide screen, so a long row never gets the wordmark back. */}
-            <span className={cn("hidden font-display text-xl font-bold tracking-tight", dense ? "" : "sm:inline")}>Lê Long Sport</span>
-          </Link>
-          {/* Laptop and wider. A tablet gets the bottom bar, like a phone: it is the thumb-friendly one. */}
-          <nav
-            ref={box}
-            aria-label={t("Main menu")}
-            className={cn("relative ml-3 min-w-0 flex-1 items-center gap-1", showNav ? "hidden lg:flex" : "hidden")}
-          >
-            {/* Invisible twin of every tab (and of "More"), measured to see how many fit. */}
-            <div ref={ruler} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 flex h-0 gap-1 overflow-hidden">
-              {wantedRow.map((it) => {
-                const Icon = it.icon;
-                return (
-                  <span key={it.to} className={tabShape(dense)}>
-                    <Icon className="size-4" strokeWidth={1.75} />
-                    <span>{t(it.label)}</span>
-                  </span>
-                );
-              })}
-              <span className={MORE_SHAPE}>
-                <Ellipsis className="size-4" strokeWidth={1.75} />
-                {t("More")}
-                <ChevronDown className="size-3.5" />
-              </span>
-            </div>
-            {rowItems.map((it) => {
-              const active = navActive(pathname, it.to, items);
-              const Icon = it.icon;
-              return (
-                <Link
-                  key={it.to}
-                  to={it.to}
-                  activeOptions={{ exact: true }}
-                  className={cn(
-                    tabShape(dense),
-                    "transition-colors duration-150",
-                    active ? "text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
-                  )}
-                >
-                  {/* Highlight slides between tabs rather than cutting. */}
-                  {active ? (
-                    <motion.span
-                      layoutId="shell-nav-active"
-                      className="absolute inset-0 rounded-[var(--radius-md)] bg-accent/10"
-                      transition={{ type: "spring", stiffness: 400, damping: 34 }}
-                    />
-                  ) : null}
-                  <Icon className="relative z-[1] size-4" strokeWidth={1.75} />
-                  <span className="relative z-[1]">{t(it.label)}</span>
-                </Link>
-              );
-            })}
-            {moreItems.length ? <MoreMenu items={moreItems} pathname={pathname} all={items} /> : null}
-          </nav>
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-            <LangSwitch />
-            <ChatBell active={pathname.startsWith("/chat")} />
-            <NotificationBell
-              to={role === "member" ? "/app/notifications" : "/alerts"}
-              active={pathname.startsWith("/app/notifications") || pathname.startsWith("/alerts")}
-            />
-            {role === "member" ? (
-              <Link
-                to="/app/assistant"
-                aria-label={t("Assistant")}
-                className={cn(
-                  "grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
-                  pathname.startsWith("/app/assistant")
-                    ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]"
-                    : "text-fg hover:bg-wood",
-                )}
-              >
-                <AssistantMark className="size-4" strokeWidth={1.9} />
-              </Link>
-            ) : null}
-            <AccountMenu user={user} role={role} onLogout={() => void logout()} compact={dense} />
-          </div>
-        </div>
-      </header>
-      <main
-        id="main-content"
-        tabIndex={-1}
+      {sidebar ? (
+        <Sidebar items={items} pathname={pathname} collapsed={collapsed} onToggle={toggleSidebar} home={home} />
+      ) : null}
+      <div
         className={cn(
-          "mx-auto max-w-6xl px-4 py-6 lg:pb-10",
-          // Only reserve room for the dock when there is a dock.
-          showNav ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-10",
+          sidebar && "transition-[padding-left] duration-300 ease-[var(--ease-spring)]",
+          sidebar && (collapsed ? "lg:pl-[4.5rem]" : "lg:pl-64"),
         )}
       >
-        <ConnectionBanner />
-        <PageIn key={pathname}>
-          {title ? (
-            <header className="mb-6 flex items-center justify-between gap-4 px-1">
-              <div className="min-w-0">
-                <h1 className="font-display text-2xl font-bold text-balance sm:text-3xl">{title}</h1>
-                {subtitle ? <p className="mt-1.5 max-w-2xl text-[0.95rem] leading-snug text-muted">{subtitle}</p> : null}
-              </div>
-              <Spot name={spotForPath(pathname)} className="hidden sm:block sm:h-20 sm:w-24" />
-            </header>
-          ) : null}
-          {children}
-        </PageIn>
-      </main>
-      {showNav ? (
-        <>
-      {/* The page fades out under the floating bar instead of being cut by it. */}
-      <GradualBlur side="bottom" position="fixed" height="5.5rem" strength={1.6} className="z-[19] lg:hidden" />
-      {/* A dock rather than a bar: it floats clear of the page, but every item is
-          still a real <Link>, so prefetch, long-press and "open in new tab" work
-          the way a tab bar should on a touch device. */}
-      <nav aria-label={t("Main menu")} className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] lg:hidden">
-        <div className="mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-xl)] border border-line bg-surface p-1.5 shadow-[0_8px_30px_-12px_rgba(11,18,48,0.28)]">
-          {dockItems.map((it) => {
-            const active = navActive(pathname, it.to, items);
-            const Icon = it.icon;
-            return (
-              <Link
-                key={it.to}
-                to={it.to}
-                activeOptions={{ exact: true }}
-                className={cn(
-                  "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] px-0.5 text-xs transition-colors duration-200",
-                  active ? "font-semibold text-accent-2" : "font-medium text-muted",
-                )}
-              >
-                {active ? (
-                  <motion.span
-                    layoutId="shell-dock-active"
-                    className="absolute inset-0 rounded-[var(--radius-lg)] bg-accent/10"
-                    transition={{ type: "spring", stiffness: 420, damping: 36 }}
-                  />
-                ) : null}
-                <motion.span
-                  className="relative z-[1]"
-                  animate={{ y: 0, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 420, damping: 26 }}
-                >
-                  <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
-                </motion.span>
-                <span className="relative z-[1] whitespace-nowrap">{t(it.label)}</span>
-              </Link>
-            );
-          })}
-          {sheetItems.length ? (
-            <button
-              type="button"
-              onClick={() => setSheet(true)}
-              aria-haspopup="dialog"
+        <header className="material-regular sticky top-0 z-20 border-b border-separator">
+          <div className={cn("mx-auto flex h-14 items-center gap-3 px-4", sidebar ? "max-w-[1240px] lg:px-8" : "max-w-6xl")}>
+            <Link
+              to={home}
+              aria-label={t("Lê Long Sport home")}
               className={cn(
-                "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] px-0.5 text-xs",
-                sheetItems.some((it) => navActive(pathname, it.to, items))
-                  ? "bg-accent/10 font-semibold text-accent-2"
-                  : "font-medium text-muted",
+                "-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start",
+                sidebar && "lg:hidden",
               )}
             >
-              <Ellipsis className="size-5" strokeWidth={1.75} />
-              {t("More")}
-            </button>
-          ) : null}
-        </div>
-      </nav>
-      <MoreSheet items={sheetItems} pathname={pathname} all={items} open={sheet} onClose={() => setSheet(false)} />
+              <ArenaMark className="size-8" />
+              {/* The header is the same width on every wide screen, so a long row never gets the wordmark back. */}
+              <span className={cn("hidden font-display text-title-3 font-bold", dense ? "" : "sm:inline")}>Lê Long Sport</span>
+            </Link>
+            {/* The window title: always on beside a sidebar, and elsewhere only once the page's own
+                Large Title has scrolled under the bar. */}
+            {pageName ? (
+              <p
+                aria-hidden="true"
+                className={cn(
+                  "min-w-0 flex-1 truncate text-headline transition-[opacity,transform] duration-300 ease-[var(--ease-spring)] sm:flex-none",
+                  scrolled ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+                  sidebar ? "lg:translate-y-0 lg:opacity-100" : "lg:hidden",
+                )}
+              >
+                {pageName}
+              </p>
+            ) : null}
+            {/* Laptop and wider. A tablet gets the bottom bar, like a phone: it is the thumb-friendly one. */}
+            {!sidebar ? (
+              <nav
+                ref={box}
+                aria-label={t("Main menu")}
+                className={cn("relative ml-3 min-w-0 flex-1 items-center gap-1", showNav ? "hidden lg:flex" : "hidden")}
+              >
+                {/* Invisible twin of every tab (and of "More"), measured to see how many fit. */}
+                <div ref={ruler} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 flex h-0 gap-1 overflow-hidden">
+                  {wantedRow.map((it) => {
+                    const Icon = it.icon;
+                    return (
+                      <span key={it.to} className={tabShape(dense)}>
+                        <Icon className="size-4" strokeWidth={1.75} />
+                        <span>{t(it.label)}</span>
+                      </span>
+                    );
+                  })}
+                  <span className={MORE_SHAPE}>
+                    <Ellipsis className="size-4" strokeWidth={1.75} />
+                    {t("More")}
+                    <ChevronDown className="size-3.5" />
+                  </span>
+                </div>
+                {rowItems.map((it) => {
+                  const active = navActive(pathname, it.to, items);
+                  const Icon = it.icon;
+                  return (
+                    <Link
+                      key={it.to}
+                      to={it.to}
+                      activeOptions={{ exact: true }}
+                      className={cn(
+                        tabShape(dense),
+                        "press transition-colors duration-150",
+                        active ? "text-accent-text" : "text-muted hover:bg-fill-strong hover:text-fg",
+                      )}
+                    >
+                      {/* Highlight slides between tabs rather than cutting. */}
+                      {active ? (
+                        <motion.span
+                          layoutId="shell-nav-active"
+                          className="absolute inset-0 rounded-[var(--radius-md)] bg-accent-tint"
+                          transition={SPRING.snappy}
+                        />
+                      ) : null}
+                      <Icon className="relative z-[1] size-4" strokeWidth={1.75} />
+                      <span className="relative z-[1]">{t(it.label)}</span>
+                    </Link>
+                  );
+                })}
+                {moreItems.length ? <MoreMenu items={moreItems} pathname={pathname} all={items} /> : null}
+              </nav>
+            ) : null}
+            <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+              <ChatBell active={pathname.startsWith("/chat")} />
+              <NotificationBell
+                to={role === "member" ? "/app/notifications" : "/alerts"}
+                active={pathname.startsWith("/app/notifications") || pathname.startsWith("/alerts")}
+              />
+              {role === "member" ? (
+                <Link
+                  to="/app/assistant"
+                  aria-label={t("Assistant")}
+                  className={cn(
+                    "hidden size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150 sm:grid",
+                    pathname.startsWith("/app/assistant")
+                      ? "bg-accent-tint text-accent-text"
+                      : "text-fg hover:bg-fill-strong",
+                  )}
+                >
+                  <AssistantMark className="size-4" strokeWidth={1.9} />
+                </Link>
+              ) : null}
+              <AccountMenu user={user} role={role} onLogout={() => void logout()} compact={dense || sidebar} />
+            </div>
+          </div>
+        </header>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={cn(
+            "relative mx-auto px-4 py-6 lg:pb-10",
+            sidebar ? "max-w-[1240px] lg:px-8" : "max-w-6xl",
+            // Only reserve room for the dock when there is a dock.
+            showNav ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-10",
+          )}
+        >
+          <div ref={sentinel} aria-hidden="true" className="pointer-events-none absolute left-0 top-28 h-px w-px" />
+          <ConnectionBanner />
+          <PageIn key={pathname}>
+            {title ? (
+              <header className="mb-6 flex items-center justify-between gap-4 px-1">
+                <div className="min-w-0">
+                  <h1 className="font-display text-large-title text-balance">{title}</h1>
+                  {subtitle ? <p className="mt-1.5 max-w-2xl text-callout text-muted">{subtitle}</p> : null}
+                </div>
+                <Spot name={spotForPath(pathname)} className="hidden sm:block sm:h-20 sm:w-24" />
+              </header>
+            ) : null}
+            {children}
+          </PageIn>
+        </main>
+      </div>
+      {showNav ? (
+        <>
+          {/* The page fades out under the floating bar instead of being cut by it. */}
+          <GradualBlur side="bottom" position="fixed" height="5.5rem" strength={1.6} className="z-[19] lg:hidden" />
+          {/* A dock rather than a bar: it floats clear of the page, but every item is
+              still a real <Link>, so prefetch, long-press and "open in new tab" work
+              the way a tab bar should on a touch device. A material, so the page shows through. */}
+          <nav aria-label={t("Main menu")} className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] lg:hidden">
+            <div className="material-regular mx-auto grid max-w-md auto-cols-fr grid-flow-col rounded-[var(--radius-xl)] border border-separator p-1.5 shadow-[var(--shadow-lg)]">
+              {dockItems.map((it) => {
+                const active = navActive(pathname, it.to, items);
+                const Icon = it.icon;
+                return (
+                  <Link
+                    key={it.to}
+                    to={it.to}
+                    activeOptions={{ exact: true }}
+                    className={cn(
+                      "press relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] px-0.5 text-caption transition-colors duration-200",
+                      active ? "font-semibold text-accent-text" : "font-medium text-muted",
+                    )}
+                  >
+                    {active ? (
+                      <motion.span
+                        layoutId="shell-dock-active"
+                        className="absolute inset-0 rounded-[var(--radius-lg)] bg-accent-tint"
+                        transition={SPRING.snappy}
+                      />
+                    ) : null}
+                    <span className="relative z-[1]">
+                      <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
+                    </span>
+                    <span className="relative z-[1] whitespace-nowrap">{t(it.label)}</span>
+                  </Link>
+                );
+              })}
+              {sheetItems.length ? (
+                <button
+                  type="button"
+                  onClick={() => setSheet(true)}
+                  aria-haspopup="dialog"
+                  className={cn(
+                    "press relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] px-0.5 text-caption",
+                    sheetItems.some((it) => navActive(pathname, it.to, items))
+                      ? "bg-accent-tint font-semibold text-accent-text"
+                      : "font-medium text-muted",
+                  )}
+                >
+                  <Ellipsis className="size-5" strokeWidth={1.75} />
+                  {t("More")}
+                </button>
+              ) : null}
+            </div>
+          </nav>
+          <MoreSheet items={sheetItems} pathname={pathname} all={items} open={sheet} onClose={() => setSheet(false)} />
         </>
       ) : null}
     </div>

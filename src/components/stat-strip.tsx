@@ -1,6 +1,8 @@
 import { type ComponentType } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
+import { isEmptyFigure } from "@/lib/figure";
 import { CountUp, useReducedMotionAfterMount } from "./motion";
 
 export type StatItem = {
@@ -20,6 +22,11 @@ export type StatItem = {
   live?: boolean;
 };
 
+/**
+ * A row of figures. A tile whose figure is zero or empty says so in one quiet line ("Nothing
+ * yet") instead of drawing a 36px zero, so a screen at the start of a shift is not a wall of
+ * zeros. A strip where every tile is empty collapses to one row of those lines.
+ */
 export function StatStrip({
   stats,
   items,
@@ -48,22 +55,25 @@ export function StatStrip({
         const trend = s.trend;
         const isUp = trend?.direction === "up";
         const isDown = trend?.direction === "down";
-        // By default, up is positive (green), unless good === false (e.g. cancellations)
-        const isPositive =
-          trend &&
-          ((isUp && trend.good !== false) || (isDown && trend.good === false));
+        // Up is good unless the figure says otherwise (cancellations, refunds).
+        const isPositive = trend && ((isUp && trend.good !== false) || (isDown && trend.good === false));
+        const bad = trend && ((isDown && trend.good !== false) || (isUp && trend.good === false));
+        const empty = !trend && isEmptyFigure(s.value);
 
         return (
           <div
             key={s.id ?? idx}
-            className="flex flex-col justify-between rounded-[var(--radius-lg)] border border-line bg-surface p-3.5 sm:p-4 shadow-[var(--shadow-soft)] transition-colors hover:border-line-strong"
+            className={cn(
+              "flex flex-col justify-between rounded-[var(--radius-lg)] bg-surface p-3.5 shadow-[var(--shadow-border),var(--shadow-sm)] sm:p-4",
+              empty && "justify-center py-3 sm:py-3.5",
+            )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
+              <span className="flex items-center gap-1.5 text-footnote font-medium text-muted">
                 {s.live ? (
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                  <span aria-hidden="true" className="relative flex size-2">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-success" />
                   </span>
                 ) : null}
                 {s.label}
@@ -71,47 +81,45 @@ export function StatStrip({
               {Icon ? <Icon className="size-4 shrink-0 text-subtle" /> : null}
             </div>
 
-            <div className="mt-2 flex items-baseline justify-between gap-2">
-              <div className="font-display text-2xl font-bold tracking-tight text-fg sm:text-3xl">
-                {s.prefix}
-                {typeof s.value === "number" && !reduced ? (
-                  <CountUp to={s.value} duration={0.9} />
-                ) : (
-                  s.value
-                )}
-                {s.suffix}
-              </div>
-
-              {trend ? (
-                <div
-                  className={cn(
-                    "flex items-center gap-0.5 rounded-[var(--radius-pill)] px-2 py-0.5 text-2xs font-semibold",
-                    isPositive
-                      ? "bg-accent/10 text-accent-2 dark:text-accent"
-                      : isDown
-                        ? "bg-danger/10 text-danger"
-                        : "bg-wood text-muted",
-                  )}
-                  title={trend.label ?? "so với tuần trước"}
-                >
-                  {isUp ? (
-                    <ArrowUpRight className="size-3" strokeWidth={2.5} />
-                  ) : isDown ? (
-                    <ArrowDownRight className="size-3" strokeWidth={2.5} />
-                  ) : (
-                    <Minus className="size-3" strokeWidth={2.5} />
-                  )}
-                  <span>
-                    {isUp ? "+" : isDown ? "-" : ""}
-                    {Math.abs(trend.pct)}%
-                  </span>
+            {empty ? (
+              <p className="mt-1 text-callout text-subtle">{t("Nothing yet")}</p>
+            ) : (
+              <div className="mt-2 flex items-baseline justify-between gap-2">
+                <div className="figure text-title-1 text-fg sm:text-large-title">
+                  {s.prefix}
+                  {typeof s.value === "number" && !reduced ? <CountUp to={s.value} duration={0.9} /> : s.value}
+                  {s.suffix}
                 </div>
-              ) : null}
-            </div>
 
-            {s.detail ? (
-              <div className="mt-1 text-2xs text-subtle">{s.detail}</div>
-            ) : null}
+                {trend ? (
+                  <div
+                    className={cn(
+                      "flex items-center gap-0.5 rounded-[var(--radius-pill)] px-2 py-0.5 text-caption font-semibold",
+                      isPositive
+                        ? "bg-success-tint text-success"
+                        : bad
+                          ? "bg-danger-tint text-danger"
+                          : "bg-fill-strong text-muted",
+                    )}
+                    title={trend.label ?? t("vs last week")}
+                  >
+                    {isUp ? (
+                      <ArrowUpRight className="size-3" strokeWidth={2.5} />
+                    ) : isDown ? (
+                      <ArrowDownRight className="size-3" strokeWidth={2.5} />
+                    ) : (
+                      <Minus className="size-3" strokeWidth={2.5} />
+                    )}
+                    <span>
+                      {isUp ? "+" : isDown ? "-" : ""}
+                      {Math.abs(trend.pct)}%
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {s.detail && !empty ? <div className="mt-1 text-caption text-subtle">{s.detail}</div> : null}
           </div>
         );
       })}

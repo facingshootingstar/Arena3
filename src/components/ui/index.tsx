@@ -19,40 +19,67 @@ import { createPortal } from "react-dom";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  Check as CheckIcon,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Clock,
+  Info,
+  Loader2,
   Minus,
+  X as XIcon,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PAGE_SIZES, lastPageOffset, pageWindow } from "@/lib/paging";
 import { locale, t } from "@/lib/i18n";
 import { formatDate, statusLabel, statusTone } from "@/lib/arena3/labels";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { EASE_SMOOTH } from "../motion";
+import { AnimatePresence, motion, useDragControls, useMotionValue, useReducedMotion } from "motion/react";
+import { SPRING, project } from "../motion";
+import { isEmptyFigure } from "@/lib/figure";
 
-type ButtonVariant = "primary" | "ghost" | "outline" | "danger" | "ink" | "espresso";
+/**
+ * filled (`primary`) is the one action of a screen; `tinted` a secondary action in the same hue;
+ * `gray` a neutral one; `plain` a text action; `destructive` (alias `danger`) removes something.
+ * `outline`, `ghost`, `ink` and `espresso` are the older names and keep their look.
+ */
+type ButtonVariant =
+  | "primary"
+  | "tinted"
+  | "gray"
+  | "plain"
+  | "destructive"
+  | "ghost"
+  | "outline"
+  | "danger"
+  | "ink"
+  | "espresso";
 type ButtonSize = "md" | "sm" | "lg";
 type ButtonLook = { variant?: ButtonVariant; size?: ButtonSize };
 
+// The press answers on pointer-down (`active:`), on a spring-shaped curve, in 160ms: it is
+// feedback, so it is never slower than the finger. A disabled button keeps its hue and loses its
+// presence, instead of every kind collapsing into the same flat grey.
 const BUTTON_BASE =
-  "inline-flex items-center whitespace-nowrap justify-center gap-2 font-medium tracking-tight transition-[opacity,transform,background-color,box-shadow,color] duration-150 ease-[var(--ease-smooth)] disabled:bg-disabled disabled:text-disabled-fg disabled:border-transparent disabled:pointer-events-none disabled:shadow-none active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
-// Softly squared (not pills): sits calmly next to tables, cards and court grids.
+  "inline-flex items-center whitespace-nowrap justify-center gap-2 font-medium tracking-[-0.006em] transition-[opacity,transform,background-color,box-shadow,color] duration-[160ms] ease-[var(--ease-spring)] disabled:opacity-45 disabled:saturate-50 disabled:pointer-events-none disabled:shadow-none aria-busy:pointer-events-none active:scale-[0.97] active:duration-[60ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 const BUTTON_SIZES = {
-  lg: "min-h-13 rounded-[var(--radius-md)] px-7 text-[0.95rem]",
-  md: "min-h-11 rounded-[var(--radius-md)] px-5 text-sm",
+  lg: "min-h-13 rounded-[var(--radius-md)] px-7 text-callout",
+  md: "min-h-11 rounded-[var(--radius-md)] px-5 text-subheadline",
   // 44px on a phone (finger), 36px with a mouse: dense tables stay compact on a desk.
-  sm: "min-h-11 rounded-[var(--radius-sm)] px-3.5 text-[0.8125rem] sm:min-h-9",
+  sm: "min-h-11 rounded-[var(--radius-sm)] px-3.5 text-footnote sm:min-h-9",
 } as const;
 const BUTTON_STYLES = {
-  primary: "bg-accent text-accent-fg hover:bg-accent-hover",
+  primary: "bg-accent text-accent-fg shadow-[var(--shadow-sm)] hover:bg-accent-hover",
+  tinted: "bg-accent-tint text-accent-text hover:bg-[color-mix(in_oklab,var(--color-accent)_18%,var(--color-surface))]",
+  gray: "bg-fill-strong text-fg hover:bg-[color-mix(in_oklab,var(--color-fg)_14%,transparent)]",
+  plain: "text-accent-text hover:bg-accent-tint",
   ink: "bg-espresso text-espresso-fg hover:opacity-90",
   espresso: "bg-espresso text-espresso-fg hover:opacity-90",
   outline: "border border-line-strong/70 bg-surface text-fg hover:bg-wood",
   ghost: "text-fg hover:bg-wood",
-  danger: "bg-danger text-bg hover:opacity-90",
+  danger: "bg-danger text-accent-fg hover:opacity-90",
+  destructive: "bg-danger-tint text-danger hover:bg-[color-mix(in_oklab,var(--color-danger)_16%,var(--color-surface))]",
 } as const;
 
 /** The look of a button, for the things that must be a link but should read as a button. */
@@ -64,9 +91,22 @@ export function Button({
   variant,
   size,
   className,
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & ButtonLook) {
-  return <button className={cn(buttonClass({ variant, size }), className)} {...props} />;
+}: ButtonHTMLAttributes<HTMLButtonElement> & ButtonLook & { loading?: boolean }) {
+  return (
+    <button
+      className={cn(buttonClass({ variant, size }), loading && "disabled:opacity-100 disabled:saturate-100", className)}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      {...props}
+    >
+      {loading ? <Loader2 aria-hidden="true" className="size-4 animate-spin" strokeWidth={2.25} /> : null}
+      {children}
+    </button>
+  );
 }
 
 /**
@@ -81,16 +121,16 @@ export function ButtonAnchor({ variant, size, className, ...props }: ComponentPr
 /** A router link that looks like a button: one control, one tab stop, keeps prefetch and "open in new tab". */
 export const ButtonLink = createLink(ButtonAnchor);
 
+/**
+ * Fields are filled, not boxed: a soft fill with a hairline edge, a deeper fill under the pointer
+ * and, on focus, the surface colour with the accent edge and a wide soft ring. The ring is
+ * the same on every field type (input, select, textarea, the date field's wrapper).
+ */
+const FIELD =
+  "rounded-[var(--radius-sm)] border border-line bg-fill text-subheadline text-fg outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-[var(--ease-spring)] hover:bg-fill-strong focus:border-accent/70 focus:bg-surface focus:ring-4 focus:ring-accent/15";
+
 export function Input({ className, ...props }: ComponentProps<"input">) {
-  return (
-    <input
-      className={cn(
-        "h-11 w-full rounded-[var(--radius-sm)] border border-line-strong/70 bg-surface px-3 text-sm text-fg placeholder:text-subtle outline-none transition-[box-shadow] duration-150 focus:ring-2 focus:ring-accent/30",
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <input className={cn("h-11 w-full px-3 placeholder:text-subtle", FIELD, className)} {...props} />;
 }
 
 /**
@@ -292,11 +332,11 @@ export function DateField({
       role="presentation"
       onClick={open}
       className={cn(
-        "relative flex h-11 min-w-[11rem] items-center gap-2 rounded-[var(--radius-sm)] border border-line bg-surface px-3 transition-[border-color,box-shadow] duration-150",
+        "relative flex h-11 min-w-[11rem] items-center gap-2 rounded-[var(--radius-sm)] border border-line bg-fill px-3 transition-[background-color,border-color,box-shadow] duration-150 ease-[var(--ease-spring)]",
         disabled
           ? "cursor-not-allowed opacity-50"
           : // The real input is see-through, so its own focus ring cannot show: draw the same ring here.
-            "cursor-pointer hover:border-line-strong has-[:focus-visible]:border-accent has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent",
+            "cursor-pointer hover:bg-fill-strong has-[:focus-visible]:border-accent/70 has-[:focus-visible]:bg-surface has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent",
         // Same for the red edge the global rule gives a refused field: it lands on the invisible input.
         bad && "border-danger hover:border-danger has-[:focus-visible]:border-danger",
         className,
@@ -349,13 +389,8 @@ export function DateField({
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cn(
-        "h-11 w-full appearance-none rounded-[var(--radius-sm)] border border-line bg-surface bg-[length:12px] bg-[right_12px_center] bg-no-repeat px-3 pr-9 text-sm text-fg outline-none transition-[box-shadow] duration-150 focus:ring-2 focus:ring-accent/30",
-        className,
-      )}
-      style={{
-        backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23424c6b' stroke-width='1.75' viewBox='0 0 24 24'><path d='m6 9 6 6 6-6'/></svg>")`,
-      }}
+      // `select-caret` draws the arrow from gradients in the muted token, so it follows light and dark.
+      className={cn("select-caret h-11 w-full appearance-none px-3 pr-9", FIELD, className)}
       {...props}
     >
       {children}
@@ -366,10 +401,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
-      className={cn(
-        "w-full rounded-[var(--radius-sm)] border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-subtle outline-none focus:ring-2 focus:ring-accent/30",
-        className,
-      )}
+      className={cn("w-full px-3 py-2.5 placeholder:text-subtle", FIELD, className)}
       {...props}
     />
   );
@@ -387,9 +419,9 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[var(--radius-xl)] bg-surface p-5 border border-line shadow-[var(--shadow-soft)]",
+        "rounded-[var(--radius-lg)] bg-surface p-5 shadow-[var(--shadow-border),var(--shadow-sm)]",
         interactive &&
-          "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+          "transition-[transform,box-shadow] duration-200 ease-[var(--ease-spring)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-border),var(--shadow-md)]",
         className,
       )}
       {...props}
@@ -397,33 +429,119 @@ export function Card({
   );
 }
 
+/**
+ * Rows of one inset grouped list: a card of lines with hairlines between them, the idiom for
+ * settings, account, member detail and invoices. `ListRow` takes an optional leading icon, a
+ * value on the right and a chevron when the whole row goes somewhere.
+ */
+export function ListGroup({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("list-group", className)} {...props} />;
+}
+
+export function ListRow({
+  icon: Icon,
+  title,
+  detail,
+  value,
+  chevron = false,
+  onClick,
+  href,
+  className,
+}: {
+  icon?: LucideIcon;
+  title: ReactNode;
+  /** A second line, smaller and muted. */
+  detail?: ReactNode;
+  /** What sits on the right: a figure, a badge, a switch. */
+  value?: ReactNode;
+  chevron?: boolean;
+  onClick?: () => void;
+  href?: string;
+  className?: string;
+}) {
+  const body = (
+    <>
+      {Icon ? (
+        <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-accent-tint text-accent-text">
+          <Icon className="size-4" strokeWidth={1.9} />
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-callout text-fg">{title}</span>
+        {detail ? <span className="block truncate text-footnote text-muted">{detail}</span> : null}
+      </span>
+      {value ? <span className="shrink-0 text-subheadline tabular-nums text-muted">{value}</span> : null}
+      {chevron ? <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-faint" strokeWidth={2} /> : null}
+    </>
+  );
+  const row = cn("flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left", className);
+  if (href) {
+    return (
+      <a href={href} className={cn(row, "transition-colors duration-150 hover:bg-fill")}>
+        {body}
+      </a>
+    );
+  }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cn(row, "transition-colors duration-150 hover:bg-fill active:bg-fill-strong")}>
+        {body}
+      </button>
+    );
+  }
+  return <div className={row}>{body}</div>;
+}
+
+type BadgeTone = "ink" | "accent" | "success" | "hold" | "info" | "muted" | "danger";
+
+// `accent` is what statusTone calls "confirmed, active, completed": a state, not an action, so it
+// is painted in the success role. The action colour is for what can be pressed.
+const BADGE_TONES: Record<BadgeTone, string> = {
+  ink: "bg-fg text-bg",
+  accent: "bg-success-tint text-success",
+  success: "bg-success-tint text-success",
+  hold: "bg-warning-tint text-hold-text",
+  info: "bg-info-tint text-info",
+  muted: "bg-fill-strong text-muted",
+  danger: "bg-danger-tint text-danger",
+};
+// A glyph per tone, so "paid" and "held" and "cancelled" differ in shape and not only in hue
+// (a photocopy, a colour-blind reader and a projector all lose the hue).
+const BADGE_GLYPH: Partial<Record<BadgeTone, LucideIcon>> = {
+  accent: CheckIcon,
+  success: CheckIcon,
+  hold: Clock,
+  info: Info,
+  danger: XIcon,
+  muted: Minus,
+};
+
 export function Badge({
   tone = "ink",
+  icon = false,
   className,
+  children,
   ...props
-}: HTMLAttributes<HTMLSpanElement> & { tone?: "ink" | "accent" | "hold" | "muted" | "danger" }) {
-  const map = {
-    ink: "bg-fg text-bg",
-    accent: "bg-accent/12 text-accent-2",
-    hold: "bg-hold/12 text-hold",
-    muted: "bg-wood text-muted",
-    danger: "bg-danger/10 text-danger",
-  };
+}: HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone; icon?: boolean }) {
+  const Glyph = icon ? BADGE_GLYPH[tone] : undefined;
   return (
     <span
       className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-2xs font-medium tabular-nums",
-        map[tone],
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-[var(--radius-pill)] px-2 py-0.5 text-caption font-medium tabular-nums",
+        BADGE_TONES[tone],
         className,
       )}
       {...props}
-    />
+    >
+      {Glyph ? <Glyph aria-hidden="true" className="size-3 shrink-0" strokeWidth={2.5} /> : null}
+      {children}
+    </span>
   );
 }
 
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
   return (
-    <Badge tone={statusTone(status)} className={className}>
+    <Badge tone={statusTone(status)} icon className={className}>
       {statusLabel(status)}
     </Badge>
   );
@@ -533,7 +651,9 @@ export function Seg({
   return (
     // One line, always: on a narrow phone the segments scroll sideways instead of wrapping into a
     // second row that reads as a different control.
-    <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-[var(--radius-md)] bg-wood p-1">
+    // A gray track with a raised thumb: choosing a view or a filter is not "the action", so the
+    // thumb is the surface colour and the accent stays for what commits.
+    <div className="inline-flex max-w-full gap-0.5 overflow-x-auto rounded-[var(--radius-md)] bg-fill-strong p-0.5">
       {options.map((o) => {
         const active = value === o.value;
         return (
@@ -543,19 +663,19 @@ export function Seg({
             onClick={() => onChange(o.value)}
             aria-pressed={active}
             className={cn(
-              "relative min-h-11 min-w-11 shrink-0 whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-sm font-medium transition-colors duration-200 sm:min-h-9 sm:min-w-9 sm:px-4",
-              active ? "text-accent-fg" : "text-muted hover:text-fg",
+              "relative min-h-11 min-w-11 shrink-0 whitespace-nowrap rounded-[calc(var(--radius-md)-2px)] px-3 text-subheadline font-medium transition-colors duration-150 sm:min-h-9 sm:min-w-9 sm:px-4",
+              active ? "font-semibold text-fg" : "text-muted hover:text-fg",
             )}
           >
-            {/* Sliding pill travels between options instead of blinking on. */}
+            {/* The thumb travels between options on a spring, and can be redirected mid-flight. */}
             {active ? (
               reduced ? (
-                <span className="absolute inset-0 rounded-[var(--radius-sm)] bg-accent" />
+                <span className="absolute inset-0 rounded-[calc(var(--radius-md)-2px)] bg-surface shadow-[var(--shadow-sm)]" />
               ) : (
                 <motion.span
                   layoutId={`seg-${group}`}
-                  className="absolute inset-0 rounded-[var(--radius-sm)] bg-accent"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  className="absolute inset-0 rounded-[calc(var(--radius-md)-2px)] bg-surface shadow-[var(--shadow-sm)]"
+                  transition={SPRING.snappy}
                 />
               )
             ) : null}
@@ -591,18 +711,18 @@ export function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[var(--radius-pill)] border px-3.5 text-sm font-medium transition-colors duration-150 sm:min-h-9",
+        "press inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[var(--radius-pill)] border px-3.5 text-subheadline font-medium transition-colors duration-150 sm:min-h-9",
         active
-          ? "border-accent bg-accent text-accent-fg"
-          : "border-line bg-surface text-fg hover:bg-wood",
+          ? "border-accent/50 bg-accent-tint text-accent-text"
+          : "border-line bg-surface text-fg hover:bg-fill",
       )}
     >
       {label}
       {count !== undefined ? (
         <span
           className={cn(
-            "rounded-full px-1.5 text-2xs font-semibold tabular-nums",
-            active ? "bg-accent-fg/15" : tone === "hold" ? "bg-hold/15 text-hold" : "bg-wood text-muted",
+            "rounded-full px-1.5 text-caption font-semibold tabular-nums",
+            active ? "bg-accent/15" : tone === "hold" ? "bg-warning-tint text-hold-text" : "bg-fill-strong text-muted",
           )}
         >
           {count}
@@ -786,21 +906,51 @@ export function Modal({
    */
   const body = mounted ? document.body : null;
 
+  const sheet = useIsPhone();
+  const reduced = useReducedMotion();
+  const drag = useDragControls();
+  const dragY = useMotionValue(0);
+
+  // A sheet rises from the bottom and leaves the way it came; a dialog on a wide screen scales in
+  // from just below its resting place. Under reduced motion both are a cross-fade.
+  const pose = reduced
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
+    : sheet
+      ? { initial: { y: "100%" }, animate: { y: 0 }, exit: { y: "100%" } }
+      : {
+          initial: { opacity: 0, y: 14, scale: 0.97 },
+          animate: { opacity: 1, y: 0, scale: 1 },
+          exit: { opacity: 0, y: 8, scale: 0.98 },
+        };
+
+  /*
+   * Releasing a dragged sheet: where it would come to rest if thrown (the finger's velocity
+   * projected forward) decides, not where the finger let go, so a short flick still dismisses it
+   * and a slow drag that stops halfway still springs back. Either way the spring starts from the
+   * live position and the release velocity, so the hand-off has no seam.
+   */
+  function release(offsetY: number, velocityY: number) {
+    const height = panel.current?.offsetHeight ?? 400;
+    const lands = offsetY + project(velocityY);
+    if (lands > height * 0.4 || velocityY > 900) onClose();
+  }
+
   const dialog = (
     <AnimatePresence>
       {open ? (
-        <div className="fixed inset-0 z-[60]">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-start">
           {/* Clicking the dimmed page closes the dialog. Keyboard users have Escape and the
-              dialog's own buttons, so this is kept out of the tab order and the reading order. */}
+              dialog's own buttons, so this is kept out of the tab order and the reading order.
+              The page behind is pushed back: dimmed with the brand night and softly blurred. */}
           <motion.div
             role="presentation"
             aria-hidden="true"
-            className="absolute inset-0 bg-fg/40 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-scrim/45 backdrop-blur-[3px]"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.22 }}
           />
           <motion.div
             ref={panel}
@@ -808,15 +958,29 @@ export function Modal({
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
-            className="relative mx-auto mt-[8vh] max-h-[84dvh] w-[min(32rem,calc(100%-2rem))] overflow-y-auto rounded-[var(--radius-xl)] bg-surface p-5 shadow-[var(--shadow-soft)] outline-none"
-            initial={{ opacity: 0, y: 16, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.28, ease: EASE_SMOOTH }}
+            className="relative max-h-[88dvh] w-full overflow-y-auto rounded-t-[var(--radius-xl)] bg-surface px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 shadow-[var(--shadow-lg)] outline-none sm:mt-[8vh] sm:max-h-[84dvh] sm:w-[min(32rem,calc(100%-2rem))] sm:rounded-[var(--radius-xl)] sm:p-5"
+            style={sheet && !reduced ? { y: dragY } : undefined}
+            {...pose}
+            transition={reduced ? { duration: 0.15 } : sheet ? SPRING.bouncy : SPRING.smooth}
+            drag={sheet && !reduced ? "y" : false}
+            dragControls={drag}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            // Resists upward, follows freely downward: the rubber band at the top edge.
+            dragElastic={{ top: 0.06, bottom: 0.9 }}
+            onDragEnd={(_, info) => release(info.offset.y, info.velocity.y)}
           >
-            <h2 id={titleId} className="font-display text-2xl">
-              {t(title)}
-            </h2>
+            {/* The grab handle and the title: the part of a sheet you pull it by. Fields and
+                buttons below are never a drag handle, so selecting text still works. */}
+            <div
+              onPointerDown={(e) => sheet && !reduced && drag.start(e)}
+              className={cn("-mx-5 px-5", sheet && !reduced && "cursor-grab touch-none active:cursor-grabbing")}
+            >
+              <div aria-hidden="true" className="mx-auto mb-3 mt-1 h-1 w-9 rounded-full bg-line-strong sm:hidden" />
+              <h2 id={titleId} className="text-title-2 font-display">
+                {t(title)}
+              </h2>
+            </div>
             <div className="mt-4">{children}</div>
             {footer ? <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div> : null}
           </motion.div>
@@ -826,6 +990,19 @@ export function Modal({
   );
 
   return body ? createPortal(dialog, body) : null;
+}
+
+/** True on a phone-width screen, where a modal is a bottom sheet. Settles after mount, so the server render is the dialog. */
+function useIsPhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    setPhone(mq.matches);
+    const on = (e: MediaQueryListEvent) => setPhone(e.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return phone;
 }
 
 /**
@@ -862,22 +1039,28 @@ export function Stat({
 }) {
   const Arrow =
     trend?.pct == null || trend.pct === 0 ? Minus : trend.pct > 0 ? ArrowUpRight : ArrowDownRight;
+  // A zero (or an empty "0 đ") is one quiet line, not a 36px digit that holds the place of news.
+  const empty = isEmptyFigure(value) && !trend;
   return (
-    <Card>
+    <Card className={cn(empty && "py-4")}>
       <div className="flex items-center justify-between gap-2">
-        <p className="kicker text-2xs text-muted">{t(label)}</p>
+        <p className="kicker text-caption text-muted">{t(label)}</p>
         {Icon ? (
-          <span aria-hidden="true" className="grid size-8 place-items-center rounded-[var(--radius-sm)] bg-accent/10 text-accent-2">
+          <span aria-hidden="true" className="grid size-8 place-items-center rounded-[var(--radius-sm)] bg-accent-tint text-accent-text">
             <Icon className="size-4" strokeWidth={1.9} />
           </span>
         ) : null}
       </div>
-      <p className="figure mt-2.5 text-4xl">{value}</p>
+      {empty ? (
+        <p className="mt-1.5 text-callout text-subtle">{t("Nothing yet")}</p>
+      ) : (
+        <p className="figure mt-2.5 text-title-1 sm:text-large-title">{value}</p>
+      )}
       {trend ? (
         <p
           className={cn(
-            "mt-1.5 flex items-center gap-1 text-sm font-medium",
-            trend.good === true && "text-accent",
+            "mt-1.5 flex items-center gap-1 text-subheadline font-medium",
+            trend.good === true && "text-success",
             trend.good === false && "text-danger",
             trend.good == null && "text-muted",
           )}

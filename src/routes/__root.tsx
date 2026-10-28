@@ -116,20 +116,22 @@ function RootComponent() {
               <RetryOutlet />
             </LangProvider>
           </SiteAssetsProvider>
-          {/* Below the 56px header on both sizes: sonner's phone default of 16px sat on top of it, and
-              six seconds rather than four, because a refused payment is a line to read twice. */}
+          {/* At the bottom, clear of the page heading it used to cover: above the phone's tab bar (about
+              6rem tall), and beside the corner of a wide screen. Six seconds rather than four, because a
+              refused payment is a line to read twice. A material, like the other floating chrome. */}
           <Toaster
-            position="top-center"
-            offset={72}
-            mobileOffset={{ top: 68, left: 16, right: 16 }}
+            position="bottom-center"
+            offset={24}
+            mobileOffset={{ bottom: 104, left: 16, right: 16 }}
             duration={6000}
             visibleToasts={3}
             toastOptions={{
-              className: "font-sans",
+              className: "font-sans material-thick",
               style: {
-                background: "var(--color-surface)",
                 color: "var(--color-fg)",
-                border: "1px solid var(--color-line)",
+                border: "1px solid var(--color-separator)",
+                borderRadius: "var(--radius-lg)",
+                boxShadow: "var(--shadow-lg)",
               },
             }}
           />

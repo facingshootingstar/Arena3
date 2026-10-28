@@ -457,4 +457,10 @@ export const redesign: Record<string, string> = {
   "Source and licence of each image used on this site.": "Nguồn và giấy phép của từng hình ảnh dùng trên trang này.",
   "View original": "Xem ảnh gốc",
   "Back to Home": "Về trang chủ",
+  // Apple-style redesign: shared primitives
+  "Nothing yet": "Chưa có",
+  "vs last week": "so với tuần trước",
+  "More actions": "Thao tác khác",
+  "Expand menu": "Mở rộng menu",
+  "Collapse menu": "Thu gọn menu",
 };
