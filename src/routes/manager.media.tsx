@@ -201,7 +201,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Site media")}
         subtitle={t("Hero, banners, sport covers and brand imagery across the app.")}
         className="mb-6"
@@ -262,7 +262,7 @@ function Page() {
             {filteredItems.map((asset) => {
               const label = isVi ? asset.label_vi : asset.label_en;
               const location = isVi ? asset.location_vi : asset.location_en;
-              const curDim = asset.width && asset.height ? `${asset.width} × ${asset.height}` : "–";
+              const curDim = asset.width && asset.height ? `${asset.width} × ${asset.height}` : "-";
               const canRevert = asset.history_count > 0;
               const isDefault = !asset.history_count && asset.version === 1;
 
@@ -297,7 +297,7 @@ function Page() {
                     )}
 
                     {!asset.enabled ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <div className="absolute inset-0 flex items-center justify-center bg-scrim/40">
                         <Badge tone="hold">{t("Slot is currently disabled")}</Badge>
                       </div>
                     ) : null}
@@ -305,7 +305,7 @@ function Page() {
                     {/* Safe Area Guide indicator overlay */}
                     {asset.aspect === "16:9" && (
                       <div
-                        className="pointer-events-none absolute inset-x-4 inset-y-6 rounded border border-dashed border-white/40"
+                        className="pointer-events-none absolute inset-x-4 inset-y-6 rounded border border-dashed border-on-media/40"
                         title={t("Safe text area")}
                       />
                     )}
@@ -599,14 +599,14 @@ function UploadDialog({
           </div>
         ) : (
           <div className="grid gap-4">
-            <div className="relative overflow-hidden rounded-[var(--radius-md)] bg-black/10">
+            <div className="relative overflow-hidden rounded-[var(--radius-md)] bg-scrim/10">
               <img
                 src={preview.url}
                 alt={t("Preview")}
                 className="max-h-72 w-full object-contain"
               />
               <div
-                className="pointer-events-none absolute inset-x-4 inset-y-6 rounded border border-dashed border-white/50"
+                className="pointer-events-none absolute inset-x-4 inset-y-6 rounded border border-dashed border-on-media/50"
                 title={t("Text overlay safe area")}
               />
             </div>
@@ -763,7 +763,7 @@ function LibraryDialog({
                       />
                       <Badge
                         tone="muted"
-                        className="absolute bottom-1 left-1 bg-black/60 text-3xs text-white uppercase"
+                        className="absolute bottom-1 left-1 bg-scrim/60 text-3xs text-on-media uppercase"
                       >
                         {item.license}
                       </Badge>
@@ -1045,7 +1045,7 @@ function MediaLibraryExplorer() {
                     </p>
                     <div className="mt-1 flex items-center justify-between text-2xs text-muted">
                       <span>
-                        {item.width && item.height ? `${item.width} × ${item.height}` : "–"}
+                        {item.width && item.height ? `${item.width} × ${item.height}` : "-"}
                       </span>
                       <button
                         type="button"

@@ -122,7 +122,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Pricing")}
         subtitle={t("A new price only applies to new transactions: bookings and plans already sold keep theirs.")}
         className="mb-6"

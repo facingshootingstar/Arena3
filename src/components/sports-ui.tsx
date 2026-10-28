@@ -163,7 +163,7 @@ export function SportThumbnail({
         />
       ) : (
         <div
-          className="flex h-full w-full items-center justify-center font-bold text-2xs uppercase text-white"
+          className="flex h-full w-full items-center justify-center font-bold text-2xs uppercase text-on-media"
           style={{
             backgroundColor: color ? `var(--color-sport-${color}, var(--color-accent))` : "var(--color-accent)",
           }}

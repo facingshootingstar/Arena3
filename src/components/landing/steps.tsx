@@ -59,7 +59,7 @@ export function StepsScene() {
   return (
     <section ref={root} id="how" className="relative mx-auto max-w-6xl scroll-mt-20 px-4 py-20">
       {/* Pointer-reactive dot field: costs nothing while the cursor is still. */}
-      <GLBackground variant="dotgrid" className="-z-[1]" color="#3f7d20" gap={30} opacity={0.22} />
+      <GLBackground variant="dotgrid" className="-z-[1]" gap={30} opacity={0.22} />
       <p data-rise className="kicker text-2xs text-muted">
         {t("Booking")}
       </p>

@@ -8,7 +8,7 @@ import { PageHero } from "@/components/page-hero";
 import { StatStrip } from "@/components/stat-strip";
 import { RowActions } from "@/components/row-actions";
 import { SportBadge, useSports } from "@/components/sports-ui";
-import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Pagination } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Pagination, FilterChip } from "@/components/ui";
 import { ApiClientError, apiPost, apiPatch } from "@/lib/arena3/client";
 import { roleLabel, sportLabel } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
@@ -124,34 +124,14 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Staff")}
         subtitle={t("Receptionist and coach logins are issued here and nowhere else. Members sign themselves up.")}
       />
       <StatStrip className="mb-6" items={statItems} />
       <div className="mb-4 flex flex-wrap gap-2">
         {ROLES.map((r) => (
-          <button
-            key={r.value}
-            type="button"
-            onClick={() => setRole(r.value)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors",
-              role === r.value
-                ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]"
-                : "border border-line bg-surface text-muted hover:bg-wood hover:text-fg",
-            )}
-          >
-            <span>{r.label}</span>
-            <span
-              className={cn(
-                "rounded-full px-1.5 py-0.2 text-2xs font-semibold tabular-nums",
-                role === r.value ? "bg-accent-fg/20 text-accent-fg" : "bg-wood text-muted",
-              )}
-            >
-              {r.count}
-            </span>
-          </button>
+          <FilterChip key={r.value} active={role === r.value} onClick={() => setRole(r.value)} label={r.label} count={r.count} />
         ))}
       </div>
       <Card className="mb-4 grid gap-3 md:grid-cols-[1.8fr_1fr_auto]">

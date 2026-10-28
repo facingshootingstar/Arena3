@@ -104,7 +104,6 @@ function Page() {
         variant="dotgrid"
         position="fixed"
         className="-z-[1]"
-        color="#3f7d20"
         gap={30}
         dot={1.6}
         radius={140}
@@ -113,7 +112,7 @@ function Page() {
       {/* One framed panel rather than bubbles floating loose on the page. The
           thread scrolls inside it and the composer is pinned to its foot, so
           the conversation reads as a single object with a beginning and an end. */}
-      <div className="relative mx-auto flex max-w-2xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface/70 shadow-[0_24px_60px_-40px_rgba(20,28,18,0.7)] backdrop-blur-sm">
+      <div className="relative mx-auto flex max-w-2xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface/70 shadow-[var(--shadow-lg)] backdrop-blur-sm">
         <div className="flex items-center gap-2.5 border-b border-line/70 bg-surface/80 px-4 py-3">
           <span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-accent/12 text-accent">
             <AssistantMark className="size-4" strokeWidth={1.9} />

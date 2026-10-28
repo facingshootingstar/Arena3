@@ -347,7 +347,7 @@ function Page() {
   return (
     <Shell role={isManager ? "manager" : "receptionist"}>
       <PageHero
-        slot="banner.gate"
+        variant="compact"
         title={t("Payments & refunds")}
         subtitle={t("Orders waiting for payment, posted receipts, and audit trail.")}
       />
@@ -356,7 +356,6 @@ function Page() {
         variant="dotgrid"
         position="fixed"
         className="-z-[1]"
-        color="#3f7d20"
         gap={32}
         dot={1.5}
         radius={130}

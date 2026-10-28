@@ -463,10 +463,10 @@ function ChatPage() {
                           <span
                             className={cn(
                               "size-2 rounded-full",
-                              isP2PDirect ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-amber-500",
+                              isP2PDirect ? "bg-success shadow-[0_0_8px_color-mix(in_oklab,var(--color-success)_60%,transparent)]" : "bg-hold",
                             )}
                           />
-                          <span className={cn("font-medium", isP2PDirect ? "text-emerald-500" : "text-amber-500")}>
+                          <span className={cn("font-medium", isP2PDirect ? "text-success" : "text-hold-text")}>
                             {isP2PDirect ? t("P2P Direct") : t("Server Relay")}
                           </span>
                         </div>
@@ -539,7 +539,7 @@ function ChatPage() {
                                     </button>
                                   ) : m.read_at || m.status === "read" ? (
                                     <span title={t("Read")}>
-                                      <CheckCheck className="size-3 text-emerald-400" />
+                                      <CheckCheck className="size-3 text-success" />
                                     </span>
                                   ) : (
                                     <span title={t("Sent")}>

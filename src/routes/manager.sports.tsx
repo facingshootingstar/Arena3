@@ -277,7 +277,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Sports")}
         subtitle={t("Manage centre sports, court prefixes, color themes and default pricing.")}
         stats={[
@@ -448,11 +448,11 @@ function Page() {
               : t("Set initial hourly court rental rates for this sport.")}
           </p>
           <div className="flex items-center gap-1.5 text-xs font-semibold text-muted">
-            <span className={cn("size-6 rounded-full flex items-center justify-center", createStep === 1 ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg")}>
+            <span className={cn("size-6 rounded-full flex items-center justify-center", createStep === 1 ? "bg-accent text-accent-fg" : "bg-fill text-fg")}>
               1
             </span>
             <ChevronRight className="size-3.5" />
-            <span className={cn("size-6 rounded-full flex items-center justify-center", createStep === 2 ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg")}>
+            <span className={cn("size-6 rounded-full flex items-center justify-center", createStep === 2 ? "bg-accent text-accent-fg" : "bg-fill text-fg")}>
               2
             </span>
           </div>
@@ -515,7 +515,7 @@ function Page() {
                           "flex items-center gap-2 rounded-[var(--radius-md)] border p-2 text-left text-xs transition-all",
                           isSelected
                             ? "border-accent bg-accent/10 font-medium text-fg shadow-[var(--shadow-border)]"
-                            : "border-line bg-surface hover:bg-surface-2 text-muted",
+                            : "border-line bg-surface hover:bg-fill text-muted",
                         )}
                       >
                         <span
@@ -574,7 +574,7 @@ function Page() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekday regular (06:00–17:00)")}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekday regular (06:00-17:00)")}</label>
                   <Input
                     type="number"
                     step={10000}
@@ -583,7 +583,7 @@ function Page() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekday peak (17:00–22:00)")}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekday peak (17:00-22:00)")}</label>
                   <Input
                     type="number"
                     step={10000}
@@ -595,7 +595,7 @@ function Page() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekend morning (06:00–08:00)")}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekend morning (06:00-08:00)")}</label>
                   <Input
                     type="number"
                     step={10000}
@@ -604,7 +604,7 @@ function Page() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekend peak (08:00–22:00)")}</label>
+                  <label className="block text-xs font-medium text-muted mb-1">{t("Weekend peak (08:00-22:00)")}</label>
                   <Input
                     type="number"
                     step={10000}
@@ -690,7 +690,7 @@ function Page() {
                         "flex items-center gap-2 rounded-[var(--radius-md)] border p-2 text-left text-xs transition-all",
                         isSelected
                           ? "border-accent bg-accent/10 font-medium text-fg shadow-[var(--shadow-border)]"
-                          : "border-line bg-surface hover:bg-surface-2 text-muted",
+                          : "border-line bg-surface hover:bg-fill text-muted",
                       )}
                     >
                       <span

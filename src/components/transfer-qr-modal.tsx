@@ -69,7 +69,7 @@ export function VietQrPanel({
   return (
     <div className="grid gap-4 text-center">
       {src ? (
-        <div className="relative mx-auto size-64 overflow-hidden rounded-[var(--radius-lg)] border border-line bg-white p-2 shadow-sm">
+        <div className="relative mx-auto size-64 overflow-hidden rounded-[var(--radius-lg)] border border-line bg-on-media p-2 shadow-sm">
           <img src={src} alt={t("VietQR payment code")} className="size-full object-contain" />
         </div>
       ) : (
@@ -216,7 +216,7 @@ export function TransferQrModal({
         <p className="text-sm text-muted">{t("Ask the customer to scan this QR code with their banking app.")}</p>
         {payosSrc ? (
           <>
-            <div className="relative mx-auto size-64 overflow-hidden rounded-[var(--radius-lg)] border border-line bg-white p-2 shadow-sm">
+            <div className="relative mx-auto size-64 overflow-hidden rounded-[var(--radius-lg)] border border-line bg-on-media p-2 shadow-sm">
               <img src={payosSrc} alt={t("VietQR payment code")} className="size-full object-contain" />
             </div>
             <p className="text-sm">

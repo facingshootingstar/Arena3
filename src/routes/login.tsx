@@ -216,7 +216,7 @@ function Login() {
                 setLogin(d.phone);
                 void submit(undefined, d);
               }}
-              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_10px_24px_-18px_rgba(27,31,29,0.6)] active:scale-95"
+              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-3 py-2 text-left transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-[var(--shadow-md)] active:scale-95"
             >
               <span className="text-2xs font-semibold text-accent-text">{roleLabel(d.role)}</span>
               <span className="ml-2 text-sm font-medium">{d.name}</span>

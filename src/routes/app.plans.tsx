@@ -232,9 +232,9 @@ function Page() {
                         </td>
                         <td className="py-2.5"><SportBadge sport={p.sport_scope} /></td>
                         <td className="py-2.5 text-muted">{p.duration_days ? t("{n} days", { n: p.duration_days }) : t("Per session")}</td>
-                        <td className="py-2.5 text-fg">{p.court_hours > 0 ? `${p.court_hours}h` : "—"}</td>
-                        <td className="py-2.5 text-fg">{p.session_quota ? `${p.session_quota} buổi` : "—"}</td>
-                        <td className="py-2.5 text-accent-2 font-medium">{p.court_discount_pct > 0 ? `${p.court_discount_pct}%` : "—"}</td>
+                        <td className="py-2.5 text-fg">{p.court_hours > 0 ? `${p.court_hours}h` : "-"}</td>
+                        <td className="py-2.5 text-fg">{p.session_quota ? t("{n} sessions", { n: p.session_quota }) : "-"}</td>
+                        <td className="py-2.5 text-accent-2 font-medium">{p.court_discount_pct > 0 ? `${p.court_discount_pct}%` : "-"}</td>
                         <td className="py-2.5 text-right font-bold tabular-nums text-fg">{money(p.price_vnd)}</td>
                       </tr>
                     );

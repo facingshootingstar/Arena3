@@ -309,7 +309,7 @@ function Shuttle() {
     <span
       data-shuttle
       aria-hidden
-      className="pointer-events-none invisible absolute left-0 top-0 z-[2] block size-9 -translate-x-1/2 -translate-y-1/2 text-on-media drop-shadow-[0_6px_14px_rgba(4,8,28,0.55)]"
+      className="pointer-events-none invisible absolute left-0 top-0 z-[2] block size-9 -translate-x-1/2 -translate-y-1/2 text-on-media drop-shadow-[0_6px_14px_color-mix(in_oklab,var(--color-scrim)_55%,transparent)]"
     >
       <svg viewBox="0 0 32 32" className="size-full" fill="none" stroke="currentColor" strokeLinejoin="round">
         {/* Cork at the bottom, feathers fanning up: the cork leads when it flies. */}
