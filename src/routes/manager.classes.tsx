@@ -10,7 +10,7 @@ import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion"
 import { SpotlightCard } from "@/components/fx";
 import { ClassDetailModal } from "@/components/class-detail";
 import { apiPost } from "@/lib/arena3/client";
-import { composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
+import { classSlotMatches, composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { HighlightBadge, useLive } from "@/lib/use-live";
@@ -55,7 +55,18 @@ function Page() {
   // Cancelled classes stay on record but are folded away; the server sends the newest first.
   const [showCancelled, setShowCancelled] = useState(false);
   const cancelledCount = items?.filter((c) => c.status === "cancelled").length ?? 0;
-  const listed = items ? (showCancelled ? items : items.filter((c) => c.status !== "cancelled")) : null;
+  // The same coach, weekday and time-of-day filters members have, to find a class without scrolling.
+  const [coach, setCoach] = useState("");
+  const [day, setDay] = useState("");
+  const [part, setPart] = useState("");
+  const filtering = !!(coach || day || part);
+  const coachNames = [...new Set((items ?? []).map((c) => c.coach_name))].sort((a, b) => a.localeCompare(b, "vi"));
+  const listed = items
+    ? (showCancelled ? items : items.filter((c) => c.status !== "cancelled"))
+        .filter((c) => !coach || c.coach_name === coach)
+        .filter((c) => classSlotMatches(c.rrule, day, part))
+    : null;
+  useEffect(() => setLimit(8), [coach, day, part]);
   const courts = useMemo(() => courtsRead.data?.items ?? [], [courtsRead.data]);
   const coaches = useMemo(() => coachesRead.data?.items ?? [], [coachesRead.data]);
   // The form can only say "no coach teaches this" once the coaches have really been read.
@@ -293,6 +304,32 @@ function Page() {
       ) : !items ? (
         <Skeleton className="h-40" />
       ) : null}
+      {items?.length ? (
+        <div className="mb-4 grid gap-2 sm:grid-cols-3">
+          <Select aria-label={t("Coach")} value={coach} onChange={(e) => setCoach(e.target.value)}>
+            <option value="">{t("All coaches")}</option>
+            {coachNames.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </Select>
+          <Select aria-label={t("Day")} value={day} onChange={(e) => setDay(e.target.value)}>
+            <option value="">{t("Any day")}</option>
+            {DAYS.map((d) => (
+              <option key={d.k} value={d.k}>
+                {t(d.l)}
+              </option>
+            ))}
+          </Select>
+          <Select aria-label={t("Time of day")} value={part} onChange={(e) => setPart(e.target.value)}>
+            <option value="">{t("Any time")}</option>
+            <option value="morning">{t("Morning (before 12:00)")}</option>
+            <option value="afternoon">{t("Afternoon (12:00-17:00)")}</option>
+            <option value="evening">{t("Evening (from 17:00)")}</option>
+          </Select>
+        </div>
+      ) : null}
       <Stagger className="grid gap-3 md:grid-cols-2" gap={0.06}>
         {(listed ?? []).slice(0, limit).map((c) => (
           <StaggerItem key={c.id} className="h-full">
@@ -348,6 +385,9 @@ function Page() {
             {showCancelled ? t("Hide cancelled classes") : t("Show {n} cancelled classes", { n: cancelledCount })}
           </Button>
         </div>
+      ) : null}
+      {filtering && listed && !listed.length ? (
+        <EmptyState title={t("No class matches these filters")} hint={t("Change the coach, day or time above.")} />
       ) : null}
       {items && !items.length ? (
         <EmptyState

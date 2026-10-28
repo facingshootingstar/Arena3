@@ -11,7 +11,7 @@ import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GlareHover, SpotlightCard } from "@/components/fx";
 import { cn } from "@/lib/cn";
 import { apiDelete, apiPost } from "@/lib/arena3/client";
-import { levelLabel, parseWeeklyRrule, rruleLabel, sportLabel } from "@/lib/arena3/labels";
+import { classSlotMatches, levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
 import { locale, t, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { HighlightBadge, useLive } from "@/lib/use-live";
@@ -84,15 +84,7 @@ function Page() {
   const matching = (items ?? [])
     .filter((c) => !sport || c.sport === sport)
     .filter((c) => !coach || c.coach_name === coach)
-    .filter((c) => {
-      if (!day && !part) return true;
-      const p = parseWeeklyRrule(c.rrule);
-      if (day && !p.days.includes(day)) return false;
-      if (part === "morning") return p.hour < 12;
-      if (part === "afternoon") return p.hour >= 12 && p.hour < 17;
-      if (part === "evening") return p.hour >= 17;
-      return true;
-    })
+    .filter((c) => classSlotMatches(c.rrule, day, part))
     .sort((a, b) => Number(enrolledIds.has(b.id)) - Number(enrolledIds.has(a.id)));
   const shown = matching.slice(0, limit);
   useEffect(() => setLimit(6), [sport, coach, day, part]);

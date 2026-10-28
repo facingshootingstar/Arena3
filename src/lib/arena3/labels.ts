@@ -323,3 +323,15 @@ export function parseWeeklyRrule(rrule: string): { days: string[]; hour: number 
     .filter(Boolean);
   return { days, hour: Number(parts.BYHOUR ?? 18) };
 }
+
+/** The class-list filters: a weekday code ("MO"…) and a part of the day; empty means any. */
+export function classSlotMatches(rrule: string | undefined, day: string, part: string): boolean {
+  if (!day && !part) return true;
+  if (!rrule) return false;
+  const p = parseWeeklyRrule(rrule);
+  if (day && !p.days.includes(day)) return false;
+  if (part === "morning") return p.hour < 12;
+  if (part === "afternoon") return p.hour >= 12 && p.hour < 17;
+  if (part === "evening") return p.hour >= 17;
+  return true;
+}
