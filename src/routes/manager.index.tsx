@@ -203,7 +203,7 @@ function Page() {
       <GLBackground
         variant="dotgrid"
         position="fixed"
-        className="-z-[1]"
+        className="-z-[1]"
         gap={32}
         dot={1.5}
         radius={130}
