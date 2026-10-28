@@ -106,14 +106,14 @@ function Page() {
           {next ? (
             <section aria-label={t("Next session")}>
               <div className="mb-2 flex items-center justify-between">
-                <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent-2">
+                <p className="inline-flex items-center gap-1.5 text-subheadline font-semibold text-accent-text">
                   <ArenaIcon name="whistle" motion="wiggle" className="size-5" />
                   {t("Next session")}
                 </p>
                 <SessionCountdown startAt={next.start_at} />
               </div>
               <SpotlightCard className="rounded-[var(--radius-xl)]" size={420} strength={0.08}>
-              <Card className="relative z-[2] grid gap-5 border border-accent/30 bg-accent/[0.04] p-5 sm:p-6">
+              <Card className="relative z-[2] grid gap-5 bg-accent-tint p-5 sm:p-6">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
                   <CalendarDays aria-hidden className="size-4" />
                   <span className="font-semibold text-fg">{dayName(next.start_at)}</span>

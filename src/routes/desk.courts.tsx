@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { CourtGrid, DateStrip, freeHours, sportLabel, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
 import { Shell, money } from "@/components/shell";
 import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
+import { ShiftStatus } from "@/components/shift-status";
 import { Button, Card, DateField, Field, Input, LoadError, Select, Seg, Skeleton } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { SpotlightCard, StarBorder } from "@/components/fx";
@@ -50,22 +50,18 @@ function Page() {
     return `${date}T${String(hour).padStart(2, "0")}:00:00+07:00`;
   }
 
-  const statItems = [
-    { label: t("Courts free this hour"), value: freeNowCount },
-    { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
-    { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
-    { label: t("Waiting payments"), value: waiting },
-  ];
-
   return (
     <Shell role="receptionist">
+      {/* One figure that is about the map (and live), then the till in one line. */}
       <PageHero
-        slot="banner.gate"
+        variant="compact"
         title={t("Court map")}
         subtitle={t("Take walk-in payment on the spot.")}
+        stats={freeNowCount > 0 ? [{ label: t("Courts free this hour"), value: freeNowCount, live: true }] : undefined}
       />
-      <StatStrip className="mb-4" items={statItems} />
-      <div className="mb-4 grid gap-3">
+      <ShiftStatus className="mb-4" open={Boolean(shift?.shift)} cash={shift?.totals?.cash} waiting={waiting} />
+      {/* Days, sport and a date box in one row; they wrap only when the screen is too narrow for them. */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3">
         <DateStrip value={date} onChange={setDate} />
         <div className="flex flex-wrap items-center gap-2">
           <Seg

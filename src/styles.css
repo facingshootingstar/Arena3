@@ -11,11 +11,6 @@
 @theme {
   --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
   --font-display: "Be Vietnam Pro", system-ui, sans-serif;
-  /* Second display voice: heavy condensed block caps for the loud, athletic bits
-     (scoreboard numerals, sport names, section kickers). The serif still carries
-     the narrative headings — pairing the two is what keeps Arena3 from reading
-     like a boutique hotel while staying Arena3. */
-  --font-athletic: "Anton", "Be Vietnam Pro", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
   --color-bg: #f4f2ea;
@@ -84,7 +79,71 @@
   --color-primary-fg: var(--color-accent-fg);
   --color-error: var(--color-danger);
   --color-warning: var(--color-hold);
-  --color-success: var(--color-accent-2);
+  /* One colour is the action (accent). A state is never painted in it: "paid", "free" and "done"
+     read as success (a cooler, bluer green than the sprout), "held" as warning, "cancelled" as
+     danger and "info" as a calm blue. Every role has a tint for badge and banner backgrounds. */
+  --color-success: #176a49;
+  --color-info: #2a6a9e;
+  /* Hold amber as small text on its own tint: the fill colour is too light to read at 12px. */
+  --color-hold-text: #8a4604;
+  --color-success-tint: color-mix(in oklab, var(--color-success) 12%, var(--color-surface));
+  --color-warning-tint: color-mix(in oklab, var(--color-hold) 13%, var(--color-surface));
+  --color-danger-tint: color-mix(in oklab, var(--color-danger) 10%, var(--color-surface));
+  --color-info-tint: color-mix(in oklab, var(--color-info) 11%, var(--color-surface));
+  --color-accent-tint: color-mix(in oklab, var(--color-accent) 11%, var(--color-surface));
+
+  /* Label hierarchy, as Apple names it. fg = label, muted = secondary, subtle = tertiary (still AA
+     for small text), faint = quaternary: decoration and disabled glyphs only, never body text. */
+  --color-faint: color-mix(in oklab, var(--color-fg) 32%, transparent);
+  /* Hairline between rows: lighter than `line`, which still edges cards. */
+  --color-separator: color-mix(in oklab, var(--color-fg) 9%, transparent);
+  /* Field and chip fills (grouped, no border): two steps of the label colour over the page. */
+  --color-fill: color-mix(in oklab, var(--color-fg) 5%, transparent);
+  --color-fill-strong: color-mix(in oklab, var(--color-fg) 9%, transparent);
+  /* The tint a material lays over what is behind it. */
+  --color-material: color-mix(in oklab, var(--color-surface) 72%, transparent);
+  --color-material-thick: color-mix(in oklab, var(--color-surface) 88%, transparent);
+  /* Scrims over photography are made from the brand night, never from black. */
+  --color-scrim: var(--color-night);
+  --color-volt-soft: #e6ff7a;
+
+  /* Type scale (Apple's names). Tracking tightens as size grows and loosens as it shrinks; leading
+     does the opposite. Be Vietnam Pro stacks tall diacritics, so no leading goes below 1.15. */
+  --text-large-title: clamp(1.875rem, 1.5rem + 1.6vw, 2.5rem);
+  --text-large-title--line-height: 1.15;
+  --text-large-title--letter-spacing: -0.032em;
+  --text-large-title--font-weight: 700;
+  --text-title-1: clamp(1.5rem, 1.3rem + 0.9vw, 1.875rem);
+  --text-title-1--line-height: 1.18;
+  --text-title-1--letter-spacing: -0.026em;
+  --text-title-1--font-weight: 700;
+  --text-title-2: 1.375rem;
+  --text-title-2--line-height: 1.25;
+  --text-title-2--letter-spacing: -0.02em;
+  --text-title-2--font-weight: 600;
+  --text-title-3: 1.1875rem;
+  --text-title-3--line-height: 1.3;
+  --text-title-3--letter-spacing: -0.014em;
+  --text-title-3--font-weight: 600;
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: 1.35;
+  --text-headline--letter-spacing: -0.01em;
+  --text-headline--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: -0.006em;
+  --text-callout: 0.9375rem;
+  --text-callout--line-height: 1.45;
+  --text-callout--letter-spacing: -0.004em;
+  --text-subheadline: 0.875rem;
+  --text-subheadline--line-height: 1.42;
+  --text-subheadline--letter-spacing: 0em;
+  --text-footnote: 0.8125rem;
+  --text-footnote--line-height: 1.4;
+  --text-footnote--letter-spacing: 0.002em;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.35;
+  --text-caption--letter-spacing: 0.01em;
 
   --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
@@ -97,22 +156,32 @@
   --text-fluid-xl: clamp(1.875rem, 1.3rem + 2.9vw, 3rem);
   --text-fluid-2xl: clamp(2.25rem, 1.4rem + 4.2vw, 4.5rem);
 
-  --radius-xs: 4px;
+  /* One radius scale, nothing outside it: 6 chip and tiny control, 8 field and small button,
+     12 button and panel, 16 card, 20 sheet and hero, pill for badges and segmented controls. */
+  --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 14px;
-  --radius-xl: 16px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-pill: 9999px;
 
-  --shadow-soft: 0 2px 8px -2px rgba(45, 55, 30, 0.06), 0 8px 24px -4px rgba(61, 40, 21, 0.05);
-  --shadow-border: 0 0 0 1px rgba(28, 38, 22, 0.07), 0 1px 2px rgba(28, 38, 22, 0.04);
-  /* Elevation tinted with the brand colour rather than neutral grey, so a raised
-     control reads as "lit from the accent" instead of "floating on grey". */
-  --shadow-accent: 0 1px 2px rgba(28, 38, 22, 0.12);
+  /* Three elevations, all soft, tinted with the brand ink instead of neutral grey.
+     sm: a resting card. md: a lifted card or popover. lg: a sheet or dialog. */
+  --shadow-sm: 0 1px 2px color-mix(in oklab, var(--color-ink) 6%, transparent);
+  --shadow-md: 0 2px 6px -2px color-mix(in oklab, var(--color-ink) 8%, transparent),
+    0 10px 24px -8px color-mix(in oklab, var(--color-ink) 10%, transparent);
+  --shadow-lg: 0 4px 12px -4px color-mix(in oklab, var(--color-ink) 12%, transparent),
+    0 28px 56px -16px color-mix(in oklab, var(--color-ink) 22%, transparent);
+  --shadow-soft: var(--shadow-md);
+  --shadow-border: 0 0 0 1px var(--color-separator), 0 1px 2px color-mix(in oklab, var(--color-ink) 4%, transparent);
+  --shadow-accent: 0 1px 2px color-mix(in oklab, var(--color-ink) 12%, transparent);
   --shadow-accent-lg: 0 4px 12px -4px color-mix(in oklab, var(--color-accent) 55%, transparent);
 
   --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  /* The spring the CSS can fake: critically damped, ~0.4s response. Springs proper live in
+     motion.tsx (SPRING); this is for the transitions that stay in CSS. */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
   --animate-enter: enter 0.4s var(--ease-smooth) both;
   --animate-float: float 7s ease-in-out infinite;
   --animate-shimmer: shimmer 2.2s linear infinite;
@@ -157,7 +226,7 @@
     --color-disabled: #2a3324;
     --color-disabled-fg: #95a38a;
     --color-pass: #3d2815;
-    --color-slot-class: #a07850;
+    --color-slot-class: #8c6440;
     --color-sport-leaf: #81c784;
     --color-sport-clay: #ff8a65;
     --color-sport-sun: #ffd54f;
@@ -179,9 +248,24 @@
     --color-heat-3: #835a39;
     --color-heat-4: #b78253;
     --color-heat-5: #e6b17c;
-    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -14px rgba(0, 0, 0, 0.6);
-    --shadow-border: 0 0 0 1px rgba(180, 200, 160, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-accent: 0 1px 2px rgba(0, 0, 0, 0.4);
+    /* Roles lifted to read on dark moss; every tint is re-derived from the dark surface above. */
+    --color-success: #4cc38a;
+    --color-info: #7db8ea;
+    --color-hold-text: #f0a24a;
+    --color-volt-soft: #e6ff7a;
+    --color-faint: color-mix(in oklab, var(--color-fg) 36%, transparent);
+    --color-separator: color-mix(in oklab, var(--color-fg) 12%, transparent);
+    --color-fill: color-mix(in oklab, var(--color-fg) 7%, transparent);
+    --color-fill-strong: color-mix(in oklab, var(--color-fg) 12%, transparent);
+    --color-material: color-mix(in oklab, var(--color-surface) 66%, transparent);
+    --color-material-thick: color-mix(in oklab, var(--color-surface) 84%, transparent);
+    /* Shadow on dark is mostly depth, not tint: pure ink would vanish, so it is plain black. */
+    --shadow-sm: 0 1px 2px color-mix(in oklab, black 40%, transparent);
+    --shadow-md: 0 1px 2px color-mix(in oklab, black 30%, transparent),
+      0 12px 28px -12px color-mix(in oklab, black 60%, transparent);
+    --shadow-lg: 0 2px 6px color-mix(in oklab, black 30%, transparent),
+      0 32px 64px -20px color-mix(in oklab, black 70%, transparent);
+    --shadow-accent: 0 1px 2px color-mix(in oklab, black 40%, transparent);
   }
 }
 
@@ -315,12 +399,9 @@
   h3 {
     font-family: var(--font-display);
     font-weight: 600;
-    /* Newsreader carries an optical-size axis. Letting it choose means headings
-       get the display cut — open counters, finer hairlines — instead of the
-       text cut scaled up, which is what makes a serif look inflated. */
     font-optical-sizing: auto;
     text-wrap: balance;
-    line-height: 1.15;
+    line-height: 1.18;
     /* Tracking is a function of size, not of tag. -0.03em was chosen for the
        landing page's 5rem headlines and then inherited by every h3 on every
        card, where at 1.125rem it closes the counters up and the word turns
@@ -332,6 +413,12 @@
   }
   h2 {
     letter-spacing: -0.02em;
+  }
+  /* Small text opens up a little, as Apple's tracking tables do below ~13px. */
+  small,
+  .text-xs,
+  .text-2xs {
+    letter-spacing: 0.006em;
   }
   p {
     text-wrap: pretty;
@@ -440,36 +527,50 @@ select[aria-invalid="true"] {
 
 .hero-scrim {
   background:
-    linear-gradient(90deg, rgba(16, 21, 13, 0.92) 0%, rgba(16, 21, 13, 0.65) 45%, rgba(16, 21, 13, 0.15) 100%),
-    linear-gradient(to top, rgba(16, 21, 13, 0.55) 0%, transparent 42%),
-    linear-gradient(to bottom, rgba(16, 21, 13, 0.35) 0%, transparent 28%);
+    linear-gradient(90deg, color-mix(in oklab, var(--color-scrim) 92%, transparent) 0%, color-mix(in oklab, var(--color-scrim) 65%, transparent) 45%, color-mix(in oklab, var(--color-scrim) 15%, transparent) 100%),
+    linear-gradient(to top, color-mix(in oklab, var(--color-scrim) 55%, transparent) 0%, transparent 42%),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-scrim) 35%, transparent) 0%, transparent 28%);
 }
 
 @media (max-width: 767px) {
   .hero-scrim {
     background:
-      linear-gradient(180deg, rgba(16, 21, 13, 0.85) 0%, rgba(16, 21, 13, 0.72) 100%);
+      linear-gradient(180deg, color-mix(in oklab, var(--color-scrim) 85%, transparent) 0%, color-mix(in oklab, var(--color-scrim) 72%, transparent) 100%);
   }
 }
 
 .media-scrim {
   background: linear-gradient(
     to top,
-    rgba(20, 29, 15, 0.55) 0%,
-    rgba(20, 29, 15, 0.12) 48%,
-    rgba(20, 29, 15, 0.08) 100%
+    color-mix(in oklab, var(--color-scrim) 55%, transparent) 0%,
+    color-mix(in oklab, var(--color-scrim) 12%, transparent) 48%,
+    color-mix(in oklab, var(--color-scrim) 8%, transparent) 100%
   );
 }
 
+/* The scrim of an in-app page header: a left-to-right wash that keeps the title at AA contrast
+   and lets the photograph breathe on the right. Lighter than the landing's, so in dark mode the
+   header reads as a picture with an edge, not as a hole in the page. */
+.page-scrim {
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--color-scrim) 86%, transparent) 0%, color-mix(in oklab, var(--color-scrim) 62%, transparent) 48%, color-mix(in oklab, var(--color-scrim) 18%, transparent) 100%),
+    linear-gradient(to top, color-mix(in oklab, var(--color-scrim) 40%, transparent) 0%, transparent 55%);
+}
+@media (max-width: 639px) {
+  .page-scrim {
+    background: linear-gradient(180deg, color-mix(in oklab, var(--color-scrim) 70%, transparent) 0%, color-mix(in oklab, var(--color-scrim) 84%, transparent) 100%);
+  }
+}
+
 .caption-bar {
-  background: rgba(20, 29, 15, 0.82);
+  background: color-mix(in oklab, var(--color-scrim) 82%, transparent);
   color: var(--color-on-media);
 }
 
 .on-media {
   text-shadow:
-    0 1px 2px rgba(10, 15, 8, 0.7),
-    0 10px 28px rgba(10, 15, 8, 0.45);
+    0 1px 2px color-mix(in oklab, var(--color-scrim) 70%, transparent),
+    0 10px 28px color-mix(in oklab, var(--color-scrim) 45%, transparent);
 }
 
 .marquee {
@@ -544,9 +645,8 @@ select[aria-invalid="true"] {
 
 /* ── Text treatments ─────────────────────────────────────────────── */
 
-/* Block-caps voice for the loud elements: scoreboard numerals, sport names,
-   step numbers. Anton ships a single weight, so size and tracking carry the
-   emphasis instead of font-weight. */
+/* The loud voice for scoreboard numerals, sport names and step numbers: the same family,
+   set heavy and tight. Size and tracking carry the emphasis. */
 .athletic {
   font-family: var(--font-sans);
   font-weight: 700;
@@ -623,7 +723,7 @@ select[aria-invalid="true"] {
    overflow-hidden descendants — which is exactly what the word-reveal wrappers
    are. Put this on the heading and `.text-gradient-media` on the span inside. */
 .media-glow {
-  filter: drop-shadow(0 2px 7px rgba(10, 15, 8, 0.6));
+  filter: drop-shadow(0 2px 7px color-mix(in oklab, var(--color-scrim) 60%, transparent));
 }
 
 /* Band of light sliding across the glyphs. The two stops are variables rather
@@ -650,8 +750,8 @@ select[aria-invalid="true"] {
 /* Reversed-out variant for headings sitting on footage or ink. */
 .shiny-on-media {
   --shiny-base: var(--color-on-media);
-  --shiny-glint: #e6ff7a;
-  filter: drop-shadow(0 2px 7px rgba(10, 15, 8, 0.55));
+  --shiny-glint: var(--color-volt-soft);
+  filter: drop-shadow(0 2px 7px color-mix(in oklab, var(--color-scrim) 55%, transparent));
 }
 /* Quiet variant for eyebrow labels on cream — reads as a muted kicker until the
    glint passes, so it never competes with the heading under it. */
@@ -714,10 +814,91 @@ select[aria-invalid="true"] {
   animation: star-spin var(--star-duration, 5s) linear infinite;
 }
 
+/* Materials. Content scrolls under them; only chrome wears one (header, tab bar, sheet, popover,
+   a sticky toolbar). Weight encodes hierarchy: thin for a light floating control, regular for a
+   bar, thick for a sheet or sidebar that has to stay legible over anything. Never lay one
+   material on another. A bright top edge stands in for light catching the glass. */
+.material-thin,
+.material-regular,
+.material-thick,
 .glass {
-  background: color-mix(in oklab, var(--color-surface) 72%, transparent);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  background: var(--color-material-thick);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--color-on-media) 40%, transparent);
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .material-thin {
+    background: color-mix(in oklab, var(--color-surface) 56%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(1.5);
+    backdrop-filter: blur(12px) saturate(1.5);
+  }
+  .material-regular,
+  .glass {
+    background: var(--color-material);
+    -webkit-backdrop-filter: blur(22px) saturate(1.8);
+    backdrop-filter: blur(22px) saturate(1.8);
+  }
+  .material-thick {
+    background: var(--color-material-thick);
+    -webkit-backdrop-filter: blur(34px) saturate(1.8);
+    backdrop-filter: blur(34px) saturate(1.8);
+  }
+}
+/* The device asks for less see-through: frosted becomes solid and the blur is dropped. */
+@media (prefers-reduced-transparency: reduce) {
+  .material-thin,
+  .material-regular,
+  .material-thick,
+  .glass {
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .material-thin,
+  .material-regular,
+  .material-thick,
+  .glass {
+    background: var(--color-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--color-line-strong);
+  }
+}
+
+/* Inset grouped list: rows on one card, hairlines between, the hairline inset past the leading
+   icon. The settings idiom, for account, member detail, invoices. */
+.list-group {
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-border);
+  overflow: hidden;
+}
+.list-group > * + * {
+  border-top: 1px solid var(--color-separator);
+}
+
+/* The little double-caret on a select, built from two gradients in a token colour. */
+.select-caret {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-muted) 50%),
+    linear-gradient(135deg, var(--color-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* Hit feedback on press-down, not release: the instant a finger lands the control answers. */
+.press {
+  transition: transform 140ms var(--ease-spring);
+}
+.press:active {
+  transform: scale(0.97);
+  transition-duration: 60ms;
 }
 
 /* Light sweeping across a surface on hover — used on primary CTAs. */
@@ -731,7 +912,7 @@ select[aria-invalid="true"] {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-on-media) 28%, transparent), transparent);
   transform: translateX(-110%) skewX(-18deg);
 }
 .sweep:hover::after {

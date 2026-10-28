@@ -78,7 +78,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Members")}
         subtitle={t("Everyone with an account. Open a member for their plan, classes, balance and attendance.")}
         className="mb-6"

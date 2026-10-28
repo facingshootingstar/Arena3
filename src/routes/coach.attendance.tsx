@@ -48,38 +48,38 @@ type AttMeta = { locked: boolean; lock_at: string | null; status: string };
 /** What the register read brings back: the roll, and (attendance on) whether the register has closed. */
 type RegisterData = { items: AttRow[]; session?: AttMeta };
 
-// Colour and icon say the answer before the word does: green tick, amber clock, red cross, grey note.
+// Icon and word say the answer, colour backs them up: success tick, amber clock, red cross, earth note.
 const RESULTS = [
   {
     v: "present",
     l: tk("Present"),
     Icon: Check,
-    on: "border-green-800 bg-green-700 text-white",
-    off: "border-green-300 bg-green-50 text-green-800 hover:bg-green-100",
-    dot: "bg-green-700",
+    on: "border-success bg-success text-accent-fg",
+    off: "border-success/35 bg-success-tint text-success hover:bg-[color-mix(in_oklab,var(--color-success)_20%,var(--color-surface))]",
+    dot: "bg-success",
   },
   {
     v: "late",
     l: tk("Late"),
     Icon: Clock,
-    on: "border-amber-600 bg-amber-400 text-black",
-    off: "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100",
-    dot: "bg-amber-400",
+    on: "border-hold bg-hold text-night",
+    off: "border-hold/35 bg-warning-tint text-hold-text hover:bg-[color-mix(in_oklab,var(--color-hold)_22%,var(--color-surface))]",
+    dot: "bg-hold",
   },
   {
     v: "absent",
     l: tk("Absent"),
     Icon: X,
-    on: "border-red-700 bg-red-600 text-white",
-    off: "border-red-300 bg-red-50 text-red-800 hover:bg-red-100",
-    dot: "bg-red-600",
+    on: "border-danger bg-danger text-accent-fg",
+    off: "border-danger/35 bg-danger-tint text-danger hover:bg-[color-mix(in_oklab,var(--color-danger)_18%,var(--color-surface))]",
+    dot: "bg-danger",
   },
   {
     v: "excused",
     l: tk("Excused"),
     Icon: FileCheck2,
     on: "border-earth bg-earth text-earth-fg",
-    off: "border-earth/40 bg-wood text-earth hover:bg-wood/80",
+    off: "border-earth/40 bg-wood text-earth hover:bg-fill-strong",
     dot: "bg-earth",
   },
 ];

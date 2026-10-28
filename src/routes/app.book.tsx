@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { Landmark, Sparkles } from "lucide-react";
+import { Landmark, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
@@ -12,6 +12,7 @@ import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
 import { MemberTransferModal, useCentreBank, type CentreBank } from "@/components/transfer-qr-modal";
 import { Shell, money, when } from "@/components/shell";
+import { Popover } from "@/components/popover";
 import { Button, Card, ContextLayout, DateField, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/components/ui";
 import { StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
@@ -104,7 +105,6 @@ function Page() {
   const [hold, setHold] = useState<Hold | null>(null);
   // Typed before tapping a slot: the hold is priced when it is made, so the code goes with it.
   const [promoCode, setPromoCode] = useState("");
-  const [promoOpen, setPromoOpen] = useState(false);
   // Refusals and clash warnings appear above the grid; a tap deep in the grid must still see them.
   const notices = useRef<HTMLDivElement>(null);
   const [overlap, setOverlap] = useState<{ court: Court; hour: number; message: string } | null>(null);
@@ -487,19 +487,8 @@ function Page() {
             subtitle={t("Tap a free hour. We hold it for {n} minutes while you pay.", { n: venue.holdMinutes })}
             fallbackSpot="court"
             stats={[
-              {
-                label: t("Free hours today"),
-                value: avail?.[date]?.free ?? 0,
-                live: true,
-              },
-              {
-                label: t("Courts in service"),
-                value: data?.courts?.length ?? 0,
-              },
-              {
-                label: t("Next free hour"),
-                value: nextFreeHour ?? t("Full"),
-              },
+              { label: t("Free hours today"), value: avail?.[date]?.free ?? 0, live: true },
+              { label: t("Next free hour"), value: nextFreeHour ?? t("Full") },
             ]}
           />
         );
@@ -540,6 +529,8 @@ function Page() {
             ) : (
               <MonthCalendar value={date} onChange={setDate} avail={avail} />
             )}
+            {/* One row under the days: the sport, and everything used less often (the view, a date,
+                a promo code) in one Options menu, so the grid is close to the top on a phone. */}
             <div className="flex flex-wrap items-center gap-2">
               <Seg
                 value={sport}
@@ -551,45 +542,53 @@ function Page() {
                     .map((s) => ({ value: s.code, label: sportLabel(s.code) })),
                 ]}
               />
-              <Seg
-                value={view}
-                onChange={(v) => setView(v === "month" ? "month" : "week")}
-                options={[
-                  { value: "week", label: t("Week") },
-                  { value: "month", label: t("Month") },
-                ]}
-              />
-              <DateField
-                required
-                value={date}
-                onChange={setDate}
-                invalid={error?.refused === true}
-                aria-label={t("Pick another date")}
-                className="hidden sm:flex"
-              />
-            </div>
-            {promoOpen || promoCode ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                  placeholder={t("Promo code (optional)")}
-                  aria-label={t("Promo code")}
-                  autoCapitalize="characters"
-                  maxLength={32}
-                  className="h-11 w-full sm:h-9 sm:w-48"
-                />
-                <span className="text-xs text-muted">{t("Applied to the next hour you hold.")}</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setPromoOpen(true)}
-                className="hit w-fit text-sm font-medium text-accent-2 hover:underline"
+              <Popover
+                className="ml-auto"
+                align="right"
+                label={t("Options")}
+                icon={<SlidersHorizontal aria-hidden="true" className="size-4" strokeWidth={1.9} />}
+                badge={promoCode.trim() ? promoCode.trim() : undefined}
               >
-                {t("Have a promo code?")}
-              </button>
-            )}
+                <div className="grid gap-3">
+                  <div className="grid gap-1.5">
+                    <span className="kicker text-caption text-muted">{t("View")}</span>
+                    <Seg
+                      value={view}
+                      onChange={(v) => setView(v === "month" ? "month" : "week")}
+                      options={[
+                        { value: "week", label: t("Week") },
+                        { value: "month", label: t("Month") },
+                      ]}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <span className="kicker text-caption text-muted">{t("Pick another date")}</span>
+                    <DateField
+                      required
+                      value={date}
+                      onChange={setDate}
+                      invalid={error?.refused === true}
+                      aria-label={t("Pick another date")}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <label htmlFor="book-promo" className="kicker text-caption text-muted">
+                      {t("Promo code")}
+                    </label>
+                    <Input
+                      id="book-promo"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder={t("Promo code (optional)")}
+                      autoCapitalize="characters"
+                      maxLength={32}
+                    />
+                    <p className="text-caption text-muted">{t("Applied to the next hour you hold.")}</p>
+                  </div>
+                </div>
+              </Popover>
+            </div>
           </div>
 
           <div ref={notices} className="scroll-mt-20">

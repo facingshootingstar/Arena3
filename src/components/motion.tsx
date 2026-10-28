@@ -2,6 +2,7 @@ import { locale } from "@/lib/i18n";
 import {
   AnimatePresence,
   MotionConfig,
+  animate,
   motion,
   useInView,
   useMotionValue,
@@ -11,6 +12,7 @@ import {
   useSpring,
   useTransform,
   type MotionProps,
+  type Transition,
   type Variants,
 } from "motion/react";
 import {
@@ -19,6 +21,7 @@ import {
   isValidElement,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentPropsWithoutRef,
@@ -31,10 +34,18 @@ import { useCalm } from "@/lib/calm";
 /**
  * Shared motion vocabulary for Arena3.
  *
- * Every primitive here degrades to a plain, fully-visible element when the
- * visitor asks for reduced motion — content never depends on an animation
- * having run. (`useCalm()` in `@/lib/calm` follows the same device setting live
- * without swapping elements: see `MotionProvider`.)
+ * Two rules sit above everything here.
+ *
+ * 1. Content is visible at rest. The server renders it visible, and an entrance is something
+ *    that happens *to* visible content after mount (a Web Animations run from a hidden pose to
+ *    the resting one), never a hidden pose waiting for an animation frame to reveal it. If the
+ *    tab is throttled, the script is slow or the observer never fires, the worst outcome is a
+ *    missing flourish, not a missing heading. A timer clears any pose that is still hidden.
+ * 2. Motion is a spring, not a duration. A spring starts from where the element is, keeps the
+ *    velocity it was given and can be redirected at any instant (see SPRING).
+ *
+ * Every primitive degrades to a plain, fully-visible element when the visitor asks for reduced
+ * motion. (`useCalm()` in `@/lib/calm` follows the same device setting live.)
  */
 
 /**
@@ -56,24 +67,194 @@ export function useReducedMotionAfterMount(): boolean {
 export const EASE_SMOOTH = [0.22, 1, 0.36, 1] as const;
 export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
-/** Wrap a subtree so every nested transition shares the house easing. */
+/**
+ * The springs. Apple names a spring by its damping ratio and its response (seconds to reach the
+ * target); Motion's `bounce` and `duration` are the same two dials, so:
+ *
+ * - `snappy`  damping 1.0, response 0.3: a press, a toggle, a tab indicator. No overshoot.
+ * - `smooth`  damping 1.0, response 0.45: a page, a card, a reveal. The default.
+ * - `gentle`  damping 1.0, response 0.7: something large settling (a hero, a sheet's backdrop).
+ * - `bouncy`  damping 0.8, response 0.4: only where the gesture itself carried momentum, such as
+ *   a sheet released with a flick. Overshoot on something that merely faded in feels wrong.
+ */
+export const SPRING = {
+  snappy: { type: "spring", duration: 0.3, bounce: 0 },
+  smooth: { type: "spring", duration: 0.45, bounce: 0 },
+  gentle: { type: "spring", duration: 0.7, bounce: 0 },
+  bouncy: { type: "spring", duration: 0.4, bounce: 0.2 },
+} as const satisfies Record<string, Transition>;
+
+/**
+ * Where a drag released at `velocity` (px/s) would come to rest, were it a scroll with the
+ * system's deceleration. A sheet snaps to the target nearest this, not nearest the finger, so a
+ * short flick still throws it. (The form Apple ships: exponential decay, not v^2 / 2a.)
+ */
+export function project(velocity: number, deceleration = 0.998): number {
+  return ((velocity / 1000) * deceleration) / (1 - deceleration);
+}
+
+/** Past an edge the content follows less and less, instead of stopping dead. */
+export function rubberband(overshoot: number, dimension: number, constant = 0.55): number {
+  return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
+}
+
+/** Wrap a subtree so every nested transition shares the house spring. */
 export function MotionProvider({ children }: { children: ReactNode }) {
   // "always" once the device asks for reduced motion (read live by useCalm), "user" otherwise.
   // Slides become fades and nothing remounts, so the setting changing never costs typed text.
   const calm = useCalm();
   return (
-    <MotionConfig reducedMotion={calm ? "always" : "user"} transition={{ duration: 0.5, ease: EASE_SMOOTH }}>
+    <MotionConfig reducedMotion={calm ? "always" : "user"} transition={SPRING.smooth}>
       {children}
     </MotionConfig>
   );
+}
+
+/* ── Arrivals ───────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * True once the page has been up long enough that anything mounting now is news, rather than the
+ * server's HTML being hydrated. A heading already painted by the server should not blink out and
+ * rise again; a card that arrives with a fetch should.
+ */
+let booted = typeof window === "undefined";
+if (typeof window !== "undefined") {
+  const done = () => {
+    booted = true;
+  };
+  if (document.readyState === "complete") setTimeout(done, 400);
+  else window.addEventListener("load", () => setTimeout(done, 400), { once: true });
+  // A page that never finishes loading (a stalled image) must not keep entrances switched off.
+  setTimeout(done, 3000);
+}
+
+type Direction = "up" | "down" | "left" | "right" | "none";
+
+function pose(from: Direction, distance: number) {
+  return {
+    x: from === "left" ? -distance : from === "right" ? distance : 0,
+    y: from === "up" ? distance : from === "down" ? -distance : 0,
+  };
+}
+
+const prefersReduced = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+
+/**
+ * Play an arrival on a visible element: from a small offset and transparent to rest, on a
+ * spring, once. Optionally wait until the element is actually on screen.
+ *
+ * Everything is imperative and happens before the browser paints the element hidden: the element
+ * is posed in a layout effect, so a client-side navigation never shows the resting state for a
+ * frame first, and the server's HTML is never hidden at all. `settle` is the net under the
+ * trapeze: whatever happens to the animation, the inline pose is gone after a bounded time.
+ */
+function useArrival<T extends HTMLElement>({
+  from = "up",
+  distance = 16,
+  delay = 0,
+  watch = false,
+  repeat = false,
+  transition = SPRING.smooth,
+}: {
+  from?: Direction;
+  distance?: number;
+  delay?: number;
+  /** Wait for the element to scroll into view before playing. */
+  watch?: boolean;
+  repeat?: boolean;
+  transition?: Transition;
+}) {
+  const ref = useRef<T>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || prefersReduced()) return;
+    const start = pose(from, distance);
+    const r = el.getBoundingClientRect();
+    const onScreen = r.top < window.innerHeight && r.bottom > 0;
+    // Painted by the server and still on screen: leave it be.
+    if (!booted && onScreen) return;
+    // Nothing to wait for and not on screen: there is no arrival to see.
+    if (!watch && !onScreen) return;
+
+    let controls: ReturnType<typeof animate> | null = null;
+    let net = 0;
+    let io: IntersectionObserver | null = null;
+    let poll = 0;
+    const hide = () => {
+      el.style.opacity = "0";
+      el.style.transform = `translate3d(${start.x}px, ${start.y}px, 0)`;
+    };
+    const settle = () => {
+      window.clearTimeout(net);
+      window.clearInterval(poll);
+      controls?.stop();
+      el.style.removeProperty("opacity");
+      el.style.removeProperty("transform");
+    };
+    const play = () => {
+      settle();
+      hide();
+      controls = animate(
+        el,
+        { opacity: [0, 1], x: [start.x, 0], y: [start.y, 0] },
+        { ...transition, delay },
+      );
+      // Net: after a bounded time the pose is cleared whatever the animation did.
+      net = window.setTimeout(settle, (delay + 1.4) * 1000);
+      void controls.then(settle, settle);
+    };
+
+    if (watch && !onScreen) {
+      hide();
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              if (!repeat) io?.disconnect();
+              play();
+            } else if (repeat) {
+              hide();
+            }
+          }
+        },
+        { rootMargin: "0px 0px -64px 0px", threshold: 0.12 },
+      );
+      io.observe(el);
+      // The observer is the way in, but a busy main thread can deliver its callback late. A cheap
+      // look every half second makes sure an element that has come on screen is never left waiting.
+      if (!repeat) {
+        poll = window.setInterval(() => {
+          const b = el.getBoundingClientRect();
+          if (b.top < window.innerHeight - 32 && b.bottom > 0) {
+            io?.disconnect();
+            window.clearInterval(poll);
+            play();
+          }
+        }, 500);
+      }
+      // An element that never meets the observer (a collapsed tab, a clipped box) is not lost.
+      net = window.setTimeout(settle, 8000);
+    } else {
+      play();
+    }
+    return () => {
+      io?.disconnect();
+      settle();
+    };
+    // The pose is chosen once, when the element arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return ref;
 }
 
 type RevealProps = {
   children: ReactNode;
   className?: string;
   /** Direction the element travels in from. */
-  from?: "up" | "down" | "left" | "right" | "none";
+  from?: Direction;
   delay?: number;
+  /** Kept for callers that tuned a duration; a spring's response is set by `SPRING`. */
   duration?: number;
   /** Travel distance in px. */
   distance?: number;
@@ -82,41 +263,19 @@ type RevealProps = {
   as?: ElementType;
 };
 
-/** Fade + slide an element in the first time it scrolls into view. */
+/** Fade and rise an element in the first time it scrolls into view. Visible if nothing runs. */
 export function Reveal({
   children,
   className,
   from = "up",
   delay = 0,
-  duration = 0.6,
-  distance = 22,
+  distance = 18,
   repeat = false,
-  as = "div",
+  as: Tag = "div",
 }: RevealProps) {
-  const reduced = useReducedMotionAfterMount();
-  const Tag = motion[as as "div"] ?? motion.div;
-
-  const offset =
-    from === "up"
-      ? { y: distance }
-      : from === "down"
-        ? { y: -distance }
-        : from === "left"
-          ? { x: -distance }
-          : from === "right"
-            ? { x: distance }
-            : {};
-
-  if (reduced) return <div className={className}>{children}</div>;
-
+  const ref = useArrival<HTMLElement>({ from, distance, delay, watch: true, repeat });
   return (
-    <Tag
-      className={className}
-      initial={{ opacity: 0, ...offset }}
-      whileInView={{ opacity: 1, x: 0, y: 0 }}
-      viewport={{ once: !repeat, amount: 0.2, margin: "0px 0px -80px 0px" }}
-      transition={{ duration, delay, ease: EASE_SMOOTH }}
-    >
+    <Tag ref={ref} className={className}>
       {children}
     </Tag>
   );
@@ -129,70 +288,39 @@ const staggerParent: Variants = {
 
 const staggerChild: Variants = {
   hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_SMOOTH } },
+  show: { opacity: 1, y: 0, transition: SPRING.smooth },
 };
 
 /**
- * Each item animates itself rather than waiting to be told to.
+ * Each item arrives by itself rather than waiting to be told to.
  *
- * Variant propagation was the obvious way to build this and it does not
- * survive contact with a filter: motion resolves a child's variant when the
- * child mounts, and a parent that has already finished its cascade has no
- * label change left to broadcast. Swapping the sport on Classes remounts the
- * whole list into exactly that state, so every replacement card sat at
- * `opacity: 0` and the list looked wiped.
- *
- * So `Stagger` publishes only the two facts an item needs — has the container
- * been seen, and how long should this one wait — and the item drives its own
- * `animate`. Whenever an item mounts, it animates in.
+ * Variant propagation was the obvious way to build this and it does not survive contact with a
+ * filter: swapping the sport on Classes remounts the whole list, and a parent that has already
+ * finished its cascade has no label change left to broadcast, so every replacement card sat at
+ * `opacity: 0` and the list looked wiped. So `Stagger` publishes only how long an item should
+ * wait, and the item plays its own arrival whenever it mounts.
  */
-const StaggerCtx = createContext<{ inView: boolean; delay: number }>({ inView: true, delay: 0 });
+const StaggerCtx = createContext<{ delay: number }>({ delay: 0 });
 
 /** Parent for a list whose children should cascade in. Pair with `<StaggerItem>`. */
 export function Stagger({
   children,
   className,
   delay = 0,
-  gap = 0.075,
+  gap = 0.06,
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
   gap?: number;
 }) {
-  const reduced = useReducedMotionAfterMount();
-  const ref = useRef<HTMLDivElement>(null);
-  // `amount: 0` because most of these lists are filled by a fetch: the
-  // container is empty and therefore zero-height when the observer first
-  // looks at it, and a ratio threshold can never be met by a box with no area.
-  const observed = useInView(ref, { once: true, amount: 0, margin: "0px 0px -60px 0px" });
-
-  // The observer does not reliably deliver a first callback for a container
-  // that mounts already on screen — which is every one of these lists, since
-  // they mount when their fetch lands. Without this the cards sat at
-  // `opacity: 0` until something happened to scroll the page. Measuring once
-  // after mount answers the same question directly.
-  const [onScreenAtMount, setOnScreenAtMount] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.top < window.innerHeight && r.bottom > 0) setOnScreenAtMount(true);
-  }, []);
-
-  const inView = observed || onScreenAtMount;
-
-  if (reduced) return <div className={className}>{children}</div>;
-
   return (
-    <div ref={ref} className={className}>
+    <div className={className}>
       {Children.map(children, (child, i) =>
         isValidElement(child) ? (
-          // Capped so a long list does not leave its tail waiting several
-          // seconds — past a dozen items the offsets are indistinguishable.
-          <StaggerCtx.Provider value={{ inView, delay: delay + Math.min(i, 12) * gap }}>
-            {child}
-          </StaggerCtx.Provider>
+          // Capped so a long list does not leave its tail waiting: past a dozen items the
+          // offsets are indistinguishable.
+          <StaggerCtx.Provider value={{ delay: delay + Math.min(i, 12) * gap }}>{child}</StaggerCtx.Provider>
         ) : (
           child
         ),
@@ -205,29 +333,28 @@ export function StaggerItem({
   children,
   className,
   ...rest
-}: { children: ReactNode; className?: string } & MotionProps) {
-  const reduced = useReducedMotionAfterMount();
-  const { inView, delay } = useContext(StaggerCtx);
-  if (reduced) return <div className={className}>{children}</div>;
+}: { children: ReactNode; className?: string } & ComponentPropsWithoutRef<"div">) {
+  const { delay } = useContext(StaggerCtx);
+  const ref = useArrival<HTMLDivElement>({ from: "up", distance: 14, delay, watch: true });
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 20 }}
-      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-      transition={{ duration: 0.55, ease: EASE_SMOOTH, delay }}
-      {...rest}
-    >
+    <div ref={ref} className={className} {...rest}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 
 export { staggerParent, staggerChild };
 
-/** Count a number up once it enters the viewport. */
+/**
+ * A number that counts up when it first scrolls into view.
+ *
+ * It rests on the real value. The count is a flourish played over a number that is already right:
+ * if the tab is throttled, the element never intersects or the frame loop stalls, a timer puts the
+ * true value back, so a figure is never left reading 0.
+ */
 export function CountUp({
   to,
-  duration = 1.4,
+  duration = 1.1,
   suffix = "",
   prefix = "",
   format,
@@ -241,28 +368,54 @@ export function CountUp({
   className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.4 });
-  const reduced = useReducedMotionAfterMount();
-  const [value, setValue] = useState(reduced ? to : 0);
+  const [value, setValue] = useState(to);
+  const shownTo = useRef(to);
 
-  useEffect(() => {
-    if (reduced) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // A changed figure follows its new value; only the first arrival counts from zero.
+    if (shownTo.current !== to) {
+      shownTo.current = to;
       setValue(to);
       return;
     }
-    if (!inView) return;
+    if (prefersReduced() || !booted || to === 0) {
+      setValue(to);
+      return;
+    }
     let raf = 0;
-    const start = performance.now();
-    const step = (now: number) => {
-      const p = Math.min(1, (now - start) / (duration * 1000));
-      // easeOutCubic — fast start, gentle settle.
-      const eased = 1 - Math.pow(1 - p, 3);
-      setValue(to * eased);
-      if (p < 1) raf = requestAnimationFrame(step);
+    let io: IntersectionObserver | null = null;
+    const net = window.setTimeout(() => setValue(to), (duration + 2) * 1000);
+    const run = () => {
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const p = Math.min(1, (now - t0) / (duration * 1000));
+        // Ease-out with a long tail: the last digits settle like a spring, not like a clock.
+        setValue(to * (1 - Math.pow(1 - p, 4)));
+        if (p < 1) raf = requestAnimationFrame(step);
+        else window.clearTimeout(net);
+      };
+      raf = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, to, duration, reduced]);
+    setValue(0);
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) run();
+    else {
+      io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io?.disconnect();
+          run();
+        }
+      });
+      io.observe(el);
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(net);
+      io?.disconnect();
+    };
+  }, [to, duration]);
 
   const shown = format ? format(value) : Math.round(value).toLocaleString(locale());
   return (
@@ -324,51 +477,35 @@ export function Tilt({
 export function Lift({
   children,
   className,
-  amount = -4,
+  amount = -3,
   ...rest
 }: { children: ReactNode; className?: string; amount?: number } & MotionProps) {
   const reduced = useReducedMotionAfterMount();
   if (reduced) return <div className={className}>{children}</div>;
   return (
-    <motion.div
-      className={className}
-      whileHover={{ y: amount }}
-      transition={{ type: "spring", stiffness: 320, damping: 26 }}
-      {...rest}
-    >
+    <motion.div className={className} whileHover={{ y: amount }} transition={SPRING.snappy} {...rest}>
       {children}
     </motion.div>
   );
 }
 
-/** Fade/slide route content in on mount. Used by the app shells. */
+/** Rise route content in on mount. Used by the app shells; visible without it. */
 export function PageIn({
   children,
   className,
   ...rest
 }: { children: ReactNode; className?: string } & ComponentPropsWithoutRef<"div">) {
-  const reduced = useReducedMotionAfterMount();
-  if (reduced) {
-    return (
-      <div className={className} {...rest}>
-        {children}
-      </div>
-    );
-  }
+  const ref = useArrival<HTMLDivElement>({ from: "up", distance: 8, transition: SPRING.snappy });
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: EASE_SMOOTH }}
-    >
+    <div ref={ref} className={className} {...rest}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 
 export {
   AnimatePresence,
+  animate,
   motion,
   useReducedMotion,
   useScroll,

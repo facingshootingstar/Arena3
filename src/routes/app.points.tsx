@@ -68,11 +68,11 @@ function Page() {
           },
           {
             label: t("Member tier"),
-            value: d ? tierName(d.tier) : "—",
+            value: d ? tierName(d.tier) : "-",
           },
           {
             label: t("Redeem value"),
-            value: d ? money(d.points * d.redeem_vnd) : "—",
+            value: d ? money(d.points * d.redeem_vnd) : "-",
           },
         ]}
       />
@@ -140,7 +140,7 @@ function Page() {
                     <div
                       className={cn(
                         "absolute -left-6 top-3 size-5 rounded-full border-2 border-surface flex items-center justify-center text-xs font-bold shadow-xs",
-                        isPos ? "bg-accent text-accent-fg" : "bg-hold text-white",
+                        isPos ? "bg-accent text-accent-fg" : "bg-warning-tint text-hold-text",
                       )}
                     >
                       {isPos ? "+" : "−"}

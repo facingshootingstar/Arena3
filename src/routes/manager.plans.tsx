@@ -118,7 +118,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Membership plans")}
         subtitle={t("Plans are never deleted: one you stop selling leaves the app, and members who hold it keep it.")}
         className="mb-6"

@@ -1,25 +1,5 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
-import {
-  Banknote,
-  Clock,
-  FileText,
-  HandCoins,
-  Hourglass,
-  Image,
-  LandPlot,
-  Layers,
-  PiggyBank,
-  Repeat,
-  Settings,
-  Tag,
-  TrendingUp,
-  Trophy,
-  Undo2,
-  UserCog,
-  UserPlus,
-  Wallet,
-  Wrench,
-} from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Banknote, Clock, Hourglass, Layers, PiggyBank, TrendingUp, Undo2, UserPlus, Wallet } from "lucide-react";
 import { CardTitle } from "@/components/section";
 import { useEffect, useState } from "react";
 import {
@@ -44,9 +24,8 @@ const CHART_METHOD_COLORS = [
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
 import { Shell, money, when } from "@/components/shell";
 import { PageHero } from "@/components/page-hero";
-import { SportThumbnail } from "@/components/sports-ui";
-import { CapacityPanel, ExportButtons, MembersPanel } from "@/components/report-panels";
-import { Button, ButtonAnchor, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
+import { CapacityPanel, ExportMenu, MembersPanel } from "@/components/report-panels";
+import { ButtonAnchor, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { GLBackground, SplitText, SpotlightCard } from "@/components/fx";
 import { t } from "@/lib/i18n";
@@ -208,90 +187,32 @@ function Page() {
 
   return (
     <Shell role="manager">
+      {/* The head carries the title and the two jobs a manager does from here. The three figures that
+          used to sit in it are the stat tiles below, and a figure appears once. */}
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Reports")}
         subtitle={t("Revenue = payments taken − refunds. Court usage for {date}.", { date: formatDate(to) })}
-        stats={[
-          { label: t("Revenue"), value: rev ? money(rev.totals.revenue_vnd) : "..." },
-          { label: t("Refunds"), value: rev ? money(rev.totals.refund_vnd ?? 0) : "0 đ" },
-          { label: t("Plan hours used"), value: rev?.totals.quota_hours ?? 0 },
-        ]}
+        action={
+          <ButtonAnchor href="/manager/staff?create=1" variant="tinted" size="sm">
+            <UserPlus aria-hidden="true" className="size-4" strokeWidth={1.9} />
+            {t("Add staff")}
+          </ButtonAnchor>
+        }
       />
-      <section aria-label={t("Quick actions")} className="mb-6">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            to="/manager/courts"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <LandPlot className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Courts & map")}</p>
-                <p className="truncate text-xs text-muted">{t("Inspect courts & status")}</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/manager/sports"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <Trophy className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Sports")}</p>
-                <p className="truncate text-xs text-muted">{t("Prefixes, rules & colors")}</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/manager/staff"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <UserCog className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Staff management")}</p>
-                <p className="truncate text-xs text-muted">{t("Coaches & receptionists")}</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/manager/media"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <Image className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Media & banners")}</p>
-                <p className="truncate text-xs text-muted">{t("Site photos & slots")}</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </section>
       <GLBackground
         variant="dotgrid"
         position="fixed"
         className="-z-[1]"
-        color="#3f7d20"
         gap={32}
         dot={1.5}
         radius={130}
         opacity={0.22}
       />
       {missingReceptionist ? (
-        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-warn/30 bg-warn/10 p-4">
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-hold/30 bg-warning-tint p-4">
           <div className="flex items-center gap-3">
-            <UserPlus className="size-5 shrink-0 text-warn" />
+            <UserPlus className="size-5 shrink-0 text-hold-text" />
             <div>
               <p className="font-semibold text-fg">{t("No active receptionist, add one now")}</p>
               <p className="text-xs text-muted">
@@ -303,16 +224,16 @@ function Page() {
             href="/manager/staff?create=1&role=receptionist"
             variant="outline"
             size="sm"
-            className="border-warn/40 text-fg hover:bg-warn/20"
+            className="border-hold/40 text-fg hover:bg-warning-tint"
           >
             {t("Add staff")}
           </ButtonAnchor>
         </Card>
       ) : null}
       {missingCoach ? (
-        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-warn/30 bg-warn/10 p-4">
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-hold/30 bg-warning-tint p-4">
           <div className="flex items-center gap-3">
-            <UserPlus className="size-5 shrink-0 text-warn" />
+            <UserPlus className="size-5 shrink-0 text-hold-text" />
             <div>
               <p className="font-semibold text-fg">{t("No active coaches, add one now")}</p>
               <p className="text-xs text-muted">
@@ -324,44 +245,15 @@ function Page() {
             href="/manager/staff?create=1&role=coach"
             variant="outline"
             size="sm"
-            className="border-warn/40 text-fg hover:bg-warn/20"
+            className="border-hold/40 text-fg hover:bg-warning-tint"
           >
             {t("Add staff")}
           </ButtonAnchor>
         </Card>
       ) : null}
-      {/* Everything the manager runs besides the numbers. Phones reach the same pages from the
-          bottom bar's More sheet, so the strip is for screens with room for it. */}
-      <nav aria-label={t("Quick links")} className="mb-5 hidden flex-wrap gap-2 md:flex">
-        {(
-          [
-            { to: "/manager/courts" as const, label: t("Courts"), Icon: LandPlot },
-            { to: "/manager/media" as const, label: t("Media"), Icon: Image },
-            { to: "/manager/staff" as const, label: t("Staff"), Icon: UserCog },
-            { href: "/manager/staff?create=1", label: t("Add staff"), Icon: UserPlus },
-            { to: "/manager/plans" as const, label: t("Plans"), Icon: Wallet },
-            { to: "/manager/promos" as const, label: t("Promos"), Icon: Tag },
-            { to: "/manager/prices" as const, label: t("Pricing"), Icon: Settings },
-            { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },
-            { to: "/manager/commission" as const, label: t("Commission"), Icon: HandCoins },
-            { to: "/manager/invoices" as const, label: t("E-invoices"), Icon: FileText },
-            { to: "/desk/maintenance" as const, label: t("Maintenance"), Icon: Wrench },
-          ] as const
-        ).map((a) =>
-          "href" in a ? (
-            <ButtonAnchor key={a.label} href={a.href} variant="outline" size="sm">
-              <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-              {a.label}
-            </ButtonAnchor>
-          ) : (
-            <ButtonLink key={a.label} to={a.to} variant="outline" size="sm">
-              <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-              {a.label}
-            </ButtonLink>
-          ),
-        )}
-      </nav>
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      {/* One row, and it stays: a period, a method, and everything that leaves the screen behind one
+          Export menu. It is a material, so the figures scroll under it. */}
+      <div className="material-regular -mx-4 sm:sticky sm:top-14 sm:z-10 mb-5 flex flex-wrap items-center gap-2 border-b border-separator px-4 py-2 lg:-mx-8 lg:px-8">
         <Seg
           value={period}
           onChange={applyPeriod}
@@ -372,37 +264,37 @@ function Page() {
             { value: "custom", label: t("Custom") },
           ]}
         />
-      {period === "custom" ? (
-        <>
-        <span className="text-2xs text-muted">{t("From")}</span>
-        <DateField
-          required
-          value={from}
-          max={to}
-          onChange={(v) => {
-            setPeriod("custom");
-            setFrom(v);
-          }}
-          invalid={faulty("from")}
-          aria-describedby={faulty("from") ? "report-error" : undefined}
-          aria-label={t("From date")}
-        />
-        <span className="text-2xs text-muted">{t("To")}</span>
-        <DateField
-          required
-          value={to}
-          min={from}
-          onChange={(v) => {
-            setPeriod("custom");
-            setTo(v);
-          }}
-          invalid={faulty("to")}
-          aria-describedby={faulty("to") ? "report-error" : undefined}
-          aria-label={t("To date")}
-        />
-        </>
-      ) : null}
-        <div className="w-full min-w-0 sm:w-52">
+        {period === "custom" ? (
+          <>
+            <span className="text-caption text-muted">{t("From")}</span>
+            <DateField
+              required
+              value={from}
+              max={to}
+              onChange={(v) => {
+                setPeriod("custom");
+                setFrom(v);
+              }}
+              invalid={faulty("from")}
+              aria-describedby={faulty("from") ? "report-error" : undefined}
+              aria-label={t("From date")}
+            />
+            <span className="text-caption text-muted">{t("To")}</span>
+            <DateField
+              required
+              value={to}
+              min={from}
+              onChange={(v) => {
+                setPeriod("custom");
+                setTo(v);
+              }}
+              invalid={faulty("to")}
+              aria-describedby={faulty("to") ? "report-error" : undefined}
+              aria-label={t("To date")}
+            />
+          </>
+        ) : null}
+        <div className="w-full min-w-0 sm:w-48">
           <Select aria-label={t("Payment method")} value={method} onChange={(e) => setMethod(e.target.value)}>
             <option value="">{t("All methods")}</option>
             {["cash", "transfer", "card", "gateway", "quota"].map((m) => (
@@ -412,37 +304,44 @@ function Page() {
             ))}
           </Select>
         </div>
-        <ExportButtons kind="revenue" from={from} to={to} extra={{ method }} disabled={refused} />
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!rev}
-          onClick={() => {
-            if (!rev) return;
-            downloadCsv(`lelong-report-${from}_${to}.csv`, [
-              [t("From"), formatDate(from), t("To"), formatDate(to)],
-              [
-                t("Revenue"),
-                rev.totals.revenue_vnd,
-                t("Refunds"),
-                rev.totals.refund_vnd ?? 0,
-                t("Plan hours used"),
-                rev.totals.quota_hours,
-              ],
-              [],
-              [t("Method"), t("Amount")],
-              ...Object.entries(rev.by_method).map(([k, v]) => [methodLabel(k), v]),
-              [],
-              [t("Source"), t("Amount")],
-              ...Object.entries(rev.by_source).map(([k, v]) => [sourceLabel(k), v]),
-              [],
-              [t("Court"), t("Minutes"), "%"],
-              ...(occ?.items ?? []).map((c) => [c.court_code, c.minutes, c.pct]),
-            ]);
-          }}
-        >
-          {t("Export CSV")}
-        </Button>
+        <div className="ml-auto">
+          <ExportMenu
+            kind="revenue"
+            from={from}
+            to={to}
+            extra={{ method }}
+            disabled={refused}
+            items={[
+              {
+                label: t("Export CSV"),
+                disabled: !rev,
+                onClick: () => {
+                  if (!rev) return;
+                  downloadCsv(`lelong-report-${from}_${to}.csv`, [
+                    [t("From"), formatDate(from), t("To"), formatDate(to)],
+                    [
+                      t("Revenue"),
+                      rev.totals.revenue_vnd,
+                      t("Refunds"),
+                      rev.totals.refund_vnd ?? 0,
+                      t("Plan hours used"),
+                      rev.totals.quota_hours,
+                    ],
+                    [],
+                    [t("Method"), t("Amount")],
+                    ...Object.entries(rev.by_method).map(([k, v]) => [methodLabel(k), v]),
+                    [],
+                    [t("Source"), t("Amount")],
+                    ...Object.entries(rev.by_source).map(([k, v]) => [sourceLabel(k), v]),
+                    [],
+                    [t("Court"), t("Minutes"), "%"],
+                    ...(occ?.items ?? []).map((c) => [c.court_code, c.minutes, c.pct]),
+                  ]);
+                },
+              },
+            ]}
+          />
+        </div>
       </div>
       {revError ? (
         <LoadError id="report-error" message={revError.message} onRetry={refused ? undefined : revRead.reload} />

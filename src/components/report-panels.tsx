@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Flame, Gauge, LayoutGrid, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, ChevronDown, Download, Flame, Gauge, LayoutGrid, TrendingUp, UserPlus, Users } from "lucide-react";
 import { CardTitle, SectionTitle } from "@/components/section";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -54,6 +54,105 @@ export function ExportButtons({
   );
 }
 
+/**
+ * The same exports as ExportButtons, behind one "Export" button: three buttons of equal weight
+ * beside a period picker read as three more filters. `items` adds formats the screen produces
+ * itself (a CSV of what it is showing).
+ */
+export function ExportMenu({
+  kind,
+  from,
+  to,
+  extra = {},
+  disabled = false,
+  items = [],
+}: {
+  kind: Kind;
+  from: string;
+  to: string;
+  extra?: Record<string, string | null | undefined>;
+  disabled?: boolean;
+  items?: { label: string; onClick: () => void; disabled?: boolean }[];
+}) {
+  const [busy, setBusy] = useState<"xlsx" | "pdf" | null>(null);
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  async function go(format: "xlsx" | "pdf") {
+    setOpen(false);
+    setBusy(format);
+    try {
+      const q = new URLSearchParams({ from, to, format });
+      for (const [k, v] of Object.entries(extra)) if (v) q.set(k, v);
+      const name = await downloadReport(`/reports/${kind}/export?${q}`, `lelong-${kind}-${from}_${to}.${format}`);
+      toast.success(t("Saved {name}", { name }));
+    } catch (e) {
+      toast.error(tServer((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+  const row =
+    "flex min-h-11 w-full items-center rounded-[var(--radius-xs)] px-3 text-left text-subheadline text-fg transition-colors hover:bg-fill-strong disabled:opacity-45 sm:min-h-9";
+  return (
+    <div ref={box} className="relative">
+      <Button
+        variant="gray"
+        size="sm"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        loading={busy !== null}
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {busy === null ? <Download aria-hidden="true" className="size-4" strokeWidth={1.9} /> : null}
+        {busy !== null ? t("Preparing…") : t("Export")}
+        <ChevronDown aria-hidden="true" className={"size-3.5 transition-transform duration-200 " + (open ? "rotate-180" : "")} />
+      </Button>
+      {open ? (
+        <div
+          role="menu"
+          className="material-thick absolute right-0 top-full z-30 mt-1.5 w-48 rounded-[var(--radius-md)] border border-line p-1 shadow-[var(--shadow-lg)]"
+        >
+          <button type="button" role="menuitem" className={row} onClick={() => void go("xlsx")}>
+            {t("Export Excel")}
+          </button>
+          <button type="button" role="menuitem" className={row} onClick={() => void go("pdf")}>
+            {t("Export PDF")}
+          </button>
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              className={row}
+              disabled={it.disabled}
+              onClick={() => {
+                setOpen(false);
+                it.onClick();
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const hours = (min: number) => Math.round((min / 60) * 10) / 10;
 const pctText = (v: number | null | undefined) => (v == null ? "-" : `${v}%`);
 
@@ -103,7 +202,7 @@ type Capacity = {
 function heat(pct: number, isSingleDay: boolean): React.CSSProperties {
   if (isSingleDay) {
     if (pct > 0) {
-      return { background: "var(--color-heat-5)", color: "#ffffff" };
+      return { background: "var(--color-heat-5)", color: "var(--color-on-media)" };
     }
     return { background: "var(--color-heat-0)", color: "var(--color-fg)" };
   }
@@ -111,10 +210,10 @@ function heat(pct: number, isSingleDay: boolean): React.CSSProperties {
   let fg = "var(--color-fg)";
   if (pct > 75) {
     bg = "var(--color-heat-5)";
-    fg = "#ffffff";
+    fg = "var(--color-on-media)";
   } else if (pct > 50) {
     bg = "var(--color-heat-4)";
-    fg = "#ffffff";
+    fg = "var(--color-on-media)";
   } else if (pct > 25) {
     bg = "var(--color-heat-3)";
     fg = "var(--color-fg)";
@@ -239,11 +338,11 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
               <CardTitle
                 icon={Flame}
-                title={t("When courts are busy ({from} – {to})", { from, to })}
+                title={t("When courts are busy ({from} - {to})", { from, to })}
                 hint={
                   isSingleDay
                     ? t("Booked or free, hour by hour.")
-                    : t("Each square shows how often that court was booked at that hour, {from} – {to}.", { from, to })
+                    : t("Each square shows how often that court was booked at that hour, {from} - {to}.", { from, to })
                 }
               />
               {busiestSummary && (
@@ -265,7 +364,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                     title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}
                   >
                     <div
-                      className="w-full rounded-t-[2px] transition-all bg-[var(--color-accent)] opacity-75 group-hover:opacity-100"
+                      className="w-full rounded-t-[var(--radius-xs)] transition-all bg-[var(--color-accent)] opacity-75 group-hover:opacity-100"
                       style={{ height: `${Math.max(4, Math.round(h.pct))}%` }}
                     />
                   </div>
@@ -318,7 +417,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                             return (
                               <td
                                 key={i}
-                                className="h-7 min-w-[1.75rem] rounded-[4px] border border-transparent transition-colors hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary outline-none cursor-default"
+                                className="h-7 min-w-[1.75rem] rounded-[var(--radius-xs)] border border-transparent transition-colors hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary outline-none cursor-default"
                                 style={heat(p, isSingleDay)}
                                 tabIndex={0}
                                 role="gridcell"
@@ -349,11 +448,11 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line/50 px-4 py-2.5 text-2xs text-muted">
                 <span className="font-medium">{t("Status:")}</span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3.5 rounded-[2px] border border-line" style={{ background: "var(--color-heat-0)" }} />
+                  <span className="size-3.5 rounded-[var(--radius-xs)] border border-line" style={{ background: "var(--color-heat-0)" }} />
                   {t("Free")}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3.5 rounded-[2px]" style={{ background: "var(--color-heat-5)" }} />
+                  <span className="size-3.5 rounded-[var(--radius-xs)]" style={{ background: "var(--color-heat-5)" }} />
                   {t("Booked")}
                 </span>
               </div>
@@ -361,27 +460,27 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line/50 px-4 py-2.5 text-2xs text-muted">
                 <span className="font-medium">{t("Occupancy:")}</span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px] border border-line" style={{ background: "var(--color-heat-0)" }} />
+                  <span className="size-3 rounded-[var(--radius-xs)] border border-line" style={{ background: "var(--color-heat-0)" }} />
                   0%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-1)" }} />
+                  <span className="size-3 rounded-[var(--radius-xs)]" style={{ background: "var(--color-heat-1)" }} />
                   1–10%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-2)" }} />
+                  <span className="size-3 rounded-[var(--radius-xs)]" style={{ background: "var(--color-heat-2)" }} />
                   11–25%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-3)" }} />
+                  <span className="size-3 rounded-[var(--radius-xs)]" style={{ background: "var(--color-heat-3)" }} />
                   26–50%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-4)" }} />
+                  <span className="size-3 rounded-[var(--radius-xs)]" style={{ background: "var(--color-heat-4)" }} />
                   51–75%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-5)" }} />
+                  <span className="size-3 rounded-[var(--radius-xs)]" style={{ background: "var(--color-heat-5)" }} />
                   76–100%
                 </span>
               </div>

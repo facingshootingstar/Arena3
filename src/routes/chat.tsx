@@ -366,8 +366,8 @@ function ChatPage() {
                           className={cn(
                             "flex w-full items-center gap-3 rounded-[var(--radius-md)] p-2.5 text-left transition-colors duration-150",
                             isSelected
-                              ? "bg-accent/15 text-fg shadow-sm"
-                              : "hover:bg-wood/60 text-muted",
+                              ? "bg-accent-tint text-fg"
+                              : "hover:bg-fill text-muted",
                           )}
                         >
                           <div className="relative shrink-0">
@@ -463,10 +463,10 @@ function ChatPage() {
                           <span
                             className={cn(
                               "size-2 rounded-full",
-                              isP2PDirect ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-amber-500",
+                              isP2PDirect ? "bg-success shadow-[0_0_8px_color-mix(in_oklab,var(--color-success)_60%,transparent)]" : "bg-hold",
                             )}
                           />
-                          <span className={cn("font-medium", isP2PDirect ? "text-emerald-500" : "text-amber-500")}>
+                          <span className={cn("font-medium", isP2PDirect ? "text-success" : "text-hold-text")}>
                             {isP2PDirect ? t("P2P Direct") : t("Server Relay")}
                           </span>
                         </div>
@@ -510,10 +510,11 @@ function ChatPage() {
                           <div key={m.id} className={cn("flex flex-col", isMe ? "items-end" : "items-start")}>
                             <div
                               className={cn(
-                                "max-w-[85%] rounded-[var(--radius-lg)] px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[70%]",
+                                "max-w-[85%] rounded-[var(--radius-xl)] px-4 py-2.5 text-callout sm:max-w-[70%]",
+                                // A bubble with a tail: the corner that points at its sender is squared off.
                                 isMe
-                                  ? "bg-accent text-accent-fg"
-                                  : "border border-line bg-surface/90 text-fg",
+                                  ? "rounded-br-[var(--radius-xs)] bg-accent text-accent-fg"
+                                  : "rounded-bl-[var(--radius-xs)] bg-fill-strong text-fg",
                               )}
                             >
                               {/* Safely render escaped text */}
@@ -539,7 +540,7 @@ function ChatPage() {
                                     </button>
                                   ) : m.read_at || m.status === "read" ? (
                                     <span title={t("Read")}>
-                                      <CheckCheck className="size-3 text-emerald-400" />
+                                      <CheckCheck className="size-3 text-success" />
                                     </span>
                                   ) : (
                                     <span title={t("Sent")}>
@@ -568,7 +569,7 @@ function ChatPage() {
                 </div>
 
                 {/* Message Input Box */}
-                <form onSubmit={handleSend} className="border-t border-line p-3">
+                <form onSubmit={handleSend} className="material-regular sticky bottom-0 border-t border-separator p-3">
                   <div className="flex items-center gap-2">
                     <Input
                       value={inputText}
@@ -576,13 +577,13 @@ function ChatPage() {
                       onKeyDown={handleKeyDown}
                       placeholder={t("Type a message...")}
                       maxLength={2000}
-                      className="flex-1"
+                      className="flex-1 rounded-[var(--radius-pill)] px-4"
                     />
                     <Button
                       type="submit"
                       variant="primary"
                       disabled={!inputText.trim()}
-                      className="shrink-0 px-4"
+                      className="shrink-0 rounded-[var(--radius-pill)] px-4"
                       aria-label={t("Send message")}
                     >
                       <Send className="size-4" />

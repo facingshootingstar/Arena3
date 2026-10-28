@@ -348,7 +348,7 @@ export function Threads({
  * — the loop parks itself once the ripple has settled.
  */
 export function DotGrid({
-  color = "#3f7d20",
+  color,
   gap = 26,
   dot = 1.8,
   radius = 150,
@@ -372,6 +372,9 @@ export function DotGrid({
     const ctx = canvas?.getContext("2d");
     if (!host || !canvas || !ctx) return;
 
+    // Unless told otherwise the dots are the accent, read from the token so dark mode follows.
+    const ink =
+      color ?? (getComputedStyle(document.documentElement).getPropertyValue("--color-accent").trim() || "#3f7d20");
     let w = 0;
     let h = 0;
     const pointer = { x: -9999, y: -9999 };
@@ -406,7 +409,7 @@ export function DotGrid({
           // visible circular boundary.
           const f = near * near;
           ctx.globalAlpha = opacity * (0.28 + 0.72 * f);
-          ctx.fillStyle = color;
+          ctx.fillStyle = ink;
           ctx.beginPath();
           ctx.arc(px, py, dot * (1 + f * 1.5), 0, Math.PI * 2);
           ctx.fill();

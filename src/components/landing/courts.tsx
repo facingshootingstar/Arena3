@@ -82,7 +82,7 @@ export function CourtsScene({
                   >
                     <MediaCaption>
                       <span
-                        className="mb-1.5 inline-flex items-center rounded-[var(--radius-pill)] px-2.5 py-0.5 text-2xs font-bold text-white shadow-sm"
+                        className="mb-1.5 inline-flex items-center rounded-[var(--radius-pill)] px-2.5 py-0.5 text-2xs font-bold text-on-media shadow-sm"
                         style={{ backgroundColor: `var(--color-sport-${s.colorKey || s.id})` }}
                       >
                         {sportLabel(s.id)}

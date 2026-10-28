@@ -206,13 +206,22 @@ export function SessionCountdown({
       }
       const hrs = Math.floor(diff / 3600000);
       const mins = Math.floor((diff % 3600000) / 60000);
-      if (hrs > 24) {
+      if (hrs >= 24) {
         const days = Math.floor(hrs / 24);
-        setLeft(t("in {n} days", { n: days }));
+        const rest = hrs % 24;
+        setLeft(
+          rest
+            ? t("in {d}d {h}h", { d: days, h: rest })
+            : days === 1
+              ? t("in 1 day")
+              : t("in {n} days", { n: days }),
+        );
       } else if (hrs > 0) {
         setLeft(t("in {h}h {m}m", { h: hrs, m: mins }));
+      } else if (mins <= 0) {
+        setLeft(t("Starting now"));
       } else {
-        setLeft(t("in {m} minutes", { m: mins }));
+        setLeft(mins === 1 ? t("in 1 minute") : t("in {m} minutes", { m: mins }));
       }
     }
     update();
@@ -221,7 +230,7 @@ export function SessionCountdown({
   }, [startAt]);
 
   return (
-    <div className={cn("inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent-2", className)}>
+    <div role="timer" className={cn("inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] bg-accent-tint px-2.5 py-1 text-footnote font-semibold tabular-nums text-accent-text", className)}>
       <Clock className="size-3.5" />
       <span>{left}</span>
     </div>

@@ -166,7 +166,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Promo codes")}
         subtitle={t("A code is counted when the money posts, and handed back if the payment is fully refunded.")}
         className="mb-6"

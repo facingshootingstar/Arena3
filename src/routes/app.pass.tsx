@@ -111,7 +111,7 @@ function Page() {
         stats={[
           {
             label: t("Member Code"),
-            value: tok?.member_code || user?.member_code || "—",
+            value: tok?.member_code || user?.member_code || "-",
           },
           {
             label: t("Time left"),
@@ -133,7 +133,7 @@ function Page() {
                   <img
                     src={img}
                     alt={t("Your check-in code")}
-                    className="size-64 bg-white p-2"
+                    className="size-64 bg-on-media p-2"
                   />
                   <ScanLine />
                 </div>
@@ -145,7 +145,7 @@ function Page() {
                   {t("Member Code")}
                 </p>
                 <p className="font-mono text-2xl font-bold tracking-widest text-primary">
-                  {tok?.member_code || user?.member_code || "—"}
+                  {tok?.member_code || user?.member_code || "-"}
                 </p>
               </div>
               <div className="flex items-center gap-2">

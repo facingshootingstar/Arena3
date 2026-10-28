@@ -437,7 +437,7 @@ function CameraScanner({ onCode }: { onCode: (code: string) => void }) {
   if (!supported) return null;
   return (
     <div className="grid gap-2">
-      {on ? <video ref={video} muted playsInline className="aspect-video w-full rounded-[var(--radius-md)] bg-black object-cover" /> : null}
+      {on ? <video ref={video} muted playsInline className="aspect-video w-full rounded-[var(--radius-md)] bg-night object-cover" /> : null}
       <div>
         <Button type="button" variant="outline" size="sm" onClick={() => setOn((v) => !v)}>
           {on ? t("Turn camera off") : t("Use the camera")}
@@ -517,7 +517,7 @@ function SelfCheckinCode() {
       ) : null}
       {open && !problem && enabled !== false && !img ? <Skeleton className="mx-auto size-56" /> : null}
       {open && !problem && enabled && img ? (
-        <img src={img} alt={t("Self check-in code")} className="mx-auto size-56 rounded-[var(--radius-md)] bg-white p-2" />
+        <img src={img} alt={t("Self check-in code")} className="mx-auto size-56 rounded-[var(--radius-md)] bg-on-media p-2" />
       ) : null}
     </Card>
   );

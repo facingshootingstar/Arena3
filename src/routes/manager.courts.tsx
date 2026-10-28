@@ -257,7 +257,7 @@ function Page() {
   return (
     <Shell role="manager">
       <PageHero
-        slot="banner.manager"
+        variant="compact"
         title={t("Courts")}
         subtitle={t("Manage courts and sports")}
       />
