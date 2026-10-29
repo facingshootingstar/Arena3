@@ -35,6 +35,7 @@ type Cl = {
   duration_min: number;
   status: string;
   price_vnd: number | null;
+  min_enrolled?: number | null;
   my_enrollment: {
     id: string;
     status: string;
@@ -252,6 +253,9 @@ function Page() {
           {shown.map((c) => {
             const full = c.enrolled_count >= c.capacity;
             const pct = Math.min(100, Math.round((c.enrolled_count / Math.max(1, c.capacity)) * 100));
+            // The class runs once it reaches its minimum; until then the bar marks how far that is.
+            const short = c.min_enrolled ? Math.max(0, c.min_enrolled - c.enrolled_count) : 0;
+            const minPct = c.min_enrolled ? Math.min(100, (c.min_enrolled / Math.max(1, c.capacity)) * 100) : null;
             const enr = byClass[c.id];
             const mineHere = c.my_enrollment;
             const holding = mineHere?.status === "hold" && !!mineHere.hold_until ? mineHere : null;
@@ -290,14 +294,22 @@ function Page() {
                     <span className="text-muted">{full ? t("Full") : t("{n} seats left", { n: c.capacity - c.enrolled_count })}</span>
                     <span className="tabular-nums text-subtle">{pct}%</span>
                   </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
+                  <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
                     <motion.div
                       className={cn("h-full rounded-full", full ? "bg-danger" : pct >= 80 ? "bg-hold" : "bg-accent")}
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                     />
+                    {minPct != null && short > 0 ? (
+                      <span aria-hidden className="absolute inset-y-0 w-0.5 bg-fg/60" style={{ left: `calc(${minPct}% - 1px)` }} />
+                    ) : null}
                   </div>
+                  {short > 0 ? (
+                    <p className="mt-1.5 text-2xs text-hold">
+                      {t("{n} more needed for this class to run", { n: short })}
+                    </p>
+                  ) : null}
                   {/* `mt-auto` pins the action to the bottom of the card. The
                       cards in a row stretch to the tallest one, and without it
                       each button sat directly under its own text — so a row of

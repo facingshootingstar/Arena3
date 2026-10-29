@@ -9,6 +9,7 @@ import { Button, Card, DateField, EmptyState, Field, Input, LoadError, Select, S
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { ClassDetailModal } from "@/components/class-detail";
+import { MinSizeBadge } from "@/components/class-extras";
 import { apiPost } from "@/lib/arena3/client";
 import { classSlotMatches, composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
@@ -42,6 +43,7 @@ type ClassRow = {
   rrule?: string;
   duration_min?: number;
   price_vnd?: number | null;
+  min_enrolled?: number | null;
 };
 
 function Page() {
@@ -84,6 +86,7 @@ function Page() {
     coach_id: "",
     court_id: "",
     capacity: 12,
+    min: "",
     price: "",
     duration_min: 60,
     start_on: todayISO(),
@@ -246,6 +249,16 @@ function Page() {
             onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
           />
         </Field>
+        <Field label={t("Minimum to run")} hint={t("Leave empty for no minimum. Below it the class is only flagged.")} tone="muted">
+          <Input
+            type="number"
+            min={1}
+            max={form.capacity}
+            inputMode="numeric"
+            value={form.min}
+            onChange={(e) => setForm({ ...form, min: e.target.value })}
+          />
+        </Field>
         <Field label={t("Price (VND)")} hint={t("Leave empty until the class is ready to sell.")} tone="muted">
           <Input
             type="number"
@@ -276,9 +289,10 @@ function Page() {
               if (creating) return;
               setCreating(true);
               try {
-                const { price, ...rest } = form;
+                const { price, min, ...rest } = form;
                 const row = await apiPost<{ id: string }>("/classes", {
                   ...rest,
+                  min_enrolled: min.trim() === "" ? null : Number(min),
                   price_vnd: price.trim() === "" ? null : Number(price),
                   rrule: composeWeeklyRrule(days, hour),
                 });
@@ -340,6 +354,7 @@ function Page() {
               <div className="flex items-center gap-2">
                 <SportBadge sport={c.sport} />
                 <StatusBadge status={c.status} />
+                <MinSizeBadge enrolled={c.enrolled_count} min={c.min_enrolled} status={c.status} />
               </div>
               <span className="text-2xs tabular-nums text-muted">{c.code}</span>
             </div>

@@ -7,6 +7,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { Cover } from "@/components/media";
 import { PageHero } from "@/components/page-hero";
 import { StatStrip } from "@/components/stat-strip";
+import { CertificationsModal } from "@/components/coach-certifications";
 import { RowActions } from "@/components/row-actions";
 import { SportBadge, useSports } from "@/components/sports-ui";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Modal, Select, Skeleton, Pagination } from "@/components/ui";
@@ -48,6 +49,7 @@ function Page() {
   const [createRole] = useState(initialRole);
   const [issued, setIssued] = useState<Issued | null>(null);
   const [editing, setEditing] = useState<Staff | null>(null);
+  const [certsOf, setCertsOf] = useState<Staff | null>(null);
 
   // Typing waits a beat so one search is one request.
   const [term, setTerm] = useState("");
@@ -221,6 +223,9 @@ function Page() {
                       onClick: () => setEditing(s),
                     }}
                     secondary={[
+                      ...(s.role === "coach"
+                        ? [{ label: t("Certifications"), onClick: () => setCertsOf(s) }]
+                        : []),
                       {
                         label: t("Reset password"),
                         onClick: () => void act(s, "reset"),
@@ -268,6 +273,11 @@ function Page() {
           setIssued(i);
           read.reload();
         }}
+      />
+      <CertificationsModal
+        coachId={certsOf?.id ?? null}
+        coachName={certsOf?.full_name ?? ""}
+        onClose={() => setCertsOf(null)}
       />
       <RoleModal
         staff={editing}

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight, ClipboardCheck, MapPin, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronRight, ClipboardCheck, MapPin, Users } from "lucide-react";
 import { sessionDay } from "@/components/class-detail";
 import { ArenaIcon, SportIcon } from "@/components/arena-icons";
 import { Shell, hhmm, initials } from "@/components/shell";
@@ -21,6 +22,9 @@ import {
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { AddToCalendar, MinSizeBadge } from "@/components/class-extras";
+import { CertificationsModal } from "@/components/coach-certifications";
+import { getStoredUser } from "@/lib/arena3/client";
 
 export const Route = createFileRoute("/coach/")({
   component: Page,
@@ -35,6 +39,7 @@ export type CoachSession = {
   court_code: string;
   enrolled_count: number;
   capacity: number;
+  min_enrolled?: number | null;
   class_id: string;
   class_code: string;
   status: string;
@@ -60,6 +65,9 @@ function Page() {
   // null = not answered yet (or failed); [] = the centre really has nothing for this coach.
   const items = read.data?.items ?? null;
 
+  const [certsOpen, setCertsOpen] = useState(false);
+  const me = getStoredUser();
+
   const take = (id: string) => void navigate({ to: "/coach/attendance", search: { session: id } });
 
   // The first session still to come is the one to act on; everything else is a short list under it.
@@ -83,6 +91,19 @@ function Page() {
           { label: t("Upcoming sessions"), value: items?.length ?? 0 },
           { label: t("Enrolled students"), value: items ? items.reduce((s, x) => s + x.enrolled_count, 0) : 0 },
         ]}
+        action={
+          me ? (
+            <Button variant="outline" size="sm" onClick={() => setCertsOpen(true)}>
+              <Award className="mr-1.5 size-4" aria-hidden />
+              {t("My certifications")}
+            </Button>
+          ) : null
+        }
+      />
+      <CertificationsModal
+        coachId={certsOpen && me ? me.id : null}
+        coachName={me?.full_name ?? ""}
+        onClose={() => setCertsOpen(false)}
       />
       {read.error ? (
         <LoadError
@@ -143,6 +164,15 @@ function Page() {
                       capacity: next.capacity,
                     })}
                   </span>
+                  <MinSizeBadge enrolled={next.enrolled_count} min={next.min_enrolled} />
+                  <AddToCalendar
+                    event={{
+                      title: `${sportLabel(next.sport)} · ${levelLabel(next.level)} · ${next.class_code}`,
+                      start: next.start_at,
+                      end: next.end_at,
+                      location: `Lê Long Sport · ${t("Court {court}", { court: next.court_code })}`,
+                    }}
+                  />
                 </div>
                 <NextSessionStudents sessionId={next.id} />
                 <Button

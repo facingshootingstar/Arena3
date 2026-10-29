@@ -24,13 +24,23 @@ function parsePrice(raw: unknown): number | null {
   return n;
 }
 
+/** The minimum to run a class: empty for none, otherwise a whole number from 1 up to the capacity. */
+function parseMinEnrolled(raw: unknown, capacity: number): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = num(raw);
+  if (n === undefined || !Number.isInteger(n) || n < 1 || n > capacity) {
+    throw err.field("min_enrolled", "The minimum must be a whole number from 1 up to the capacity.");
+  }
+  return n;
+}
+
 export async function classesList(sql: Sql, request: Request, user: PublicUser | null) {
   const sport = new URL(request.url).searchParams.get("sport");
   const manager = user?.role === "manager";
   const items = await sql.query(
     `select cl.id, cl.sport, cl.level, cl.capacity, cl.enrolled_count, cl.rrule, cl.duration_min,
             cl.start_on::text, cl.end_on::text, cl.status, cl.court_id, c.court_code,
-            cl.coach_id, u.full_name as coach_name, made.at as created_at, cl.price_vnd,
+            cl.coach_id, u.full_name as coach_name, made.at as created_at, cl.price_vnd, cl.min_enrolled,
             case when me.id is null then null else jsonb_build_object(
               'id', me.id, 'status', me.status, 'hold_until', me.hold_until,
               'price_vnd', me.price_vnd, 'transfer_requested_at', me.transfer_requested_at) end as my_enrollment
@@ -84,6 +94,7 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
     throw err.validation("A class runs for whole court hours (60, 120 or 180).");
   }
   const price_vnd = b.price_vnd === undefined ? null : parsePrice(b.price_vnd);
+  const min_enrolled = parseMinEnrolled(b.min_enrolled, capacity);
   if (!sport || !level || !coach_id || !court_id || !rrule || !start_on || !end_on) {
     throw err.validation("Class details are incomplete.");
   }
@@ -150,8 +161,8 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   const row = await one(
     sql,
     `insert into classes
-       (sport, level, coach_id, assistant_id, court_id, capacity, rrule, duration_min, start_on, end_on, status, price_vnd)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11)
+       (sport, level, coach_id, assistant_id, court_id, capacity, rrule, duration_min, start_on, end_on, status, price_vnd, min_enrolled)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11,$12)
      returning *`,
     [
       sport,
@@ -165,6 +176,7 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
       start_on,
       end_on,
       price_vnd,
+      min_enrolled,
     ],
   );
   await audit(sql, user.id, "create_class", "class", (row as { id: string }).id);
@@ -629,7 +641,7 @@ export async function coachSchedule(sql: Sql, user: PublicUser) {
   requireRole(user, ["coach", "manager"]);
   const items = await sql.query(
     `select s.id, s.start_at, s.end_at, s.status, cl.level, cl.sport, cl.id as class_id,
-            cl.capacity, cl.enrolled_count, c.court_code
+            cl.capacity, cl.enrolled_count, cl.min_enrolled, c.court_code
        from sessions s
        join classes cl on cl.id = s.class_id
        join courts c on c.id = s.court_id
@@ -650,7 +662,7 @@ export async function coachClasses(sql: Sql, user: PublicUser) {
   const items = await sql.query(
     `select cl.id, cl.sport, cl.level, cl.capacity, cl.enrolled_count, cl.rrule, cl.duration_min,
             cl.start_on::text, cl.end_on::text, cl.status, cl.court_id, c.court_code,
-            cl.coach_id, u.full_name as coach_name,
+            cl.coach_id, u.full_name as coach_name, cl.min_enrolled,
             (select count(*)::int from sessions s where s.class_id = cl.id and s.status = 'scheduled') as upcoming_sessions_count
        from classes cl
        join courts c on c.id = cl.court_id
@@ -696,9 +708,10 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
     coach_name: string;
     assistant_name: string | null;
     price_vnd: number | null;
+    min_enrolled: number | null;
   }>(
     sql,
-    `select cl.id, cl.sport::text as sport, cl.level, cl.status::text as status, cl.capacity, cl.enrolled_count,
+    `select cl.id, cl.sport::text as sport, cl.level, cl.status::text as status, cl.capacity, cl.enrolled_count, cl.min_enrolled,
             cl.rrule, cl.duration_min, cl.start_on::text as start_on, cl.end_on::text as end_on,
             cl.court_id, c.court_code, cl.coach_id, cl.assistant_id,
             co.full_name as coach_name, asst.full_name as assistant_name, cl.price_vnd
@@ -1048,11 +1061,12 @@ export async function classesPatch(sql: Sql, classId: string, request: Request, 
     status: string;
     capacity: number;
     enrolled_count: number;
+    min_enrolled: number | null;
     coach_id: string;
     assistant_id: string | null;
   }>(
     sql,
-    `select id, sport::text as sport, level, status::text as status, capacity, enrolled_count, coach_id, assistant_id
+    `select id, sport::text as sport, level, status::text as status, capacity, enrolled_count, min_enrolled, coach_id, assistant_id
        from classes where id = $1 for update`,
     [classId],
   );
@@ -1080,14 +1094,27 @@ export async function classesPatch(sql: Sql, classId: string, request: Request, 
 
   const priceSet = b.price_vnd !== undefined;
   const price_vnd = priceSet ? parsePrice(b.price_vnd) : undefined;
+  const minSet = b.min_enrolled !== undefined;
+  const min_enrolled = minSet ? parseMinEnrolled(b.min_enrolled, capacity) : cl.min_enrolled;
+  if (!minSet && min_enrolled != null && min_enrolled > capacity) {
+    throw err.field("capacity", "Capacity cannot go below the class's minimum.");
+  }
   await sql.query(
     `update classes set capacity = $2, level = $3, status = coalesce($4::class_status, status),
-            price_vnd = case when $5::boolean then $6::int else price_vnd end where id = $1`,
-    [classId, capacity, level, status ?? null, priceSet, price_vnd ?? null],
+            price_vnd = case when $5::boolean then $6::int else price_vnd end, min_enrolled = $7 where id = $1`,
+    [classId, capacity, level, status ?? null, priceSet, price_vnd ?? null, min_enrolled],
   );
   if (capacity > cl.capacity && (status ?? cl.status) === "open") await inviteWaitlist(sql, classId);
-  const after = { capacity, level, status: status ?? cl.status, ...(priceSet ? { price_vnd } : {}) };
-  await audit(sql, user.id, "edit_class", "class", classId, { capacity: cl.capacity, level: cl.level, status: cl.status }, after);
+  const after = { capacity, level, status: status ?? cl.status, min_enrolled, ...(priceSet ? { price_vnd } : {}) };
+  await audit(
+    sql,
+    user.id,
+    "edit_class",
+    "class",
+    classId,
+    { capacity: cl.capacity, level: cl.level, status: cl.status, min_enrolled: cl.min_enrolled },
+    after,
+  );
   return { status: 200, body: { ok: true, class: { id: classId, ...after } } };
 }
 

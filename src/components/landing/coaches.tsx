@@ -10,6 +10,9 @@ import { gsap, motionOff, registerGsap, useScene } from "@/lib/gsap";
 import { useCalm } from "@/lib/calm";
 import { t, useLang } from "@/lib/i18n";
 import { useSports } from "@/components/sports-ui";
+import { Award } from "lucide-react";
+import { certificationLine, type Certification } from "@/components/coach-certifications";
+import { useRead } from "@/lib/use-read";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 
@@ -59,6 +62,10 @@ export function CoachesScene({
       };
     });
   }, [dbCoaches]);
+
+  // Certifications the centre has on record and that still hold; the dialog lists them under the bio.
+  const certRead = useRead<{ items: Certification[] }>("/coaches/certifications");
+  const certsOf = (userId?: string) => (userId ? (certRead.data?.items ?? []).filter((x) => x.coach_id === userId) : []);
 
   const coaches = allCoaches.filter((c) => !sport || c.sport === sport);
 
@@ -153,6 +160,14 @@ export function CoachesScene({
                 </GlareHover>
                 <div className="flex flex-1 flex-col p-4">
                   <p className="flex-1 text-sm font-medium">{t(c.title)}</p>
+                  {certsOf(c.userId).length ? (
+                    <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+                      <Award className="size-3.5 text-accent-2" aria-hidden />
+                      {certsOf(c.userId).length === 1
+                        ? t("1 certification")
+                        : t("{n} certifications", { n: certsOf(c.userId).length })}
+                    </p>
+                  ) : null}
                   <Button size="sm" variant="outline" className="mt-3 w-full" onClick={() => setOpen(c)}>
                     {t("View details")}
                   </Button>
@@ -200,6 +215,24 @@ export function CoachesScene({
                   </li>
                 ))}
               </ul>
+              {certsOf(open.userId).length ? (
+                <div className="mt-5">
+                  <p className="kicker text-2xs text-muted">{t("Certifications")}</p>
+                  <ul className="mt-2 grid gap-2">
+                    {certsOf(open.userId).map((x) => (
+                      <li key={x.id} className="flex gap-2 text-sm">
+                        <Award className="mt-0.5 size-4 shrink-0 text-accent-2" aria-hidden />
+                        <span>
+                          <span className="font-medium">{x.name}</span>
+                          {certificationLine(x) ? (
+                            <span className="block text-xs text-muted">{certificationLine(x)}</span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}

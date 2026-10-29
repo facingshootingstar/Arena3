@@ -15,6 +15,7 @@ import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { AddToCalendar } from "@/components/class-extras";
 
 export const Route = createFileRoute("/app/")({
   component: Page,
@@ -67,6 +68,7 @@ function Page() {
     ...(me?.today.classes ?? []).map((c) => ({
       id: `c-${c.id}`,
       start: c.start_at,
+      end: c.end_at,
       kind: tk("Class"),
       title: `${sportLabel(c.sport)} · ${c.court_code}`,
       meta: c.coach_name,
@@ -76,6 +78,7 @@ function Page() {
     ...(me?.today.bookings ?? []).map((b) => ({
       id: `b-${b.id}`,
       start: b.start_at,
+      end: b.end_at,
       kind: tk("Court"),
       title: b.court_code,
       meta: b.code,
@@ -201,6 +204,11 @@ function Page() {
                         <p className="mt-2 font-display text-xl tracking-tight">
                           {hhmm(ev.start)} · {ev.title}
                         </p>
+                        {ev.status === "confirmed" && new Date(ev.end) > new Date() ? (
+                          <AddToCalendar
+                            event={{ title: `${t(ev.kind)} · ${ev.title}`, start: ev.start, end: ev.end, details: ev.meta, location: "Lê Long Sport" }}
+                          />
+                        ) : null}
                         {/* The action shares the reference line rather than
                             claiming a row of its own. A court booking and a
                             class sitting next to each other used to differ by

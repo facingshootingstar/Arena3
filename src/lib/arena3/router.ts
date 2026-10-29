@@ -23,6 +23,7 @@ import * as courtH from "./handlers/courts";
 import * as sportsH from "./handlers/sports";
 import * as chatH from "./handlers/chat";
 import * as avatarH from "./handlers/avatar";
+import * as certH from "./handlers/certificates";
 import { liveStreamHandler } from "./handlers/live";
 
 type Result = { status: number; body: unknown };
@@ -40,6 +41,7 @@ async function dispatch(request: Request): Promise<Response | Result> {
   const p0 = parts[0] ?? "";
   const p1 = parts[1] ?? "";
   const p2 = parts[2] ?? "";
+  const p3 = parts[3] ?? "";
 
   const idem = (userId: string | null, fn: () => Promise<Result>) =>
     withTx(async (sql) => {
@@ -181,6 +183,15 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return sportsH.publicSportsList(sql);
   }
 
+  if (method === "GET" && p0 === "coaches" && p1 === "certifications" && !p2) {
+    const sql = await getSql();
+    return certH.coachCertificationsPublic(sql);
+  }
+  if (method === "GET" && p0 === "certificates" && p1 && !p2) {
+    const sql = await getSql();
+    return certH.certificateVerify(sql, p1);
+  }
+
   // Authenticated
   const authed = async (fn: (sql: Awaited<ReturnType<typeof getSql>>, user: PublicUser) => Promise<Result | Response>) => {
     return withTx(async (sql) => {
@@ -209,6 +220,21 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "GET" && p0 === "me" && p1 === "profile" && !p2) {
     return authedRead((sql, user) => authH.meProfile(sql, request, user));
+  }
+  if (method === "GET" && p0 === "me" && p1 === "certificates" && !p2) {
+    return authedRead((sql, user) => certH.meCertificates(sql, user));
+  }
+  if (method === "POST" && p0 === "me" && p1 === "certificates" && p2 && !p3) {
+    return authed((sql, user) => certH.meCertificateIssue(sql, p2, user));
+  }
+  if (method === "GET" && p0 === "coaches" && p1 && p2 === "certifications" && !p3) {
+    return authedRead((sql, user) => certH.coachCertificationsList(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "coaches" && p1 && p2 === "certifications" && !p3) {
+    return authed((sql, user) => certH.coachCertificationCreate(sql, p1, request, user));
+  }
+  if (method === "DELETE" && p0 === "certifications" && p1 && !p2) {
+    return authed((sql, user) => certH.coachCertificationDelete(sql, p1, user));
   }
   if (method === "GET" && p0 === "me" && p1 === "bookings" && !p2) {
     return authedRead((sql, user) => bookH.meBookings(sql, user));

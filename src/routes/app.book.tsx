@@ -23,6 +23,7 @@ import { useRead } from "@/lib/use-read";
 import { useLive } from "@/lib/use-live";
 import { useSports } from "@/components/sports-ui";
 import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
+import { AddToCalendar } from "@/components/class-extras";
 
 export const Route = createFileRoute("/app/book")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({
@@ -319,6 +320,17 @@ function Page() {
               {b.status !== "confirmed" ? <StatusBadge status={b.status} /> : null}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3">
+              {b.status === "confirmed" || b.status === "hold" ? (
+                <AddToCalendar
+                  event={{
+                    title: `${t("Court {court}", { court: b.court_code })} · ${sportLabel(b.sport)}`,
+                    start: b.start_at,
+                    end: b.end_at,
+                    details: b.code,
+                    location: "Lê Long Sport",
+                  }}
+                />
+              ) : null}
               {b.can_move ? (
                 <button type="button" onClick={() => startMove(b)} className="hit text-sm font-medium text-accent-2 hover:underline">
                   {t("Change time")}

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge } from "@/components/ui";
 import { hhmm, initials, money, useSessionUser, when } from "@/components/shell";
 import { UserAvatar } from "@/components/user-avatar";
+import { MinSizeBadge } from "@/components/class-extras";
 import { Cover } from "@/components/media";
 import { apiPatch, apiPost } from "@/lib/arena3/client";
 import { formatDate, kindLabel, levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
@@ -32,6 +33,7 @@ type ClassDetail = {
     status: string;
     capacity: number;
     price_vnd?: number | null;
+    min_enrolled?: number | null;
     enrolled_count: number;
     rrule: string;
     duration_min: number;
@@ -165,6 +167,7 @@ export function ClassDetailModal({
                     {t("{n}/{cap} enrolled", { n: c.enrolled_count, cap: c.capacity })}
                   </HighlightBadge>
                 </Badge>
+                <MinSizeBadge enrolled={c.enrolled_count} min={c.min_enrolled} status={c.status} />
               </div>
               <p className="text-muted">
                 {t("Coach {name}", { name: c.coach_name })}
@@ -331,7 +334,7 @@ const ACTION_COPY = {
   "cancel-session": { title: tk("Cancel this session"), go: tk("Cancel session"), needsReason: true },
   "move-session": { title: tk("Move this session"), go: tk("Move session"), needsReason: false },
   coach: { title: tk("Change the coach for every session still to come"), go: tk("Change coach"), needsReason: false },
-  capacity: { title: tk("Edit capacity"), go: tk("Save capacity"), needsReason: false },
+  capacity: { title: tk("Edit capacity and minimum"), go: tk("Save capacity"), needsReason: false },
   price: { title: tk("Edit price"), go: tk("Save price"), needsReason: false },
   "cancel-class": { title: tk("Cancel the whole class"), go: tk("Cancel class"), needsReason: true },
 } as const;
@@ -356,6 +359,7 @@ function ActionForm({
   const coaches = (coachRead.data?.items ?? []).filter((x) => x.id !== classData.coach_id);
   const [coachId, setCoachId] = useState("");
   const [capacity, setCapacity] = useState(String(classData.capacity));
+  const [minEnrolled, setMinEnrolled] = useState(classData.min_enrolled == null ? "" : String(classData.min_enrolled));
   const [price, setPrice] = useState(classData.price_vnd == null ? "" : String(classData.price_vnd));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
@@ -381,7 +385,10 @@ function ActionForm({
         await apiPost(`/classes/${classData.id}/coach`, { coach_id: coachId, ...(reason ? { reason } : {}) });
         toast.success(t("Coach changed"));
       } else if (action.kind === "capacity") {
-        await apiPatch(`/classes/${classData.id}`, { capacity: Number(capacity) });
+        await apiPatch(`/classes/${classData.id}`, {
+          capacity: Number(capacity),
+          min_enrolled: minEnrolled.trim() === "" ? null : Number(minEnrolled),
+        });
         toast.success(t("Capacity saved"));
       } else if (action.kind === "price") {
         await apiPatch(`/classes/${classData.id}`, { price_vnd: price.trim() === "" ? null : Number(price) });
@@ -443,6 +450,11 @@ function ActionForm({
         <Field label={t("Capacity ({n} enrolled)", { n: classData.enrolled_count })} hint={at("capacity")}>
           <Input type="number" min={1} max={200} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
         </Field>
+      ) : null}
+      {action.kind === "capacity" ? (
+        <Field label={t("Minimum to run")} hint={at("min_enrolled") ?? t("Leave empty for no minimum. Below it the class is only flagged.")}>
+          <Input type="number" min={1} max={200} value={minEnrolled} onChange={(e) => setMinEnrolled(e.target.value)} />
+        </Field>
       ) : action.kind === "price" ? (
         <Field label={t("Price (VND)")} hint={at("price_vnd") ?? t("Leave empty to close the class to new sign-ups.")}>
           <Input type="number" min={0} step={1000} inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
@@ -452,7 +464,7 @@ function ActionForm({
           <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
         </Field>
       )}
-      {error && !["start_at", "coach_id", "capacity", "price_vnd", "reason"].includes(error.field ?? "") ? (
+      {error && !["start_at", "coach_id", "capacity", "min_enrolled", "price_vnd", "reason"].includes(error.field ?? "") ? (
         <p role="alert" className="text-sm text-danger">
           {error.message}
         </p>

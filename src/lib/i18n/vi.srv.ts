@@ -7,6 +7,17 @@
  * pricing,checkin,helpers,ratelimit,session,flags,router}.ts and src/lib/arena3/handlers/*.ts.
  */
 export const VI_SERVER_EXACT: Record<string, string> = {
+  "The minimum must be a whole number from 1 up to the capacity.": "Mức tối thiểu phải là số nguyên từ 1 đến sĩ số tối đa.",
+  "Capacity cannot go below the class's minimum.": "Sĩ số tối đa không được thấp hơn mức tối thiểu của lớp.",
+  "No such certification.": "Không tìm thấy chứng chỉ.",
+  "Only a manager or the coach can change these certifications.": "Chỉ quản lý hoặc chính huấn luyện viên mới được sửa các chứng chỉ này.",
+  "Name the certification (120 characters at most).": "Hãy nhập tên chứng chỉ (tối đa 120 ký tự).",
+  "The issuer is 120 characters at most.": "Đơn vị cấp tối đa 120 ký tự.",
+  "Pick the date it was issued.": "Hãy chọn ngày cấp.",
+  "Pick the date it expires.": "Hãy chọn ngày hết hạn.",
+  "It cannot expire before it was issued.": "Ngày hết hạn không được trước ngày cấp.",
+  "The class is not over yet.": "Lớp chưa kết thúc.",
+  "No certificate has that code.": "Không có chứng nhận nào mang mã này.",
   // ── errors.ts (defaults and database errors)
   "Please sign in.": "Vui lòng đăng nhập.",
   "You do not have permission.": "Bạn không có quyền thực hiện thao tác này.",
@@ -361,6 +372,7 @@ export const VI_SERVER_EXACT: Record<string, string> = {
 
 /** For messages that carry numbers or names: [regex over the English, Vietnamese with $1, $2…]. */
 const P: [RegExp, string][] = [
+  [/^Attend at least (\d+)% of the sessions to earn this certificate\.$/, "Cần tham gia ít nhất $1% số buổi để nhận chứng nhận này."],
   [/^That pass is only valid on (\d{4}-\d{2}-\d{2})\.$/, "Vé này chỉ dùng được vào ngày $1."],
   [/^Redeem at least (\d+) points\.$/, "Hãy đổi ít nhất $1 điểm."],
   [/^A fixed booking runs (\d+)–(\d+) weeks\.$/, "Đặt cố định kéo dài từ $1 đến $2 tuần."],
