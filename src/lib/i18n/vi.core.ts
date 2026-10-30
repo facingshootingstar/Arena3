@@ -168,6 +168,9 @@ export const core: Record<string, string> = {
   "Open their profile": "Mở hồ sơ học viên",
   "Reception replied": "Lễ tân đã trả lời",
   "Reception answered your message.": "Lễ tân đã trả lời tin nhắn của bạn.",
+  "Reception closed your request": "Lễ tân đã đóng yêu cầu của bạn",
+  "The front desk has dealt with it. Send another note if it is still open for you.":
+    "Lễ tân đã xử lý xong. Nếu bạn thấy vẫn chưa ổn, hãy gửi một ghi chú mới.",
   "Open Support": "Mở Hỗ trợ",
   "Open your account for the details.": "Mở tài khoản của bạn để xem chi tiết.",
   "{n} unread": "{n} chưa đọc",

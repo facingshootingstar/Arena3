@@ -34,6 +34,7 @@ const { trainingCreate } = await import("./handlers/training.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
 const { setOverridePaymentLinkCreator } = await import("./payos.ts");
 const chatH = await import("./handlers/chat.ts");
+const { clearAll: clearLimits, RULES: LIMITS, take: takeLimit } = await import("./ratelimit.ts");
 const avatarH = await import("./handlers/avatar.ts");
 const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
 
@@ -3258,3 +3259,299 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(afterCount, 0);
     });
   });
+
+/**
+ * The desk side of a support request: closing it, and answering it once.
+ *
+ * Covers the three things the F6 audit found here — a closed request that the
+ * member's screen still called "Waiting", a second answer written over the
+ * first, and Close happily reporting success on a ticket that was already
+ * closed or never existed.
+ */
+describe("ticket lifecycle", () => {
+  const desk = { id: "00000000-0000-0000-0000-0000000000d1", role: "receptionist" } as any;
+  const memberId = "00000000-0000-0000-0000-0000000000d2";
+  const missingId = "99999999-9999-4999-8999-999999999991";
+
+  before(async () => {
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+       values ($1, '0987000401', 'Desk D1', 'desk d1', 'receptionist', 'active', 'hash'),
+              ($2, '0987000402', 'Member D2', 'member d2', 'member', 'active', 'hash')
+       on conflict (id) do nothing`,
+      [desk.id, memberId],
+    );
+  });
+
+  async function newTicket(body = "the lights in BC2 are out") {
+    return (
+      await db.query<{ id: string }>(`insert into tickets (user_id, body) values ($1,$2) returning id`, [
+        memberId,
+        body,
+      ])
+    ).rows[0].id;
+  }
+
+  function replyReq(id: string, text: string) {
+    return new Request(`http://localhost/v1/tickets/${id}/reply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reply: text }),
+    });
+  }
+
+  const countOf = async (sql: string, params: unknown[]) =>
+    (await db.query<{ n: number }>(sql, params)).rows[0].n;
+
+  it("closes once however many times the button is pressed", async () => {
+    const id = await newTicket();
+    await withTx(async (sql) => {
+      assert.equal((await opsH.ticketClose(sql, id, desk)).status, 200);
+    });
+    // Second press still answers ok — the caller wanted it closed and it is.
+    await withTx(async (sql) => {
+      assert.equal((await opsH.ticketClose(sql, id, desk)).status, 200);
+    });
+    assert.equal(
+      await countOf(`select count(*)::int as n from audit_logs where action = 'ticket_close' and entity_id = $1`, [id]),
+      1,
+    );
+    assert.equal(
+      await countOf(`select count(*)::int as n from outbox where dedupe_key = $1`, [`ticket_closed|${id}`]),
+      1,
+    );
+  });
+
+  it("refuses to close a request that is not there", async () => {
+    await assert.rejects(
+      async () => withTx(async (sql) => opsH.ticketClose(sql, missingId, desk)),
+      (e: any) => {
+        assert.equal(e.status, 404);
+        return true;
+      },
+    );
+  });
+
+  it("tells the member their request is no longer waiting", async () => {
+    const id = await newTicket("duplicate of the one I just sent");
+    await withTx(async (sql) => opsH.ticketClose(sql, id, desk));
+    const row = (
+      await db.query<{ status: string; reply: string | null }>(`select status, reply from tickets where id = $1`, [id])
+    ).rows[0];
+    assert.equal(row.status, "closed");
+    // No answer was written, so the Support badge reads this as "Closed" —
+    // judging by `reply` alone was what left it saying "Waiting" for good.
+    assert.equal(row.reply, null);
+    const note = (
+      await db.query<{ template: string; user_id: string }>(
+        `select template, user_id from outbox where dedupe_key = $1`,
+        [`ticket_closed|${id}`],
+      )
+    ).rows[0];
+    assert.equal(note.template, "ticket_closed");
+    assert.equal(note.user_id, memberId);
+  });
+
+  it("refuses a second answer instead of writing over the first", async () => {
+    const id = await newTicket();
+    await withTx(async (sql) => {
+      assert.equal((await opsH.ticketReply(sql, id, replyReq(id, "Fixed on Tuesday."), desk)).status, 200);
+    });
+    await assert.rejects(
+      async () => withTx(async (sql) => opsH.ticketReply(sql, id, replyReq(id, "Actually Wednesday."), desk)),
+      (e: any) => {
+        assert.equal(e.status, 409);
+        return true;
+      },
+    );
+    const row = (await db.query<{ reply: string }>(`select reply from tickets where id = $1`, [id])).rows[0];
+    assert.equal(row.reply, "Fixed on Tuesday.");
+    // One answer, one notification: the dedupe key no longer carries the clock.
+    assert.equal(
+      await countOf(`select count(*)::int as n from outbox where dedupe_key = $1`, [`ticket_replied|${id}`]),
+      1,
+    );
+  });
+
+  it("still answers a request the desk closed without a reply", async () => {
+    const id = await newTicket();
+    await withTx(async (sql) => opsH.ticketClose(sql, id, desk));
+    // Otherwise Close would be a trap: the request would be unanswerable.
+    await withTx(async (sql) => {
+      assert.equal((await opsH.ticketReply(sql, id, replyReq(id, "Sorted, sorry for the wait."), desk)).status, 200);
+    });
+    const row = (await db.query<{ reply: string }>(`select reply from tickets where id = $1`, [id])).rows[0];
+    assert.equal(row.reply, "Sorted, sorry for the wait.");
+  });
+
+  it("refuses to answer a request that is not there", async () => {
+    await assert.rejects(
+      async () => withTx(async (sql) => opsH.ticketReply(sql, missingId, replyReq(missingId, "Hello?"), desk)),
+      (e: any) => {
+        assert.equal(e.status, 404);
+        return true;
+      },
+    );
+  });
+});
+
+/**
+ * Switching F6 off has to stop the module without taking away what people
+ * already have. Every F6 write route answers 403 BR-52; the reads that hold a
+ * member's own history, and the desk's queue of requests already in, keep
+ * working — a manager turning a module off is not deleting anybody's past.
+ */
+describe("F6 flag gate", () => {
+  const member = { id: "00000000-0000-0000-0000-0000000000f1", role: "member" } as any;
+  const desk = { id: "00000000-0000-0000-0000-0000000000f2", role: "receptionist" } as any;
+
+  before(async () => {
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+       values ($1, '0987000501', 'Member F1', 'member f1', 'member', 'active', 'hash'),
+              ($2, '0987000502', 'Desk F2', 'desk f2', 'receptionist', 'active', 'hash')
+       on conflict (id) do nothing`,
+      [member.id, desk.id],
+    );
+  });
+
+  async function setF6(enabled: boolean) {
+    await db.query(
+      `insert into feature_flags (key, enabled) values ('F6', $1)
+       on conflict (key) do update set enabled = excluded.enabled`,
+      [enabled],
+    );
+  }
+
+  const isOff = (e: any) => {
+    assert.equal(e.status, 403);
+    assert.equal(e.extra?.br, "BR-52");
+    assert.equal(e.extra?.flag, "F6");
+    return true;
+  };
+
+  function post(url: string, body: unknown) {
+    return new Request(`http://localhost${url}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("refuses the module's own routes and keeps the reads that hold history", async () => {
+    await setF6(false);
+    try {
+      await assert.rejects(
+        async () => withTx((sql) => opsH.ticketsCreate(sql, post("/v1/tickets", { body: "lights out" }), member)),
+        isOff,
+      );
+      await assert.rejects(
+        async () => withTx((sql) => opsH.assistantChat(sql, post("/v1/assistant", { message: "opening hours?" }), member)),
+        isOff,
+      );
+      await assert.rejects(async () => withTx((sql) => chatH.listConversations(sql, member)), isOff);
+      await assert.rejects(
+        async () =>
+          withTx((sql) =>
+            chatH.rtcPollHandler(sql, member, new Request("http://localhost/api/rtc?room=r&peer=" + member.id)),
+          ),
+        isOff,
+      );
+      await assert.rejects(
+        async () => withTx((sql) => chatH.rtcSignalHandler(sql, member, post("/api/rtc", { op: "leave", room: "r" }))),
+        isOff,
+      );
+
+      // Still readable: the member's own requests and replies (FR-S04)...
+      const mine = await withTx((sql) =>
+        opsH.ticketsMine(sql, new Request("http://localhost/v1/tickets/mine"), member),
+      );
+      assert.equal(mine.status, 200);
+      // ...and the queue the desk still has to work through.
+      const queue = await withTx((sql) => opsH.ticketsList(sql, new Request("http://localhost/v1/tickets"), desk));
+      assert.equal(queue.status, 200);
+    } finally {
+      await setF6(true);
+    }
+  });
+
+  it("lets the same routes through once the flag is back on", async () => {
+    await setF6(true);
+    const res = await withTx((sql) =>
+      opsH.ticketsCreate(sql, post("/v1/tickets", { body: "the net on BC2 sags" }), member),
+    );
+    assert.equal(res.status, 201);
+    // This one returns its body directly rather than a {status, body} pair.
+    const convs = await withTx((sql) => chatH.listConversations(sql, member));
+    assert.ok(Array.isArray(convs.conversations));
+  });
+});
+
+/**
+ * The relay has to charge a caller for a request it rejects.
+ *
+ * The per-room budget cannot be charged until the room is known, so a request
+ * missing that parameter skips it entirely. Without a ceiling charged earlier,
+ * that is an unlimited loop: each attempt still costs a `requireFlag` query
+ * before being thrown out.
+ */
+describe("rtc signalling quota covers rejected requests", () => {
+  const user = { id: "00000000-0000-0000-0000-0000000000e1", role: "member" } as any;
+
+  before(async () => {
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+       values ($1, '0987000601', 'Member E1', 'member e1', 'member', 'active', 'hash')
+       on conflict (id) do nothing`,
+      [user.id],
+    );
+  });
+
+  it("charges a poll with no room, so it cannot be repeated forever", async () => {
+    clearLimits();
+    const bare = () => new Request("http://localhost/api/rtc");
+    // Fill the bucket to one below the ceiling directly, rather than driving
+    // two thousand requests through the database to get there.
+    for (let i = 0; i < LIMITS.rtcEndpoint.limit - 1; i += 1) {
+      takeLimit(`rtc:${user.id}`, LIMITS.rtcEndpoint);
+    }
+    // Invalid, and rejected as such — but it has to be charged on the way out.
+    await assert.rejects(
+      async () => withTx((sql) => chatH.rtcPollHandler(sql, user, bare())),
+      (e: any) => e.status === 422 || e.status === 400,
+    );
+    // Which is why the next one is refused instead of reaching the database again.
+    await assert.rejects(
+      async () => withTx((sql) => chatH.rtcPollHandler(sql, user, bare())),
+      (e: any) => {
+        assert.equal(e.status, 429);
+        return true;
+      },
+    );
+    clearLimits();
+  });
+
+  it("leaves teardown out of the per-room budget", async () => {
+    clearLimits();
+    const room = "99999999-9999-4999-8999-999999999992";
+    // Exhaust the room budget the way a long negotiation would.
+    for (let i = 0; i < LIMITS.rtcSignal.limit; i += 1) {
+      takeLimit(`rtc:${user.id}:${room}`, LIMITS.rtcSignal);
+    }
+    // A leave must still get through: the client fires it on teardown and
+    // ignores the result, so a refusal strands the peer in the roster.
+    const res = await withTx((sql) =>
+      chatH.rtcSignalHandler(
+        sql,
+        user,
+        new Request("http://localhost/api/rtc", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ op: "leave", room, peer: user.id }),
+        }),
+      ),
+    );
+    assert.deepEqual(res, { ok: true });
+    clearLimits();
+  });
+});

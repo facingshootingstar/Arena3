@@ -218,6 +218,14 @@ export const desk: Record<string, string> = {
   "Cash counted (VND)": "Tiền mặt đã đếm (VND)",
   "Expected from the books: {amount}": "Theo sổ sách: {amount}",
   "Requests from the app": "Yêu cầu từ ứng dụng",
+  "Open queue": "Hàng đợi đang mở",
+  "All requests": "Tất cả yêu cầu",
+  "The queue is clear": "Hàng đợi đã sạch",
+  "Everything the app has sent in has been answered or closed.":
+    "Mọi yêu cầu gửi từ ứng dụng đều đã được trả lời hoặc đóng.",
+  "Requests from the app show up here with their replies.":
+    "Yêu cầu gửi từ ứng dụng sẽ hiện ở đây kèm câu trả lời.",
+  "Closed without a reply.": "Đã đóng, không có câu trả lời.",
   "Reply": "Trả lời",
   "Request closed": "Đã đóng yêu cầu",
   "Replied: the member has been notified": "Đã trả lời, hội viên đã được báo",

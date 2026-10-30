@@ -18,6 +18,7 @@ import {
   normalizeChecklist,
   normalizeDone,
   planActiveOn,
+  isTicketMessage,
   slotPriceOk,
   ticketBody,
   validateMetrics,
@@ -156,6 +157,56 @@ describe("ticketBody / FR-S03", () => {
   it('an empty "ticket:" reduces to the empty string (caller returns 422)', () => {
     assert.equal(ticketBody("ticket:"), "");
     assert.equal(ticketBody("ticket: "), "");
+  });
+  it("unwraps a quote pair the greeting taught people to type", () => {
+    assert.equal(ticketBody("<<ticket: den BC2 bi chay>>"), "den BC2 bi chay");
+    assert.equal(ticketBody("«ticket: den BC2 bi chay»"), "den BC2 bi chay");
+    assert.equal(ticketBody('"ticket: den BC2 bi chay"'), "den BC2 bi chay");
+  });
+  it("leaves quotes that were never a pair", () => {
+    // Starts with a quote and ends with a quote, but the outer two do not
+    // belong together. Stripping them used to yield `a" and "b`, eating the
+    // member's own punctuation; the marker is no longer treated as wrapped, so
+    // the message survives exactly as typed.
+    assert.equal(ticketBody('"ticket: a" and "b"'), '"ticket: a" and "b"');
+    assert.equal(isTicketMessage('"ticket: a" and "b"'), false);
+    // A genuine wrapper still comes off.
+    assert.equal(ticketBody('"ticket: plain"'), "plain");
+    // And quotes inside the note are left where they are.
+    assert.equal(ticketBody("ticket: 'x' or 'y'"), "'x' or 'y'");
+  });
+  it("leaves the member's own quotes alone", () => {
+    // No marker inside the pair, so the quotes are theirs: the support form
+    // runs every message through here.
+    assert.equal(ticketBody('"The lights are out"'), '"The lights are out"');
+    assert.equal(ticketBody("ticket: hỏi về «gói Premium»"), "hỏi về «gói Premium»");
+  });
+});
+
+describe("isTicketMessage / FR-S01", () => {
+  it("leaves a question for the assistant to answer", () => {
+    // These used to match on "góp ý" / "feedback" / "complaint" anywhere in the
+    // message, so the assistant never saw the question it was asked.
+    assert.equal(isTicketMessage("Làm sao góp ý về HLV?"), false);
+    assert.equal(isTicketMessage("Is there a feedback form?"), false);
+    assert.equal(isTicketMessage("How do I file a complaint?"), false);
+    assert.equal(isTicketMessage("Tôi muốn khiếu nại giá sân"), false);
+    assert.equal(isTicketMessage("What are your opening hours?"), false);
+  });
+  it("takes a marker at the very start, however it was typed", () => {
+    assert.equal(isTicketMessage("ticket: den BC2 bi chay"), true);
+    // The full-width colon a Vietnamese IME produces, and a stray space.
+    assert.equal(isTicketMessage("ticket： den BC2 bi chay"), true);
+    assert.equal(isTicketMessage("ticket : den BC2 bi chay"), true);
+    assert.equal(isTicketMessage("<<ticket: den BC2 bi chay>>"), true);
+    assert.equal(isTicketMessage("«ticket: den BC2 bi chay»"), true);
+  });
+  it("ignores a marker buried mid-sentence", () => {
+    assert.equal(isTicketMessage("my ticket: for the class didn't work"), false);
+  });
+  it("accepts a bare marker so the caller can ask for the rest (FR-S03)", () => {
+    assert.equal(isTicketMessage("ticket:"), true);
+    assert.equal(ticketBody("ticket:"), "");
   });
 });
 
