@@ -548,6 +548,12 @@ export { ticketBody };
  * each, which is the hole the assistant route was: it was covered only by
  * `RULES.assistant`, and twenty a minute is a model-call budget, not a
  * someone-has-to-read-this budget.
+ *
+ * Callers charge this before the insert, so a burst is refused rather than
+ * queued behind however long the write takes. A failed insert therefore costs
+ * the member one of their three: the alternative, `reset()` on error, empties
+ * the whole bucket and would let a real burst through on the back of one
+ * unlucky write.
  */
 function ticketQuota(userId: string): void {
   limit(`ticket:${userId}`, RULES.ticketCreate, "requests");
@@ -559,10 +565,11 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   const body = await readJson(request);
   const message = (str(body.message) ?? "").trim().slice(0, 800);
   if (message.length < 2) throw err.validation("Type a question first.");
-  // The ceiling on the endpoint itself (FR-A03), charged before the message is
-  // read: every turn costs a `requireFlag` query whether or not it reaches the
-  // model, so this has to sit ahead of the branch below. A `ticket:` turn pays
-  // this and the desk's own, tighter budget.
+  // The ceiling on the endpoint itself (FR-A03), charged before the branch
+  // below rather than inside it: every turn costs a `requireFlag` query whether
+  // or not it reaches the model, so a turn that goes to the desk still has to
+  // be counted somewhere. A `ticket:` turn pays this and the desk's own,
+  // tighter budget.
   limit(`ai:${user.id}`, RULES.assistant, "questions");
 
   // Only a marker at the very start goes to the desk (FR-S01). Matching
@@ -716,7 +723,9 @@ function parseHistory(raw: unknown): ChatTurn[] {
  * leaves a member reading "undefined".
  */
 function centreName(settings: { legal_name: string | null }): string {
-  return settings.legal_name ?? "Lê Long Sport";
+  // `||`, not `??`: a settings row saved with the field cleared holds "", and
+  // `??` would hand that straight to the member as " is open 06:00-22:00".
+  return settings.legal_name?.trim() || "Lê Long Sport";
 }
 
 function ruleReply(

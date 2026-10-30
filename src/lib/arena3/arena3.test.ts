@@ -163,6 +163,18 @@ describe("ticketBody / FR-S03", () => {
     assert.equal(ticketBody("«ticket: den BC2 bi chay»"), "den BC2 bi chay");
     assert.equal(ticketBody('"ticket: den BC2 bi chay"'), "den BC2 bi chay");
   });
+  it("leaves quotes that were never a pair", () => {
+    // Starts with a quote and ends with a quote, but the outer two do not
+    // belong together. Stripping them used to yield `a" and "b`, eating the
+    // member's own punctuation; the marker is no longer treated as wrapped, so
+    // the message survives exactly as typed.
+    assert.equal(ticketBody('"ticket: a" and "b"'), '"ticket: a" and "b"');
+    assert.equal(isTicketMessage('"ticket: a" and "b"'), false);
+    // A genuine wrapper still comes off.
+    assert.equal(ticketBody('"ticket: plain"'), "plain");
+    // And quotes inside the note are left where they are.
+    assert.equal(ticketBody("ticket: 'x' or 'y'"), "'x' or 'y'");
+  });
   it("leaves the member's own quotes alone", () => {
     // No marker inside the pair, so the quotes are theirs: the support form
     // runs every message through here.

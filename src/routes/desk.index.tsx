@@ -103,11 +103,16 @@ function Page() {
     `/tickets?limit=${ticketPage.pageSize}&offset=${ticketPage.offset}${ticketScope === "all" ? "&status=all" : ""}`,
     { keepPrevious: true },
   );
-  // The server's list, with a request dropped from it here as soon as the desk closes or answers it.
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  useEffect(() => {
-    setTickets(ticketsRead.data?.items ?? []);
-  }, [ticketsRead.data]);
+  // Straight from the server, with no local copy to drop rows from.
+  //
+  // Answering or closing used to splice the row out here as well as refetching.
+  // That read as instant, but it lied twice: under "All" the request the desk
+  // had just answered vanished from a list whose whole purpose is to show
+  // answered requests, and an emptied page showed "the queue is clear" while
+  // the paging effect below still saw the pre-refetch rows and stayed put.
+  // `keepPrevious` already holds the old page on screen while the new one
+  // loads, so nothing flashes.
+  const tickets = ticketsRead.data?.items ?? [];
   const { offset: ticketOffset, pageSize: ticketSize, setOffset: setTicketOffset } = ticketPage;
   // Answering the last request on page three used to leave the desk on an empty
   // page with the pagination gone — the whole section was hidden when the list
@@ -639,7 +644,6 @@ function Page() {
                       onClick={async () => {
                         try {
                           await apiPost(`/tickets/${ticket.id}/close`);
-                          setTickets((list) => list.filter((x) => x.id !== ticket.id));
                           ticketsRead.reload();
                           toast.success(t("Request closed"));
                         } catch (e) {
@@ -661,7 +665,6 @@ function Page() {
                       setReplying(true);
                       try {
                         await apiPost(`/tickets/${ticket.id}/reply`, { reply: reply.trim() });
-                        setTickets((list) => list.filter((x) => x.id !== ticket.id));
                         ticketsRead.reload();
                         setReplyTo(null);
                         setReply("");

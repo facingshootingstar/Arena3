@@ -89,6 +89,19 @@ describe("webrtc signaling rate limit", () => {
     assert.equal(take("rtc:u1", RULES.rtcSignal, now), 0);
   });
 
+  it("gives each room its own budget", () => {
+    clearAll();
+    const t0 = 9_000_000;
+    // The limit is sized from one room's poll rate, so keying on the user alone
+    // meant a second tab tripped it and lost P2P in both.
+    for (let i = 0; i < RULES.rtcSignal.limit; i += 1) {
+      assert.equal(take("rtc:u1:roomA", RULES.rtcSignal, t0 + i), 0);
+    }
+    assert.ok(take("rtc:u1:roomA", RULES.rtcSignal, t0 + RULES.rtcSignal.limit) > 0);
+    assert.equal(take("rtc:u1:roomB", RULES.rtcSignal, t0 + RULES.rtcSignal.limit) ,0);
+    clearAll();
+  });
+
   it("still stops a tight loop", () => {
     clearAll();
     const t0 = 8_000_000;

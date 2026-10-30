@@ -351,11 +351,40 @@ export async function markConversationRead(sql: Sql, user: PublicUser, convId: s
 }
 
 /**
+ * The relay's own ceiling, charged before anything is parsed or validated.
+ *
+ * It has to come first: the per-room budget below cannot be charged until the
+ * room is known, so without this a request rejected for a missing room would
+ * cost nothing and could be repeated without limit.
+ */
+function rtcEndpointQuota(userId: string): void {
+  limit(`rtc:${userId}`, RULES.rtcEndpoint, "signaling calls");
+}
+
+/**
+ * The signalling budget for one conversation.
+ *
+ * Counted per room, not per person: `RULES.rtcSignal` is sized from a single
+ * room's poll rate, so keying on the user alone meant somebody with three tabs
+ * open tripped it and lost P2P in all three. Both endpoints charge it, because
+ * a poll, an offer, an answer and an ICE candidate are all calls against the
+ * same relay and limiting only the poll left the write side open.
+ *
+ * `leave` is deliberately exempt. It is teardown, the client fires it with
+ * `keepalive` and ignores the result, so refusing it would strand the departing
+ * peer in the roster until it ages out and leave everyone else dialling
+ * somebody who has gone. It still pays the endpoint ceiling above.
+ */
+function rtcRoomQuota(userId: string, room: string): void {
+  limit(`rtc:${userId}:${room}`, RULES.rtcSignal, "signaling calls");
+}
+
+/**
  * WebRTC Signaling GET relay /api/rtc?room=...&peer=...&name=...&since=...
  */
 export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Request) {
+  rtcEndpointQuota(user.id);
   await requireFlag(sql, "F6");
-  limit(`rtc:${user.id}`, RULES.rtcSignal, "signaling calls");
   const url = new URL(request.url);
   const room = str(url.searchParams.get("room"));
   const peer = str(url.searchParams.get("peer"));
@@ -364,6 +393,7 @@ export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Reques
 
   if (!room) throw err.validation("Room parameter is required.");
   if (!peer) throw err.validation("Peer parameter is required.");
+  rtcRoomQuota(user.id, room);
 
   // Caller must match authenticated user
   if (peer !== user.id) {
@@ -423,12 +453,14 @@ export async function rtcPollHandler(sql: Sql, user: PublicUser, request: Reques
  * WebRTC Signaling POST relay /api/rtc
  */
 export async function rtcSignalHandler(sql: Sql, user: PublicUser, request: Request) {
+  rtcEndpointQuota(user.id);
   await requireFlag(sql, "F6");
   const body = await readJson(request);
 
   if (body.op === "leave") {
     const room = str(body.room);
     const peer = str(body.peer);
+    // No per-room charge here: see `rtcRoomQuota` on why teardown is exempt.
     if (room && peer && peer === user.id) {
       await sql.query(`delete from rtc_peers where room = $1 and peer_id = $2`, [room, peer]);
     }
@@ -444,6 +476,7 @@ export async function rtcSignalHandler(sql: Sql, user: PublicUser, request: Requ
   if (!room || !from || !to || !kind) {
     throw err.validation("Missing required signaling fields.");
   }
+  rtcRoomQuota(user.id, room);
 
   if (from !== user.id) {
     throw err.forbidden("Sender ID mismatch.");

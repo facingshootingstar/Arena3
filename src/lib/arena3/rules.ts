@@ -176,12 +176,23 @@ function trimBlank(s: string): string {
   return s.replace(BLANK_EDGES, "");
 }
 
-/** The inside of `body` when one quote pair wraps all of it, else `null`. */
+/**
+ * The inside of `body` when one quote pair wraps all of it, else `null`.
+ *
+ * "Starts with a quote and ends with a quote" is not the same as "is wrapped in
+ * quotes": `"ticket: a" and "b"` satisfies the first and would come out as
+ * `a" and "b`, with the member's own punctuation eaten. So for a symmetric pair
+ * the inside has to be free of that character — an unbalanced one means the
+ * outer two were never a pair. Distinct pairs like «» and <<>> cannot be
+ * confused this way and only need the ends to match.
+ */
 function unwrap(body: string): string | null {
   for (const [open, close] of WRAPPERS) {
-    if (body.length > open.length + close.length && body.startsWith(open) && body.endsWith(close)) {
-      return trimBlank(body.slice(open.length, body.length - close.length));
-    }
+    if (body.length <= open.length + close.length) continue;
+    if (!body.startsWith(open) || !body.endsWith(close)) continue;
+    const inside = body.slice(open.length, body.length - close.length);
+    if (open === close && inside.includes(open)) continue;
+    return trimBlank(inside);
   }
   return null;
 }

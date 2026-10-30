@@ -65,6 +65,17 @@ export const RULES = {
    * writes a heartbeat row and runs two deletes.
    */
   rtcSignal: { limit: 400, windowMs: 60_000 },
+  /**
+   * The relay as a whole, per person rather than per room.
+   *
+   * `rtcSignal` is charged once the room is known, which means a request that
+   * is rejected for a missing or malformed room never reaches it. This one is
+   * charged first, before anything is parsed, so a loop posting junk still
+   * costs its caller something. Wide on purpose: somebody with several
+   * conversations open is legitimately doing several rooms' worth of polling,
+   * and this is here to stop a loop, not to shape normal use.
+   */
+  rtcEndpoint: { limit: 2000, windowMs: 60_000 },
   /** Password changes. */
   passwordChange: { limit: 5, windowMs: 900_000 },
   /** Profile edits. */

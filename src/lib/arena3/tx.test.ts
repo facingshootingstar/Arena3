@@ -34,6 +34,7 @@ const { trainingCreate } = await import("./handlers/training.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
 const { setOverridePaymentLinkCreator } = await import("./payos.ts");
 const chatH = await import("./handlers/chat.ts");
+const { clearAll: clearLimits, RULES: LIMITS, take: takeLimit } = await import("./ratelimit.ts");
 const avatarH = await import("./handlers/avatar.ts");
 const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
 
@@ -3483,5 +3484,74 @@ describe("F6 flag gate", () => {
     // This one returns its body directly rather than a {status, body} pair.
     const convs = await withTx((sql) => chatH.listConversations(sql, member));
     assert.ok(Array.isArray(convs.conversations));
+  });
+});
+
+/**
+ * The relay has to charge a caller for a request it rejects.
+ *
+ * The per-room budget cannot be charged until the room is known, so a request
+ * missing that parameter skips it entirely. Without a ceiling charged earlier,
+ * that is an unlimited loop: each attempt still costs a `requireFlag` query
+ * before being thrown out.
+ */
+describe("rtc signalling quota covers rejected requests", () => {
+  const user = { id: "00000000-0000-0000-0000-0000000000e1", role: "member" } as any;
+
+  before(async () => {
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+       values ($1, '0987000601', 'Member E1', 'member e1', 'member', 'active', 'hash')
+       on conflict (id) do nothing`,
+      [user.id],
+    );
+  });
+
+  it("charges a poll with no room, so it cannot be repeated forever", async () => {
+    clearLimits();
+    const bare = () => new Request("http://localhost/api/rtc");
+    // Fill the bucket to one below the ceiling directly, rather than driving
+    // two thousand requests through the database to get there.
+    for (let i = 0; i < LIMITS.rtcEndpoint.limit - 1; i += 1) {
+      takeLimit(`rtc:${user.id}`, LIMITS.rtcEndpoint);
+    }
+    // Invalid, and rejected as such — but it has to be charged on the way out.
+    await assert.rejects(
+      async () => withTx((sql) => chatH.rtcPollHandler(sql, user, bare())),
+      (e: any) => e.status === 422 || e.status === 400,
+    );
+    // Which is why the next one is refused instead of reaching the database again.
+    await assert.rejects(
+      async () => withTx((sql) => chatH.rtcPollHandler(sql, user, bare())),
+      (e: any) => {
+        assert.equal(e.status, 429);
+        return true;
+      },
+    );
+    clearLimits();
+  });
+
+  it("leaves teardown out of the per-room budget", async () => {
+    clearLimits();
+    const room = "99999999-9999-4999-8999-999999999992";
+    // Exhaust the room budget the way a long negotiation would.
+    for (let i = 0; i < LIMITS.rtcSignal.limit; i += 1) {
+      takeLimit(`rtc:${user.id}:${room}`, LIMITS.rtcSignal);
+    }
+    // A leave must still get through: the client fires it on teardown and
+    // ignores the result, so a refusal strands the peer in the roster.
+    const res = await withTx((sql) =>
+      chatH.rtcSignalHandler(
+        sql,
+        user,
+        new Request("http://localhost/api/rtc", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ op: "leave", room, peer: user.id }),
+        }),
+      ),
+    );
+    assert.deepEqual(res, { ok: true });
+    clearLimits();
   });
 });
