@@ -236,36 +236,64 @@ function Page() {
             </Card>
           ) : null}
           {result ? (
-            <Card className="grid gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className="size-10 shrink-0">
-                    <UserAvatar name={result.member.full_name} url={result.member.avatar_url} />
-                  </div>
-                  <div>
-                    <p className="font-display text-2xl">{result.member.full_name}</p>
-                    <p className="text-xs text-muted">{result.member.member_code}</p>
-                  </div>
+            // Read from two metres away: lime means in, amber means already in, red means a reason is needed.
+            <Card
+              className={
+                result.needs_override
+                  ? "grid gap-3 border-2 border-danger/60"
+                  : result.duplicate
+                    ? "grid gap-3 border-2 border-hold/60"
+                    : "next-free grid gap-3 border-2 border-accent bg-accent text-accent-fg"
+              }
+            >
+              <p
+                className={`font-mono text-xs font-semibold uppercase tracking-[0.18em] ${
+                  result.needs_override ? "text-danger" : result.duplicate ? "text-hold" : "text-accent-fg/80"
+                }`}
+              >
+                {result.needs_override
+                  ? t("Nothing to enter on")
+                  : result.duplicate
+                    ? t("Already in at {time}", { time: hhmm(result.checked_in_at!) })
+                    : t("In at {time}", { time: hhmm(result.checked_in_at!) })}
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="size-14 shrink-0">
+                  <UserAvatar name={result.member.full_name} url={result.member.avatar_url} />
                 </div>
-                {result.needs_override ? (
-                  <Badge tone="danger">{t("Nothing to enter on")}</Badge>
-                ) : (
-                  <Badge tone={result.duplicate ? "hold" : "accent"}>
-                    {result.duplicate
-                      ? t("Already in at {time}", { time: hhmm(result.checked_in_at!) })
-                      : t("In at {time}", { time: hhmm(result.checked_in_at!) })}
-                  </Badge>
-                )}
+                <div className="min-w-0">
+                  <p className="font-athletic text-3xl leading-none sm:text-4xl">{result.member.full_name}</p>
+                  <p
+                    className={`mt-1 font-mono text-sm ${
+                      result.needs_override || result.duplicate ? "text-muted" : "text-accent-fg/70"
+                    }`}
+                  >
+                    {result.member.member_code}
+                  </p>
+                </div>
               </div>
               {result.flagged ? <Badge tone="hold">{t("Flagged for the manager")}</Badge> : null}
               {result.warnings.map((w) => (
-                <p key={w.kind + w.message} className="rounded-[var(--radius-sm)] bg-hold/12 px-3 py-2 text-sm text-hold">
+                <p
+                  key={w.kind + w.message}
+                  className={`rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium ${
+                    result.needs_override || result.duplicate
+                      ? "bg-hold/12 text-hold"
+                      : "bg-accent-fg/10 text-accent-fg"
+                  }`}
+                >
                   {tServer(w.message)}
                 </p>
               ))}
               {result.today.sessions.length || result.today.bookings.length ? (
-                <div className="text-sm">
-                  <p className="kicker text-2xs text-muted">{t("Today")}</p>
+                <div className="text-base font-semibold">
+                  <p
+                    className={`kicker text-2xs ${
+                      result.needs_override || result.duplicate ? "text-muted" : "text-accent-fg/70"
+                    }`}
+                  >
+                    {t("Today")}
+                  </p>
                   <ul className="mt-1 grid gap-1">
                     {result.today.sessions.map((s) => (
                       <li key={s.id}>
@@ -274,13 +302,13 @@ function Page() {
                     ))}
                     {result.today.bookings.map((b) => (
                       <li key={b.id}>
-                        {hhmm(b.start_at)} · {t("court {code}", { code: b.court_code })} <span className="text-muted">({b.code})</span>
+                        {hhmm(b.start_at)} · {t("court {code}", { code: b.court_code })} <span className="opacity-70">({b.code})</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               ) : (
-                <p className="text-sm text-muted">{t("Nothing booked for today.")}</p>
+                <p className="text-sm opacity-70">{t("Nothing booked for today.")}</p>
               )}
               {result.needs_override && pending ? (
                 <div className="grid gap-3 rounded-[var(--radius-md)] border border-line p-3">
@@ -313,6 +341,11 @@ function Page() {
                 </div>
               ) : null}
             </Card>
+          ) : !error ? (
+            <div className="grid min-h-56 place-content-center gap-2 rounded-[var(--radius-xl)] border-2 border-dashed border-line p-8 text-center">
+              <p className="font-athletic text-3xl text-muted">{t("Ready to scan")}</p>
+              <p className="text-sm text-muted">{t("The member's name and today's plan show here, large enough to read from the desk.")}</p>
+            </div>
           ) : null}
         </div>
       </div>

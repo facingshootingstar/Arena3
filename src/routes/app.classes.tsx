@@ -266,6 +266,12 @@ function Page() {
               <Card interactive className="relative z-[2] flex h-full flex-col overflow-hidden p-0">
                 <GlareHover>
                   <Cover slot={sportPhoto(c.sport)} alt="" scrim="none" className="h-28 sm:h-32">
+                    {/* The few seats left are the reason to act now, so they sit on the photo in lime. */}
+                    {!full && c.capacity - c.enrolled_count <= 3 ? (
+                      <span className="absolute left-3 top-3 z-[2] rounded-md bg-accent px-2 py-1 font-mono text-2xs font-bold uppercase tracking-wider text-accent-fg">
+                        {t("{n} seats left", { n: c.capacity - c.enrolled_count })}
+                      </span>
+                    ) : null}
                     <MediaCaption className="flex items-end justify-between">
                       <SportBadge sport={c.sport} className="bg-surface/90 text-fg backdrop-blur-xs" />
                       <p className="tabular-nums text-sm font-semibold">
@@ -276,8 +282,13 @@ function Page() {
                 </GlareHover>
                 <div className="flex flex-1 flex-col p-5">
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-display text-2xl">{levelLabel(c.level)}</h2>
-                    <span className="rounded-[var(--radius-pill)] border border-line bg-wood/50 px-2 py-0.5 text-2xs font-medium text-muted">
+                    <h2 className="font-display text-xl font-bold leading-tight tracking-tight sm:text-2xl">
+                      {sportLabel(c.sport)}{' '}
+                      <span className="whitespace-nowrap">
+                        <span className="text-muted">·</span> {levelLabel(c.level)}
+                      </span>
+                    </h2>
+                    <span className="shrink-0 whitespace-nowrap rounded-[var(--radius-pill)] border border-line bg-wood/50 px-2 py-0.5 text-2xs font-medium text-muted">
                       {c.court_code}
                     </span>
                   </div>
@@ -287,7 +298,7 @@ function Page() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-fg">{c.coach_name}</p>
-                      <p className="text-2xs text-muted">{rruleLabel(c.rrule, c.duration_min)}</p>
+                      <p className="font-mono text-2xs text-muted">{rruleLabel(c.rrule, c.duration_min)}</p>
                     </div>
                   </div>
                   <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs">
@@ -296,7 +307,7 @@ function Page() {
                   </div>
                   <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
                     <motion.div
-                      className={cn("h-full rounded-full", full ? "bg-danger" : pct >= 80 ? "bg-hold" : "bg-accent")}
+                      className={cn("h-full rounded-full", full ? "bg-danger" : pct >= 80 ? "bg-clay" : "bg-accent")}
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
@@ -306,7 +317,7 @@ function Page() {
                     ) : null}
                   </div>
                   {short > 0 ? (
-                    <p className="mt-1.5 text-2xs text-hold">
+                    <p className="mt-1.5 text-2xs text-clay">
                       {t("{n} more needed for this class to run", { n: short })}
                     </p>
                   ) : null}

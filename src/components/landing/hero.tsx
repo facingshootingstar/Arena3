@@ -15,6 +15,10 @@ import { CountTo } from "./kit";
 import { mark, rich, useVenue } from "./util";
 import { hhmm } from "@/lib/venue";
 import type { CatalogCourt } from "@/lib/arena3/catalog";
+import type { Court } from "@/components/court-grid";
+
+/** The first free hour on the grid, offered in the hero as the thing to take. */
+export type NextFree = { court: Court; hour: number; price: number | null };
 
 registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
 
@@ -35,11 +39,15 @@ export function Hero({
   freeHours,
   day,
   cheapestHour,
+  next,
+  onHold,
 }: {
   isOpen: boolean | null;
   freeHours: number;
   day: string;
   cheapestHour: number;
+  next: NextFree | null;
+  onHold: (n: NextFree) => void;
 }) {
   const root = useRef<HTMLElement>(null);
   const calm = useCalm();
@@ -142,7 +150,7 @@ export function Hero({
         opacity={0.32}
       />
 
-      <div className="relative mx-auto flex min-h-[88dvh] max-w-6xl flex-col justify-end px-4 pb-16 pt-24">
+      <div className="relative mx-auto flex min-h-[88dvh] max-w-6xl flex-col justify-end gap-8 px-4 pb-16 pt-24 lg:flex-row lg:items-end lg:justify-between">
         {/* No panel: the headline sits on the footage, the scrim and `.on-media` shadow carry it. */}
         <div data-copy className="max-w-2xl text-on-media on-media">
           <div data-enter data-status className="flex items-center gap-2.5">
@@ -163,11 +171,11 @@ export function Hero({
 
           {/* One headline, two lines: the setup in white, the payoff tinted. */}
           <h1 data-enter className="mt-4">
-            <span key={t("Book courts and classes")} data-line1 className="block font-display text-4xl font-bold leading-[1.05] sm:text-6xl">
+            <span key={t("Book courts and classes")} data-line1 className="block font-display text-[2.6rem] leading-[0.98] sm:text-7xl">
               {t("Book courts and classes")}
             </span>
-            <span className="media-glow block font-display text-4xl font-bold leading-[1.05] sm:text-6xl">
-              <span data-line2 className="text-gradient-media inline-block py-[0.3em] -my-[0.3em]">
+            <span className="block font-display text-[2.6rem] leading-[0.98] sm:text-7xl">
+              <span data-line2 className="lime-glow-text inline-block py-[0.3em] -my-[0.3em]">
                 {t("at Lê Long Sport.")}
               </span>
             </span>
@@ -185,7 +193,7 @@ export function Hero({
             <ButtonAnchor
               href="#schedule"
               size="lg"
-              className="group bg-volt text-night font-semibold shadow-[var(--shadow-soft)] hover:bg-volt/90 hover:shadow-[var(--shadow-soft)]"
+              className="group bg-accent text-accent-fg font-semibold shadow-[var(--shadow-accent-lg)] hover:bg-accent-hover"
             >
               {t("Book a court")}
               <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -217,6 +225,8 @@ export function Hero({
             )}
           </p>
         </div>
+
+        {next ? <NextFreeCard next={next} day={day} onHold={onHold} /> : null}
       </div>
 
       {/* The shuttle that is served onto "Book a court". Decorative, so hidden from readers. */}
@@ -236,6 +246,55 @@ export function Hero({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The first free hour, as a ticket you can take. Its glow is the one thing on the hero that
+ * breathes, because it is the one thing that is live: the hour is free right now. Picking it opens
+ * the schedule with that hour already chosen, one step from the hold.
+ */
+function NextFreeCard({ next, day, onHold }: { next: NextFree; day: string; onHold: (n: NextFree) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const open = useBootOpen();
+  // Its own entrance, not the hero timeline's: the card only exists once the client clock has
+  // ruled out finished hours, which is after that timeline has already been built.
+  useScene(
+    ref,
+    ({ motion }) => {
+      if (!motion || !open || !ref.current) return;
+      gsap.fromTo(ref.current, { autoAlpha: 0, y: 24, scale: 0.97 }, { autoAlpha: 1, y: 0, scale: 1, duration: 0.8, delay: 1.7, ease: "arena-out" });
+    },
+    [open],
+  );
+  const { sports } = useSports();
+  const lang = useLang();
+  const sport = sports.find((s) => s.code === next.court.sport);
+  const sportName = sport ? (lang === "vi" ? sport.name_vi : sport.name_en) : next.court.sport;
+  return (
+    <div
+      ref={ref}
+      data-next
+      className="next-free relative w-full shrink-0 rounded-[1.25rem] border border-accent/35 bg-bg/80 p-5 backdrop-blur-md sm:max-w-xs"
+    >
+      <div className="flex items-center justify-between gap-3 text-xs text-muted">
+        <span className="font-mono uppercase tracking-wider">{t("Next free · {day}", { day })}</span>
+        <span className="rounded-full bg-court px-2.5 py-1 font-semibold text-white">{next.court.court_code}</span>
+      </div>
+      <p className="mt-2 font-display text-6xl tabular-nums leading-none text-fg">{hhmm(next.hour)}</p>
+      <div className="mt-3 flex items-center justify-between gap-3 text-sm text-muted">
+        <span>{sportName}</span>
+        {next.price != null ? <span className="font-mono tabular-nums text-fg">{t("{price}/hr", { price: money(next.price) })}</span> : null}
+      </div>
+      <button
+        type="button"
+        onClick={() => onHold(next)}
+        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent font-semibold text-accent-fg transition-colors hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {t("Pick this hour")}
+        <ArrowRight className="size-4" />
+      </button>
+    </div>
   );
 }
 
@@ -353,28 +412,31 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
     { to: 4, suffix: "", label: t("Head coaches"), note: t("One head coach per sport"), href: "#coaches" },
   ];
   return (
-    <section ref={root} className="grain relative overflow-hidden bg-night text-on-media">
+    <section ref={root} className="grain relative overflow-hidden border-y border-line bg-bg text-fg">
       <GLBackground
         variant="aurora"
-        colors={["#3f7d20", "#8bc34a", "#b5e04a"]}
-        amplitude={1.15}
-        speed={0.85}
-        opacity={0.6}
-        fallback={<div className="wash wash-accent -left-24 -top-32 size-80 opacity-70" />}
+        colors={["#1d3a14", "#2f6fe0", "#d4f53c"]}
+        amplitude={1.1}
+        speed={0.6}
+        opacity={0.28}
+        fallback={<div className="wash wash-accent -left-24 -top-32 size-80 opacity-40" />}
       />
-      <div className="relative z-[1] grid grid-cols-2 gap-px bg-on-media/12 lg:grid-cols-4">
-        {stats.map((s) => (
+      <div className="relative z-[1] mx-auto grid max-w-6xl grid-cols-2 lg:grid-cols-4">
+        {stats.map((s, i) => (
           <a
             key={s.label}
             data-cell
             href={s.href}
-            className="group bg-night/72 px-5 py-8 text-center backdrop-blur-[2px] transition-colors duration-200 hover:bg-night/60 sm:py-11"
+            className={`group border-line px-5 py-8 transition-colors duration-200 hover:bg-surface/50 sm:px-8 sm:py-10 ${
+              i % 2 === 0 ? "border-r" : "lg:border-r"
+            } ${i < 2 ? "border-b lg:border-b-0" : ""} ${i === 3 ? "lg:border-r-0" : ""}`}
           >
-            <p className="figure text-5xl tabular-nums sm:text-6xl">
+            {/* The live count leads in lime: it is the only figure that changes while you watch. */}
+            <p className={`font-display text-5xl tabular-nums leading-none sm:text-6xl ${i === 0 ? "lime-glow-text" : ""}`}>
               <CountTo value={s.to} suffix={s.suffix} />
             </p>
-            <p className="kicker mt-3 text-2xs text-on-media">{s.label}</p>
-            <p className="mx-auto mt-1.5 max-w-[16rem] text-xs leading-relaxed text-on-media-muted">{s.note}</p>
+            <p className="kicker mt-4 text-sm text-fg">{s.label}</p>
+            <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-muted">{s.note}</p>
           </a>
         ))}
       </div>

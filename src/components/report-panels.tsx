@@ -10,6 +10,7 @@ import { downloadReport } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { cn } from "@/lib/cn";
 
 type Kind = "revenue" | "capacity" | "members" | "attendance" | "at-risk";
 
@@ -103,7 +104,8 @@ type Capacity = {
 function heat(pct: number, isSingleDay: boolean): React.CSSProperties {
   if (isSingleDay) {
     if (pct > 0) {
-      return { background: "var(--color-heat-5)", color: "#ffffff" };
+      // Booked is the ordinary state on a busy day, so it stays a step below full lime.
+      return { background: "var(--color-heat-3)", color: "var(--color-accent-fg)" };
     }
     return { background: "var(--color-heat-0)", color: "var(--color-fg)" };
   }
@@ -255,22 +257,44 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
               )}
             </div>
 
-            {/* Mini bar chart of all courts by hour */}
+            {/* All courts by hour: court blue, with the busiest hours in lime so the peak reads at a glance. */}
             <div className="px-4 pt-3 pb-1">
-              <div className="flex items-end gap-1 h-8 w-full max-w-xl">
-                {data.by_hour.map((h) => (
-                  <div
-                    key={h.hour}
-                    className="group relative flex-1 flex flex-col items-center justify-end h-full"
-                    title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}
-                  >
-                    <div
-                      className="w-full rounded-t-[2px] transition-all bg-[var(--color-accent)] opacity-75 group-hover:opacity-100"
-                      style={{ height: `${Math.max(4, Math.round(h.pct))}%` }}
-                    />
+              {(() => {
+                const top = Math.max(1, ...data.by_hour.map((h) => h.pct));
+                return (
+                  <div className="w-full max-w-2xl">
+                    <div className="flex h-20 w-full items-end gap-1">
+                      {data.by_hour.map((h) => {
+                        const peak = h.pct > 0 && h.pct >= top * 0.85;
+                        return (
+                          <div
+                            key={h.hour}
+                            className="group relative flex h-full flex-1 flex-col items-center justify-end"
+                            title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}
+                          >
+                            <div
+                              className={cn(
+                                "w-full rounded-t-[3px] transition-opacity group-hover:opacity-100",
+                                peak
+                                  ? "bg-accent shadow-[0_0_18px_rgb(212_245_60/0.45)]"
+                                  : "bg-court opacity-70",
+                              )}
+                              style={{ height: `${Math.max(4, Math.round((h.pct / top) * 100))}%` }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-1 flex gap-1 font-mono text-2xs text-muted">
+                      {data.by_hour.map((h, i) => (
+                        <span key={h.hour} className="flex-1 text-center">
+                          {i % 3 === 0 ? String(h.hour).padStart(2, "0") : ""}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
 
             <div className="overflow-x-auto px-2 pb-3 pt-2" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
@@ -353,7 +377,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                   {t("Free")}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3.5 rounded-[2px]" style={{ background: "var(--color-heat-5)" }} />
+                  <span className="size-3.5 rounded-[2px]" style={{ background: "var(--color-heat-3)" }} />
                   {t("Booked")}
                 </span>
               </div>

@@ -12,11 +12,12 @@ import { LandingSmoother, useLandingScroll } from "@/components/landing/smoother
 import { Manifesto } from "@/components/landing/manifesto";
 import { PricingScene } from "@/components/landing/pricing";
 import { ScheduleScene, type Picked } from "@/components/landing/schedule";
+import type { NextFree } from "@/components/landing/hero";
 import { GalleryScene } from "@/components/landing/gallery";
 import { SiteHeader } from "@/components/landing/header";
 import { StepsScene } from "@/components/landing/steps";
 import { Testimonials } from "@/components/landing/testimonials";
-import { VenueProvider, useVenueHour, wdLabel } from "@/components/landing/util";
+import { VenueProvider, priceFor, useVenueHour, wdLabel } from "@/components/landing/util";
 import { hoursOf, venueFrom } from "@/lib/venue";
 import { getStoredUser, getToken, homeFor } from "@/lib/arena3/client";
 import { getPublicAvailability, getPublicCatalog } from "@/lib/arena3/catalog";
@@ -104,7 +105,14 @@ function Landing() {
   const freeBySport = (s: string) =>
     freeHours(sched.courts.filter((c) => c.sport === s), sched.slots, sched.date, now, true, hoursOf(venue)).length;
   // Guests book like members: an hour that has started is no longer on offer (BR-07).
-  const schedFree = freeHours(sched.courts, sched.slots, sched.date, now, true, hoursOf(venue)).length;
+  const schedFreeList = freeHours(sched.courts, sched.slots, sched.date, now, true, hoursOf(venue));
+  const schedFree = schedFreeList.length;
+  // Hours come out earliest first, so the first one is the next you could play. Until the clock
+  // arrives (now = 0) nothing has been ruled out yet, so the offer waits for it.
+  const first = now ? schedFreeList[0] : undefined;
+  const nextFree: NextFree | null = first
+    ? { ...first, price: priceFor(prices, first.court.sport, sched.date, first.hour) }
+    : null;
   const schedDay =
     sched.date === availability.date
       ? t("today")
@@ -136,9 +144,23 @@ function Landing() {
     scrollToId("schedule");
   };
 
+  /** The hero's free hour, picked on the schedule so the next step is the hold. */
+  const holdNext = (n: NextFree) => {
+    setSchedSport(n.court.sport);
+    setPicked({ court: n.court, hour: n.hour });
+    scrollToId("schedule");
+  };
+
   return (
     <VenueProvider value={venue}>
-      <Hero isOpen={isOpen} freeHours={schedFree} day={schedDay} cheapestHour={cheapestHour} />
+      <Hero
+        isOpen={isOpen}
+        freeHours={schedFree}
+        day={schedDay}
+        cheapestHour={cheapestHour}
+        next={nextFree}
+        onHold={holdNext}
+      />
       <StatsBand freeHours={schedFree} day={schedDay} courts={sched.courts} />
       <CourtsScene weekday={weekday} freeBySport={freeBySport} day={schedDay} onShowTimes={showTimes} courts={sched.courts} />
       <ScheduleScene

@@ -449,4 +449,35 @@ export const redesign: Record<string, string> = {
   "Source and licence of each image used on this site.": "Nguồn và giấy phép của từng hình ảnh dùng trên trang này.",
   "View original": "Xem ảnh gốc",
   "Back to Home": "Về trang chủ",
+
+  // landing: Court Night v2 (hero free-hour card, paper steps)
+  "Next free · {day}": "Giờ trống tiếp theo · {day}",
+  "Pick this hour": "Chọn giờ này",
+  "Live grid": "Lịch trực tiếp",
+  "{n}-min hold": "Giữ {n} phút",
+  "Cash or transfer": "Tiền mặt / chuyển khoản",
+  "Pick. Hold. Play.": "Chọn. Giữ. Chơi.",
+
+  // member home: Court Night v2 (next-up card, points ring, free courts today)
+  "Good morning": "Chào buổi sáng",
+  "Good afternoon": "Chào buổi chiều",
+  "Good evening": "Chào buổi tối",
+  "Next up · today": "Sắp tới · hôm nay",
+  "Pick a free hour below, or join a class.": "Chọn một giờ trống bên dưới, hoặc tham gia một lớp.",
+  "Later today": "Còn lại hôm nay",
+  "Top tier": "Hạng cao nhất",
+  "{n} more to {tier}": "Còn {n} điểm để lên {tier}",
+  "Free courts today": "Sân trống hôm nay",
+  "Every court is taken for the rest of today.": "Hôm nay các sân đã kín đến hết ngày.",
+
+  // Coach home
+  "Needs {n}": "Thiếu {n}",
+  "Below minimum": "Chưa đủ sĩ số",
+  "These sessions only run if more students enrol.": "Các buổi này chỉ diễn ra khi có thêm học viên đăng ký.",
+  "Every session has enough students to run.": "Buổi nào cũng đã đủ sĩ số tối thiểu.",
+
+  // Desk gate
+  "Ready to scan": "Sẵn sàng quét",
+  "The member's name and today's plan show here, large enough to read from the desk.":
+    "Tên hội viên và lịch hôm nay hiện ở đây, đủ to để đọc từ quầy.",
 };
