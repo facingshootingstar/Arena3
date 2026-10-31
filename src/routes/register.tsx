@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { ArenaMark } from "@/components/mark";
@@ -13,9 +13,14 @@ import { LangSwitch } from "@/components/lang-switch";
 import { t, tServer } from "@/lib/i18n";
 import { ageYears } from "@/lib/arena3/time";
 import { LegalBody } from "@/components/legal-page";
+import { clearGoogleSignup, readGoogleSignup, type GoogleSignup } from "@/components/google-sign-in";
 import { PRIVACY, TERMS } from "@/lib/legal";
 
-export const Route = createFileRoute("/register")({ component: Register });
+export const Route = createFileRoute("/register")({
+  // `via=google`: the sign-in page sent someone whose Google email has no account yet.
+  validateSearch: (s: Record<string, unknown>): { via?: "google" } => (s.via === "google" ? { via: "google" } : {}),
+  component: Register,
+});
 
 /**
  * The consent sentence with its two documents linked (R-1).
@@ -70,6 +75,9 @@ const slot = (text: string, node: ReactNode) => {
 
 function Register() {
   const navigate = useNavigate();
+  const { via } = Route.useSearch();
+  /** Signing up with a Google token: no password and no OTP, and the email is Google's. */
+  const [google, setGoogle] = useState<GoogleSignup | null>(null);
   const [step, setStep] = useState<"form" | "otp">("form");
   const [otp, setOtp] = useState("");
   const [shown, setShown] = useState("");
@@ -115,9 +123,50 @@ function Register() {
   const tooWeak =
     form.password.length > 0 && !(form.password.length >= 8 && /[A-Za-z]/.test(form.password) && /\d/.test(form.password));
 
+  // After mount, because session storage does not exist while the server renders this page.
+  useEffect(() => {
+    const g = via === "google" ? readGoogleSignup() : null;
+    setGoogle(g);
+    if (g) setForm((f) => ({ ...f, full_name: f.full_name || g.full_name, email: g.email }));
+  }, [via]);
+
+  async function finishGoogle(g: GoogleSignup) {
+    setBusy(true);
+    try {
+      const res = await apiPost<{ token: string; user: SessionUser }>("/auth/google/register", {
+        credential: g.credential,
+        full_name: form.full_name,
+        phone: form.phone,
+        dob: form.dob,
+        pii_consent: form.pii_consent,
+        ...(needGuardian ? { guardian_name: guardian.name, guardian_phone: guardian.phone } : {}),
+      });
+      clearGoogleSignup();
+      setSession(res.token, res.user);
+      toast.success(t("Welcome, {name}", { name: res.user.full_name }), { id: "login-hello" });
+      navigate({ to: homeFor(res.user.role) });
+    } catch (err) {
+      const field = err instanceof ApiClientError ? (err.body.field ?? null) : null;
+      if (field === "guardian_name") setAskGuardian(true);
+      // Google's token lasts an hour; past that, the way on is to press the Google button again.
+      const expired = err instanceof ApiClientError && err.status === 401;
+      setError({
+        message: expired
+          ? t("Your Google sign-in has expired. Sign in with Google again.")
+          : err instanceof Error
+            ? tServer(err.message)
+            : t("Could not create the account"),
+        field,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function send(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (google) return finishGoogle(google);
     if (form.password !== confirm) {
       setError({ message: t("The two passwords do not match."), field: "confirm" });
       return;
@@ -238,7 +287,11 @@ function Register() {
               <Field
                 label={t("Email")}
                 tone="muted"
-                hint={t("Where your verification code is sent, and how you recover the account.")}
+                hint={
+                  google
+                    ? t("From your Google account. No password needed: you sign in with Google.")
+                    : t("Where your verification code is sent, and how you recover the account.")
+                }
               >
                 <Input
                   required
@@ -246,6 +299,7 @@ function Register() {
                   autoComplete="email"
                   placeholder="you@example.com"
                   value={form.email}
+                  readOnly={!!google}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </Field>
@@ -285,6 +339,8 @@ function Register() {
                   </Field>
                 </>
               ) : null}
+              {google ? null : (
+              <>
               <Field label={t("Password")} hint={tooWeak ? t("At least 8 characters, with a letter and a number.") : undefined}>
                 <div className="relative">
                   <Input
@@ -318,6 +374,8 @@ function Register() {
                   aria-invalid={mismatch || error?.field === "confirm" ? true : undefined}
                 />
               </Field>
+              </>
+              )}
               <Check
                 className="text-muted"
                 checked={form.pii_consent}
@@ -332,10 +390,16 @@ function Register() {
               <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
                 <Button
                   type="submit"
-                  disabled={busy || mismatch || tooWeak || !form.password || !form.email || !form.dob || !form.pii_consent}
+                  disabled={
+                    busy ||
+                    !form.email ||
+                    !form.dob ||
+                    !form.pii_consent ||
+                    (!google && (mismatch || tooWeak || !form.password))
+                  }
                   className="w-full"
                 >
-                  {busy ? t("Sending…") : t("Send OTP")}
+                  {google ? (busy ? t("Creating…") : t("Create account")) : busy ? t("Sending…") : t("Send OTP")}
                 </Button>
               </Magnet>
             </motion.form>

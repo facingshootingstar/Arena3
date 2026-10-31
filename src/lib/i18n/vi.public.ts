@@ -84,6 +84,12 @@ export const pub: Record<string, string> = {
   "held five minutes once you sign in": "giữ chỗ năm phút sau khi bạn đăng nhập",
   "Sign in & hold it": "Đăng nhập & giữ chỗ",
   "Create an account": "Tạo tài khoản",
+  "or": "hoặc",
+  "Your Google sign-in has expired. Sign in with Google again.": "Phiên đăng nhập Google đã hết hạn. Hãy đăng nhập bằng Google lại.",
+  "From your Google account. No password needed: you sign in with Google.":
+    "Lấy từ tài khoản Google của bạn. Không cần mật khẩu: bạn đăng nhập bằng Google.",
+  "Create account": "Tạo tài khoản",
+  "Creating…": "Đang tạo…",
   "Pick another": "Chọn giờ khác",
   "Classes running this week": "Các lớp đang diễn ra trong tuần",
   "What Lê Long Sport is for": "Lê Long Sport sinh ra để làm gì",

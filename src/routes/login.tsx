@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { GoogleSignIn } from "@/components/google-sign-in";
 import { ArenaMark } from "@/components/mark";
 import { Cover, HeroVideo, MediaCaption } from "@/components/media";
 import { Button, Card, Field, Input } from "@/components/ui";
@@ -187,6 +188,19 @@ function Login() {
               </Button>
             </Magnet>
           </form>
+          <GoogleSignIn
+            onSignedIn={(res) => {
+              setSession(res.token, res.user);
+              toast.success(t("Welcome, {name}", { name: res.user.full_name }), { id: "login-hello" });
+              navigate({ to: homeFor(res.user.role) });
+            }}
+            onNeedsSignup={() => navigate({ to: "/register", search: { via: "google" } })}
+            onError={(err) => {
+              const msg = err instanceof Error ? tServer(err.message) : t("Could not sign you in");
+              toast.error(msg, { id: "login-error-toast" });
+              setError({ message: msg, credentials: false });
+            }}
+          />
           <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
             <Link to="/register" className="hit text-accent-2 underline underline-offset-2">
               {t("Create an account")}

@@ -5,6 +5,7 @@ import { startJobLoop } from "./jobs";
 import { authFromRequest, optionalAuth, requireRole, staffRoles, type PublicUser } from "./session";
 import { withTx } from "./tx";
 import * as authH from "./handlers/auth";
+import * as googleH from "./handlers/google";
 import * as memberH from "./handlers/members";
 import * as bookH from "./handlers/bookings";
 import * as classH from "./handlers/classes";
@@ -131,6 +132,15 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   if (method === "POST" && p0 === "auth" && p1 === "login") {
     return withTx((sql) => authH.login(sql, request));
+  }
+  if (method === "GET" && p0 === "auth" && p1 === "google" && !p2) {
+    return googleH.googleConfig();
+  }
+  if (method === "POST" && p0 === "auth" && p1 === "google" && p2 === "register") {
+    return withTx((sql) => googleH.googleRegister(sql, request));
+  }
+  if (method === "POST" && p0 === "auth" && p1 === "google" && !p2) {
+    return withTx((sql) => googleH.googleLogin(sql, request));
   }
   /*
    * payOS calling to say a link was paid.

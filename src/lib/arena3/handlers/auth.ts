@@ -1,5 +1,5 @@
 import type { Sql } from "@/lib/db";
-import { hashOtp, hashPassword, randomOtp, verifyPassword } from "../crypto";
+import { hashOtp, hashPassword, randomOtp, randomToken, verifyPassword } from "../crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, pageOf, readJson, str } from "../helpers";
 import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
@@ -57,18 +57,40 @@ async function deliverOtp(email: string | null | undefined, otp: string): Promis
   return { sentTo: masked };
 }
 
-export async function register(sql: Sql, request: Request) {
-  const body = await readJson(request);
+/** A new member's details, checked and ready to store. */
+export type SignupFields = {
+  full_name: string;
+  phone: string;
+  email: string | null;
+  password_hash: string;
+  dob: string | null;
+  guardian_name: string | null;
+  guardian_phone: string | null;
+};
+
+/**
+ * The sign-up rules shared by the form (`register`) and Google (`googleRegister`).
+ *
+ * `password: false` is for Google: the person never chose one, so the account
+ * gets a random one nobody knows, and "Forgot password" sets a real one later.
+ * `email` is passed in rather than read from the body because Google's is the
+ * verified one and must not be swapped for whatever the form sent.
+ */
+export async function checkSignup(
+  sql: Sql,
+  body: Record<string, unknown>,
+  opts: { email: string | null; password: boolean },
+): Promise<SignupFields> {
   const full_name = str(body.full_name);
   const phone = normalizePhone(str(body.phone) ?? "");
-  const password = str(body.password);
-  const dob = str(body.dob) ?? str(body.date_of_birth);
-  const email = str(body.email)?.trim().toLowerCase() || null;
+  const password = opts.password ? str(body.password) : randomToken();
+  const dob = str(body.dob) ?? str(body.date_of_birth) ?? null;
+  const email = opts.email;
   const pii = body.pii_consent === true;
   // `field` names the input at fault, so the form can mark it and not only say what went wrong.
   if (!full_name) throw err.validation("Full name is required.", { field: "full_name" });
   if (!isValidVnPhone(phone)) throw err.validation("That phone number is not valid.", { field: "phone" });
-  if (!password || !passwordOk(password)) {
+  if (!password || (opts.password && !passwordOk(password))) {
     throw err.br("BR-02", "Password needs at least 8 characters, with letters and numbers.", { field: "password" });
   }
   if (!pii) throw err.br("BR-04", "You must accept the terms and the data-privacy notice.");
@@ -90,27 +112,61 @@ export async function register(sql: Sql, request: Request) {
     email,
   ]);
   if (exists) throw err.br("BR-01", "That phone or email already has an account.");
+  return {
+    full_name,
+    phone,
+    email,
+    password_hash: hashPassword(password),
+    dob,
+    guardian_name: str(body.guardian_name) ?? null,
+    guardian_phone: str(body.guardian_phone) ? normalizePhone(String(body.guardian_phone)) : null,
+  };
+}
+
+/** Insert a checked member and sign them in. Both sign-up paths end here. */
+export async function createMember(sql: Sql, f: SignupFields, action: string) {
+  const existing = await one(sql, `select id from users where phone = $1`, [f.phone]);
+  if (existing) throw err.br("BR-01", "That phone number already has an account.");
+  const codeRow = await one<{ next_member_code: string }>(sql, `select next_member_code() as next_member_code`);
+  const inserted = await one<{ id: string }>(
+    sql,
+    `insert into users
+       (full_name, name_normalized, phone, email, role, status, password_hash,
+        date_of_birth, guardian_name, guardian_phone, pii_consent_at, member_code)
+     values ($1,$2,$3,$4,'member','active',$5,$6,$7,$8, now(), $9)
+     returning id`,
+    [
+      f.full_name,
+      unaccentVi(f.full_name),
+      f.phone,
+      f.email,
+      f.password_hash,
+      f.dob,
+      f.guardian_name,
+      f.guardian_phone,
+      codeRow?.next_member_code,
+    ],
+  );
+  const user = await loadUser(sql, inserted!.id);
+  await audit(sql, user.id, action, "user", user.id, null, { phone: f.phone });
+  return { status: 200, body: await issueSession(sql, user) };
+}
+
+export async function register(sql: Sql, request: Request) {
+  const body = await readJson(request);
+  const fields = await checkSignup(sql, body, {
+    email: str(body.email)?.trim().toLowerCase() || null,
+    password: true,
+  });
   const otp = randomOtp();
   const row = await one<{ id: string }>(
     sql,
     `insert into otp_challenges (phone, purpose, otp_hash, payload, expires_at)
      values ($1, 'register', $2, $3::jsonb, now() + interval '5 minutes')
      returning id`,
-    [
-      phone,
-      hashOtp(otp),
-      JSON.stringify({
-        full_name,
-        phone,
-        email,
-        password_hash: hashPassword(password),
-        dob,
-        guardian_name: str(body.guardian_name),
-        guardian_phone: str(body.guardian_phone) ? normalizePhone(String(body.guardian_phone)) : null,
-        pii_consent: true,
-      }),
-    ],
+    [fields.phone, hashOtp(otp), JSON.stringify({ ...fields, pii_consent: true })],
   );
+  const email = fields.email;
   // Sent, not queued. An OTP lives five minutes; waiting for the next pass of
   // the outbox dispatcher would spend a meaningful part of that on nothing.
   const delivery = await deliverOtp(email, otp);
@@ -170,33 +226,20 @@ export async function verifyOtp(sql: Sql, request: Request) {
     return { status: 200, body: { ok: true } };
   }
   const p = ch.payload ?? {};
-  const existing = await one(sql, `select id from users where phone = $1`, [phone]);
-  if (existing) throw err.br("BR-01", "That phone number already has an account.");
-  const codeRow = await one<{ next_member_code: string }>(sql, `select next_member_code() as next_member_code`);
-  const inserted = await one<{ id: string }>(
-    sql,
-    `insert into users
-       (full_name, name_normalized, phone, email, role, status, password_hash,
-        date_of_birth, guardian_name, guardian_phone, pii_consent_at, member_code)
-     values ($1,$2,$3,$4,'member','active',$5,$6,$7,$8, now(), $9)
-     returning id`,
-    [
-      p.full_name,
-      unaccentVi(String(p.full_name)),
-      phone,
-      p.email ?? null,
-      p.password_hash,
-      p.dob ?? null,
-      p.guardian_name ?? null,
-      p.guardian_phone ?? null,
-      codeRow?.next_member_code,
-    ],
-  );
   await sql.query(`delete from otp_challenges where id = $1`, [ch.id]);
-  const user = await loadUser(sql, inserted!.id);
-  await audit(sql, user.id, "register", "user", user.id, null, { phone });
-  const session = await issueSession(sql, user);
-  return { status: 200, body: session };
+  return createMember(
+    sql,
+    {
+      full_name: String(p.full_name),
+      phone,
+      email: (p.email as string | null) ?? null,
+      password_hash: String(p.password_hash),
+      dob: (p.dob as string | null) ?? null,
+      guardian_name: (p.guardian_name as string | null) ?? null,
+      guardian_phone: (p.guardian_phone as string | null) ?? null,
+    },
+    "register",
+  );
 }
 
 export async function login(sql: Sql, request: Request) {
