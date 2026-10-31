@@ -364,6 +364,8 @@ export async function managerSportDelete(sql: Sql, code: string, user: PublicUse
 
   // Safe to delete completely
   await sql.query(`delete from price_rules where sport = $1`, [code]);
+  // Earlier photos point at the slot, so they go first.
+  await sql.query(`delete from site_asset_history where slot = $1`, [`sport.${code}`]);
   await sql.query(`delete from site_assets where slot = $1`, [`sport.${code}`]);
   await sql.query(`delete from sports where code = $1`, [code]);
 

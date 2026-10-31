@@ -54,7 +54,8 @@ export function SiteAssetsProvider({
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/v1/site-assets");
+      // The list is cached for a minute; a manager who just changed a photo should see it now.
+      const res = await fetch("/v1/site-assets", { cache: "no-cache" });
       if (!res.ok) return;
       const data = (await res.json()) as { items?: PublicSiteAsset[] };
       if (Array.isArray(data.items)) {
@@ -78,6 +79,12 @@ export function SiteAssetsProvider({
   const value = useMemo(() => ({ assets: assetMap, refresh }), [assetMap, refresh]);
 
   return <SiteAssetsContext.Provider value={value}>{children}</SiteAssetsContext.Provider>;
+}
+
+/** Reads the site's pictures again, after a manager changed one. */
+export function useRefreshAssets(): () => Promise<void> {
+  const ctx = useContext(SiteAssetsContext);
+  return ctx?.refresh ?? (async () => {});
 }
 
 export type AssetResult = {
@@ -137,6 +144,7 @@ export function Cover({
   initialsClassName?: string;
 }) {
   const asset = useAsset(slot);
+  const [broken, setBroken] = useState<string | null>(null);
   const effectiveUrl = src ?? asset.url;
   const effectiveAlt = alt !== undefined ? alt : asset.alt;
   const enabled = slot ? asset.enabled : true;
@@ -145,9 +153,10 @@ export function Cover({
 
   return (
     <div className={cn("relative overflow-hidden bg-wood", className)} style={style}>
-      {enabled && effectiveUrl ? (
+      {enabled && effectiveUrl && broken !== effectiveUrl ? (
         <img
           src={effectiveUrl}
+          onError={() => setBroken(effectiveUrl)}
           alt={effectiveAlt}
           aria-hidden={!effectiveAlt ? true : undefined}
           loading={eager ? "eager" : "lazy"}

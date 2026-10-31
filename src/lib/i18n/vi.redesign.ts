@@ -524,4 +524,13 @@ export const redesign: Record<string, string> = {
   "A menu holds 6 links at most.": "Mỗi menu chứa tối đa 6 liên kết.",
   "The menu settings could not be read.": "Không đọc được cài đặt menu.",
   "The list lengths could not be read.": "Không đọc được độ dài danh sách.",
+  "Change the photo of {name}": "Đổi ảnh của {name}",
+  "Photo": "Ảnh",
+  "Use the shipped photo": "Dùng ảnh mặc định",
+  "Photo changed": "Đã đổi ảnh",
+  "Photo put back as shipped": "Đã đưa ảnh về mặc định",
+  "Choose a JPEG, PNG or WebP picture.": "Chọn ảnh JPEG, PNG hoặc WebP.",
+  "The shorter side needs 400 px or more, the longer side 4000 px or less.": "Cạnh ngắn cần từ 400 px trở lên, cạnh dài tối đa 4000 px.",
+  "This file could not be read as a picture.": "Không đọc được tệp này dưới dạng ảnh.",
+  "JPEG, PNG or WebP, up to 2 MB, 400 px or more on the shorter side. Saved as soon as you pick it.": "JPEG, PNG hoặc WebP, tối đa 2 MB, cạnh ngắn từ 400 px. Lưu ngay khi bạn chọn ảnh.",
 };

@@ -281,12 +281,12 @@ export const apiGet = <T>(path: string, opts: { background?: boolean; fresh?: bo
   }
   return p;
 };
+// A FormData (a file upload) goes as it is; stringified it would arrive as "{}".
+const bodyOf = (body: unknown) => (body instanceof FormData ? body : body ? JSON.stringify(body) : undefined);
 export const apiPost = <T>(path: string, body?: unknown, idempotent = false) =>
-  api<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined, idempotent });
-export const apiPatch = <T>(path: string, body?: unknown) =>
-  api<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
-export const apiPut = <T>(path: string, body?: unknown) =>
-  api<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined });
+  api<T>(path, { method: "POST", body: bodyOf(body), idempotent });
+export const apiPatch = <T>(path: string, body?: unknown) => api<T>(path, { method: "PATCH", body: bodyOf(body) });
+export const apiPut = <T>(path: string, body?: unknown) => api<T>(path, { method: "PUT", body: bodyOf(body) });
 export const apiDelete = <T>(path: string) => api<T>(path, { method: "DELETE" });
 /**
  * A binary GET that also surfaces the filename the server chose.
