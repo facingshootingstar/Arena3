@@ -44,6 +44,8 @@ export type Settings = {
   loyalty_redeem_vnd: number;
   /** How long a seat is held while a member pays for a class. */
   class_hold_minutes: number;
+  /** Menus and list lengths as the manager set them; read through `uiConfigFrom`. */
+  ui_config: unknown;
 };
 
 export async function getSettings(sql: Sql): Promise<Settings> {
@@ -58,7 +60,7 @@ export async function getSettings(sql: Sql): Promise<Settings> {
             tax_code, legal_name, address,
             deposit_pct, deposit_peak_only, cancel_tiers, series_min_weeks, series_max_weeks,
             series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd,
-            class_hold_minutes
+            class_hold_minutes, ui_config
        from center_settings where id = 1`,
   );
   if (!row) throw err.validation("center_settings is missing.");

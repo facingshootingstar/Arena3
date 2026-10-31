@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ClipboardList,
   DoorOpen,
+  ExternalLink,
   Dumbbell,
   Ellipsis,
   FileText,
@@ -21,6 +22,7 @@ import {
   Star,
   ScrollText,
   Settings,
+  Sparkles,
   Tag,
   Coins,
   Ticket,
@@ -40,6 +42,8 @@ import { UserAvatar } from "./user-avatar";
 import { cn } from "@/lib/cn";
 import { useLive } from "@/lib/use-live";
 import { useRead } from "@/lib/use-read";
+import { useCentre } from "@/lib/use-centre";
+import { isLinkTab, type NavEntry, type NavRole } from "@/lib/ui-config";
 import {
   apiGet,
   apiPost,
@@ -72,7 +76,7 @@ export function useSessionUser(): SessionUser | null {
  * pages under the same headings in its "More" sheet. `dock: false` keeps a page out of the phone's
  * bottom bar, so it goes in that sheet instead.
  */
-type NavItem = { to: string; label: string; icon: typeof Map; group: string; dock?: boolean };
+type NavItem = { to: string; label: string; icon: typeof Map; group: string; dock?: boolean; external?: boolean };
 type NavGroup = { group: string; items: NavItem[] };
 
 /** Group headings. Module scope, so they are marked with `tk` and translated where they are drawn. */
@@ -86,6 +90,7 @@ const G_OVERVIEW = tk("Overview");
 const G_BUSINESS = tk("Sales & pricing");
 const G_OPS = tk("Operations");
 const G_SYSTEM = tk("System");
+const G_LINKS = tk("Links");
 
 /**
  * Whether the assistant / support / chat module is switched on.
@@ -104,66 +109,97 @@ export function useF6(): boolean {
   return data?.flags?.F6 !== false;
 }
 
-const NAV: Record<string, NavItem[]> = {
-  member: [
-    { to: "/app", label: tk("Schedule"), icon: CalendarDays, group: G_PLAY },
-    { to: "/app/book", label: tk("Book"), icon: Map, group: G_PLAY },
-    { to: "/app/classes", label: tk("Classes"), icon: Ticket, group: G_PLAY },
-    // A phone's bottom bar holds five: the four things a member does on the way to court, then More.
-    { to: "/app/train", label: tk("Progress"), icon: Activity, group: G_ACCOUNT, dock: false },
-    { to: "/app/points", label: tk("Points"), icon: Star, group: G_ACCOUNT, dock: false },
-    { to: "/chat", label: tk("Messages"), icon: MessageSquare, group: G_ACCOUNT, dock: false },
-    { to: "/app/pass", label: tk("Pass"), icon: QrCode, group: G_ACCOUNT },
-  ],
-  receptionist: [
-    { to: "/desk", label: tk("Desk"), icon: Users, group: G_FRONT },
-    { to: "/desk/gate", label: tk("Gate"), icon: DoorOpen, group: G_FRONT },
-    // The court map is open all shift long, so it is in the phone's bottom bar.
-    { to: "/desk/courts", label: tk("Courts"), icon: Map, group: G_FRONT },
-    { to: "/desk/classes", label: tk("Classes"), icon: Ticket, group: G_FRONT, dock: false },
-    // Setting up a regular booking is a front-desk job done regularly.
-    { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, group: G_FRONT, dock: false },
-    { to: "/desk/payments", label: tk("Payments"), icon: Wallet, group: G_CUSTOMERS },
-    { to: "/desk/at-risk", label: tk("At risk"), icon: UserMinus, group: G_CUSTOMERS, dock: false },
-    { to: "/chat", label: tk("Messages"), icon: MessageSquare, group: G_CUSTOMERS, dock: false },
-    // `/desk/gear` is a complete equipment-hire screen that nothing linked to,
-    // so reception could only reach it by typing the URL.
-    { to: "/desk/gear", label: tk("Gear"), icon: Dumbbell, group: G_EQUIPMENT, dock: false },
-    { to: "/desk/maintenance", label: tk("Maintenance"), icon: Wrench, group: G_EQUIPMENT, dock: false },
-  ],
-  // The coach had one tab, which `showNav` hides, so the screen had no menu at
-  // all (B-10). Schedule, register and profile are three different jobs.
-  coach: [
-    { to: "/coach", label: tk("Schedule"), icon: CalendarDays, group: G_TEACHING },
-    { to: "/coach/classes", label: tk("Classes"), icon: Ticket, group: G_TEACHING },
-    { to: "/coach/attendance", label: tk("Attendance"), icon: ClipboardList, group: G_TEACHING },
-    { to: "/chat", label: tk("Messages"), icon: MessageSquare, group: G_TEACHING },
-    { to: "/coach/earnings", label: tk("Earnings"), icon: HandCoins, group: G_ACCOUNT },
-    { to: "/account", label: tk("Profile"), icon: UserCog, group: G_ACCOUNT },
-  ],
-  manager: [
-    { to: "/manager", label: tk("Reports"), icon: LayoutGrid, group: G_OVERVIEW },
-    { to: "/manager/members", label: tk("Members"), icon: Users, group: G_OVERVIEW },
-    { to: "/manager/attendance", label: tk("Attendance"), icon: ClipboardList, group: G_OVERVIEW },
-    // Refund sign-off lives on the payments screen, which has always taken a
-    // manager — nothing in this menu pointed at it (B-02).
-    { to: "/desk/payments", label: tk("Payments"), icon: Wallet, group: G_BUSINESS },
-    { to: "/manager/promos", label: tk("Promos"), icon: Tag, group: G_BUSINESS, dock: false },
-    { to: "/manager/prices", label: tk("Pricing"), icon: Coins, group: G_BUSINESS, dock: false },
-    { to: "/manager/commission", label: tk("Commission"), icon: HandCoins, group: G_BUSINESS, dock: false },
-    { to: "/manager/invoices", label: tk("E-invoices"), icon: FileText, group: G_BUSINESS, dock: false },
-    { to: "/manager/classes", label: tk("Classes"), icon: Ticket, group: G_OPS, dock: false },
-    { to: "/desk/series", label: tk("Fixed bookings"), icon: Repeat, group: G_OPS, dock: false },
-    { to: "/manager/courts", label: tk("Courts"), icon: LandPlot, group: G_OPS, dock: false },
-    { to: "/manager/sports", label: tk("Sports"), icon: Trophy, group: G_OPS, dock: false },
-    { to: "/desk/maintenance", label: tk("Maintenance"), icon: Wrench, group: G_OPS, dock: false },
-    { to: "/chat", label: tk("Messages"), icon: MessageSquare, group: G_OPS, dock: false },
-    { to: "/manager/staff", label: tk("Staff"), icon: UserCog, group: G_SYSTEM, dock: false },
-    { to: "/manager/media", label: tk("Media"), icon: Image, group: G_SYSTEM, dock: false },
-    { to: "/manager/audit", label: tk("Audit"), icon: ScrollText, group: G_SYSTEM, dock: false },
-    { to: "/manager/settings", label: tk("Settings"), icon: Settings, group: G_SYSTEM, dock: false },
-  ],
+type PageInfo = Omit<NavItem, "to" | "dock" | "external">;
+
+/**
+ * What each page a role can open is called and the group it sits under. Which of them are tabs,
+ * in what order, and which go in the phone's bottom bar is the manager's call (`ui_config`; what
+ * ships is `NAV_PAGES` in ui-config.ts).
+ */
+const PAGE_INFO: Record<NavRole, Record<string, PageInfo>> = {
+  member: {
+    "/app": { label: tk("Schedule"), icon: CalendarDays, group: G_PLAY },
+    "/app/book": { label: tk("Book"), icon: Map, group: G_PLAY },
+    "/app/classes": { label: tk("Classes"), icon: Ticket, group: G_PLAY },
+    "/app/train": { label: tk("Progress"), icon: Activity, group: G_ACCOUNT },
+    "/app/points": { label: tk("Points"), icon: Star, group: G_ACCOUNT },
+    "/chat": { label: tk("Messages"), icon: MessageSquare, group: G_ACCOUNT },
+    "/app/pass": { label: tk("Pass"), icon: QrCode, group: G_ACCOUNT },
+    "/app/assistant": { label: tk("Assistant"), icon: Sparkles, group: G_ACCOUNT },
+    "/app/notifications": { label: tk("Notifications"), icon: Bell, group: G_ACCOUNT },
+    "/account": { label: tk("Profile"), icon: UserCog, group: G_ACCOUNT },
+  },
+  receptionist: {
+    "/desk": { label: tk("Desk"), icon: Users, group: G_FRONT },
+    "/desk/gate": { label: tk("Gate"), icon: DoorOpen, group: G_FRONT },
+    "/desk/courts": { label: tk("Courts"), icon: Map, group: G_FRONT },
+    "/desk/classes": { label: tk("Classes"), icon: Ticket, group: G_FRONT },
+    "/desk/series": { label: tk("Fixed bookings"), icon: Repeat, group: G_FRONT },
+    "/desk/payments": { label: tk("Payments"), icon: Wallet, group: G_CUSTOMERS },
+    "/desk/at-risk": { label: tk("At risk"), icon: UserMinus, group: G_CUSTOMERS },
+    "/chat": { label: tk("Messages"), icon: MessageSquare, group: G_CUSTOMERS },
+    // `/desk/gear` is a complete equipment-hire screen that nothing linked to before.
+    "/desk/gear": { label: tk("Gear"), icon: Dumbbell, group: G_EQUIPMENT },
+    "/desk/maintenance": { label: tk("Maintenance"), icon: Wrench, group: G_EQUIPMENT },
+    "/account": { label: tk("Profile"), icon: UserCog, group: G_CUSTOMERS },
+  },
+  coach: {
+    "/coach": { label: tk("Schedule"), icon: CalendarDays, group: G_TEACHING },
+    "/coach/classes": { label: tk("Classes"), icon: Ticket, group: G_TEACHING },
+    "/coach/attendance": { label: tk("Attendance"), icon: ClipboardList, group: G_TEACHING },
+    "/chat": { label: tk("Messages"), icon: MessageSquare, group: G_TEACHING },
+    "/coach/earnings": { label: tk("Earnings"), icon: HandCoins, group: G_ACCOUNT },
+    "/account": { label: tk("Profile"), icon: UserCog, group: G_ACCOUNT },
+  },
+  manager: {
+    "/manager": { label: tk("Reports"), icon: LayoutGrid, group: G_OVERVIEW },
+    "/manager/members": { label: tk("Members"), icon: Users, group: G_OVERVIEW },
+    "/manager/attendance": { label: tk("Attendance"), icon: ClipboardList, group: G_OVERVIEW },
+    // Refund sign-off lives on the payments screen, which has always taken a manager (B-02).
+    "/desk/payments": { label: tk("Payments"), icon: Wallet, group: G_BUSINESS },
+    "/manager/promos": { label: tk("Promos"), icon: Tag, group: G_BUSINESS },
+    "/manager/prices": { label: tk("Pricing"), icon: Coins, group: G_BUSINESS },
+    "/manager/commission": { label: tk("Commission"), icon: HandCoins, group: G_BUSINESS },
+    "/manager/invoices": { label: tk("E-invoices"), icon: FileText, group: G_BUSINESS },
+    "/manager/classes": { label: tk("Classes"), icon: Ticket, group: G_OPS },
+    "/desk/series": { label: tk("Fixed bookings"), icon: Repeat, group: G_OPS },
+    "/manager/courts": { label: tk("Courts"), icon: LandPlot, group: G_OPS },
+    "/manager/sports": { label: tk("Sports"), icon: Trophy, group: G_OPS },
+    "/desk/maintenance": { label: tk("Maintenance"), icon: Wrench, group: G_OPS },
+    "/chat": { label: tk("Messages"), icon: MessageSquare, group: G_OPS },
+    "/manager/staff": { label: tk("Staff"), icon: UserCog, group: G_SYSTEM },
+    "/manager/media": { label: tk("Media"), icon: Image, group: G_SYSTEM },
+    "/manager/audit": { label: tk("Audit"), icon: ScrollText, group: G_SYSTEM },
+    "/manager/settings": { label: tk("Settings"), icon: Settings, group: G_SYSTEM },
+    "/account": { label: tk("Profile"), icon: UserCog, group: G_SYSTEM },
+  },
 };
+
+/** A page's name and icon, for the settings screen that arranges the menus. */
+export function pageInfo(role: NavRole, to: string): PageInfo | undefined {
+  return PAGE_INFO[role][to];
+}
+
+/** The role's tabs as the manager arranged them. A link the centre added opens in a new tab. */
+function navItems(role: NavRole, entries: NavEntry[]): NavItem[] {
+  return entries.flatMap((e): NavItem[] => {
+    if (isLinkTab(e.to)) return [{ to: e.to, label: e.label ?? e.to, icon: ExternalLink, group: G_LINKS, dock: e.dock, external: true }];
+    const info = PAGE_INFO[role][e.to];
+    return info ? [{ ...info, to: e.to, dock: e.dock }] : [];
+  });
+}
+
+/** A tab's name: a page's is translated, a link's is what the manager typed. */
+const tabName = (it: NavItem) => (it.external ? it.label : t(it.label));
+
+/** A tab: a router link for a page, a plain link in a new tab for an address the centre added. */
+function NavLink({
+  item,
+  ...rest
+}: { item: NavItem; className?: string; children: ReactNode; onClick?: () => void; "aria-current"?: "page" }) {
+  if (item.external) return <a href={item.to} target="_blank" rel="noopener noreferrer" {...rest} />;
+  return <Link to={item.to} {...rest} />;
+}
 
 function navActive(pathname: string, to: string, items: { to: string }[]) {
   const list = Array.isArray(items) ? items : [];
@@ -421,8 +457,8 @@ function NavGroupMenu({ group, pathname, all }: { group: NavGroup; pathname: str
               const active = navActive(pathname, it.to, all);
               return (
                 <li key={it.to}>
-                  <Link
-                    to={it.to}
+                  <NavLink
+                    item={it}
                     aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
                     className={cn(
@@ -431,8 +467,8 @@ function NavGroupMenu({ group, pathname, all }: { group: NavGroup; pathname: str
                     )}
                   >
                     <Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-                    {t(it.label)}
-                  </Link>
+                    {tabName(it)}
+                  </NavLink>
                 </li>
               );
             })}
@@ -482,8 +518,8 @@ function MoreSheet({
                 const active = navActive(pathname, it.to, all);
                 return (
                   <li key={it.to} className="grid">
-                    <Link
-                      to={it.to}
+                    <NavLink
+                      item={it}
                       aria-current={active ? "page" : undefined}
                       onClick={onClose}
                       className={cn(
@@ -492,8 +528,8 @@ function MoreSheet({
                       )}
                     >
                       <Icon aria-hidden="true" className="size-5" strokeWidth={1.75} />
-                      {t(it.label)}
-                    </Link>
+                      {tabName(it)}
+                    </NavLink>
                   </li>
                 );
               })}
@@ -526,7 +562,11 @@ export function Shell({
   // (BR-52), so a tab pointing at them is a tab that cannot work. While the
   // flag is still loading they stay — a nav that flickers away and back reads
   // worse than a button that briefly 403s.
-  const items = (NAV[role] ?? []).filter((it) => f6 || it.to !== "/chat");
+  const { ui } = useCentre();
+  const navRole = role in ui.nav ? (role as NavRole) : null;
+  const items = (navRole ? navItems(navRole, ui.nav[navRole]) : []).filter(
+    (it) => f6 || (it.to !== "/chat" && it.to !== "/app/assistant"),
+  );
   const home = homeFor(role);
   // A single tab is not a choice — it just repeats the page heading back at
   // you, which is why the coach screen read "Teaching / Teaching". Roles with
@@ -546,17 +586,17 @@ export function Shell({
       {dockItems.map((it) => {
         const active = navActive(pathname, it.to, items);
         return (
-          <Link
+          <NavLink
             key={it.to}
-            to={it.to}
+            item={it}
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex h-9 items-center whitespace-nowrap rounded-[var(--radius-md)] px-2.5 text-sm font-medium transition-colors duration-150",
               active ? "bg-accent/10 text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
             )}
           >
-            {t(it.label)}
-          </Link>
+            {tabName(it)}
+          </NavLink>
         );
       })}
       {menuGroups.length ? <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" /> : null}
@@ -572,8 +612,9 @@ export function Shell({
   // The browser tab and history say which screen this is, not just "Lê Long Sport" on every one.
   const navLabel = [...items]
     .filter((it) => pathname === it.to || pathname.startsWith(`${it.to}/`))
-    .sort((a, b) => b.to.length - a.to.length)[0]?.label;
-  const pageName = title ?? (navLabel ? t(navLabel) : undefined);
+    .sort((a, b) => b.to.length - a.to.length)
+    .map(tabName)[0];
+  const pageName = title ?? navLabel;
   useEffect(() => {
     document.title = pageName ? `${pageName} · Lê Long Sport` : "Lê Long Sport";
   }, [pageName]);
@@ -674,10 +715,9 @@ export function Shell({
             const active = navActive(pathname, it.to, items);
             const Icon = it.icon;
             return (
-              <Link
+              <NavLink
                 key={it.to}
-                to={it.to}
-                activeOptions={{ exact: true }}
+                item={it}
                 className={cn(
                   "relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-lg)] px-0.5 text-xs transition-colors duration-200",
                   active ? "font-semibold text-accent-2" : "font-medium text-muted",
@@ -697,8 +737,8 @@ export function Shell({
                 >
                   <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
                 </motion.span>
-                <span className="relative z-[1] whitespace-nowrap">{t(it.label)}</span>
-              </Link>
+                <span className="relative z-[1] whitespace-nowrap">{tabName(it)}</span>
+              </NavLink>
             );
           })}
           {sheetItems.length ? (

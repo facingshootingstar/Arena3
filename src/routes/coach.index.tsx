@@ -22,6 +22,7 @@ import {
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { useLimits } from "@/lib/use-centre";
 import { AddToCalendar, MinSizeBadge } from "@/components/class-extras";
 import { CertificationsModal } from "@/components/coach-certifications";
 import { getStoredUser } from "@/lib/arena3/client";
@@ -278,6 +279,7 @@ function TimelineRow({ s, onOpen }: { s: CoachSession; onOpen: () => void }) {
 
 /** Sessions that will not run unless more students enrol: the one thing a coach can still change. */
 function BelowMinimum({ list, onOpen }: { list: CoachSession[]; onOpen: (id: string) => void }) {
+  const { coach_below_min } = useLimits();
   return (
     <section aria-label={t("Below minimum")}>
       <p className="mb-2 font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-muted">
@@ -290,7 +292,7 @@ function BelowMinimum({ list, onOpen }: { list: CoachSession[]; onOpen: (id: str
               {t("These sessions only run if more students enrol.")}
             </p>
             <ul className="grid gap-2">
-              {list.slice(0, 5).map((s) => (
+              {list.slice(0, coach_below_min).map((s) => (
                 <li key={s.id}>
                   <button
                     type="button"

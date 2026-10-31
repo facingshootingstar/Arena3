@@ -17,6 +17,7 @@ import { levelLabel, sportLabel, statusLabel, todayISO } from "@/lib/arena3/labe
 import { cn } from "@/lib/cn";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { useLimits } from "@/lib/use-centre";
 import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
 import { AddToCalendar } from "@/components/class-extras";
 
@@ -450,6 +451,7 @@ function PointsTile() {
 
 /** The next free hours today, earliest first: each chip opens the booking grid on that sport. */
 function FreeTodayTile({ venue, now }: { venue: Venue; now: number }) {
+  const { member_free_hours } = useLimits();
   const { data } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${todayISO()}`);
   const free = data && now ? freeHours(data.courts, data.slots, todayISO(), now, true, hoursOf(venue)) : null;
   return (
@@ -464,7 +466,7 @@ function FreeTodayTile({ venue, now }: { venue: Venue; now: number }) {
         <Skeleton className="mt-3 h-14" />
       ) : free.length ? (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {free.slice(0, 6).map((f, i) => (
+          {free.slice(0, member_free_hours).map((f, i) => (
             <Link
               key={`${f.court.id}-${f.hour}`}
               to="/app/book"

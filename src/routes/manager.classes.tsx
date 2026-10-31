@@ -14,6 +14,8 @@ import { apiPost } from "@/lib/arena3/client";
 import { classSlotMatches, composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { useCentre } from "@/lib/use-centre";
+import { hoursOf } from "@/lib/venue";
 import { HighlightBadge, useLive } from "@/lib/use-live";
 
 export const Route = createFileRoute("/manager/classes")({
@@ -47,6 +49,7 @@ type ClassRow = {
 };
 
 function Page() {
+  const { venue } = useCentre();
   const [limit, setLimit] = useState(8);
   const classesRead = useRead<{ items: ClassRow[] }>("/classes");
   const courtsRead = useRead<{ items: Array<{ id: string; court_code: string; sport: string }> }>("/courts");
@@ -232,7 +235,7 @@ function Page() {
         </div>
         <Field label={t("Start time")}>
           <Select value={String(hour)} onChange={(e) => setHour(Number(e.target.value))}>
-            {Array.from({ length: 16 }, (_, i) => i + 6).map((h) => (
+            {hoursOf(venue).map((h) => (
               <option key={h} value={h}>
                 {String(h).padStart(2, "0")}:00
               </option>

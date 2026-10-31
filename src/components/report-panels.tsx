@@ -10,6 +10,7 @@ import { downloadReport } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
 import { t, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
+import { useLimits } from "@/lib/use-centre";
 import { cn } from "@/lib/cn";
 
 type Kind = "revenue" | "capacity" | "members" | "attendance" | "at-risk";
@@ -137,6 +138,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
   const [sport, setSport] = useState("");
   const q = new URLSearchParams({ from, to });
   if (sport) q.set("sport", sport);
+  const limits = useLimits();
   const { data, error, reload } = useRead<Capacity>(`/reports/capacity?${q}`);
 
   const isSingleDay = from === to;
@@ -160,7 +162,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
       .filter((h) => h.pct > 0)
       .sort((a, b) => b.pct - a.pct);
     if (sorted.length === 0) return t("No bookings in this window");
-    const top3 = sorted.slice(0, 3);
+    const top3 = sorted.slice(0, limits.report_peak_hours);
     const text = top3
       .map((h, idx) =>
         idx === 0
@@ -169,7 +171,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
       )
       .join(", ");
     return t("Busiest: {hours}", { hours: text });
-  }, [data]);
+  }, [data, limits.report_peak_hours]);
 
   return (
     <section className="mt-10" aria-labelledby="cap-h">
@@ -265,7 +267,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                   <div className="w-full max-w-2xl">
                     <div className="flex h-20 w-full items-end gap-1">
                       {data.by_hour.map((h) => {
-                        const peak = h.pct > 0 && h.pct >= top * 0.85;
+                        const peak = h.pct > 0 && h.pct >= (top * limits.report_peak_pct) / 100;
                         return (
                           <div
                             key={h.hour}

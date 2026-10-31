@@ -33,6 +33,7 @@ import { t, tServer } from "@/lib/i18n";
 import { lastPageOffset } from "@/lib/paging";
 import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
+import { useLimits } from "@/lib/use-centre";
 
 export const Route = createFileRoute("/desk/")({
   component: Page,
@@ -603,6 +604,7 @@ function Page() {
  * without opening the map.
  */
 function DeskNow() {
+  const { desk_upcoming } = useLimits();
   const today = todayISO();
   const { data, error } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${today}`);
   const now = useNowMinute();
@@ -645,7 +647,7 @@ function DeskNow() {
       </dl>
       {soon.length ? (
         <ul className="mt-3 grid gap-1 text-sm">
-          {soon.slice(0, 4).map((s) => {
+          {soon.slice(0, desk_upcoming).map((s) => {
             const court = data.courts.find((c) => c.id === s.court_id);
             const cCode = court?.court_code ?? "";
             const sport = court ? sportLabel(court.sport) : "";
@@ -748,7 +750,8 @@ function DeskArrivingTimeline() {
 }
 
 function DeskRecentCheckins() {
-  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null; method: string | null; at: string; avatar_url?: string | null }>; total: number }>("/desk/gate-checkins?limit=6");
+  const { desk_checkins } = useLimits();
+  const read = useRead<{ items: Array<{ id: string; full_name: string; member_code: string | null; method: string | null; at: string; avatar_url?: string | null }>; total: number }>(`/desk/gate-checkins?limit=${desk_checkins}`);
   const items = read.data?.items ?? [];
 
   return (

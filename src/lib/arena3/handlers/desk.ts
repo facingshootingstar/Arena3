@@ -21,6 +21,7 @@ import {
 import { redeemForBooking, restoreIfFullyRefunded } from "../promos";
 import { methodLabelVi } from "../labels";
 import { parseCancelTiers } from "../policy";
+import { parseUiConfigPatch } from "@/lib/ui-config";
 import { renderInvoicePdf } from "../pdf";
 import { validatePriceRules } from "../rules";
 import { requireRole, type PublicUser } from "../session";
@@ -956,6 +957,12 @@ export async function settingsPatch(sql: Sql, request: Request, user: PublicUser
   const b = await readJson(request);
   const patch = parseSettingsPatch(b);
   if (b.cancel_tiers !== undefined) patch.cancel_tiers = JSON.stringify(parseCancelTiers(b.cancel_tiers));
+  if (b.ui_config !== undefined) {
+    const stored = await one<{ ui_config: unknown }>(sql, `select ui_config from center_settings where id = 1`);
+    const ui = parseUiConfigPatch(b.ui_config, stored?.ui_config);
+    if (!ui.ok) throw err.field(ui.field, ui.message);
+    patch.ui_config = JSON.stringify(ui.value);
+  }
   const keys = Object.keys(patch);
   const current = await one<Record<string, string>>(
     sql,
@@ -963,7 +970,7 @@ export async function settingsPatch(sql: Sql, request: Request, user: PublicUser
             cancel_court_hours, cancel_class_hours, noshow_grace_minutes, checkin_before_minutes,
             refund_manager_vnd, self_checkin_enabled, gate_dedup_minutes, at_risk_idle_days, minor_age, vat_rate, legal_name, tax_code, address,
             freeze_max_days_year, waitlist_offer_hours, deposit_pct, deposit_peak_only, cancel_tiers::text,
-            series_min_weeks, series_max_weeks, series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd
+            series_min_weeks, series_max_weeks, series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd, ui_config::text
        from center_settings where id = 1`,
   );
   if (keys.length === 0) {
@@ -978,7 +985,7 @@ export async function settingsPatch(sql: Sql, request: Request, user: PublicUser
   const minW = Number(patch.series_min_weeks ?? current!.series_min_weeks);
   const maxW = Number(patch.series_max_weeks ?? current!.series_max_weeks);
   if (minW > maxW) throw err.field("series_max_weeks", "The maximum cannot be below the minimum.");
-  const sets = keys.map((k, i) => `${k} = $${i + 1}${k === "cancel_tiers" ? "::jsonb" : ""}`);
+  const sets = keys.map((k, i) => `${k} = $${i + 1}${k === "cancel_tiers" || k === "ui_config" ? "::jsonb" : ""}`);
   await sql.query(`update center_settings set ${sets.join(", ")} where id = 1`, keys.map((k) => patch[k]));
   await audit(
     sql,

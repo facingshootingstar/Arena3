@@ -20,6 +20,7 @@ import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import { useRead } from "@/lib/use-read";
+import { useLimits } from "@/lib/use-centre";
 import { useLive } from "@/lib/use-live";
 import { useSports } from "@/components/sports-ui";
 import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
@@ -39,6 +40,7 @@ function nearestFree(
   hour: number,
   date: string,
   hours: readonly number[],
+  count: number,
 ) {
   const sameSport = data.courts.filter((c) => c.sport === wanted.sport);
   return freeHours(sameSport, data.slots, date, Date.now(), true, hours)
@@ -48,7 +50,7 @@ function nearestFree(
         Number(b.court.court_code === wanted.court_code) -
           Number(a.court.court_code === wanted.court_code),
     )
-    .slice(0, 3);
+    .slice(0, count);
 }
 
 /** One of the member's own upcoming court bookings (M-04). */
@@ -67,6 +69,7 @@ type Taken = {
 };
 
 function Page() {
+  const limits = useLimits();
   const { sports } = useSports();
   const searchSport = Route.useSearch().sport;
   const [date, setDate] = useState(todayISO);
@@ -241,7 +244,7 @@ function Page() {
         if (aboutTheSlot) reload();
         setTaken({
           message,
-          alts: fresh ? nearestFree(fresh, court, hour, date, hoursOf(venue)) : [],
+          alts: fresh ? nearestFree(fresh, court, hour, date, hoursOf(venue), limits.book_alternatives) : [],
           canRetry: aboutTheSlot,
         });
       }
@@ -309,7 +312,7 @@ function Page() {
         <span className="text-xs tabular-nums text-muted">{mine.length}</span>
       </div>
       <ul className="divide-y divide-line">
-        {(showAllMine ? mine : mine.slice(0, 4)).map((b) => (
+        {(showAllMine ? mine : mine.slice(0, limits.member_bookings)).map((b) => (
           <li key={b.id} className="py-2.5" title={b.code}>
             <div className="flex items-start justify-between gap-2">
               <span className="text-sm">
@@ -347,7 +350,7 @@ function Page() {
           </li>
         ))}
       </ul>
-      {mine.length > 4 ? (
+      {mine.length > limits.member_bookings ? (
         <button
           type="button"
           onClick={() => setShowAllMine((v) => !v)}
@@ -362,7 +365,7 @@ function Page() {
   const bestFreeDays = Object.entries(avail ?? {})
     .filter(([d, info]) => d >= todayISO() && info.free > 0)
     .sort((a, b) => b[1].free - a[1].free)
-    .slice(0, 4);
+    .slice(0, limits.book_best_days);
 
   const bestFreeHoursCard = bestFreeDays.length > 0 ? (
     <Card className="p-4">

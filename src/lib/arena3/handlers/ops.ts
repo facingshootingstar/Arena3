@@ -16,6 +16,7 @@ import { payosConfigured } from "../payos";
 import { centreBank } from "../bank";
 import { pageParams, parseInteger } from "../validate";
 import { getActiveSportCodes } from "./sports";
+import { uiConfigFrom } from "@/lib/ui-config";
 
 export async function flagsGet(sql: Sql) {
   const settings = await getSettings(sql);
@@ -26,6 +27,8 @@ export async function flagsGet(sql: Sql) {
       // used to write "06:00-22:00" and "five minutes" in by hand. Not personal, not secret.
       venue: { open_time: settings.open_time, close_time: settings.close_time, hold_minutes: settings.hold_minutes },
       flags: await flagsMap(sql),
+      // Each role's menu and the short lists' lengths, as the manager set them.
+      ui: uiConfigFrom(settings.ui_config),
       /*
        * Whether online payment can be offered at all.
        *
