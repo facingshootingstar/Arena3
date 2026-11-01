@@ -436,6 +436,18 @@ export const core: Record<string, string> = {
   "No visits recorded": "Chưa có lượt đến",
   "Age": "Tuổi",
   "{age} yrs": "{age} tuổi",
+  "Cancel this enrolment for the member?": "Hủy ghi danh lớp này cho hội viên?",
+  "Enrolment cancelled": "Đã hủy ghi danh",
+  "Could not cancel the enrolment": "Không hủy được ghi danh",
+  "Cancel enrolment": "Hủy ghi danh",
+  "Enrol in a class": "Ghi danh vào lớp",
+  "Choose a class": "Chọn lớp",
+  "Full: waitlist": "Đầy: vào danh sách chờ",
+  "Class is full: added to the waitlist": "Lớp đã đầy: đã thêm vào danh sách chờ",
+  "Enrolled and paid {amount}": "Đã ghi danh và thu {amount}",
+  "Enrolled": "Đã ghi danh",
+  "Could not enrol the member": "Không ghi danh được hội viên",
+  "Enrol and take cash · {amount}": "Ghi danh và thu tiền mặt · {amount}",
+  "Enrol": "Đăng ký",
+  "No other class is open for enrolment. A class needs a price from the manager before the desk can sell a seat.": "Không còn lớp nào mở ghi danh. Lớp cần được quản lý đặt giá trước khi quầy bán chỗ.",
 };
-
-

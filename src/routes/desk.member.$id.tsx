@@ -27,7 +27,7 @@ import { TransferQrModal } from "@/components/transfer-qr-modal";
 import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { SpotlightCard } from "@/components/fx";
 import { CancelBookingDialog } from "@/components/cancel-booking";
-import { ApiClientError, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
+import { ApiClientError, apiDelete, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
 import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
 import { METHOD_LABEL, formatDate, levelLabel, refTypeLabel, rruleLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
 import { ageYears } from "@/lib/arena3/time";
@@ -125,6 +125,9 @@ function Page() {
   const onlineOn = Boolean(flagsRead.data?.capabilities?.online_payment);
   const plansRead = useRead<{ items: Array<{ id: string; name: string; price_vnd: number }> }>("/plans");
   const settingsRead = useRead<{ settings?: { minor_age?: number } }>("/settings");
+  // Classes the desk can put this member into: open and priced (BR-18, BR-26).
+  const classesRead = useRead<{ items: Array<{ id: string; sport: string; level: string; rrule: string; status: string; price_vnd: number | null; capacity: number; enrolled_count: number }> }>("/classes");
+  const [enrolClassId, setEnrolClassId] = useState("");
   const minorAge = settingsRead.data?.settings?.minor_age ?? 18;
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [transferSub, setTransferSub] = useState<Member["subscriptions"][number] | null>(null);
@@ -580,11 +583,92 @@ function Page() {
                 >
                   {t("View class schedule")}
                 </Link>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={working}
+                  onClick={() => {
+                    if (!window.confirm(t("Cancel this enrolment for the member?"))) return;
+                    void act(async () => {
+                      await apiDelete(`/enrollments/${enr.id}`);
+                      toast.success(t("Enrolment cancelled"));
+                      reload();
+                    }, t("Could not cancel the enrolment"));
+                  }}
+                >
+                  {t("Cancel enrolment")}
+                </Button>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      {(() => {
+        const taken = new Set((data.enrollments ?? []).map((e) => e.class_id));
+        const open = (classesRead.data?.items ?? []).filter(
+          (c) => c.status === "open" && c.price_vnd != null && !taken.has(c.id),
+        );
+        const picked = open.find((c) => c.id === enrolClassId);
+        if (!classesRead.data) return null;
+        if (!open.length) {
+          return (
+            <p className="mt-3 text-sm text-muted">
+              {t("No other class is open for enrolment. A class needs a price from the manager before the desk can sell a seat.")}
+            </p>
+          );
+        }
+        return (
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <div className="min-w-64 flex-1">
+            <Field label={t("Enrol in a class")}>
+              <Select value={enrolClassId} onChange={(e) => setEnrolClassId(e.target.value)}>
+                <option value="">{t("Choose a class")}</option>
+                {open.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {sportLabel(c.sport)} · {levelLabel(c.level)} · {rruleLabel(c.rrule)} · {money(c.price_vnd ?? 0)}
+                    {c.enrolled_count >= c.capacity ? ` · ${t("Full: waitlist")}` : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            </div>
+            <Button
+              disabled={working || !picked}
+              onClick={() =>
+                picked &&
+                void act(async () => {
+                  const res = await apiPost<{ enrollment: { id: string; status: string }; waitlisted?: boolean }>(
+                    `/classes/${picked.id}/enroll`,
+                    { user_id: id },
+                  );
+                  if (res.waitlisted) {
+                    toast.success(t("Class is full: added to the waitlist"));
+                  } else if (res.enrollment.status === "hold") {
+                    // The seat is held until paid; the desk takes the money there and then.
+                    const pay = await apiPost<PaymentCreateResponse>(
+                      "/payments",
+                      { ref_type: "enrollment", ref_id: res.enrollment.id, method: "cash", amount_vnd: picked.price_vnd },
+                      true,
+                    );
+                    toast.success(t("Enrolled and paid {amount}", { amount: money(picked.price_vnd ?? 0) }));
+                    if (pay.invoice?.id) await openInvoice(pay.invoice.id);
+                  } else {
+                    toast.success(t("Enrolled"));
+                  }
+                  setEnrolClassId("");
+                  reload();
+                  classesRead.reload();
+                }, t("Could not enrol the member"))
+              }
+            >
+              {picked?.price_vnd
+                ? t("Enrol and take cash · {amount}", { amount: money(picked.price_vnd) })
+                : t("Enrol")}
+            </Button>
+          </div>
+        );
+      })()}
 
       <SectionTitle text={t("Attendance, last 30 days")} className="mt-8 font-display text-2xl" />
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
