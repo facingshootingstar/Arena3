@@ -112,6 +112,32 @@ const BYDAY: Record<string, string> = {
   SU: tk("Sun"),
 };
 
+/**
+ * What a subscription actually gives its holder, in the words the member reads.
+ * Driven by the plan's own grants: a session pack has no court hours to show,
+ * and a court-hours pack has no sessions, so each line appears only for a plan
+ * that carries it.
+ */
+export function planBenefits(s: {
+  plan_court_hours?: number | null;
+  plan_session_quota?: number | null;
+  court_hours_left: string | number;
+  session_left?: number | null;
+  court_discount_pct?: number | null;
+}): string[] {
+  const out: string[] = [];
+  if ((s.plan_court_hours ?? 0) > 0) out.push(t("{n} court hours left", { n: Number(s.court_hours_left) }));
+  if (s.plan_session_quota != null) {
+    out.push(
+      t("{n} sessions left · 1 session is used each time you attend (Present, Late or no-show). Excused absences are free.", {
+        n: s.session_left ?? 0,
+      }),
+    );
+  }
+  if ((s.court_discount_pct ?? 0) > 0) out.push(t("{n}% off courts", { n: s.court_discount_pct ?? 0 }));
+  return out.length ? out : [t("Membership")];
+}
+
 export function sportLabel(s: string) {
   return SPORT_LABEL[s] ?? s;
 }

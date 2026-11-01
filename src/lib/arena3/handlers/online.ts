@@ -25,7 +25,7 @@ import { one } from "../tx";
 import { dueNow } from "../policy";
 import { redeemPromo } from "../promos";
 import { HELD_COLS, settleHeldBooking } from "./bookings";
-import { describePayment } from "./desk";
+import { activateSubscription, describePayment } from "./desk";
 import { settleEnrollment } from "./classes";
 
 /**
@@ -75,10 +75,6 @@ export async function settleOnline(
 ): Promise<{ posted: boolean; reason?: string }> {
   if (pay.status === "posted") return { posted: true };
 
-  // Plans are no longer sold. A link raised for a plan order before that is ignored: nothing is
-  // posted, activated or invoiced here, and the payment stays open for the desk to look at.
-  if (pay.ref_type === "subscription") return { posted: false, reason: "plans are no longer sold" };
-
   // A seat link the member withdrew by releasing the hold. Read before the row is
   // overwritten below; the caller already holds the row lock.
   const wasReleased =
@@ -124,6 +120,54 @@ export async function settleOnline(
       buyerPhone: buyer.phone,
       actorId: pay.user_id ?? "",
       existingPaymentId: pay.id,
+    });
+    return { posted: true };
+  }
+
+  if (pay.ref_type === "subscription") {
+    const sub = await one<{
+      user_id: string;
+      plan_id: string;
+      promo_id: string | null;
+      promo_discount_vnd: number;
+    }>(sql, `select user_id, plan_id, promo_id, promo_discount_vnd from subscriptions where id = $1`, [
+      pay.ref_id,
+    ]);
+    if (!sub) throw err.notFound("That plan order no longer exists.");
+    const plan = await one<{ name: string; duration_days: number; price_vnd: number }>(
+      sql,
+      `select name, duration_days, price_vnd from membership_plans where id = $1`,
+      [sub.plan_id],
+    );
+    if (sub.promo_id && sub.promo_discount_vnd > 0) {
+      await redeemPromo(sql, {
+        promoId: sub.promo_id,
+        userId: sub.user_id,
+        paymentId: pay.id,
+        discountVnd: sub.promo_discount_vnd,
+      });
+    }
+    // The same activation the front desk uses: the plan starts the day it is paid,
+    // and its hours and sessions are credited (BR-19, BR-20).
+    await activateSubscription(sql, pay.ref_id);
+    const buyer = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [
+      sub.user_id,
+    ]);
+    const settings = await getSettings(sql);
+    const invoiceId = await issueInvoice(sql, {
+      paymentId: pay.id,
+      buyerName: buyer?.full_name ?? "Khách hàng",
+      amountVnd: pay.amount_vnd,
+      vatRate: Number(settings.vat_rate ?? 0),
+      description: plan ? `Gói hội viên — ${plan.name}` : "Gói hội viên",
+      unit: "gói",
+      settings,
+    });
+    await enqueueReceipt(sql, sub.user_id, {
+      payment_id: pay.id,
+      invoice_id: invoiceId,
+      amount_vnd: pay.amount_vnd,
+      method: "gateway",
     });
     return { posted: true };
   }
@@ -217,7 +261,7 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
   let amount = 0;
   let payerId: string | null = null;
   let label = "";
-  /** When the class seat hold ends (ms since epoch); null for courts. */
+  /** When the class seat hold ends (ms since epoch); null for courts and plans. */
   let holdEndsAt: number | null = null;
 
   if (refType === "booking") {
@@ -236,6 +280,34 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     amount = dueNow(booking);
     payerId = booking.user_id;
     label = "court";
+  } else if (refType === "subscription") {
+    // Members order plans in the app but pay at the desk, so raising a link for
+    // one is reception's job.
+    if (!staff) throw err.forbidden("Ask the front desk to take payment for a plan.");
+    const sub = await one<{
+      user_id: string;
+      plan_id: string;
+      status: string;
+      promo_discount_vnd: number;
+      price_vnd: number | null;
+    }>(
+      sql,
+      `select user_id, plan_id, status, promo_discount_vnd, price_vnd from subscriptions where id = $1`,
+      [refId],
+    );
+    if (!sub) throw err.notFound();
+    // A link settles by activating the order, so it only makes sense for one
+    // still waiting for money (D-01).
+    if (sub.status !== "pending") throw err.conflictState("That plan is not waiting for payment.");
+    const plan = await one<{ price_vnd: number }>(
+      sql,
+      `select price_vnd from membership_plans where id = $1`,
+      [sub.plan_id],
+    );
+    const basePrice = sub.price_vnd ?? plan?.price_vnd ?? 0;
+    amount = Math.max(0, basePrice - (sub.promo_discount_vnd ?? 0));
+    payerId = sub.user_id;
+    label = "plan";
   } else if (refType === "enrollment") {
     const enr = await one<{
       user_id: string;
@@ -262,7 +334,7 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     label = "class";
     holdEndsAt = new Date(enr.hold_until).getTime();
   } else {
-    throw err.validation("Online payment covers courts and class seats.");
+    throw err.validation("Online payment covers courts, plans and class seats.");
   }
 
   if (amount <= 0) throw err.validation("There is nothing to pay.");

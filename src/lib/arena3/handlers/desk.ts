@@ -18,7 +18,7 @@ import {
   readJson,
   str,
 } from "../helpers";
-import { redeemForBooking, restoreIfFullyRefunded } from "../promos";
+import { quotePromo, redeemForBooking, redeemPromo, restoreIfFullyRefunded, type PromoQuote } from "../promos";
 import { methodLabelVi } from "../labels";
 import { parseCancelTiers } from "../policy";
 import { parseUiConfigPatch } from "@/lib/ui-config";
@@ -104,6 +104,100 @@ export async function shiftClose(sql: Sql, id: string, request: Request, user: P
   };
 }
 
+export async function activateSubscription(sql: Sql, subId: string) {
+  const sub = await one<{
+    id: string;
+    status: string;
+    end_on: string;
+    start_on: string;
+    sport_scope: string;
+    plan_id: string;
+    user_id: string;
+    court_hours_left: string | number;
+    session_left: number | null;
+  }>(sql, `select * from subscriptions where id = $1 for update`, [subId]);
+  if (!sub) throw err.notFound();
+  const plan = await one<{
+    duration_days: number | null;
+    court_hours: number;
+    session_quota: number | null;
+    carry_over_hours: boolean;
+    price_vnd: number;
+  }>(sql, `select * from membership_plans where id = $1`, [sub.plan_id]);
+  if (!plan) throw err.notFound();
+  const today = ictDateString();
+  const duration = plan.duration_days ?? 365;
+
+  if (sub.status === "active" && sub.end_on >= today) {
+    const end = addDays(sub.end_on, duration);
+    await sql.query(
+      `update subscriptions
+          set end_on = $2,
+              court_hours_left = court_hours_left + $3,
+              session_left = case when session_left is null and $4::int is null then null
+                                  else coalesce(session_left,0) + coalesce($4,0) end
+        where id = $1`,
+      [sub.id, end, plan.court_hours, plan.session_quota],
+    );
+    return;
+  }
+
+  // Check whether there is an existing live subscription for (user_id, sport_scope)
+  const live = await one<{
+    id: string;
+    status: string;
+    end_on: string;
+    plan_id: string;
+    court_hours_left: string | number;
+    session_left: number | null;
+  }>(
+    sql,
+    `select id, status, end_on::text, plan_id, court_hours_left, session_left from subscriptions
+      where user_id = $1 and sport_scope = $2 and status in ('active','frozen') and id <> $3
+      limit 1`,
+    [sub.user_id, sub.sport_scope, sub.id],
+  );
+
+  if (live) {
+    if (live.end_on < today) {
+      // The previous plan has expired; mark it expired so the new one can become active
+      await sql.query(`update subscriptions set status = 'expired' where id = $1`, [live.id]);
+    } else if (live.plan_id === sub.plan_id) {
+      // Same plan renewal: extend live subscription directly
+      const end = addDays(live.end_on, duration);
+      await sql.query(
+        `update subscriptions
+            set end_on = $2,
+                court_hours_left = court_hours_left + $3,
+                session_left = case when session_left is null and $4::int is null then null
+                                    else coalesce(session_left,0) + coalesce($4,0) end
+          where id = $1`,
+        [live.id, end, plan.court_hours, plan.session_quota],
+      );
+      // Repoint any payments on sub to live and clean up sub
+      await sql.query(`update payments set ref_id = $1 where ref_type = 'subscription' and ref_id = $2`, [live.id, sub.id]);
+      await sql.query(`delete from subscriptions where id = $1`, [sub.id]);
+      return;
+    } else {
+      // Different plan: mark old plan expired, carry over hours if configured
+      await sql.query(`update subscriptions set status = 'expired' where id = $1`, [live.id]);
+      if (plan.carry_over_hours) {
+        sub.court_hours_left = Number(live.court_hours_left) + Number(sub.court_hours_left);
+      }
+    }
+  }
+
+  const end = addDays(today, duration);
+  const hours = plan.carry_over_hours ? Number(sub.court_hours_left) + plan.court_hours : plan.court_hours;
+  await sql.query(
+    `update subscriptions
+        set status = 'active', start_on = $2, end_on = $3,
+            court_hours_left = $4, session_left = $5
+      where id = $1`,
+    [sub.id, today, end, hours, plan.session_quota],
+  );
+}
+
 /**
  * What the money actually bought, as it should read on the invoice.
  *
@@ -117,6 +211,14 @@ export async function describePayment(
   refType: string,
   refId: string,
 ): Promise<{ description: string; unit: string }> {
+  if (refType === "subscription") {
+    const row = await one<{ name: string }>(
+      sql,
+      `select p.name from subscriptions s join membership_plans p on p.id = s.plan_id where s.id = $1`,
+      [refId],
+    );
+    return { description: row ? `Gói hội viên — ${row.name}` : "Gói hội viên", unit: "gói" };
+  }
   if (refType === "booking") {
     const row = await one<{ court_code: string; window: string }>(
       sql,
@@ -163,8 +265,8 @@ export async function paymentsCreate(
   if (!ALLOWED_PAYMENT_METHODS.includes(method as any)) {
     throw err.field("method", `Payment method must be one of ${ALLOWED_PAYMENT_METHODS.join(", ")}.`);
   }
-  if (ref_type !== "booking" && ref_type !== "enrollment") {
-    throw err.validation("ref_type must be booking or enrollment.", { field: "ref_type" });
+  if (ref_type !== "booking" && ref_type !== "subscription" && ref_type !== "enrollment") {
+    throw err.field("ref_type", "ref_type must be booking, subscription or enrollment.");
   }
   // Money in is a positive whole number of đồng. Zero and negative amounts used
   // to post: a -5,000 "payment" quietly lowered what the member had paid, and a
@@ -205,6 +307,8 @@ export async function paymentsCreate(
   let buyer = user.full_name;
   let buyerPhone: string | null = null;
   let userId: string | null = null;
+  let quote: PromoQuote | null = null;
+  let subPromo: { id: string; discount: number } | null = null;
   let enrollmentLinks: Array<{ id: string; provider_order_code: string | number | null }> = [];
   if (ref_type === "booking") {
     // The receipt is made out to whoever the booking is for — the member, or
@@ -248,6 +352,75 @@ export async function paymentsCreate(
     userId = enr.user_id;
     const u = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [userId]);
     buyer = u?.full_name ?? buyer;
+  } else if (ref_type === "subscription") {
+    if (!isUuid(ref_id)) throw err.field("ref_id", "That value is not in the right format.");
+    // Locked for the rest of the transaction: two taps on "Take payment" queue
+    // here, and the second sees what the first left behind instead of both
+    // reading the same balance.
+    const sub = await one<{
+      user_id: string;
+      plan_id: string;
+      status: string;
+      price_vnd: number;
+      sub_price_vnd: number | null;
+      court_discount_pct: number;
+      sport_scope: string;
+      promo_id: string | null;
+      promo_discount_vnd: number;
+    }>(
+      sql,
+      `select s.user_id, s.plan_id, s.status::text as status, s.promo_id, s.promo_discount_vnd, s.price_vnd as sub_price_vnd,
+              p.price_vnd, p.court_discount_pct, p.sport_scope::text as sport_scope
+         from subscriptions s join membership_plans p on p.id = s.plan_id
+        where s.id = $1 for update of s`,
+      [ref_id],
+    );
+    if (!sub) throw err.notFound("No such plan.");
+    if (sub.status === "frozen") throw err.br("BR-14", "This plan is frozen — unfreeze it before taking payment.");
+    if (sub.status !== "pending" && sub.status !== "active") {
+      throw err.conflictState("That plan is not waiting for payment.");
+    }
+    // No credit and no deposit (BR-19): a plan is paid in one go for exactly what it
+    // costs after any code, or it stays pending and grants nothing.
+    if (sub.status === "pending") {
+      const paid = await one<{ n: number }>(
+        sql,
+        `select count(*)::int as n from payments
+          where ref_type = 'subscription' and ref_id = $1 and amount_vnd > 0 and status = 'posted'`,
+        [ref_id],
+      );
+      if ((paid?.n ?? 0) > 0) throw err.conflictState("This plan order is already paid for.");
+    }
+    const basePrice = sub.sub_price_vnd ?? sub.price_vnd;
+    let discount = sub.status === "pending" ? sub.promo_discount_vnd : 0;
+    let promoId: string | null = sub.status === "pending" ? sub.promo_id : null;
+    const code = str(b.promo_code);
+    if (code && !(sub.status === "pending" && promoId)) {
+      quote = await quotePromo(sql, {
+        code,
+        userId: sub.user_id,
+        scope: "plan",
+        sport: sub.sport_scope,
+        planId: sub.plan_id,
+        orderVnd: basePrice,
+      });
+      discount = quote.discount_vnd;
+      promoId = quote.promo_id;
+    }
+    const expected = basePrice - discount;
+    if (amount !== expected) {
+      throw err.field(
+        "amount_vnd",
+        sub.status === "active"
+          ? `A renewal is one full period: ${expected.toLocaleString("en-US")}đ.`
+          : `A plan is paid in full: ${expected.toLocaleString("en-US")}đ. Partial payments are not taken.`,
+        { expected_vnd: expected },
+      );
+    }
+    subPromo = promoId && discount > 0 ? { id: promoId, discount } : null;
+    userId = sub.user_id;
+    const u = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [userId]);
+    buyer = u?.full_name ?? buyer;
   }
   const payCode = await nextCode(sql, "PAY");
   const pay = await one<{ id: string }>(
@@ -256,7 +429,18 @@ export async function paymentsCreate(
      values ($1,$2,$3,$4,$5,$6,'posted',$7,$8,$9) returning id`,
     [payCode, userId, shiftId, method, amount, Number(settings.vat_rate), ref_type, ref_id, user.id],
   );
-  if (ref_type === "booking") {
+  if (ref_type === "subscription") {
+    if (subPromo) {
+      await sql.query(`update subscriptions set promo_id = $2, promo_discount_vnd = $3 where id = $1`, [
+        ref_id,
+        subPromo.id,
+        subPromo.discount,
+      ]);
+      await redeemPromo(sql, { promoId: subPromo.id, userId, paymentId: pay!.id, discountVnd: subPromo.discount });
+    }
+    // Paid in full (checked above), so a pending plan activates and an active one renews.
+    await activateSubscription(sql, ref_id);
+  } else if (ref_type === "booking") {
     await redeemForBooking(sql, ref_id, userId, pay!.id);
   } else if (ref_type === "enrollment") {
     // The desk took the money, so the member's payOS link must not take it again.
@@ -523,9 +707,10 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
   // queries — including sixty transfers with their invoices — on every visit to
   // the front page, to render a single digit, is work nobody ever reads.
   if (sp.get("brief") === "1") {
-    const counts = await one<{ refunds: number; awaiting: number }>(
+    const counts = await one<{ orders: number; refunds: number; awaiting: number }>(
       sql,
-      `select (select count(*) from payments where status = 'refund_pending')::int as refunds,
+      `select (select count(*) from subscriptions where status = 'pending')::int as orders,
+              (select count(*) from payments where status = 'refund_pending')::int as refunds,
               (select count(*) from court_bookings
                 where status = 'hold' and transfer_requested_at is not null
                   and hold_until > now())::int
@@ -537,7 +722,7 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
       status: 200,
       body: {
         waiting:
-          Number(counts?.refunds ?? 0) + Number(counts?.awaiting ?? 0),
+          Number(counts?.orders ?? 0) + Number(counts?.refunds ?? 0) + Number(counts?.awaiting ?? 0),
       },
     };
   }
@@ -585,6 +770,26 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
     hold_until: r.hold_until,
     transfer_requested_at: r.transfer_requested_at,
   }));
+
+  // `paid_vnd` calculated directly from posted payments: the desk wants to see a part payment
+  // for what it is ("2 of 5 taken"), not just the balance left over.
+  const orders = await sql.query(
+    `select s.id, s.sport_scope, s.start_on::text as ordered_on, s.end_on::text as end_on,
+            u.id as user_id, u.full_name, u.phone, u.member_code,
+            pl.name as plan_name, coalesce(s.price_vnd, pl.price_vnd)::int as price_vnd, pl.id as plan_id,
+            s.promo_discount_vnd, pr.code as promo_code,
+            coalesce(sum(p.amount_vnd) filter (where p.status = 'posted'), 0)::int as paid_vnd
+       from subscriptions s
+       join users u on u.id = s.user_id
+       join membership_plans pl on pl.id = s.plan_id
+       left join promotions pr on pr.id = s.promo_id
+       left join payments p on p.ref_type = 'subscription' and p.ref_id = s.id
+      where s.status = 'pending'
+      group by s.id, s.sport_scope, s.start_on, s.end_on,
+               u.id, u.full_name, u.phone, u.member_code, pl.name, s.price_vnd, pl.price_vnd, pl.id,
+               s.promo_discount_vnd, pr.code
+      order by s.start_on asc, u.full_name asc`,
+  );
 
   const refunds = await sql.query(
     `select p.id, p.code, p.amount_vnd, p.created_at, p.ref_type, p.ref_id,
@@ -643,8 +848,41 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
 
   return {
     status: 200,
-    body: { awaiting: [...awaiting, ...seats], refunds, receipts: receipts.items, receipts_total: receipts.total, days, capped: false },
+    body: { awaiting: [...awaiting, ...seats], orders, refunds, receipts: receipts.items, receipts_total: receipts.total, days, capped: false },
   };
+}
+
+/**
+ * Clear a plan order the member never came in to pay for.
+ *
+ * `sub_status` has no `cancelled` member, and migrating a production enum for
+ * a row nobody will ever open again is a poor trade — so an abandoned order is
+ * retired as `expired`. It leaves the queue, it releases the one-pending-per-
+ * sport slot so the member can order again, and the audit row records who
+ * retired it. An order with money already against it is not eligible: a desk
+ * screen should not be able to make a payment stop pointing at anything.
+ */
+export async function subscriptionDecline(sql: Sql, id: string, user: PublicUser) {
+  requireRole(user, ["receptionist", "manager"]);
+  const sub = await one<{ id: string; status: string }>(
+    sql,
+    `select id, status from subscriptions where id = $1 for update`,
+    [id],
+  );
+  if (!sub) throw err.notFound();
+  if (sub.status !== "pending") throw err.conflictState("That order is no longer waiting for payment.");
+  const paid = await one<{ paid: number }>(
+    sql,
+    `select coalesce(sum(amount_vnd) filter (where status = 'posted'), 0)::int as paid
+       from payments where ref_type = 'subscription' and ref_id = $1`,
+    [id],
+  );
+  if (Number(paid?.paid ?? 0) > 0) {
+    throw err.conflictState("Money has already been taken against this order — refund it first.");
+  }
+  await sql.query(`update subscriptions set status = 'expired' where id = $1`, [id]);
+  await audit(sql, user.id, "decline_plan_order", "subscription", id);
+  return { status: 200, body: { ok: true } };
 }
 
 /**

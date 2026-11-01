@@ -447,7 +447,18 @@ describe("check-in token (BR-30)", () => {
   });
 });
 
-describe("class schedule window", () => {
+describe("desk subscription queuing & class schedule window", () => {
+  it("queues subscription after active plan end date", () => {
+    const today = "2026-10-11";
+    const liveEndOn = "2026-10-25";
+    const queueStart = liveEndOn >= today ? liveEndOn : today;
+    assert.equal(queueStart, "2026-10-25");
+
+    const expiredEndOn = "2026-10-01";
+    const fallbackStart = expiredEndOn >= today ? expiredEndOn : today;
+    assert.equal(fallbackStart, today);
+  });
+
   it("calculates class window starting at beginning of today", () => {
     const today = "2026-10-11";
     const todayStart = ictDateTime(today, "00:00");

@@ -170,6 +170,7 @@ type RiskItem = {
   full_name: string;
   member_code: string | null;
   phone: string | null;
+  plan_end_on: string | null;
   reasons: Array<{ kind: string; message: string }>;
   attendance_pct: number | null;
   last_seen_at: string | null;
@@ -196,12 +197,13 @@ const outcomeLabel = (v: string) => {
   return l ? t(l) : v;
 };
 
-type RiskKind = "streak" | "idle";
+type RiskKind = "streak" | "idle" | "expiring";
 type RiskFilter = "todo" | "done" | "all" | RiskKind;
-type RiskSort = "priority" | "last_seen" | "name";
+type RiskSort = "priority" | "plan_end" | "last_seen" | "name";
 
 const SORTS: Array<{ value: RiskSort; label: string }> = [
   { value: "priority", label: tk("Most urgent first") },
+  { value: "plan_end", label: tk("Plan ends soonest") },
   { value: "last_seen", label: tk("Away the longest") },
   { value: "name", label: tk("Name A-Z") },
 ];
@@ -210,7 +212,7 @@ const SORTS: Array<{ value: RiskSort; label: string }> = [
 function reasonChip(kind: string, idleDays: number | null) {
   if (kind === "streak") return t("Absent in a row");
   if (kind === "idle") return t("No visit {n}+ days", { n: idleDays ?? 14 });
-  return t("Absent in a row");
+  return t("Plan ending · low attendance");
 }
 
 /** Members who may be drifting away, with what has already been done about it (FR-TRN-09). */
@@ -267,7 +269,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
   }
 
   const counts = useMemo(() => {
-    const c = { all: 0, todo: 0, done: 0, streak: 0, idle: 0 };
+    const c = { all: 0, todo: 0, done: 0, streak: 0, idle: 0, expiring: 0 };
     for (const m of items ?? []) {
       c.all++;
       if (m.contacted) c.done++;
@@ -282,13 +284,14 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
     const rows = (items ?? []).filter((m) => {
       if (filter === "todo" && m.contacted) return false;
       if (filter === "done" && !m.contacted) return false;
-      if (filter === "streak" || filter === "idle") {
+      if (filter === "streak" || filter === "idle" || filter === "expiring") {
         if (!m.reasons.some((r) => r.kind === filter)) return false;
       }
       if (!term) return true;
       return [m.full_name, m.member_code, m.phone].some((v) => v?.toLowerCase().includes(term));
     });
     // The server already returns "most urgent first"; only the other orders need work here.
+    if (sort === "plan_end") rows.sort((a, b) => (a.plan_end_on ?? "9999").localeCompare(b.plan_end_on ?? "9999"));
     if (sort === "last_seen") rows.sort((a, b) => (a.last_seen_at ?? "").localeCompare(b.last_seen_at ?? ""));
     if (sort === "name") rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
     return rows;
@@ -319,6 +322,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
     { value: "all", label: t("Everyone"), count: counts.all },
     { value: "streak", label: t("Absent in a row"), count: counts.streak },
     { value: "idle", label: t("No visit {n}+ days", { n: idleDays ?? 14 }), count: counts.idle },
+    { value: "expiring", label: t("Plan ending soon"), count: counts.expiring },
   ];
 
   return (
@@ -327,7 +331,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
         <summary className="cursor-pointer py-3 font-medium marker:text-muted sm:py-0.5">{t("Who ends up on this list?")}</summary>
         <p className="mt-2 text-muted">
           {t(
-            "Two things put someone here: absent three sessions running, or no visit for {n}+ days. Contacting them is a courtesy call, never a penalty.",
+            "Three things put someone here: absent three sessions running, no visit for {n}+ days on a live plan, or a plan ending soon with low attendance. Contacting them is a courtesy call, never a penalty.",
             { n: idleDays ?? "-" },
           )}
         </p>
@@ -351,7 +355,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
       </div>
 
       {!items.length ? (
-        <EmptyState title={t("Nobody is at risk")} hint={t("Everyone has been in recently.")} />
+        <EmptyState title={t("Nobody is at risk")} hint={t("Everyone with a plan has been in recently.")} />
       ) : !shown.length ? (
         <EmptyState
           title={filter === "todo" && !q ? t("Everyone on the list has been contacted") : t("Nobody matches")}
@@ -404,6 +408,7 @@ export function AtRiskPanel({ canContact = true }: { canContact?: boolean }) {
                     ))}
                   </div>
                   <div className="text-xs text-muted md:text-right">
+                    <p>{m.plan_end_on ? t("Plan ends {date}", { date: formatDate(m.plan_end_on) }) : t("No live plan")}</p>
                     {m.attendance_pct !== null ? <p className="tabular-nums">{t("Attendance {pct}%", { pct: m.attendance_pct })}</p> : null}
                   </div>
                   <div className="flex items-center gap-2 md:justify-end">

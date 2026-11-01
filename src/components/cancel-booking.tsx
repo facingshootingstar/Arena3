@@ -116,6 +116,12 @@ export function CancelBookingDialog({
           >
             {quote.paid_vnd === 0 ? (
               <p>{t("Nothing has been paid on this booking, so nothing is charged.")}</p>
+            ) : quote.quota_hours > 0 ? (
+              <p>
+                {quote.refund_pct >= 50
+                  ? t("Your plan hour goes back to your balance.")
+                  : t("Too close to the start: the plan hour is not given back.")}
+              </p>
             ) : (
               <>
                 <p>

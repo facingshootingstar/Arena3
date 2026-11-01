@@ -50,6 +50,7 @@ export const pub: Record<string, string> = {
   "Badminton, basketball, volleyball. Open 06:00-22:00, every day. Book a court in five minutes; the desk closes you out in three taps.": "Cầu lông, bóng rổ, bóng chuyền. Mở cửa 06:00-22:00 mỗi ngày. Đặt sân trong năm phút, thanh toán tại quầy chỉ với ba thao tác.",
   "See courts & pricing": "Xem sân & bảng giá",
   "{n} court hours still free {day} · from {price}/hr · held five minutes while you decide.": "Còn {n} giờ sân trống {day} · từ {price}/giờ · giữ chỗ năm phút để bạn quyết định.",
+  "Or see membership plans": "Hoặc xem các gói hội viên",
   "Scroll": "Cuộn xuống",
 
   // landing: counters
@@ -167,7 +168,7 @@ export const pub: Record<string, string> = {
   "The Lê Long Sport frontage at dusk": "Mặt tiền Lê Long Sport lúc hoàng hôn",
   "06:00-22:00 · seven days": "06:00-22:00 · cả tuần",
   "Reception is open during all opening hours. You can book at the desk without an account.": "Quầy lễ tân mở suốt giờ hoạt động. Bạn có thể đặt sân tại quầy mà không cần tài khoản.",
-  "Indoor sports centre with court booking and classes.": "Trung tâm thể thao trong nhà: đặt sân và lớp học.",
+  "Indoor sports centre with court booking, classes and membership plans.": "Trung tâm thể thao trong nhà: đặt sân, lớp học và gói hội viên.",
   "Visit": "Ghé thăm",
   "06:00-22:00, seven days": "06:00-22:00, cả tuần",
   "Ho Chi Minh City": "TP. Hồ Chí Minh",
@@ -175,6 +176,7 @@ export const pub: Record<string, string> = {
   "Explore": "Khám phá",
   "How booking works": "Cách đặt sân",
   "Facilities": "Cơ sở vật chất",
+  "Membership plans": "Gói hội viên",
   "Badminton · Basketball · Volleyball": "Cầu lông · Bóng rổ · Bóng chuyền",
 
   // landing: testimonials

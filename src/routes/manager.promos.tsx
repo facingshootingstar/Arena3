@@ -8,7 +8,7 @@ import { SportBadge, useSports } from "@/components/sports-ui";
 import { Badge, Button, Card, Check, EmptyState, Field, Input, LoadError, Modal, MoneyInput, Select, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPatch, apiPost } from "@/lib/arena3/client";
 import { formatDate, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 
 export const Route = createFileRoute("/manager/promos")({ component: Page });
@@ -27,6 +27,8 @@ type Promo = {
   max_per_member: number;
   applies_to: string[];
   sport: string | null;
+  plan_id: string | null;
+  plan_name: string | null;
   stackable: boolean;
   status: "active" | "paused";
   state: "active" | "paused" | "expired" | "scheduled" | "exhausted";
@@ -43,6 +45,8 @@ type Redemption = {
   full_name: string;
   member_code: string | null;
 };
+
+type Plan = { id: string; name: string };
 
 const STATE_TONE: Record<Promo["state"], "accent" | "hold" | "muted" | "danger"> = {
   active: "accent",
@@ -71,8 +75,10 @@ const empty = {
   ends_at: "",
   max_uses: "",
   max_per_member: "1",
+  plan: true,
   court: true,
   sport: "",
+  plan_id: "",
 };
 
 function describe(p: Promo) {
@@ -90,6 +96,9 @@ function startOfDay(d: string) {
 function Page() {
   const read = useRead<{ items: Promo[] }>("/promotions");
   const items = read.data?.items ?? null;
+  // The plan picker in the form; if it cannot load, the form says so instead of offering "Any plan" alone.
+  const planRead = useRead<{ items: Plan[] }>("/plans");
+  const plans = planRead.data?.items ?? [];
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -101,7 +110,7 @@ function Page() {
     setBusy(true);
     setFe(null);
     try {
-      const applies = [form.court ? "court" : ""].filter(Boolean);
+      const applies = [form.plan ? "plan" : "", form.court ? "court" : ""].filter(Boolean);
       await apiPost("/promotions", {
         code: form.code,
         name: form.name,
@@ -115,6 +124,7 @@ function Page() {
         max_per_member: form.max_per_member,
         applies_to: applies,
         sport: form.sport,
+        plan_id: form.plan_id,
       });
       toast.success(t("Code {code} is live", { code: form.code.toUpperCase() }));
       setOpen(false);
@@ -210,6 +220,7 @@ function Page() {
               <p className="text-xs text-muted">
                 {p.applies_to.map((a) => (a === "plan" ? t("plans") : t("courts"))).join(" + ")}
                 {p.sport ? ` · ${sportLabel(p.sport)}` : ""}
+                {p.plan_name ? ` · ${t("{name} only", { name: tData(p.plan_name) })}` : ""}
                 {p.starts_at ? ` · ${t("from {date}", { date: formatDate(p.starts_at) })}` : ""}
                 {p.ends_at ? ` · ${t("until {date}", { date: formatDate(p.ends_at) })}` : ""}
                 {` · ${t("{n} per member", { n: p.max_per_member })}`}
@@ -302,8 +313,19 @@ function Page() {
               ))}
             </Select>
           </Field>
+          <Field label={t("Only this plan")} hint={planRead.error?.message}>
+            <Select value={form.plan_id} disabled={!!planRead.error} onChange={(e) => setForm({ ...form, plan_id: e.target.value })}>
+              <option value="">{t("Any plan")}</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <fieldset className="flex flex-wrap items-center gap-x-6 text-sm sm:col-span-2">
             <legend className="mb-1 text-xs text-muted">{t("Applies to")} {bad("applies_to") ? `: ${bad("applies_to")}` : ""}</legend>
+            <Check checked={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.checked })} label={t("Membership plans")} />
             <Check checked={form.court} onChange={(e) => setForm({ ...form, court: e.target.checked })} label={t("Court bookings")} />
           </fieldset>
         </div>

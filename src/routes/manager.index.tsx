@@ -215,6 +215,7 @@ function Page() {
         stats={[
           { label: t("Revenue"), value: rev ? money(rev.totals.revenue_vnd) : "..." },
           { label: t("Refunds"), value: rev ? money(rev.totals.refund_vnd ?? 0) : "0 đ" },
+          { label: t("Plan hours used"), value: rev?.totals.quota_hours ?? 0 },
         ]}
       />
       <section aria-label={t("Quick actions")} className="mb-6">
@@ -338,6 +339,7 @@ function Page() {
             { to: "/manager/media" as const, label: t("Media"), Icon: Image },
             { to: "/manager/staff" as const, label: t("Staff"), Icon: UserCog },
             { href: "/manager/staff?create=1", label: t("Add staff"), Icon: UserPlus },
+            { to: "/manager/plans" as const, label: t("Plans"), Icon: Wallet },
             { to: "/manager/promos" as const, label: t("Promos"), Icon: Tag },
             { to: "/manager/prices" as const, label: t("Pricing"), Icon: Settings },
             { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },

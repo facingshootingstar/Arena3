@@ -1,10 +1,4 @@
 export const desk: Record<string, string> = {
-  "Find a member or open a new profile.": "Tìm hội viên hoặc mở hồ sơ mới.",
-  "Open profile": "Mở hồ sơ",
-  "This person already has a profile.": "Người này đã có hồ sơ.",
-  "Transfers waiting to be checked, refunds, and posted receipts.": "Chuyển khoản chờ kiểm tra, hoàn tiền và biên lai đã ghi.",
-  "This only records that they walked in. It never changes a booking or a class.": "Chỉ ghi nhận là họ đã vào. Không thay đổi lượt đặt sân hay lớp học nào.",
-  "There is no booking or class for them today. Let them in anyway only with a reason: it is recorded and the manager sees it.": "Hôm nay họ không có lượt đặt sân hay lớp nào. Chỉ cho vào khi có lý do: lý do được ghi lại và quản lý sẽ thấy.",
   // ── class-detail ──
   "Could not load this class": "Không tải được lớp này",
   "Class": "Lớp",
@@ -142,6 +136,7 @@ export const desk: Record<string, string> = {
   "A3-000123 or 0900 000 000": "A3-000123 hoặc 0900 000 000",
   "Why not the code?": "Vì sao không dùng mã?",
   "Recorded with the visit so a manager can review it.": "Được lưu cùng lượt vào để quản lý xem lại.",
+  "This only records that they walked in. It never uses up a session or changes a plan.": "Chỉ ghi nhận là họ đã vào. Không trừ buổi và không thay đổi gói tập.",
   "Nothing to enter on": "Không có gì để cho vào",
   "Already in at {time}": "Đã vào lúc {time}",
   "In at {time}": "Vào lúc {time}",
@@ -150,6 +145,7 @@ export const desk: Record<string, string> = {
   "{sport} class": "Lớp {sport}",
   "court {code}": "sân {code}",
   "Nothing booked for today.": "Hôm nay chưa đặt gì.",
+  "There is no live plan, booking or class for them today. Let them in anyway only with a reason: it is recorded and the manager sees it.": "Hôm nay họ không có gói tập, lượt đặt sân hay lớp nào còn hiệu lực. Chỉ cho vào khi có lý do, lý do được ghi lại và quản lý sẽ thấy.",
   "Let them in": "Cho vào",
   "Send to the desk": "Chuyển ra quầy lễ tân",
   "Through the gate today": "Đã qua cổng hôm nay",
@@ -193,6 +189,7 @@ export const desk: Record<string, string> = {
   "No gear is listed yet": "Chưa có dụng cụ nào trong danh sách",
 
   // ── desk.index ──
+  "Find a member, sell a plan, take payment — three moves.": "Tìm hội viên, bán gói tập, thu tiền, ba bước.",
   "Shift open · cash {amount}": "Ca đang mở · tiền mặt {amount}",
   "Shift opened": "Đã mở ca",
   "Open shift": "Mở ca",
@@ -201,8 +198,10 @@ export const desk: Record<string, string> = {
   "Name, phone or member code": "Tên, SĐT hoặc mã hội viên",
   "Type at least 3 characters.": "Nhập ít nhất 3 ký tự.",
   "New member": "Hội viên mới",
+  "Three steps: profile → plan → payment.": "Ba bước: hồ sơ → gói tập → thanh toán.",
   "Payment": "Thanh toán",
   "Phone number": "Số điện thoại",
+  "This person already has a profile. Pick a plan or stop here.": "Người này đã có hồ sơ, chọn gói tập hoặc dừng tại đây",
   "Created {code}. Temporary password: {password}": "Đã tạo {code}. Mật khẩu tạm: {password}",
   "Created the profile. Temporary password: {password}": "Đã tạo hồ sơ. Mật khẩu tạm: {password}",
   "Could not create the account": "Không tạo được tài khoản",

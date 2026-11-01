@@ -7,6 +7,7 @@ import { withTx } from "./tx";
 import * as authH from "./handlers/auth";
 import * as googleH from "./handlers/google";
 import * as memberH from "./handlers/members";
+import * as planH from "./handlers/plans";
 import * as bookH from "./handlers/bookings";
 import * as classH from "./handlers/classes";
 import * as deskH from "./handlers/desk";
@@ -163,6 +164,11 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return withTx((sql) => authH.forgot(sql, request));
   }
 
+  if (method === "GET" && p0 === "plans" && !p1) {
+    const sql = await getSql();
+    const user = await optionalAuth(sql, request);
+    return planH.plansList(sql, user);
+  }
   if (method === "GET" && p0 === "courts" && !p1) {
     const sql = await getSql();
     return bookH.courtsList(sql);
@@ -325,6 +331,18 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authed((sql, user) => memberH.membersUpdate(sql, p1, request, user));
   }
 
+  if (method === "POST" && p0 === "plans" && !p1) {
+    return authed((sql, user) => planH.plansCreate(sql, request, user));
+  }
+  if (method === "GET" && p0 === "plans" && p1 && !p2) {
+    return authedRead((sql, user) => planH.plansGet(sql, p1, user));
+  }
+  if (method === "PATCH" && p0 === "plans" && p1 && !p2) {
+    return authed((sql, user) => planH.plansPatch(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "subscriptions" && !p1) {
+    return authed((sql, user) => planH.subscriptionsCreate(sql, request, user));
+  }
 
   if (method === "POST" && p0 === "bookings" && !p1) {
     return authed((sql, user) =>
@@ -564,6 +582,15 @@ async function dispatch(request: Request): Promise<Response | Result> {
     return authedRead((sql, user) => deskH.auditList(sql, request, user));
   }
 
+  if (method === "POST" && p0 === "subscriptions" && p1 && p2 === "freeze") {
+    return authed((sql, user) => opsH.subscriptionFreeze(sql, p1, request, user));
+  }
+  if (method === "POST" && p0 === "subscriptions" && p1 && p2 === "unfreeze") {
+    return authed((sql, user) => opsH.subscriptionUnfreeze(sql, p1, user));
+  }
+  if (method === "POST" && p0 === "subscriptions" && p1 && p2 === "decline") {
+    return authed((sql, user) => deskH.subscriptionDecline(sql, p1, user));
+  }
   if (method === "POST" && p0 === "waitlist" && p1 && p2 === "accept") {
     return authed((sql, user) => opsH.waitlistAccept(sql, p1, user));
   }

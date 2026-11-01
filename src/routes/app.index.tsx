@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SectionTitle } from "@/components/section";
-import { ArrowRight, Map, Star, Ticket } from "lucide-react";
+import { ArrowRight, Map, Star, Ticket, Wallet } from "lucide-react";
 import { AssistantMark } from "@/components/mark";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -13,9 +13,9 @@ import { Button, ButtonLink, Card, LoadError, Skeleton, StatusBadge } from "@/co
 import { CountUp, Lift, Reveal, Stagger, StaggerItem, useReducedMotionAfterMount } from "@/components/motion";
 import { ShinyText, SplitText, SpotlightCard } from "@/components/fx";
 import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
-import { levelLabel, sportLabel, statusLabel, todayISO } from "@/lib/arena3/labels";
+import { formatDate, levelLabel, sportLabel, statusLabel, todayISO } from "@/lib/arena3/labels";
 import { cn } from "@/lib/cn";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tData, tk, tServer } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { useLimits } from "@/lib/use-centre";
 import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
@@ -27,6 +27,18 @@ export const Route = createFileRoute("/app/")({
 
 type Me = {
   user: { full_name: string; member_code: string | null };
+  subscriptions: Array<{
+    id: string;
+    status: string;
+    end_on: string;
+    plan_name: string;
+    court_hours_left: string | number;
+    session_left: number | null;
+    plan_court_hours: number;
+    plan_session_quota: number | null;
+    court_discount_pct: number;
+    sport_scope: string;
+  }>;
   inbox: Notification[];
   offers?: Array<{ id: string; expires_at: string; sport: string; level: string }>;
   enrollments?: Array<{ id: string; status: string; waitlist_pos: number | null; sport: string; level: string }>;
@@ -92,6 +104,13 @@ function Page() {
   }, []);
   const now = useNowMinute();
   const u = getStoredUser();
+  const live = me?.subscriptions.filter((s) => s.status === "active") ?? [];
+  const frozen = me?.subscriptions.filter((s) => s.status === "frozen") ?? [];
+  const first = live[0];
+  const expiring = live.filter((s) => {
+    const d = daysUntil(s.end_on);
+    return Number.isFinite(d) && d >= 0 && d <= 7;
+  });
   const greet = u?.full_name.split(" ").slice(-1)[0] ?? "";
   const events: Event[] = [
     ...(me?.today.classes ?? []).map((c) => ({
@@ -170,6 +189,41 @@ function Page() {
       {(me?.offers ?? []).map((o) => (
         <OfferCard key={o.id} offer={o} onDone={reload} />
       ))}
+
+      {frozen.length ? (
+        <Card className="mb-4">
+          <p className="text-sm font-medium">{t("Frozen plans")}</p>
+          <p className="mt-1 text-sm text-muted">
+            {t("{plans}. Ask the desk to unfreeze.", {
+              plans: frozen
+                .map((s) => t("{plan} · new end date {date}", { plan: tData(s.plan_name), date: formatDate(s.end_on) }))
+                .join(" · "),
+            })}
+          </p>
+        </Card>
+      ) : null}
+
+      {expiring.length ? (
+        <Card className="mb-4 border border-hold/30 bg-hold/5">
+          <p className="text-sm font-medium text-fg">{t("Plans expiring soon")}</p>
+          <p className="mt-1 text-sm text-muted">
+            {t("{plans}. Renew to keep your class seats.", {
+              plans: expiring
+                .map((s) =>
+                  t("{plan}: {n} days left (until {date})", {
+                    plan: tData(s.plan_name),
+                    n: daysUntil(s.end_on),
+                    date: formatDate(s.end_on),
+                  }),
+                )
+                .join(" · "),
+            })}
+          </p>
+          <ButtonLink to="/app/plans" size="sm" className="mt-3">
+            {t("Renew")}
+          </ButtonLink>
+        </Card>
+      ) : null}
 
       {error ? (
         <LoadError message={error.message} onRetry={error.refused ? undefined : reload} />
@@ -267,11 +321,12 @@ function Page() {
 
           <div className="hidden lg:col-span-2 lg:block">
             <SectionTitle text={t("Quick actions")} className="font-display text-lg tracking-tight" />
-            <Stagger className="mt-3 grid grid-cols-4 gap-3" gap={0.06}>
+            <Stagger className="mt-3 grid grid-cols-5 gap-3" gap={0.06}>
               {(
                 [
                   { to: "/app/book" as const, label: t("Book a court"), Icon: Map },
                   { to: "/app/classes" as const, label: t("Classes"), Icon: Ticket },
+                  { to: "/app/plans" as const, label: t("Plans"), Icon: Wallet },
                   { to: "/app/points" as const, label: t("Points"), Icon: Star },
                   { to: "/app/assistant" as const, label: t("Ask AI"), Icon: AssistantMark },
                 ] as const
@@ -488,4 +543,10 @@ function FreeTodayTile({ venue, now }: { venue: Venue; now: number }) {
       )}
     </div>
   );
+}
+
+function daysUntil(iso: string) {
+  const a = Date.parse(`${todayISO()}T00:00:00+07:00`);
+  const b = Date.parse(`${iso.slice(0, 10)}T00:00:00+07:00`);
+  return Math.round((b - a) / 86400000);
 }

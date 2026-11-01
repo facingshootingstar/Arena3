@@ -71,6 +71,82 @@ export async function flagsPatch(sql: Sql, request: Request, user: PublicUser) {
   return flagsGet(sql);
 }
 
+export async function subscriptionFreeze(sql: Sql, id: string, request: Request, user: PublicUser) {
+  requireRole(user, ["manager", "receptionist"]);
+  const b = await readJson(request);
+  const raw = b.days;
+  let days: number;
+  if (raw === undefined || raw === null || raw === "") {
+    days = 7;
+  } else {
+    days = parseInteger("days", "Freeze length", raw, -Infinity, Infinity);
+    if (days < 1 || days > 90) throw err.validation("Freeze length must be 1–90 days.");
+  }
+  const settings = await getSettings(sql);
+  const sub = await one<{
+    id: string;
+    status: string;
+    frozen_days: number;
+    end_on: string;
+    user_id: string;
+  }>(sql, `select id, status, frozen_days, end_on::text, user_id from subscriptions where id = $1 for update`, [id]);
+  if (!sub) throw err.notFound();
+  if (sub.status !== "active") throw err.br("BR-14", "Only an active plan can be frozen.");
+  if (sub.frozen_days + days > settings.freeze_max_days_year) {
+    throw err.br("BR-15", `Over the limit of ${settings.freeze_max_days_year} freeze days a year.`);
+  }
+  const end = addDays(sub.end_on, days);
+  await sql.query(
+    `update subscriptions set status = 'frozen', frozen_days = frozen_days + $2, end_on = $3 where id = $1`,
+    [id, days, end],
+  );
+  await audit(sql, user.id, "freeze_sub", "subscription", id, sub, { days, end });
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
+}
+
+export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUser) {
+  requireRole(user, ["manager", "receptionist"]);
+  const sub = await one<{ id: string; status: string; end_on: string; frozen_days: number }>(
+    sql,
+    `select id, status, end_on::text, frozen_days from subscriptions where id = $1 for update`,
+    [id],
+  );
+  if (!sub) throw err.notFound();
+  if (sub.status !== "frozen") throw err.conflictState("That plan is not frozen.");
+
+  const lastFreeze = await one<{ at: string; before: any; after: any }>(
+    sql,
+    `select at::text, before, after from audit_logs
+      where action = 'freeze_sub' and entity = 'subscription' and entity_id = $1
+      order by at desc limit 1`,
+    [id],
+  );
+
+  let newEndOn = sub.end_on;
+  // Freeze charges the whole requested length up front. Days not used come back
+  // onto the yearly allowance; a freeze with no audit row is left as stored.
+  let frozenDays = sub.frozen_days;
+  if (lastFreeze && lastFreeze.before?.end_on && lastFreeze.after?.days) {
+    const freezeDate = String(lastFreeze.at).slice(0, 10);
+    const today = ictDateString();
+    const dFreeze = new Date(freezeDate);
+    const dToday = new Date(today);
+    const maxDays = Number(lastFreeze.after.days) || 0;
+    const actualDays = Math.min(maxDays, Math.max(0, Math.round((dToday.getTime() - dFreeze.getTime()) / (86400 * 1000))));
+    const unused = Math.max(0, maxDays - actualDays);
+    frozenDays = Math.max(0, sub.frozen_days - unused);
+    const originalEndOn = String(lastFreeze.before.end_on).slice(0, 10);
+    newEndOn = addDays(originalEndOn, actualDays);
+  }
+
+  await sql.query(
+    `update subscriptions set status = 'active', end_on = $2, frozen_days = $3 where id = $1`,
+    [id, newEndOn, frozenDays],
+  );
+  await audit(sql, user.id, "unfreeze_sub", "subscription", id, sub, { end_on: newEndOn, frozen_days: frozenDays });
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
+}
+
 export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser) {
   requireRole(user, ["member"]);
   const offer = await one<{

@@ -18,18 +18,20 @@ import {
   Modal,
   MoneyInput,
   Seg,
+  Select,
   Skeleton,
   StatusBadge,
   Pagination,
 } from "@/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GLBackground, SpotlightCard } from "@/components/fx";
+import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
 import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
-import { apiGet, apiPost } from "@/lib/arena3/client";
+import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
+import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
 import { sportLabel, todayISO } from "@/lib/arena3/labels";
 import { ageYears } from "@/lib/arena3/time";
 import { UserAvatar } from "@/components/user-avatar";
-import { t, tServer } from "@/lib/i18n";
+import { t, tData, tServer } from "@/lib/i18n";
 import { lastPageOffset } from "@/lib/paging";
 import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
@@ -47,6 +49,15 @@ type Hit = {
   status: string;
   date_of_birth?: string | null;
   avatar_url?: string | null;
+};
+
+type Plan = {
+  id: string;
+  name: string;
+  sport_scope: string;
+  price_vnd: number;
+  duration_days: number | null;
+  court_hours: number;
 };
 
 type Ticket = {
@@ -123,16 +134,22 @@ function Page() {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reply, setReply] = useState("");
   const [replying, setReplying] = useState(false);
+  const plansRead = useRead<{ items: Plan[] }>("/plans");
+  const plans = plansRead.data?.items ?? [];
   // Just the count — the queue itself lives one screen over, but a receptionist
   // has to be able to see from here that somebody is owed attention. A hint only: if it cannot
   // be read, the queue itself says why.
   const waiting = useRead<{ waiting: number }>("/payments/pending?brief=1").data?.waiting ?? 0;
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [newUser, setNewUser] = useState<{
     id: string;
     full_name: string;
     member_code?: string | null;
     temp_password?: string;
   } | null>(null);
+  const [picked, setPicked] = useState<Plan | null>(null);
+  const [subId, setSubId] = useState<string | null>(null);
+  const [method, setMethod] = useState("cash");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -166,8 +183,12 @@ function Page() {
   }, [q, searchTry]);
 
   function resetWizard() {
+    setStep(1);
     setNewUser(null);
+    setPicked(null);
     setForm({ full_name: "", phone: "" });
+    setMethod("cash");
+    setSubId(null);
   }
 
   return (
@@ -175,7 +196,7 @@ function Page() {
       <PageHero
         slot="banner.gate"
         title={t("Front desk")}
-        subtitle={t("Find a member or open a new profile.")}
+        subtitle={t("Find a member, sell a plan, take payment.")}
         stats={[
           { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
           { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
@@ -304,31 +325,32 @@ function Page() {
       </div>
 
       <SectionTitle text={t("New member")} className="mt-8 font-display text-2xl" />
+      <p className="mt-1 text-sm text-muted">{t("Three steps: profile → plan → payment.")}</p>
+      <ol className="mt-3 flex gap-2 text-2xs font-medium">
+        {[
+          [1, t("Profile")],
+          [2, t("Plan")],
+          [3, t("Payment")],
+        ].map(([n, l]) => (
+          <li key={n} className="relative rounded-full px-3 py-1">
+            {step === n ? (
+              <motion.span
+                layoutId="desk-wizard-step"
+                className="absolute inset-0 rounded-full bg-accent"
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+            ) : (
+              <span className="absolute inset-0 rounded-full bg-wood" />
+            )}
+            <span className={`relative ${step === n ? "text-accent-fg" : "text-muted"}`}>
+              {n}. {l}
+            </span>
+          </li>
+        ))}
+      </ol>
       <SpotlightCard className="mt-3 rounded-[var(--radius-xl)]" size={420} strength={0.09}>
       <Card className="relative z-[2]">
-        {newUser ? (
-          <div className="grid gap-3">
-            <p className="text-sm">
-              {newUser.full_name}
-              {newUser.member_code ? ` · ${newUser.member_code}` : ""}
-            </p>
-            {newUser.temp_password ? (
-              <Card className="border border-hold/30 bg-hold/5 p-4">
-                <p className="text-2xs text-muted">{t("Temporary password: hand this to the member so they can sign in")}</p>
-                <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{newUser.temp_password}</p>
-                <p className="mt-1 text-xs text-muted">{t("They change it after the first sign-in.")}</p>
-              </Card>
-            ) : null}
-            <div className="flex gap-2">
-              <Button onClick={() => navigate({ to: "/desk/member/$id", params: { id: newUser.id } })}>
-                {t("Open profile")}
-              </Button>
-              <Button variant="ghost" onClick={resetWizard}>
-                {t("New member")}
-              </Button>
-            </div>
-          </div>
-        ) : (
+        {step === 1 ? (
           <div className="grid gap-3 md:grid-cols-3">
             <Field label={t("Full name")}>
               <Input
@@ -358,9 +380,10 @@ function Page() {
                       temp_password?: string;
                     }>("/members", { ...form, pii_consent: true });
                     setNewUser({ ...res.user, temp_password: res.temp_password });
+                    setStep(2);
                     toast.success(
                       res.existing
-                        ? t("This person already has a profile.")
+                        ? t("This person already has a profile. Pick a plan or stop here.")
                         : res.user.member_code
                           ? t("Created {code}. Temporary password: {password}", {
                               code: res.user.member_code,
@@ -379,7 +402,141 @@ function Page() {
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
+        {step === 2 && newUser ? (
+          <div>
+            <p className="mb-3 text-sm">
+              {newUser.full_name}
+              {newUser.member_code ? ` · ${newUser.member_code}` : ""}
+            </p>
+            {newUser.temp_password ? (
+              <Card className="mb-4 border border-hold/30 bg-hold/5 p-4">
+                <p className="text-2xs text-muted">{t("Temporary password: hand this to the member so they can sign in")}</p>
+                <p className="mt-1 font-mono text-lg font-semibold tracking-wide">{newUser.temp_password}</p>
+                <p className="mt-1 text-xs text-muted">{t("They change it after the first sign-in.")}</p>
+              </Card>
+            ) : null}
+            {plansRead.error ? (
+              <LoadError
+                message={plansRead.error.message}
+                onRetry={plansRead.error.refused ? undefined : plansRead.reload}
+              />
+            ) : !plansRead.data ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+            ) : !plans.length ? (
+              <EmptyState title={t("No plans on sale right now")} />
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {plans.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPicked(p)}
+                    className={`rounded-[var(--radius-lg)] border px-4 py-3 text-left transition-[background-color,border-color,transform] duration-200 active:scale-[0.98] ${
+                      picked?.id === p.id ? "border-accent bg-accent/10" : "border-line hover:bg-wood"
+                    }`}
+                  >
+                    <p className="text-2xs text-muted">{sportLabel(p.sport_scope)}</p>
+                    <p className="font-medium">{tData(p.name)}</p>
+                    <p className="text-sm tabular-nums text-muted">
+                      {money(p.price_vnd)}
+                      {p.duration_days ? ` · ${t("{n} days", { n: p.duration_days })}` : ""} · {t("{n} court hours", { n: p.court_hours })}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                {t("Back")}
+              </Button>
+              <Button
+                disabled={!picked || busy}
+                onClick={async () => {
+                  if (!picked || !newUser) return;
+                  setBusy(true);
+                  try {
+                    const res = await apiPost<{ subscription: { id: string } }>("/subscriptions", {
+                      plan_id: picked.id,
+                      user_id: newUser.id,
+                    });
+                    setSubId(res.subscription.id);
+                    setStep(3);
+                  } catch (e) {
+                    toast.error(e instanceof Error ? tServer(e.message) : t("Could not start the plan"));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {t("Next: take payment")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {step === 3 && newUser && picked ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="md:col-span-3 text-sm">
+              {newUser.full_name} · {picked.name} · {money(picked.price_vnd)}
+            </div>
+            <Field label={t("Payment method")}>
+              <Select value={method} onChange={(e) => setMethod(e.target.value)}>
+                <option value="cash">{t("Cash")}</option>
+                <option value="transfer">{t("Bank transfer")}</option>
+                <option value="card">{t("Card")}</option>
+              </Select>
+            </Field>
+            <div className="flex items-end gap-2 md:col-span-2">
+              <StarBorder speed={4}>
+              <Button
+                disabled={busy || !shift}
+                onClick={async () => {
+                  if (!subId) return;
+                  setBusy(true);
+                  try {
+                    const res = await apiPost<PaymentCreateResponse>(
+                      "/payments",
+                      {
+                        ref_type: "subscription",
+                        ref_id: subId,
+                        method,
+                        amount_vnd: picked.price_vnd,
+                      },
+                      true,
+                    );
+                    toast.success(t("Paid, receipt opened"));
+                    // Clear the wizard before printing. The payment is already
+                    // posted; if the receipt fails to open, leaving step 3 on
+                    // screen would offer to take the same money again.
+                    const uid = newUser.id;
+                    resetWizard();
+                    navigate({ to: "/desk/member/$id", params: { id: uid } });
+                    if (res.invoice?.id) {
+                      try {
+                        await openInvoice(res.invoice.id);
+                      } catch {
+                        toast.warning(t("Paid, but the receipt did not open. Reprint it from the profile."));
+                      }
+                    }
+                  } catch (e) {
+                    toast.error(e instanceof Error ? tServer(e.message) : t("Payment did not go through"));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {shift === null ? t("Open a shift first") : t("Take payment & print")}
+              </Button>
+              </StarBorder>
+              <Button variant="ghost" onClick={() => setStep(2)}>
+                {t("Back")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Card>
       </SpotlightCard>
           <DeskArrivingTimeline />

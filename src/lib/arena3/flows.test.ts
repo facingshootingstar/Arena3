@@ -347,15 +347,17 @@ describe("MF-03 Desk records a payment (paymentsCreate)", () => {
     assert.ok((res.body as any).invoice?.id, "an invoice is issued");
   });
 
-  it("EF-03a: ref_type subscription is refused (422, field ref_type)", async () => {
+  it("EF-03a: ref_type subscription is accepted again; an unknown plan is refused, not the ref_type", async () => {
     const shift = await openShift();
-    await expectRejects(
+    await assert.rejects(
       () =>
         withTx((sql) =>
           paymentsCreate(sql, jsonReq({ ref_type: "subscription", ref_id: randomUUID(), method: "cash", amount_vnd: 100000, shift_id: shift }), RECEPTIONIST),
         ),
-      422,
-      (e) => assert.equal(e.extra.field, "ref_type"),
+      (e: any) => {
+        assert.notEqual(e.extra?.field, "ref_type");
+        return true;
+      },
     );
   });
 
@@ -475,20 +477,21 @@ describe("MF-05 Cancel a booking or enrolment", () => {
 });
 
 // =====================================================================
-// MF-06: Plan endpoints are gone
+// MF-06: Plan endpoints are back
 // =====================================================================
-describe("MF-06 Plan endpoints are gone (routes return 404)", () => {
+describe("MF-06 Plan endpoints answer again", () => {
   before(() => {
     // handleApi starts the job loop unless this flag is set; the loop would keep the process alive.
     (globalThis as any).__arena3Jobs__ = true;
   });
 
-  it("MF-06: GET /v1/plans is a 404", async () => {
+  it("MF-06: GET /v1/plans lists plans publicly (200)", async () => {
     const res = await handleApi(new Request("http://localhost/v1/plans", { method: "GET" }));
-    assert.equal(res.status, 404);
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(((await res.json()) as any).items));
   });
 
-  it("EF-06a: POST /v1/plans (creating a plan) is a 404", async () => {
+  it("EF-06a: POST /v1/plans without a session is refused (401), not missing", async () => {
     const res = await handleApi(
       new Request("http://localhost/v1/plans", {
         method: "POST",
@@ -496,17 +499,18 @@ describe("MF-06 Plan endpoints are gone (routes return 404)", () => {
         body: JSON.stringify({ name: "Goi thang", price_vnd: 500000 }),
       }),
     );
-    assert.equal(res.status, 404);
+    assert.equal(res.status, 401);
   });
 
-  it("EF-06b: GET /v1/subscriptions (member plan list) is a 404", async () => {
-    const res = await handleApi(new Request("http://localhost/v1/subscriptions", { method: "GET" }));
-    assert.equal(res.status, 404);
-  });
-
-  it("EF-06c: positive control, GET /v1/classes still answers (not 404)", async () => {
-    const res = await handleApi(new Request("http://localhost/v1/classes", { method: "GET" }));
-    assert.notEqual(res.status, 404);
+  it("EF-06b: POST /v1/subscriptions without a session is refused (401), not missing", async () => {
+    const res = await handleApi(
+      new Request("http://localhost/v1/subscriptions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plan_id: "00000000-0000-0000-0000-000000000000" }),
+      }),
+    );
+    assert.equal(res.status, 401);
   });
 });
 

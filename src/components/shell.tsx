@@ -122,6 +122,7 @@ const PAGE_INFO: Record<NavRole, Record<string, PageInfo>> = {
     "/app/book": { label: tk("Book"), icon: Map, group: G_PLAY },
     "/app/classes": { label: tk("Classes"), icon: Ticket, group: G_PLAY },
     "/app/train": { label: tk("Progress"), icon: Activity, group: G_ACCOUNT },
+    "/app/plans": { label: tk("Plans"), icon: Wallet, group: G_ACCOUNT },
     "/app/points": { label: tk("Points"), icon: Star, group: G_ACCOUNT },
     "/chat": { label: tk("Messages"), icon: MessageSquare, group: G_ACCOUNT },
     "/app/pass": { label: tk("Pass"), icon: QrCode, group: G_ACCOUNT },
@@ -157,6 +158,7 @@ const PAGE_INFO: Record<NavRole, Record<string, PageInfo>> = {
     "/manager/attendance": { label: tk("Attendance"), icon: ClipboardList, group: G_OVERVIEW },
     // Refund sign-off lives on the payments screen, which has always taken a manager (B-02).
     "/desk/payments": { label: tk("Payments"), icon: Wallet, group: G_BUSINESS },
+    "/manager/plans": { label: tk("Plans"), icon: Wallet, group: G_BUSINESS },
     "/manager/promos": { label: tk("Promos"), icon: Tag, group: G_BUSINESS },
     "/manager/prices": { label: tk("Pricing"), icon: Coins, group: G_BUSINESS },
     "/manager/commission": { label: tk("Commission"), icon: HandCoins, group: G_BUSINESS },

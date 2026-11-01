@@ -10,10 +10,10 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { StarBorder } from "@/components/fx";
 import { ApiClientError, apiPut } from "@/lib/arena3/client";
 import { DAY_KIND_LABEL, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 import { useRead } from "@/lib/use-read";
 import { SectionTitle } from "@/components/section";
-import { Banknote, ChevronDown, Percent } from "lucide-react";
+import { Banknote, ChevronDown, Percent, Ticket } from "lucide-react";
 
 export const Route = createFileRoute("/manager/prices")({
   component: Page,
@@ -30,14 +30,27 @@ type Rule = {
   court_id: string | null;
 };
 
+type Plan = {
+  id: string;
+  name: string;
+  sport_scope: string;
+  price_vnd: number;
+  is_on_sale: boolean;
+  duration_days: number | null;
+  court_hours: number;
+  court_discount_pct: number;
+};
+
 /**
  * Pricing, in the blocks a manager thinks in: what a court costs by sport and
- * hour, and the VAT that sits on top. VAT is read-only here, so a price can
- * only be changed in one place.
+ * hour, what a membership costs, and the VAT that sits on top. Plans and VAT
+ * are read-only here — they have their own screens — so a price can only be
+ * changed in one place.
  */
 function Page() {
   const { sports } = useSports();
   const rulesRead = useRead<{ items: Rule[] }>("/price-rules");
+  const plansRead = useRead<{ items: Plan[] }>("/plans");
   const vatRead = useRead<{ vat_rate?: string | number }>("/settings");
   // Court codes only name the rows that apply to one court; without them such a row still reads "One court only".
   const courtsRead = useRead<{ items: { id: string; court_code: string }[] }>("/courts");
@@ -45,6 +58,7 @@ function Page() {
     () => Object.fromEntries((courtsRead.data?.items ?? []).map((c) => [c.id, c.court_code])) as Record<string, string>,
     [courtsRead.data],
   );
+  const plans = plansRead.data?.items ?? null;
   const vat = vatRead.data?.vat_rate == null ? null : Number(vatRead.data.vat_rate);
 
   // The rates the manager edits start from what the server holds; a failed read leaves nothing to edit.
@@ -98,6 +112,8 @@ function Page() {
     }
   }
 
+  const onSale = (plans ?? []).filter((p) => p.is_on_sale);
+
   const totalRules = items?.length ?? 0;
   const peakRules = items?.filter((r) => r.is_peak).length ?? 0;
   const offPeakRules = totalRules - peakRules;
@@ -108,7 +124,7 @@ function Page() {
       <PageHero
         slot="banner.manager"
         title={t("Pricing")}
-        subtitle={t("A new price only applies to new transactions: bookings already made keep theirs.")}
+        subtitle={t("A new price only applies to new transactions: bookings and plans already sold keep theirs.")}
         className="mb-6"
       />
 
@@ -196,6 +212,46 @@ function Page() {
             {saving ? t("Saving…") : t("Save new prices")}
           </Button>
         </StarBorder>
+      </section>
+
+      <section aria-labelledby="plan-prices" className="mt-10">
+        <div className="mb-2 flex items-end justify-between gap-3">
+          <SectionTitle
+            id="plan-prices"
+            icon={Ticket}
+            text={tk("Membership plans")}
+            hint={t("What each plan on sale costs and what it includes.")}
+          />
+          <Link to="/manager/plans" className="hit text-sm underline">
+            {t("Edit plans")}
+          </Link>
+        </div>
+        {plansRead.error ? (
+          <LoadError message={plansRead.error.message} onRetry={plansRead.error.refused ? undefined : plansRead.reload} />
+        ) : !plans ? (
+          <Skeleton className="h-24" />
+        ) : !onSale.length ? (
+          <EmptyState title={t("No plan is on sale")} hint={t("Members cannot buy a plan until you put one on sale.")}>
+            <Link to="/manager/plans" className="hit text-sm underline">
+              {t("Go to plans")}
+            </Link>
+          </EmptyState>
+        ) : (
+          <div className="grid gap-2 md:grid-cols-2">
+            {onSale.map((p) => (
+              <Card key={p.id} className="flex items-center justify-between gap-3 p-3">
+                <span>
+                  <span className="block text-sm font-medium">{tData(p.name)}</span>
+                  <span className="block text-xs text-muted">
+                    {sportLabel(p.sport_scope)} · {p.duration_days ? t("{n} days", { n: p.duration_days }) : t("per session")} ·{" "}
+                    {t("{n} court hours", { n: p.court_hours })} · {t("{pct}% off courts", { pct: p.court_discount_pct })}
+                  </span>
+                </span>
+                <span className="text-sm tabular-nums">{money(p.price_vnd)}</span>
+              </Card>
+            ))}
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="vat" className="mt-10">

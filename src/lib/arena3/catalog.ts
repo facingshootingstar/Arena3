@@ -1,5 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 
+export type CatalogPlan = {
+  id: string;
+  name: string;
+  sport_scope: string;
+  duration_days: number | null;
+  session_quota: number | null;
+  court_hours: number;
+  court_discount_pct: number;
+  price_vnd: number;
+};
+
 export type CatalogClass = {
   id: string;
   sport: string;
@@ -92,7 +103,14 @@ export const getPublicAvailability = createServerFn({ method: "POST" })
 export const getPublicCatalog = createServerFn({ method: "POST" }).handler(async () => {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
-  const [classes, prices, venueRows, coaches] = await Promise.all([
+  const [plans, classes, prices, venueRows, coaches] = await Promise.all([
+    sql.query<CatalogPlan>(
+      `select id, name, sport_scope, duration_days, session_quota, court_hours,
+              court_discount_pct, price_vnd
+         from membership_plans
+        where is_on_sale = true
+        order by price_vnd`,
+    ),
     sql.query<CatalogClass>(
       `select id, sport, level, capacity, enrolled_count, rrule, duration_min, court_code, coach_name
          from (
@@ -126,5 +144,5 @@ export const getPublicCatalog = createServerFn({ method: "POST" }).handler(async
     ),
   ]);
   // Opening hours and hold length for the landing's copy and grid (see src/lib/venue.ts).
-  return { classes, prices, venue: venueRows[0] ?? null, coaches };
+  return { plans, classes, prices, venue: venueRows[0] ?? null, coaches };
 });

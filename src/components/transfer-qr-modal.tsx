@@ -126,7 +126,7 @@ type TransferQrModalProps = {
   code: string;
   title?: string;
   buyerName?: string;
-  refType?: "booking";
+  refType?: "booking" | "subscription";
   refId?: string;
   onConfirmManual: () => Promise<void>;
   onPaid?: () => void;

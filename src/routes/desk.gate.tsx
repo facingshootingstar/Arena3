@@ -10,7 +10,7 @@ import { StatStrip } from "@/components/stat-strip";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/components/ui";
 import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
 import { sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
+import { t, tk, tServer, tData } from "@/lib/i18n";
 import { usePageState } from "@/lib/use-page-state";
 import { readError, useRead } from "@/lib/use-read";
 import { HighlightBadge, useLive } from "@/lib/use-live";
@@ -24,6 +24,7 @@ type Result = {
   flagged?: boolean;
   checked_in_at: string | null;
   duplicate: boolean;
+  plans: Array<{ id: string; name: string; end_on: string; session_left: number | null; status: string }>;
   warnings: Array<{ kind: string; message: string }>;
   today: {
     bookings: Array<{ id: string; code: string; start_at: string; court_code: string }>;
@@ -52,7 +53,7 @@ const MANUAL_REASONS = [
   { value: "other", label: tk("Other") },
 ];
 
-/** Why someone with no booking or class may still come in. */
+/** Why someone with no plan or booking may still come in. */
 const OVERRIDE_REASONS = [
   { value: "renewing", label: tk("Paying at the desk right now") },
   { value: "guest_pass", label: tk("Guest pass") },
@@ -222,7 +223,7 @@ function Page() {
               </form>
             )}
             <p className="text-xs text-muted">
-              {t("This only records that they walked in. It never changes a booking or a class.")}
+              {t("This only records that they walked in. It never uses up a session or changes a plan.")}
             </p>
           </Card>
 
@@ -285,6 +286,16 @@ function Page() {
                   {tServer(w.message)}
                 </p>
               ))}
+              {result.plans.map((p) => (
+                <p key={p.id} className="text-sm">
+                  {tData(p.name)}
+                  <span className="text-muted">
+                    {" "}
+                    · {t("until {date}", { date: p.end_on })}
+                    {p.session_left != null ? ` · ${t("{n} sessions left", { n: p.session_left })}` : ""}
+                  </span>
+                </p>
+              ))}
               {result.today.sessions.length || result.today.bookings.length ? (
                 <div className="text-base font-semibold">
                   <p
@@ -313,7 +324,7 @@ function Page() {
               {result.needs_override && pending ? (
                 <div className="grid gap-3 rounded-[var(--radius-md)] border border-line p-3">
                   <p className="text-sm">
-                    {t("There is no booking or class for them today. Let them in anyway only with a reason: it is recorded and the manager sees it.")}
+                    {t("There is no live plan, booking or class for them today. Let them in anyway only with a reason: it is recorded and the manager sees it.")}
                   </p>
                   <Field label={t("Reason")}>
                     <Select value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}>
