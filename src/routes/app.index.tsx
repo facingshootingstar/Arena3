@@ -256,6 +256,7 @@ function Page() {
                 <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-accent-fg/15 pt-4">
                   {next.status === "confirmed" && new Date(next.end) > new Date() ? (
                     <AddToCalendar
+                      onLime
                       event={{ title: `${t(next.kind)} · ${next.title}`, start: next.start, end: next.end, details: next.meta, location: "Lê Long Sport" }}
                     />
                   ) : null}

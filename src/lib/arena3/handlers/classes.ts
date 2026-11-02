@@ -82,11 +82,13 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   const rrule = str(b.rrule);
   const start_on = str(b.start_on);
   const end_on = str(b.end_on);
-  const capacity = num(b.capacity) ?? 12;
-  if (capacity > MAX_CLASS_CAPACITY) {
+  // Left out, the class gets the usual 12; sent but not a number (say "abc"), it is refused rather
+  // than quietly turned into 12.
+  const capacity = b.capacity === undefined || b.capacity === null || b.capacity === "" ? 12 : num(b.capacity);
+  if (capacity !== undefined && capacity > MAX_CLASS_CAPACITY) {
     throw err.field("capacity", `Capacity cannot exceed ${MAX_CLASS_CAPACITY}.`);
   }
-  if (!Number.isInteger(capacity) || capacity < 1) {
+  if (capacity === undefined || !Number.isInteger(capacity) || capacity < 1) {
     throw err.field("capacity", `Capacity must be a whole number from 1 to ${MAX_CLASS_CAPACITY}.`);
   }
   const duration_min = classMinutes(num(b.duration_min));

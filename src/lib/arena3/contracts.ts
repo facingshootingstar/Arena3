@@ -133,10 +133,24 @@ export type MyBooking = Pick<
   can_move: boolean;
 };
 
+/** A coming session of a class the member is enrolled in (confirmed seat), for their schedule. */
+export type MyClassSession = {
+  id: string;
+  class_id: string;
+  start_at: Iso;
+  end_at: Iso;
+  sport: string;
+  level: string;
+  court_code: string;
+  coach_name: string;
+};
+
 export type MeBookingsResponse = {
   window_hours: number;
   cancel_tiers: CancelTier[];
   items: MyBooking[];
+  /** Upcoming class sessions, soonest first. */
+  class_sessions: MyClassSession[];
 };
 
 /** `POST /bookings`: the slot is held and the clock is running. */

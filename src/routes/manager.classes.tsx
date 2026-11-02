@@ -22,6 +22,9 @@ export const Route = createFileRoute("/manager/classes")({
   component: Page,
 });
 
+/** Matches MAX_CLASS_CAPACITY in the classes handler, which refuses anything above it. */
+const MAX_CAPACITY = 200;
+
 const DAYS = [
   { k: "MO", l: tk("Mon") },
   { k: "TU", l: tk("Tue") },
@@ -88,7 +91,7 @@ function Page() {
     level: "beginner",
     coach_id: "",
     court_id: "",
-    capacity: 12,
+    capacity: "12",
     min: "",
     price: "",
     duration_min: 60,
@@ -127,6 +130,23 @@ function Page() {
       : !sportCourts.length
         ? t("There is no court for this sport.")
         : null;
+
+  // The same limits the server holds the class to, said beside the box before the click rather
+  // than after it. Typed as text so a half-typed or emptied box is shown as wrong, not as 0.
+  const whole = (v: string) => (/^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN);
+  const capacityN = whole(form.capacity);
+  const capacityError =
+    Number.isInteger(capacityN) && capacityN >= 1 && capacityN <= MAX_CAPACITY
+      ? null
+      : t("Capacity must be a whole number from 1 to {max}.", { max: MAX_CAPACITY });
+  const minN = whole(form.min);
+  const minError =
+    form.min.trim() === "" || (Number.isInteger(minN) && minN >= 1 && (capacityError || minN <= capacityN))
+      ? null
+      : t("The minimum must be a whole number from 1 up to the capacity.");
+  const priceError =
+    form.price.trim() === "" || Number.isInteger(whole(form.price)) ? null : t("Price must be a whole number of dong, or empty.");
+  const invalid = !!(capacityError || minError || priceError);
 
   function toggleDay(k: string) {
     setDays((prev) => (prev.includes(k) ? prev.filter((d) => d !== k) : [...prev, k]));
@@ -245,29 +265,45 @@ function Page() {
         <Field label={t("First day")}>
           <DateField value={form.start_on} onChange={(v) => setForm({ ...form, start_on: v })} aria-label={t("Start date")} />
         </Field>
-        <Field label={t("Capacity")}>
-          <Input
-            type="number"
-            value={form.capacity}
-            onChange={(e) => setForm({ ...form, capacity: Number(e.target.value) })}
-          />
-        </Field>
-        <Field label={t("Minimum to run")} hint={t("Leave empty for no minimum. Below it the class is only flagged.")} tone="muted">
+        <Field label={t("Capacity")} hint={capacityError ?? undefined}>
           <Input
             type="number"
             min={1}
-            max={form.capacity}
+            max={MAX_CAPACITY}
+            step={1}
             inputMode="numeric"
+            aria-invalid={capacityError ? true : undefined}
+            value={form.capacity}
+            onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+          />
+        </Field>
+        <Field
+          label={t("Minimum to run")}
+          hint={minError ?? t("Leave empty for no minimum. Below it the class is only flagged.")}
+          tone={minError ? "danger" : "muted"}
+        >
+          <Input
+            type="number"
+            min={1}
+            max={capacityError ? MAX_CAPACITY : capacityN}
+            step={1}
+            inputMode="numeric"
+            aria-invalid={minError ? true : undefined}
             value={form.min}
             onChange={(e) => setForm({ ...form, min: e.target.value })}
           />
         </Field>
-        <Field label={t("Price (VND)")} hint={t("Leave empty until the class is ready to sell.")} tone="muted">
+        <Field
+          label={t("Price (VND)")}
+          hint={priceError ?? t("Leave empty until the class is ready to sell.")}
+          tone={priceError ? "danger" : "muted"}
+        >
           <Input
             type="number"
             min={0}
             step={1000}
             inputMode="numeric"
+            aria-invalid={priceError ? true : undefined}
             value={form.price}
             onChange={(e) => setForm({ ...form, price: e.target.value })}
           />
@@ -285,16 +321,17 @@ function Page() {
           ) : null}
           <Button
             className="w-full"
-            disabled={creating || !!missing || !form.coach_id || !form.court_id}
+            disabled={creating || invalid || !!missing || !form.coach_id || !form.court_id}
             onClick={async () => {
               // One click used to land many identical classes: the button stayed
               // live for the whole create-and-publish round trip.
-              if (creating) return;
+              if (creating || invalid) return;
               setCreating(true);
               try {
                 const { price, min, ...rest } = form;
                 const row = await apiPost<{ id: string }>("/classes", {
                   ...rest,
+                  capacity: capacityN,
                   min_enrolled: min.trim() === "" ? null : Number(min),
                   price_vnd: price.trim() === "" ? null : Number(price),
                   rrule: composeWeeklyRrule(days, hour),

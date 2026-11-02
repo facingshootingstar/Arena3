@@ -15,8 +15,8 @@ import { Shell, money, when } from "@/components/shell";
 import { Button, Card, ContextLayout, DateField, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/components/ui";
 import { StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
-import type { ConfirmResponse, HoldResponse, MeBookingsResponse, MyBooking } from "@/lib/arena3/contracts";
-import { addDaysISO, todayISO, sportLabel } from "@/lib/arena3/labels";
+import type { ConfirmResponse, HoldResponse, MeBookingsResponse, MyBooking, MyClassSession } from "@/lib/arena3/contracts";
+import { addDaysISO, levelLabel, todayISO, sportLabel } from "@/lib/arena3/labels";
 import { locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import { useRead } from "@/lib/use-read";
@@ -94,6 +94,8 @@ function Page() {
   const [refresh, setRefresh] = useState(0);
   const avail = useAvailability(sport, refresh);
   const [mine, setMine] = useState<MyBooking[] | null>(null);
+  const [myClasses, setMyClasses] = useState<MyClassSession[]>([]);
+  const [showAllClasses, setShowAllClasses] = useState(false);
   const [windowHours, setWindowHours] = useState(2);
   const [showAllMine, setShowAllMine] = useState(false);
   type MySub = {
@@ -112,6 +114,7 @@ function Page() {
     try {
       const r = await apiGet<MeBookingsResponse>("/me/bookings");
       setMine(r.items);
+      setMyClasses(r.class_sessions ?? []);
       setWindowHours(r.window_hours);
     } catch {
       // Keep the list that is already on screen
@@ -378,6 +381,60 @@ function Page() {
     </Card>
   ) : null;
 
+  // Sessions of the classes the member has a seat in: part of their schedule, booked through the class.
+  const myClassesCard = myClasses.length && !moving ? (
+    <Card className="p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold">{t("Your upcoming classes")}</h2>
+        <span className="text-xs tabular-nums text-muted">{myClasses.length}</span>
+      </div>
+      <ul className="divide-y divide-line">
+        {(showAllClasses ? myClasses : myClasses.slice(0, limits.member_bookings)).map((s) => (
+          <li key={s.id} className="py-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-sm">
+                <span className="font-semibold">
+                  {sportLabel(s.sport)} · {levelLabel(s.level)}
+                </span>
+                <span className="block text-muted">{when(s.start_at)}</span>
+                <span className="block text-xs text-muted">
+                  {s.court_code} · {s.coach_name}
+                </span>
+              </span>
+              <span className="shrink-0 rounded-[var(--radius-pill)] bg-accent/10 px-2 py-0.5 text-2xs font-semibold text-accent-2">
+                {t("Class")}
+              </span>
+            </div>
+            <AddToCalendar
+              className="mt-1"
+              event={{
+                title: `${t("Class")} · ${sportLabel(s.sport)} · ${levelLabel(s.level)}`,
+                start: s.start_at,
+                end: s.end_at,
+                details: `${s.court_code} · ${s.coach_name}`,
+                location: "Lê Long Sport",
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+      <div className="mt-1 flex flex-wrap items-center gap-x-4">
+        {myClasses.length > limits.member_bookings ? (
+          <button
+            type="button"
+            onClick={() => setShowAllClasses((v) => !v)}
+            className="hit text-sm font-medium text-accent-2 hover:underline"
+          >
+            {showAllClasses ? t("Show fewer") : t("Show all {n}", { n: myClasses.length })}
+          </button>
+        ) : null}
+        <Link to="/app/classes" className="hit text-sm font-medium text-accent-2 hover:underline">
+          {t("Manage classes")}
+        </Link>
+      </div>
+    </Card>
+  ) : null;
+
   const planQuotaCard = (
     <Card className="p-4">
       <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -516,6 +573,7 @@ function Page() {
         context={
           <>
             {myCourts}
+            {myClassesCard}
             {planQuotaCard}
             {bestFreeHoursCard}
           </>

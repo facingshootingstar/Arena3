@@ -11,6 +11,7 @@ import type {
   HoldResponse,
   MeBookingsResponse,
   MyBooking,
+  MyClassSession,
   Payment,
   Reply,
   RescheduleResponse,
@@ -275,12 +276,28 @@ export async function meBookings(sql: Sql, user: PublicUser): Promise<Reply<MeBo
       limit 50`,
     [user.id],
   );
+  // The classes the member is enrolled in run on courts too: their coming sessions sit beside the
+  // courts they booked, so the member sees one schedule rather than half of it.
+  const class_sessions = await sql.query<MyClassSession>(
+    `select s.id, s.class_id, s.start_at, s.end_at, cl.sport::text as sport, cl.level, c.court_code,
+            u.full_name as coach_name
+       from sessions s
+       join classes cl on cl.id = s.class_id
+       join enrollments e on e.class_id = cl.id and e.user_id = $1 and e.status = 'confirmed'
+       join courts c on c.id = s.court_id
+       join users u on u.id = cl.coach_id
+      where s.status = 'scheduled' and s.end_at > now()
+      order by s.start_at
+      limit 50`,
+    [user.id],
+  );
   const now = Date.now();
   return {
     status: 200,
     body: {
       window_hours: settings.cancel_court_hours,
       cancel_tiers: settings.cancel_tiers,
+      class_sessions,
       items: rows.map((r) => ({
         ...r,
         can_move:

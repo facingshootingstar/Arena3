@@ -345,6 +345,25 @@ select[aria-invalid="true"] {
   border-color: var(--color-danger);
 }
 
+/* The open list of a native select is drawn by the browser, not by the page. Some browsers (Chrome
+   on Windows among them) paint it white while the options inherit the page's pale text, so the list
+   reads as blank. Say the control is dark and give the options the surface and ink explicitly. */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: var(--color-surface);
+  color: var(--color-fg);
+}
+select option:checked {
+  background-color: var(--color-line-strong);
+  color: var(--color-fg);
+}
+select option:disabled {
+  color: var(--color-disabled-fg);
+}
+
 /* First focusable element on every page: hidden until a keyboard user reaches it. */
 .skip-link {
   position: fixed;
