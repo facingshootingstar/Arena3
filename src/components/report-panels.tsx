@@ -103,7 +103,31 @@ type Capacity = {
 };
 
 // A free hour is an empty outlined square, so the court × hour grid stays readable where nothing is booked.
-const FREE_CELL: React.CSSProperties = { background: "transparent", boxShadow: "inset 0 0 0 1px var(--color-line)", color: "var(--color-fg)" };
+const FREE_CELL: React.CSSProperties = { background: "transparent", boxShadow: "inset 0 0 0 1.5px var(--color-line-strong)", color: "var(--color-fg)" };
+
+// An hour that has already gone by without a booking: a flat grey fill with no outline, so it reads as
+// closed off rather than still free.
+const PASSED_CELL: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--color-muted) 9%, transparent)",
+  color: "var(--color-muted)",
+};
+
+/** The venue's date (YYYY-MM-DD) and hour right now, in Vietnam time whatever the viewer's clock says. */
+function venueNow(): { day: string; hour: number } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date())
+      .map((p) => [p.type, p.value]),
+  );
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+}
 
 function heat(pct: number, isSingleDay: boolean): React.CSSProperties {
   if (isSingleDay) {
@@ -146,6 +170,14 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
   const { data, error, reload } = useRead<Capacity>(`/reports/capacity?${q}`);
 
   const isSingleDay = from === to;
+  // Read after mount so the server render and the first client render agree; ticks once a minute.
+  const [now, setNow] = useState<{ day: string; hour: number } | null>(null);
+  useEffect(() => {
+    setNow(venueNow());
+    const id = window.setInterval(() => setNow(venueNow()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const passed = (hr: number) => isSingleDay && now != null && (from < now.day || (from === now.day && hr < now.hour));
   const courtsBySport = useMemo(() => {
     if (!data?.courts) return [];
     const map = new Map<string, typeof data.courts>();
@@ -295,11 +327,23 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                   </tr>
                   <tr>
                     <th className="sticky left-0 w-24 bg-surface px-2 py-1 text-left font-medium">{t("Court")}</th>
-                    {data.hours.map((h) => (
-                      <th key={h} className="px-1 py-1 font-medium">
-                        {String(h).padStart(2, "0")}h
-                      </th>
-                    ))}
+                    {data.hours.map((h) => {
+                      const current = isSingleDay && now != null && from === now.day && h === now.hour;
+                      return (
+                        <th
+                          key={h}
+                          className={cn(
+                            "px-1 py-1 font-medium",
+                            passed(h) && "opacity-45",
+                            current && "rounded-[4px] bg-accent font-semibold text-accent-fg",
+                          )}
+                          aria-current={current ? "time" : undefined}
+                          title={current ? t("Now") : undefined}
+                        >
+                          {String(h).padStart(2, "0")}h
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -325,8 +369,9 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                             const detail = c.cell_details?.[i];
                             const booked = detail?.days_booked ?? (p > 0 ? 1 : 0);
                             const total = detail?.days_total ?? 1;
+                            const gone = !(p > 0) && passed(data.hours[i]);
                             const title = isSingleDay
-                              ? `${c.court_code} · ${String(data.hours[i]).padStart(2, "0")}:00 · ${p > 0 ? t("Booked") : t("Free")}`
+                              ? `${c.court_code} · ${String(data.hours[i]).padStart(2, "0")}:00 · ${p > 0 ? t("Booked") : gone ? t("Passed, not booked") : t("Free")}`
                               : `${c.court_code} · ${String(data.hours[i]).padStart(2, "0")}:00 · ${t("booked {booked} of {total} days ({pct}%)", {
                                   booked,
                                   total,
@@ -336,7 +381,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                               <td
                                 key={i}
                                 className="h-7 min-w-[1.75rem] rounded-[4px] border border-transparent transition-colors hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary outline-none cursor-default"
-                                style={heat(p, isSingleDay)}
+                                style={gone ? PASSED_CELL : heat(p, isSingleDay)}
                                 tabIndex={0}
                                 role="gridcell"
                                 aria-label={title}
@@ -362,6 +407,10 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                 <span className="inline-flex items-center gap-1.5">
                   <span className="size-3.5 rounded-[2px]" style={{ background: "var(--color-heat-3)" }} />
                   {t("Booked")}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-3.5 rounded-[2px]" style={PASSED_CELL} />
+                  {t("Passed, not booked")}
                 </span>
               </div>
             ) : (

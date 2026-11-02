@@ -341,6 +341,8 @@ export const redesign: Record<string, string> = {
   "Booked or free, hour by hour.": "Đã đặt hoặc còn trống theo từng khung giờ.",
   "Each square is one court for one hour: green is booked, outlined is free.": "Mỗi ô là một sân trong một giờ: ô xanh là đã đặt, ô viền là còn trống.",
   "Courts booked": "Sân đã đặt",
+  "Passed, not booked": "Đã qua, không có người đặt",
+  "Now": "Bây giờ",
   "Each square shows how often that court was booked at that hour, {from} – {to}.": "Mỗi ô thể hiện tỉ lệ sân được đặt tại giờ đó, từ {from} đến {to}.",
   "When courts are busy table, scrolls sideways": "Bảng khung giờ bận của sân, cuộn ngang",
   "booked {booked} of {total} days ({pct}%)": "đã đặt {booked}/{total} ngày ({pct}%)",
