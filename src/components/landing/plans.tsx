@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Cover, sportPhoto } from "@/components/media";
 import { ButtonLink, Card } from "@/components/ui";
 import type { CatalogClass } from "@/lib/arena3/catalog";
@@ -12,8 +12,15 @@ import { rise } from "./tweens";
  * Classes with seats left. The enrol button sits next to the seat count that decides it, and each
  * seat meter fills to how full the class really is as it scrolls in.
  */
+const FIRST_SHOWN = 4;
+
 export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
   const root = useRef<HTMLElement>(null);
+  const [sport, setSport] = useState("");
+  const [all, setAll] = useState(false);
+  const sports = useMemo(() => [...new Set(classes.map((c) => c.sport))], [classes]);
+  const picked = sport ? classes.filter((c) => c.sport === sport) : classes;
+  const shown = all ? picked : picked.slice(0, FIRST_SHOWN);
   useScene(root, ({ motion }) => {
     const el = root.current;
     if (!motion || !el) return;
@@ -40,8 +47,29 @@ export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
         {t("Classes with a coach. They never overlap court hours you have booked. Seats go to whoever signs up first.")}
       </p>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        {classes.map((c) => {
+      {sports.length > 1 ? (
+        <div data-rise className="mt-6 flex flex-wrap gap-2" role="group" aria-label={t("Sport")}>
+          {["", ...sports].map((s) => (
+            <button
+              key={s || "all"}
+              type="button"
+              aria-pressed={sport === s}
+              onClick={() => {
+                setSport(s);
+                setAll(false);
+              }}
+              className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+                sport === s ? "border-accent bg-accent text-accent-fg" : "border-line text-muted hover:text-fg"
+              }`}
+            >
+              {s ? sportLabel(s) : t("All sports")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        {shown.map((c) => {
           const pct = c.capacity ? Math.min(100, (c.enrolled_count / c.capacity) * 100) : 0;
           const nearlyFull = pct >= 80;
           const full = c.enrolled_count >= c.capacity;
@@ -89,6 +117,18 @@ export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
         })}
         {!classes.length ? <p className="text-sm text-muted">{t("No classes published yet.")}</p> : null}
       </div>
+      {picked.length > FIRST_SHOWN ? (
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setAll((v) => !v)}
+            aria-expanded={all}
+            className="rounded-full border border-line px-4 py-2 text-sm text-fg transition-colors hover:border-accent"
+          >
+            {all ? t("Show fewer") : t("Show all {n} classes", { n: picked.length })}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
