@@ -222,7 +222,7 @@ export function Hero({
           <p data-enter data-free-big className="mt-8 flex items-baseline gap-3">
             <LiveCount
               value={freeHours}
-              className="font-display text-[clamp(3.5rem,9vw,7rem)] font-black leading-none text-accent [font-stretch:78%]"
+              className="hero-free-big font-display font-black leading-none text-accent [font-stretch:78%]"
             />
             <span className="kicker text-xs text-on-media-muted">{t("court hours free {day}", { day })}</span>
           </p>
