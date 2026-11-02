@@ -13,6 +13,7 @@ import { useSports } from "@/components/sports-ui";
 import { Award } from "lucide-react";
 import { certificationLine, type Certification } from "@/components/coach-certifications";
 import { useRead } from "@/lib/use-read";
+import { useLimits } from "@/lib/use-centre";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 
@@ -46,6 +47,7 @@ export function CoachesScene({
       if (match) {
         return {
           ...match,
+          sport: match.sport ?? dbc.sports[0] ?? "",
           userId: dbc.id,
           slot: `coach.${dbc.id}`,
         };
@@ -67,7 +69,13 @@ export function CoachesScene({
   const certRead = useRead<{ items: Certification[] }>("/coaches/certifications");
   const certsOf = (userId?: string) => (userId ? (certRead.data?.items ?? []).filter((x) => x.coach_id === userId) : []);
 
-  const coaches = allCoaches.filter((c) => !sport || c.sport === sport);
+  // Only sports still on offer, and only as many coaches as the manager chose to show.
+  const { sports } = useSports();
+  const limits = useLimits();
+  const offered = sports.length ? allCoaches.filter((c) => !c.sport || sports.some((s) => s.code === c.sport)) : allCoaches;
+  const featured = offered.slice(0, limits.landing_coaches);
+  const coaches = featured.filter((c) => !sport || c.sport === sport);
+  const filterSports = sports.filter((s) => featured.some((c) => c.sport === s.code));
 
   useScene(root, ({ motion }) => {
     if (motion && root.current) rise(root.current);
@@ -111,7 +119,6 @@ export function CoachesScene({
     };
   }, [sport]);
 
-  const { sports } = useSports();
   const lang = useLang();
 
   return (
@@ -132,7 +139,7 @@ export function CoachesScene({
           onChange={choose}
           options={[
             { value: "", label: t("All") },
-            ...sports.map((s) => ({ value: s.code, label: lang === "vi" ? s.name_vi : s.name_en })),
+            ...filterSports.map((s) => ({ value: s.code, label: lang === "vi" ? s.name_vi : s.name_en })),
           ]}
         />
       </div>

@@ -103,6 +103,7 @@ export const LIMITS = {
   desk_checkins: { label: "Recent gate check-ins on the desk", def: 6, min: 1, max: 50 },
   report_peak_hours: { label: "Peak hours named in the report", def: 3, min: 1, max: 10 },
   report_peak_pct: { label: "An hour counts as peak from (% of the busiest)", def: 85, min: 50, max: 100 },
+  landing_coaches: { label: "Coaches shown on the landing page", def: 4, min: 1, max: 24 },
 } as const;
 
 export type LimitKey = keyof typeof LIMITS;

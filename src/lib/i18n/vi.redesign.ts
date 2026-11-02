@@ -518,6 +518,7 @@ export const redesign: Record<string, string> = {
   "Recent gate check-ins on the desk": "Lượt vào cổng gần đây ở quầy",
   "Peak hours named in the report": "Số giờ cao điểm nêu trong báo cáo",
   "An hour counts as peak from (% of the busiest)": "Tính là giờ cao điểm từ (% so với giờ đông nhất)",
+  "Coaches shown on the landing page": "Số huấn luyện viên hiện trên trang chủ",
   "Enter a whole number from {min} to {max}.": "Nhập số nguyên từ {min} đến {max}.",
   "Keep at least one tab.": "Giữ lại ít nhất một tab.",
   "Each page can be a tab only once.": "Mỗi trang chỉ làm tab một lần.",
