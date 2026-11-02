@@ -102,14 +102,18 @@ type Capacity = {
   revenue_by_source: { court_vnd: number; class_vnd: number };
 };
 
+// A free hour is an empty outlined square, so the court × hour grid stays readable where nothing is booked.
+const FREE_CELL: React.CSSProperties = { background: "transparent", boxShadow: "inset 0 0 0 1px var(--color-line)", color: "var(--color-fg)" };
+
 function heat(pct: number, isSingleDay: boolean): React.CSSProperties {
   if (isSingleDay) {
     if (pct > 0) {
       // Booked is the ordinary state on a busy day, so it stays a step below full lime.
       return { background: "var(--color-heat-3)", color: "var(--color-accent-fg)" };
     }
-    return { background: "var(--color-heat-0)", color: "var(--color-fg)" };
+    return FREE_CELL;
   }
+  if (!(pct > 0)) return FREE_CELL;
   let bg = "var(--color-heat-0)";
   let fg = "var(--color-fg)";
   if (pct > 75) {
@@ -246,7 +250,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                 title={t("When courts are busy ({from} – {to})", { from, to })}
                 hint={
                   isSingleDay
-                    ? t("Booked or free, hour by hour.")
+                    ? t("Each square is one court for one hour: green is booked, outlined is free.")
                     : t("Each square shows how often that court was booked at that hour, {from} – {to}.", { from, to })
                 }
               />
@@ -262,21 +266,27 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
             <div className="overflow-x-auto px-2 pb-3 pt-2" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
               <table className="w-full min-w-[640px] table-fixed border-separate border-spacing-0.5 text-center text-xs">
                 <thead className="text-2xs text-muted">
-                  {/* All courts by hour, one bar per column so each bar sits over its hour; the busiest hours glow. */}
-                  <tr aria-hidden="true">
-                    <th className="sticky left-0 w-24 bg-surface" />
+                  {/* Share of all courts booked at each hour, one bar per column so each bar sits over its hour;
+                      the busiest hours glow. */}
+                  <tr>
+                    <th scope="row" className="sticky left-0 w-24 bg-surface px-2 pb-1 text-left align-bottom font-medium leading-tight">
+                      {t("Courts booked")}
+                    </th>
                     {data.by_hour.map((h) => {
                       const top = Math.max(1, ...data.by_hour.map((x) => x.pct));
                       const peak = h.pct > 0 && h.pct >= (top * limits.report_peak_pct) / 100;
                       return (
                         <th key={h.hour} className="px-0.5 font-normal" title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}>
-                          <div className="flex h-16 items-end">
+                          <div className="flex h-20 flex-col items-stretch justify-end gap-1">
+                            <span className={cn("tabular-nums", peak ? "font-semibold text-fg" : "text-muted")}>
+                              {Math.round(h.pct)}%
+                            </span>
                             <div
                               className={cn(
                                 "mx-auto w-full max-w-8 rounded-t-[3px]",
                                 peak ? "bg-accent shadow-[0_0_14px_rgb(212_245_60/0.4)]" : "bg-accent/35",
                               )}
-                              style={{ height: h.pct > 0 ? `${Math.max(6, Math.round((h.pct / top) * 100))}%` : "2px" }}
+                              style={{ height: h.pct > 0 ? `${Math.max(0.25, (h.pct / top) * 3)}rem` : "2px" }}
                             />
                           </div>
                         </th>
@@ -338,16 +348,6 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
                       ))}
                     </Fragment>
                   ))}
-                  <tr>
-                    <th scope="row" className="sticky left-0 bg-surface px-2 py-1 text-left font-semibold">
-                      {t("All courts")}
-                    </th>
-                    {data.by_hour.map((h) => (
-                      <td key={h.hour} className="px-1 py-1.5 font-semibold tabular-nums text-2xs">
-                        {Math.round(h.pct)}%
-                      </td>
-                    ))}
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -356,7 +356,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line/50 px-4 py-2.5 text-2xs text-muted">
                 <span className="font-medium">{t("Status:")}</span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3.5 rounded-[2px] border border-line" style={{ background: "var(--color-heat-0)" }} />
+                  <span className="size-3.5 rounded-[2px] border border-line" />
                   {t("Free")}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
@@ -368,7 +368,7 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line/50 px-4 py-2.5 text-2xs text-muted">
                 <span className="font-medium">{t("Occupancy:")}</span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px] border border-line" style={{ background: "var(--color-heat-0)" }} />
+                  <span className="size-3 rounded-[2px] border border-line" />
                   0%
                 </span>
                 <span className="inline-flex items-center gap-1.5">
