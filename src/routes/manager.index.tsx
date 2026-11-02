@@ -35,12 +35,6 @@ import {
   YAxis,
 } from "recharts";
 
-const CHART_METHOD_COLORS = [
-  "var(--color-chart-1)",
-  "var(--color-chart-2)",
-  "var(--color-chart-3)",
-  "var(--color-chart-4)",
-];
 import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
 import { Shell, money, when } from "@/components/shell";
 import { PageHero } from "@/components/page-hero";
@@ -128,6 +122,7 @@ const TOOLTIP = {
     fontSize: 12,
   },
   labelStyle: { color: "var(--color-muted)", fontSize: 12 },
+  itemStyle: { color: "var(--color-fg)", fontWeight: 600 },
 } as const;
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
@@ -562,8 +557,12 @@ function Page() {
                   />
                   <Tooltip {...TOOLTIP} cursor={{ fill: "var(--color-wood)", opacity: 0.5 }} />
                   <Bar dataKey="vnd" name={t("Revenue")} radius={[4, 4, 0, 0]} maxBarSize={44}>
-                    {chartData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_METHOD_COLORS[index % CHART_METHOD_COLORS.length]} />
+                    {chartData.map((d, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill="var(--color-accent)"
+                        fillOpacity={d.vnd === Math.max(...chartData.map((x) => x.vnd)) ? 1 : 0.45}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
