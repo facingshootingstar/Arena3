@@ -259,51 +259,32 @@ export function CapacityPanel({ from, to }: { from: string; to: string }) {
               )}
             </div>
 
-            {/* All courts by hour: court blue, with the busiest hours in lime so the peak reads at a glance. */}
-            <div className="px-4 pt-3 pb-1">
-              {(() => {
-                const top = Math.max(1, ...data.by_hour.map((h) => h.pct));
-                return (
-                  <div className="w-full max-w-2xl">
-                    <div className="flex h-20 w-full items-end gap-1">
-                      {data.by_hour.map((h) => {
-                        const peak = h.pct > 0 && h.pct >= (top * limits.report_peak_pct) / 100;
-                        return (
-                          <div
-                            key={h.hour}
-                            className="group relative flex h-full flex-1 flex-col items-center justify-end"
-                            title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}
-                          >
+            <div className="overflow-x-auto px-2 pb-3 pt-2" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
+              <table className="w-full min-w-[640px] table-fixed border-separate border-spacing-0.5 text-center text-xs">
+                <thead className="text-2xs text-muted">
+                  {/* All courts by hour, one bar per column so each bar sits over its hour; the busiest hours glow. */}
+                  <tr aria-hidden="true">
+                    <th className="sticky left-0 w-24 bg-surface" />
+                    {data.by_hour.map((h) => {
+                      const top = Math.max(1, ...data.by_hour.map((x) => x.pct));
+                      const peak = h.pct > 0 && h.pct >= (top * limits.report_peak_pct) / 100;
+                      return (
+                        <th key={h.hour} className="px-0.5 font-normal" title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}>
+                          <div className="flex h-16 items-end">
                             <div
                               className={cn(
-                                "w-full rounded-t-[3px] transition-opacity group-hover:opacity-100",
-                                peak
-                                  ? "bg-accent shadow-[0_0_18px_rgb(212_245_60/0.45)]"
-                                  : "bg-court opacity-70",
+                                "mx-auto w-full max-w-8 rounded-t-[3px]",
+                                peak ? "bg-accent shadow-[0_0_14px_rgb(212_245_60/0.4)]" : "bg-accent/35",
                               )}
-                              style={{ height: `${Math.max(4, Math.round((h.pct / top) * 100))}%` }}
+                              style={{ height: h.pct > 0 ? `${Math.max(6, Math.round((h.pct / top) * 100))}%` : "2px" }}
                             />
                           </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-1 flex gap-1 font-mono text-2xs text-muted">
-                      {data.by_hour.map((h, i) => (
-                        <span key={h.hour} className="flex-1 text-center">
-                          {i % 3 === 0 ? String(h.hour).padStart(2, "0") : ""}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="overflow-x-auto px-2 pb-3 pt-2" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
-              <table className="w-full min-w-[640px] border-separate border-spacing-0.5 text-center text-xs">
-                <thead className="text-2xs text-muted">
+                        </th>
+                      );
+                    })}
+                  </tr>
                   <tr>
-                    <th className="sticky left-0 bg-surface px-2 py-1 text-left font-medium">{t("Court")}</th>
+                    <th className="sticky left-0 w-24 bg-surface px-2 py-1 text-left font-medium">{t("Court")}</th>
                     {data.hours.map((h) => (
                       <th key={h} className="px-1 py-1 font-medium">
                         {String(h).padStart(2, "0")}h
