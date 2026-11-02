@@ -465,6 +465,16 @@ describe("MF-05 Cancel a booking or enrolment", () => {
     await expectRejects(() => withTx((sql) => bookingsCancel(sql, id, m)), 409);
   });
 
+  it("EF-05e: a paid booking that has already started cannot be cancelled, and no refund is written", async () => {
+    const m = await seedMember("EF05e Member");
+    const court = await seedCourt("EF05e");
+    const id = await seedConfirmedBooking({ userId: m.id, courtId: court, startAt: `${PAST()}T10:00:00+07:00`, paidVnd: 100000 });
+    await expectRejects(() => withTx((sql) => bookingsCancel(sql, id, m)), 409);
+    assert.equal((await bookingRow(id)).status, "confirmed");
+    const n = (await db.query<{ n: number }>("select count(*)::int as n from payments where ref_id = $1", [id])).rows[0].n;
+    assert.equal(n, 0);
+  });
+
   it("EF-05d: a member cannot release another member's enrolment (403)", async () => {
     const court = await seedCourt("EF05d");
     const cls = await insertClass({ capacity: 5, price: 300000, courtId: court });

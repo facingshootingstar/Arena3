@@ -341,7 +341,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   }>(sql, `select * from classes where id = $1`, [id]);
   if (!cl) throw err.notFound();
   if (cl.status !== "open") throw err.br("BR-18", "That class is not open yet.");
-  if (cl.price_vnd == null) throw err.br("BR-26", "This class is not open for sale yet.");
+  if (cl.price_vnd == null) throw err.br("BR-53", "This class is not open for sale yet.");
   const settings = await getSettings(sql);
   await assertNoClassClash(sql, userId, id);
   await sql.query("savepoint sp_enroll");
@@ -977,7 +977,7 @@ export async function sessionReschedule(sql: Sql, sessionId: string, request: Re
   return { status: 200, body: { ok: true, start_at: newStart.toISOString(), end_at: newEnd.toISOString() } };
 }
 
-/** Put another coach on a class from now on (FR-CLS-06, BR-25, BR-28). */
+/** Put another coach on a class from now on (FR-CLS-06, BR-25, BR-54). */
 export async function classesAssignCoach(sql: Sql, classId: string, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const b = await readJson(request);

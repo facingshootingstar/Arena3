@@ -250,7 +250,7 @@ export function BootGate({ children }: { children: ReactNode }) {
       return;
     }
     const show = window.setTimeout(() => setSlow(true), 400);
-    const cap = window.setTimeout(() => setReady(true), 12_000);
+    const cap = window.setTimeout(() => setReady(true), 1_800);
     return () => {
       window.clearTimeout(show);
       window.clearTimeout(cap);

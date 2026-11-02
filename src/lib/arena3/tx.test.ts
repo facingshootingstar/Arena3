@@ -3482,10 +3482,10 @@ describe("Sell classes: enrol", () => {
     assert.equal(c.enrolled_count, 1);
   });
 
-  it("SC-enrol-unpriced: a class with no price is not open for sale (BR-26)", async () => {
+  it("SC-enrol-unpriced: a class with no price is not open for sale (BR-53)", async () => {
     const classId = await seedClass({ price: null, capacity: 5 });
     const m = await seedMember(11);
-    await assert.rejects(() => enrol(classId, m), (e: any) => e.extra?.br === "BR-26");
+    await assert.rejects(() => enrol(classId, m), (e: any) => e.extra?.br === "BR-53");
   });
 
   it("SC-enrol-free: a free class confirms at once with no payment row", async () => {
@@ -3883,7 +3883,7 @@ describe("Sell classes: lifecycle", () => {
     assert.equal(await countOf(classId), 1);
   });
 
-  it("SC-waitlist-hold-unpriced: accepting an offer for a class that lost its price gives BR-26", async () => {
+  it("SC-waitlist-hold-unpriced: accepting an offer for a class that lost its price gives BR-53", async () => {
     const classId = await seedClass({ price: 300000, capacity: 1 });
     const a = await seedMember(62);
     const b = await seedMember(63);
@@ -3892,7 +3892,7 @@ describe("Sell classes: lifecycle", () => {
     await leave(idA, a);
     const offer = await pendingOffer(idB);
     await db.query("update classes set price_vnd = null where id = $1", [classId]);
-    await assert.rejects(() => withTx((sql) => waitlistAccept(sql, offer.id, b)), (e: any) => e.extra?.br === "BR-26");
+    await assert.rejects(() => withTx((sql) => waitlistAccept(sql, offer.id, b)), (e: any) => e.extra?.br === "BR-53");
     assert.equal(await statusOf(idB), "waitlisted");
   });
 

@@ -1,5 +1,8 @@
 /** Strings added by the UI redesign (navigation groups, booking grid, landing). */
 export const redesign: Record<string, string> = {
+  "court hours free {day}": "giờ sân còn trống {day}",
+  "From {price}/hr · held for {hold} minutes when you pick a slot.": "Từ {price}/giờ · giữ chỗ {hold} phút sau khi chọn khung giờ.",
+  "Held for {hold} minutes after you choose": "Giữ chỗ {hold} phút sau khi chọn",
   // shell.tsx: navigation group headings (drop-downs on a laptop, sheet headings on a phone)
   "Overview": "Tổng quan",
   "Courts & classes": "Sân & lớp học",
@@ -537,6 +540,7 @@ export const redesign: Record<string, string> = {
   "The shorter side needs 400 px or more, the longer side 4000 px or less.": "Cạnh ngắn cần từ 400 px trở lên, cạnh dài tối đa 4000 px.",
   "This file could not be read as a picture.": "Không đọc được tệp này dưới dạng ảnh.",
   "JPEG, PNG or WebP, up to 2 MB, 400 px or more on the shorter side. Saved as soon as you pick it.": "JPEG, PNG hoặc WebP, tối đa 2 MB, cạnh ngắn từ 400 px. Lưu ngay khi bạn chọn ảnh.",
+  "This booking has already started, so it cannot be cancelled.": "Lượt đặt đã bắt đầu nên không thể hủy.",
   "Your upcoming classes": "Lớp học sắp tới của bạn",
   "Manage classes": "Quản lý lớp học",
   "Capacity must be a whole number from 1 to {max}.": "Sức chứa phải là số nguyên từ 1 đến {max}.",

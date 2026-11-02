@@ -137,7 +137,8 @@ export function CoachesScene({
         />
       </div>
 
-      <div ref={grid} className="relative mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Five coaches sit in one row rather than leaving one card alone under four. */}
+      <div ref={grid} className={`relative mt-7 grid gap-4 sm:grid-cols-2 ${coaches.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {coaches.map((c) => (
           <div key={c.name} data-coach data-flip-id={c.name} data-rise className="h-full">
             <SpotlightCard className="h-full rounded-[var(--radius-xl)]">
@@ -149,7 +150,7 @@ export function CoachesScene({
                     initialsClassName="text-3xl font-bold"
                     alt={c.name}
                     scrim="none"
-                    className="aspect-[3/4]"
+                    className="aspect-[4/5]"
                     imgClassName="transition-transform duration-[900ms] ease-[var(--ease-smooth)] group-hover:scale-105"
                   >
                     <MediaCaption>

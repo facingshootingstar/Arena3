@@ -125,7 +125,7 @@ function Page() {
   const onlineOn = Boolean(flagsRead.data?.capabilities?.online_payment);
   const plansRead = useRead<{ items: Array<{ id: string; name: string; price_vnd: number }> }>("/plans");
   const settingsRead = useRead<{ settings?: { minor_age?: number } }>("/settings");
-  // Classes the desk can put this member into: open and priced (BR-18, BR-26).
+  // Classes the desk can put this member into: open and priced (BR-18, BR-53).
   const classesRead = useRead<{ items: Array<{ id: string; sport: string; level: string; rrule: string; status: string; price_vnd: number | null; capacity: number; enrolled_count: number }> }>("/classes");
   const [enrolClassId, setEnrolClassId] = useState("");
   const minorAge = settingsRead.data?.settings?.minor_age ?? 18;

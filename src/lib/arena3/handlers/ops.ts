@@ -177,7 +177,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   if (enr.status !== "waitlisted") throw err.conflictState("You are no longer on the waitlist for this class.");
   await assertNoClassClash(sql, user.id, enr.class_id);
   if (cl.enrolled_count >= cl.capacity) throw err.br("BR-21", "The class just filled up.");
-  if (cl.price_vnd == null) throw err.br("BR-26", "This class is not open for sale yet.");
+  if (cl.price_vnd == null) throw err.br("BR-53", "This class is not open for sale yet.");
   const settings = await getSettings(sql);
   // The seat is held, not confirmed: payment confirms it, and the price is locked now.
   // A free class has nothing to pay, so the seat is confirmed at once (as classesEnroll does).

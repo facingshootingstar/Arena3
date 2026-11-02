@@ -93,6 +93,7 @@ function Page() {
     <Shell role="coach">
       <PageHero
         slot="banner.coach"
+        display
         title={t("Schedule")}
         subtitle={t("Every session you teach, by day. Tap one to take its register.")}
         stats={[
@@ -184,6 +185,21 @@ function Page() {
                         }}
                       />
                     </div>
+                    {/* Fill against capacity; the tick marks the minimum that makes the class run. */}
+                    <div aria-hidden className="relative h-2 overflow-hidden rounded-full bg-line/60">
+                      <div
+                        className={`h-full rounded-full transition-[width] duration-700 ${
+                          next.enrolled_count >= (next.min_enrolled ?? 0) ? "bg-accent" : "bg-clay"
+                        }`}
+                        style={{ width: `${Math.min(100, (next.enrolled_count / Math.max(1, next.capacity)) * 100)}%` }}
+                      />
+                      {(next.min_enrolled ?? 0) > 0 ? (
+                        <span
+                          className="absolute inset-y-0 w-0.5 bg-fg/70"
+                          style={{ left: `${Math.min(100, ((next.min_enrolled ?? 0) / Math.max(1, next.capacity)) * 100)}%` }}
+                        />
+                      ) : null}
+                    </div>
                     <NextSessionStudents sessionId={next.id} />
                     <Button
                       size="lg"
@@ -198,6 +214,8 @@ function Page() {
               </section>
             ) : null}
 
+            <CoachWeeklyStrip items={items} />
+
             {rest.length ? (
               <section aria-label={t("Coming up")} className="grid gap-6">
                 <p className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-muted">
@@ -205,10 +223,13 @@ function Page() {
                 </p>
                 {[...days.entries()].map(([k, list]) => (
                   <div key={k}>
-                    <h2 className="mb-2 font-display text-lg font-bold tracking-tight">
+                    <h2 className="mb-2 flex items-baseline justify-between gap-3 font-display text-lg font-bold tracking-tight">
                       {dayName(list[0]!.start_at)}
+                      <span className="font-mono text-2xs font-semibold uppercase tracking-wider text-muted">
+                        {list.length}
+                      </span>
                     </h2>
-                    <ol className="relative grid gap-2 border-l border-line pl-5">
+                    <ol className="grid gap-2">
                       {list.map((s) => (
                         <TimelineRow key={s.id} s={s} onOpen={() => take(s.id)} />
                       ))}
@@ -220,7 +241,6 @@ function Page() {
           </div>
 
           <aside className="grid gap-6 lg:sticky lg:top-24">
-            <CoachWeeklyStrip items={items} />
             <BelowMinimum list={short} onOpen={take} />
           </aside>
         </div>
@@ -232,19 +252,19 @@ function Page() {
 function TimelineRow({ s, onOpen }: { s: CoachSession; onOpen: () => void }) {
   const need = shortBy(s);
   return (
-    <li className="relative">
-      <span
-        aria-hidden
-        className={cn(
-          "absolute -left-[25px] top-5 size-2.5 rounded-full ring-4 ring-bg",
-          need ? "bg-clay" : "bg-line",
-        )}
-      />
+    <li>
       <button
         type="button"
         onClick={onOpen}
-        className="flex min-h-16 w-full items-center gap-4 rounded-[var(--radius-lg)] border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-accent/40 hover:bg-wood/60"
+        className={cn(
+          "group flex min-h-16 w-full items-center gap-4 rounded-[var(--radius-lg)] border bg-surface py-3 pl-4 pr-3 text-left transition-colors hover:border-accent/40 hover:bg-wood/60",
+          need ? "border-clay/40" : "border-line",
+        )}
       >
+        <span
+          aria-hidden
+          className={cn("h-10 w-1 shrink-0 rounded-full", need ? "bg-clay" : "bg-accent/60")}
+        />
         <span className="w-14 shrink-0 font-mono text-base font-semibold tabular-nums sm:w-16">
           {hhmm(s.start_at)}
           <span className="block text-xs font-normal text-muted">{hhmm(s.end_at)}</span>
@@ -271,7 +291,7 @@ function TimelineRow({ s, onOpen }: { s: CoachSession; onOpen: () => void }) {
             {t("Needs {n}", { n: need })}
           </span>
         ) : null}
-        <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+        <ChevronRight aria-hidden className="size-5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
       </button>
     </li>
   );
@@ -354,6 +374,10 @@ function NextSessionStudents({ sessionId }: { sessionId: string }) {
   );
 }
 
+/**
+ * The next seven days as bars: each column's height is how many sessions the coach teaches that
+ * day, so a busy week reads at a glance before anything is opened. Today is outlined.
+ */
 function CoachWeeklyStrip({ items }: { items: CoachSession[] }) {
   const sessionDays = new Map<string, number>();
   for (const s of items) {
@@ -373,6 +397,7 @@ function CoachWeeklyStrip({ items }: { items: CoachSession[] }) {
       count: sessionDays.get(key) ?? 0,
     });
   }
+  const busiest = Math.max(1, ...daysList.map((d) => d.count));
 
   return (
     <section aria-label={t("Weekly schedule")}>
@@ -384,13 +409,19 @@ function CoachWeeklyStrip({ items }: { items: CoachSession[] }) {
           <div
             key={d.date}
             className={cn(
-              "flex flex-col items-center justify-center rounded-[var(--radius-lg)] py-2 text-center",
-              i === 0 ? "border border-accent/40 bg-accent/10" : "",
+              "flex flex-col items-center gap-1.5 rounded-[var(--radius-lg)] px-1 pb-2 pt-2.5 text-center",
+              i === 0 ? "border border-accent/40 bg-accent/10" : "border border-transparent",
             )}
           >
             <span className="text-2xs uppercase text-muted">{d.dayName}</span>
-            <span className={cn("font-athletic text-lg", i === 0 && "text-accent")}>{d.dayNum}</span>
-            <span className="mt-0.5 font-mono text-2xs tabular-nums text-muted">
+            <span className={cn("font-athletic text-lg leading-none", i === 0 && "text-accent")}>{d.dayNum}</span>
+            <span className="flex h-12 w-full items-end justify-center" aria-hidden>
+              <span
+                className={cn("w-3 rounded-full", d.count ? (i === 0 ? "bg-accent" : "bg-accent-2/70") : "h-1 bg-line")}
+                style={d.count ? { height: `${Math.round((d.count / busiest) * 100)}%`, minHeight: "0.5rem" } : undefined}
+              />
+            </span>
+            <span className="font-mono text-2xs tabular-nums text-muted">
               {d.count ? d.count : "·"}
             </span>
           </div>

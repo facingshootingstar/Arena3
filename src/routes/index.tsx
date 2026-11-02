@@ -15,6 +15,7 @@ import { ScheduleScene, type Picked } from "@/components/landing/schedule";
 import type { NextFree } from "@/components/landing/hero";
 import { GalleryScene } from "@/components/landing/gallery";
 import { SiteHeader } from "@/components/landing/header";
+import { ShuttleScene } from "@/components/landing/shuttle3d";
 import { StepsScene } from "@/components/landing/steps";
 import { Testimonials } from "@/components/landing/testimonials";
 import { VenueProvider, priceFor, useVenueHour, wdLabel } from "@/components/landing/util";
@@ -43,11 +44,16 @@ export const Route = createFileRoute("/")({
 function Home() {
   const token = getToken();
   const u = getStoredUser();
+  const { availability } = Route.useLoaderData();
+  const now = useNowMinute();
+  // The shuttle's rim light follows how much of today's court is free.
+  const free = freeHours(availability.courts, availability.slots, availability.date, now, true).length;
+  const glow = Math.min(1, 0.35 + free / 48);
   if (token && u) return <Navigate to={homeFor(u.role)} />;
   return (
     <BootGate>
       <main id="main-content" tabIndex={-1} className="min-h-dvh overflow-x-clip text-fg">
-        <LandingSmoother header={<SiteHeader />}>
+        <LandingSmoother header={<><SiteHeader /><ShuttleScene glow={glow} /></>}>
           <Landing />
         </LandingSmoother>
       </main>

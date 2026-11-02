@@ -425,17 +425,45 @@ select option:disabled {
   animation-delay: 120ms;
 }
 
+/* The hero's oversized voice: Archivo pulled narrow and heavy, set in capitals on a tight line. */
+.display-xl {
+  font-family: var(--font-display);
+  font-stretch: 78%;
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 1.04;
+  letter-spacing: -0.012em;
+  font-size: clamp(2.5rem, 5.1vw, 5.25rem);
+}
+/* SplitText's line masks clip to the line box; a little padding keeps accents and the last line whole. */
+.display-xl > div {
+  padding-block: 0.08em;
+  margin-block: -0.08em;
+}
+
 .hero-scrim {
   background:
-    linear-gradient(90deg, rgba(16, 21, 13, 0.92) 0%, rgba(16, 21, 13, 0.65) 45%, rgba(16, 21, 13, 0.15) 100%),
-    linear-gradient(to top, rgba(16, 21, 13, 0.55) 0%, transparent 42%),
-    linear-gradient(to bottom, rgba(16, 21, 13, 0.35) 0%, transparent 28%);
+    linear-gradient(90deg, rgba(14, 19, 17, 0.94), rgba(14, 19, 17, 0.8) 40%, rgba(14, 19, 17, 0.12) 76%),
+    linear-gradient(to top, rgba(14, 19, 17, 0.85), transparent 45%);
+}
+
+.hero-layout { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); align-items: center; min-height: min(900px, 95svh); }
+.hero-copy { grid-column: 1; grid-row: 1 / 3; }
+.hero-stage { grid-column: 2; grid-row: 1; height: clamp(220px, 30vh, 340px); }
+.hero-ticket { grid-column: 2; grid-row: 2; max-width: 360px; justify-self: end; align-self: end; }
+.hero-ticket::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, var(--color-accent), transparent); }
+
+@media (max-width: 1023px) {
+  .hero-layout { grid-template-columns: minmax(0, 1fr); min-height: auto; }
+  .hero-copy { grid-column: 1; grid-row: 1; }
+  .hero-stage { grid-column: 1; grid-row: 2; height: 240px; margin-block: 16px; }
+  .hero-ticket { grid-column: 1; grid-row: 3; max-width: none; }
 }
 
 @media (max-width: 767px) {
   .hero-scrim {
     background:
-      linear-gradient(180deg, rgba(16, 21, 13, 0.85) 0%, rgba(16, 21, 13, 0.72) 100%);
+      linear-gradient(180deg, rgba(14, 19, 17, 0.86), rgba(14, 19, 17, 0.68) 48%, rgba(14, 19, 17, 0.22) 73%, rgba(14, 19, 17, 0.86));
   }
 }
 
@@ -907,3 +935,6 @@ select option:disabled {
   animation: ai-scan 2.4s ease-in-out infinite;
   pointer-events: none;
 }
+
+/* The 3D scene serves its own shuttle; the SVG one is the no-WebGL2 fallback. */
+html.shuttle-on [data-shuttle] { display: none; }

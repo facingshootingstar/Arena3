@@ -1027,6 +1027,10 @@ const CANCEL_KEYS = [
 type CancelRow = Pick<Booking, (typeof CANCEL_KEYS)[number]>;
 const CANCEL_COLS = CANCEL_KEYS.join(", ");
 
+/** A paid court that has already started is played, not cancellable: no refund math applies. */
+const CANNOT_CANCEL_STARTED = "This booking has already started, so it cannot be cancelled.";
+const hasStarted = (booking: CancelRow) => booking.status === "confirmed" && new Date(booking.start_at).getTime() <= Date.now();
+
 /**
  * What cancelling a booking would cost, right now.
  *
@@ -1049,6 +1053,7 @@ export async function bookingsCancelQuote(
     throw err.conflictState("A booking in this state cannot be cancelled.");
   }
   const settings = await getSettings(sql);
+  if (hasStarted(booking)) throw err.conflictState(CANNOT_CANCEL_STARTED);
   const staff = user.role === "receptionist" || user.role === "manager";
   const waived = staff && new URL(request.url).searchParams.get("waive") === "1";
   const quote = quoteCancel({
@@ -1082,6 +1087,7 @@ export async function bookingsCancel(
     await sql.query(`select occupancy_release_booking($1::uuid, 'cancelled'::booking_status)`, [id]);
     return { status: 200, body: { refund: null, booking_id: id } };
   }
+  if (hasStarted(booking)) throw err.conflictState(CANNOT_CANCEL_STARTED);
   const staff = user.role === "receptionist" || user.role === "manager";
   const waived = staff && body.waive === true;
   const reason = str(body.reason) ?? null;

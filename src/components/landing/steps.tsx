@@ -52,7 +52,7 @@ export function StepsScene() {
     const ink = css.getPropertyValue("--color-paper-ink").trim() || "#121410";
     const tl = gsap.timeline({
       defaults: { ease: "none" },
-      scrollTrigger: { trigger: el, start: "center center", end: "+=110%", pin: true, scrub: 0.6 },
+      scrollTrigger: { trigger: el, start: "top top", end: "+=110%", pin: true, scrub: 0.6 },
     });
     q("[data-step]").forEach((step, i) => {
       const at = i * 1.1;
@@ -64,11 +64,12 @@ export function StepsScene() {
   });
 
   return (
-    <section ref={root} id="how" className="relative scroll-mt-20 overflow-hidden bg-paper text-paper-ink">
+    // Fills the viewport on desktop so the pin never shows the dark page above or below the paper.
+    <section ref={root} id="how" className="relative scroll-mt-20 overflow-hidden bg-paper text-paper-ink md:flex md:min-h-svh md:items-center">
       {/* Pointer-reactive dot field, pressed lightly into the paper like a print screen: small dots
           that barely swell, so the cursor leaves a trace and not ink blots. */}
       <GLBackground variant="dotgrid" color="#121410" gap={22} dot={0.9} radius={110} opacity={0.12} />
-      <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pb-14 pt-20 md:grid-cols-2 md:gap-16 md:pb-20 md:pt-24">
+      <div className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-14 pt-20 md:grid-cols-2 md:gap-16 md:pb-20 md:pt-24">
         <div>
           <p data-rise className="inline-block rounded-md bg-paper-ink px-2.5 py-1.5 font-mono text-2xs font-bold uppercase tracking-wider text-accent">
             {t("How to book a court")}
