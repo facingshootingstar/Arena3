@@ -36,6 +36,12 @@ type Cl = {
   status: string;
   price_vnd: number | null;
   min_enrolled?: number | null;
+  start_on?: string;
+  end_on?: string;
+  description?: string | null;
+  syllabus?: string | null;
+  who_for?: string | null;
+  bring?: string | null;
   my_enrollment: {
     id: string;
     status: string;
@@ -73,6 +79,7 @@ function Page() {
 
   const sports = useSports();
   const [limit, setLimit] = useState(6);
+  const [detail, setDetail] = useState<Cl | null>(null);
   // The member's own classes come first (C-4): they are what someone opens this page to manage.
   const enrolledIds = new Set(mine.map((e) => e.class_id));
   // Narrowing by coach, weekday and part of the day saves scrolling through every class.
@@ -301,6 +308,14 @@ function Page() {
                       <p className="font-mono text-2xs text-muted">{rruleLabel(c.rrule, c.duration_min)}</p>
                     </div>
                   </div>
+                  {c.description ? <p className="mt-3 line-clamp-2 text-sm text-muted">{c.description}</p> : null}
+                  <button
+                    type="button"
+                    onClick={() => setDetail(c)}
+                    className="mt-2 w-fit text-xs font-semibold text-accent underline-offset-4 hover:underline focus-visible:underline"
+                  >
+                    {t("Class details")}
+                  </button>
                   <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs">
                     <span className="text-muted">{full ? t("Full") : t("{n} seats left", { n: c.capacity - c.enrolled_count })}</span>
                     <span className="tabular-nums text-subtle">{pct}%</span>
@@ -475,7 +490,95 @@ function Page() {
             : t("Your seat goes to the next person on the waitlist.")}
         </p>
       </Modal>
+      <ClassDetailModal cls={detail} onClose={() => setDetail(null)} />
       <MyAttendance />
     </Shell>
+  );
+}
+
+/** Everything a member needs to decide on a class before enrolling: what it is, who it suits, what each session covers. */
+function ClassDetailModal({ cls, onClose }: { cls: Cl | null; onClose: () => void }) {
+  const c = cls;
+  const lines = (c?.syllabus ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const dateFmt = (d?: string) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString(locale() === "vi" ? "vi-VN" : "en-GB", { day: "numeric", month: "short", year: "numeric" }) : "");
+  const seats = c ? Math.max(0, c.capacity - c.enrolled_count) : 0;
+  return (
+    <Modal
+      open={!!c}
+      onClose={onClose}
+      title={c ? `${sportLabel(c.sport)} · ${levelLabel(c.level)}` : ""}
+      footer={
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onClose}>
+            {t("Close")}
+          </Button>
+        </div>
+      }
+    >
+      {c ? (
+        <div className="grid gap-5 text-sm">
+          <p className="leading-relaxed text-fg">{c.description ?? t("The coach has not written a description for this class yet.")}</p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-[var(--radius-lg)] border border-line bg-wood/40 p-4">
+            <div>
+              <dt className="text-2xs uppercase tracking-wider text-subtle">{t("Coach")}</dt>
+              <dd className="font-semibold">{c.coach_name}</dd>
+            </div>
+            <div>
+              <dt className="text-2xs uppercase tracking-wider text-subtle">{t("Court")}</dt>
+              <dd className="font-semibold">{c.court_code}</dd>
+            </div>
+            <div>
+              <dt className="text-2xs uppercase tracking-wider text-subtle">{t("When")}</dt>
+              <dd className="font-semibold">{rruleLabel(c.rrule, c.duration_min)}</dd>
+            </div>
+            <div>
+              <dt className="text-2xs uppercase tracking-wider text-subtle">{t("Seats")}</dt>
+              <dd className="font-semibold tabular-nums">
+                {seats > 0 ? t("{n} seats left", { n: seats }) : t("Full")} · {c.enrolled_count}/{c.capacity}
+              </dd>
+            </div>
+            {c.start_on && c.end_on ? (
+              <div className="col-span-2">
+                <dt className="text-2xs uppercase tracking-wider text-subtle">{t("Course dates")}</dt>
+                <dd className="font-semibold">
+                  {dateFmt(c.start_on)} – {dateFmt(c.end_on)}
+                </dd>
+              </div>
+            ) : null}
+            <div className="col-span-2">
+              <dt className="text-2xs uppercase tracking-wider text-subtle">{t("Price")}</dt>
+              <dd className="font-display text-lg tabular-nums">{c.price_vnd == null ? t("Not open yet") : money(c.price_vnd)}</dd>
+            </div>
+          </dl>
+          {c.who_for ? (
+            <section>
+              <h3 className="font-semibold">{t("Who it is for")}</h3>
+              <p className="mt-1 text-muted">{c.who_for}</p>
+            </section>
+          ) : null}
+          {lines.length ? (
+            <section>
+              <h3 className="font-semibold">{t("What you will learn")}</h3>
+              <ol className="mt-2 grid gap-1.5">
+                {lines.map((l, i) => (
+                  <li key={i} className="flex gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/15 font-mono text-2xs font-bold text-accent">
+                      {i + 1}
+                    </span>
+                    <span className="pt-0.5 text-muted">{l}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ) : null}
+          {c.bring ? (
+            <section>
+              <h3 className="font-semibold">{t("What to bring")}</h3>
+              <p className="mt-1 text-muted">{c.bring}</p>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+    </Modal>
   );
 }
