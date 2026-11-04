@@ -276,7 +276,7 @@ function Page() {
                     {/* The few seats left are the reason to act now, so they sit on the photo in lime. */}
                     {!full && c.capacity - c.enrolled_count <= 3 ? (
                       <span className="absolute left-3 top-3 z-[2] rounded-md bg-accent px-2 py-1 font-mono text-2xs font-bold uppercase tracking-wider text-accent-fg">
-                        {t("{n} seats left", { n: c.capacity - c.enrolled_count })}
+                        {(c.capacity - c.enrolled_count === 1 ? t("1 seat left") : t("{n} seats left", { n: c.capacity - c.enrolled_count }))}
                       </span>
                     ) : null}
                     <MediaCaption className="flex items-end justify-between">
@@ -317,7 +317,7 @@ function Page() {
                     {t("Class details")}
                   </button>
                   <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs">
-                    <span className="text-muted">{full ? t("Full") : t("{n} seats left", { n: c.capacity - c.enrolled_count })}</span>
+                    <span className="text-muted">{full ? t("Full") : (c.capacity - c.enrolled_count === 1 ? t("1 seat left") : t("{n} seats left", { n: c.capacity - c.enrolled_count }))}</span>
                     <span className="tabular-nums text-subtle">{pct}%</span>
                   </div>
                   <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
@@ -534,7 +534,7 @@ function ClassDetailModal({ cls, onClose }: { cls: Cl | null; onClose: () => voi
             <div>
               <dt className="text-2xs uppercase tracking-wider text-subtle">{t("Seats")}</dt>
               <dd className="font-semibold tabular-nums">
-                {seats > 0 ? t("{n} seats left", { n: seats }) : t("Full")} · {c.enrolled_count}/{c.capacity}
+                {seats > 0 ? (seats === 1 ? t("1 seat left") : t("{n} seats left", { n: seats })) : t("Full")} · {c.enrolled_count}/{c.capacity}
               </dd>
             </div>
             {c.start_on && c.end_on ? (
