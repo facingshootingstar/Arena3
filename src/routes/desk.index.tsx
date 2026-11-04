@@ -609,7 +609,13 @@ function Page() {
                     {/* A member's own words, so they may contain a long run
                         with nothing to wrap on — without this it pushes the
                         Reply and Close buttons off the side of the card. */}
-                    <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{ticket.body}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-sm">{ticket.body}</p>
+                      {/* Under "All" open and finished rows sit together; the badge is what tells them apart. */}
+                      <Badge tone={ticket.reply ? "accent" : ticket.status === "closed" ? "muted" : "hold"} className="shrink-0">
+                        {ticket.reply ? t("Answered") : ticket.status === "closed" ? t("Closed") : t("Waiting")}
+                      </Badge>
+                    </div>
                     <p className="mt-1 text-xs text-muted">
                       {ticket.full_name} · {ticket.phone}
                     </p>

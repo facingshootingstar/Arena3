@@ -13,7 +13,6 @@ import {
   Settings,
   Tag,
   TrendingUp,
-  Trophy,
   Undo2,
   UserCog,
   UserPlus,
@@ -207,72 +206,8 @@ function Page() {
         slot="banner.manager"
         title={t("Reports")}
         subtitle={t("Revenue = payments taken − refunds. Court usage for {date}.", { date: formatDate(to) })}
-        stats={[
-          { label: t("Revenue"), value: rev ? money(rev.totals.revenue_vnd) : "..." },
-          { label: t("Refunds"), value: rev ? money(rev.totals.refund_vnd ?? 0) : "0 đ" },
-          { label: t("Plan hours used"), value: rev?.totals.quota_hours ?? 0 },
-        ]}
+
       />
-      <section aria-label={t("Quick actions")} className="mb-6">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            to="/manager/courts"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <LandPlot className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Courts & map")}</p>
-                <p className="truncate text-xs text-muted">{t("Inspect courts & status")}</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/manager/sports"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <Trophy className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Sports")}</p>
-                <p className="truncate text-xs text-muted">{t("Prefixes, rules & colors")}</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/manager/staff"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <UserCog className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Staff management")}</p>
-                <p className="truncate text-xs text-muted">{t("Coaches & receptionists")}</p>
-              </div>
-            </div>
-          </Link>
-          <Link
-            to="/manager/media"
-            className="group relative overflow-hidden rounded-[var(--radius-xl)] border border-line bg-surface p-4 shadow-[var(--shadow-border)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-surface-2 text-fg border border-line">
-                <Image className="size-6 text-accent" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-fg transition-colors group-hover:text-accent-2">{t("Media & banners")}</p>
-                <p className="truncate text-xs text-muted">{t("Site photos & slots")}</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </section>
       <GLBackground
         variant="dotgrid"
         position="fixed"
@@ -331,6 +266,7 @@ function Page() {
         {(
           [
             { to: "/manager/courts" as const, label: t("Courts"), Icon: LandPlot },
+            { to: "/manager/sports" as const, label: t("Sports"), Icon: Layers },
             { to: "/manager/media" as const, label: t("Media"), Icon: Image },
             { to: "/manager/staff" as const, label: t("Staff"), Icon: UserCog },
             { href: "/manager/staff?create=1", label: t("Add staff"), Icon: UserPlus },

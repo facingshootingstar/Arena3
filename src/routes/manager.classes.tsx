@@ -168,14 +168,19 @@ function Page() {
 
       <StatStrip
         stats={[
-          { label: tk("Active classes"), value: publishedClasses },
-          { label: tk("Drafts"), value: draftClasses },
-          { label: tk("Enrolled students"), value: totalEnrolled },
-          { label: tk("Total classes"), value: totalClasses },
+          { label: t("Active classes"), value: publishedClasses },
+          { label: t("Drafts"), value: draftClasses },
+          { label: t("Enrolled students"), value: totalEnrolled },
+          { label: t("Total classes"), value: totalClasses },
         ]}
         className="mb-6"
       />
 
+      <details className="group mb-6 rounded-[var(--radius-xl)] border border-line bg-surface">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--radius-xl)] p-4 font-semibold text-fg focus-visible:outline-2 focus-visible:outline-accent">
+          {t("Create class")}
+          <span aria-hidden="true" className="text-xl text-accent group-open:rotate-45">+</span>
+        </summary>
       {formError ? (
         // Without the courts and coaches the form would offer nothing to pick, so it says why instead.
         <div className="mb-6">
@@ -353,6 +358,7 @@ function Page() {
       </Card>
       </Reveal>
       )}
+      </details>
       {classesRead.error ? (
         <LoadError message={classesRead.error.message} onRetry={classesRead.error.refused ? undefined : classesRead.reload} />
       ) : !items ? (
@@ -447,7 +453,7 @@ function Page() {
       {items && !items.length ? (
         <EmptyState
           title={t("No classes yet")}
-          hint={t("Pick a sport, a coach and the days above, then press Create & publish. Members can book as soon as it is published.")}
+          hint={t("Open Create class, pick a sport, coach and days, then press Create & publish. Members can book as soon as it is published.")}
         />
       ) : null}
       <ClassDetailModal classId={detail} onClose={() => setDetail(null)} manage onChanged={() => void load()} />

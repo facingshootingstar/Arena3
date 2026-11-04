@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
 import { toast } from "sonner";
-import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge } from "@/components/ui";
+import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge, Textarea } from "@/components/ui";
 import { hhmm, initials, money, useSessionUser, when } from "@/components/shell";
 import { UserAvatar } from "@/components/user-avatar";
 import { MinSizeBadge } from "@/components/class-extras";
@@ -34,6 +34,10 @@ type ClassDetail = {
     capacity: number;
     price_vnd?: number | null;
     min_enrolled?: number | null;
+    description?: string | null;
+    syllabus?: string | null;
+    who_for?: string | null;
+    bring?: string | null;
     enrolled_count: number;
     rrule: string;
     duration_min: number;
@@ -68,7 +72,7 @@ type ClassDetail = {
 /** What the manager is in the middle of doing to the class. */
 type Action =
   | { kind: "cancel-session" | "move-session"; sessionId: string; label: string; startAt: string }
-  | { kind: "coach" | "capacity" | "price" | "cancel-class" };
+  | { kind: "coach" | "capacity" | "price" | "about" | "cancel-class" };
 
 /** A `datetime-local` value is the centre's wall clock, which is always UTC+7. */
 const toIctIso = (local: string) => `${local}:00+07:00`;
@@ -315,6 +319,9 @@ export function ClassDetailModal({
                       <Button size="sm" variant="outline" onClick={() => setAction({ kind: "price" })}>
                         {t("Edit price")}
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => setAction({ kind: "about" })}>
+                        {t("Edit description")}
+                      </Button>
                     </>
                   ) : null}
                   <Button size="sm" variant="outline" onClick={() => setAction({ kind: "cancel-class" })}>
@@ -336,6 +343,7 @@ const ACTION_COPY = {
   coach: { title: tk("Change the coach for every session still to come"), go: tk("Change coach"), needsReason: false },
   capacity: { title: tk("Edit capacity and minimum"), go: tk("Save capacity"), needsReason: false },
   price: { title: tk("Edit price"), go: tk("Save price"), needsReason: false },
+  about: { title: tk("Edit what members read about this class"), go: tk("Save description"), needsReason: false },
   "cancel-class": { title: tk("Cancel the whole class"), go: tk("Cancel class"), needsReason: true },
 } as const;
 
@@ -361,6 +369,12 @@ function ActionForm({
   const [capacity, setCapacity] = useState(String(classData.capacity));
   const [minEnrolled, setMinEnrolled] = useState(classData.min_enrolled == null ? "" : String(classData.min_enrolled));
   const [price, setPrice] = useState(classData.price_vnd == null ? "" : String(classData.price_vnd));
+  const [about, setAbout] = useState({
+    description: classData.description ?? "",
+    syllabus: classData.syllabus ?? "",
+    who_for: classData.who_for ?? "",
+    bring: classData.bring ?? "",
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
 
@@ -393,6 +407,9 @@ function ActionForm({
       } else if (action.kind === "price") {
         await apiPatch(`/classes/${classData.id}`, { price_vnd: price.trim() === "" ? null : Number(price) });
         toast.success(t("Price saved"));
+      } else if (action.kind === "about") {
+        await apiPatch(`/classes/${classData.id}`, about);
+        toast.success(t("Description saved"));
       } else {
         await apiPatch(`/classes/${classData.id}`, { status: "cancelled", reason });
         toast.success(t("Class cancelled: everyone enrolled was told"));
@@ -459,12 +476,27 @@ function ActionForm({
         <Field label={t("Price (VND)")} hint={at("price_vnd") ?? t("Leave empty to close the class to new sign-ups.")}>
           <Input type="number" min={0} step={1000} inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
         </Field>
+      ) : action.kind === "about" ? (
+        <>
+          <Field label={t("Description")} hint={at("description")}>
+            <Textarea rows={4} maxLength={2000} value={about.description} onChange={(e) => setAbout({ ...about, description: e.target.value })} />
+          </Field>
+          <Field label={t("Syllabus")} hint={at("syllabus") ?? t("One line per session or topic.")}>
+            <Textarea rows={5} maxLength={2000} value={about.syllabus} onChange={(e) => setAbout({ ...about, syllabus: e.target.value })} />
+          </Field>
+          <Field label={t("Who it is for")} hint={at("who_for")}>
+            <Input maxLength={300} value={about.who_for} onChange={(e) => setAbout({ ...about, who_for: e.target.value })} />
+          </Field>
+          <Field label={t("What to bring")} hint={at("bring")}>
+            <Input maxLength={300} value={about.bring} onChange={(e) => setAbout({ ...about, bring: e.target.value })} />
+          </Field>
+        </>
       ) : (
         <Field label={reasonLabel} hint={at("reason")}>
           <Input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
         </Field>
       )}
-      {error && !["start_at", "coach_id", "capacity", "min_enrolled", "price_vnd", "reason"].includes(error.field ?? "") ? (
+      {error && !["start_at", "coach_id", "capacity", "min_enrolled", "price_vnd", "reason", "description", "syllabus", "who_for", "bring"].includes(error.field ?? "") ? (
         <p role="alert" className="text-sm text-danger">
           {error.message}
         </p>

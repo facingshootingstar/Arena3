@@ -4,7 +4,7 @@ import { Landmark, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MonthCalendar, useAvailability } from "@/components/availability-calendar";
-import { CourtGrid, DateStrip, freeHours, type Court, type OccSlot } from "@/components/court-grid";
+import { CourtGrid, freeHours, type Court, type OccSlot } from "@/components/court-grid";
 import { HoldTimer, sportPhoto } from "@/components/media";
 import { HoldCountdown } from "@/components/moments/hold-countdown";
 import { PaidMark, ScrambleCode } from "@/components/moments/paid";
@@ -12,7 +12,7 @@ import { CancelBookingDialog } from "@/components/cancel-booking";
 import { PayOnlineButton } from "@/components/pay-online";
 import { MemberTransferModal, useCentreBank, type CentreBank } from "@/components/transfer-qr-modal";
 import { Shell, money, when } from "@/components/shell";
-import { Button, Card, ContextLayout, DateField, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/components/ui";
+import { Button, Card, ContextLayout, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/components/ui";
 import { StarBorder } from "@/components/fx";
 import { apiGet, apiPost, openInvoice, ApiClientError } from "@/lib/arena3/client";
 import type { ConfirmResponse, HoldResponse, MeBookingsResponse, MyBooking, MyClassSession } from "@/lib/arena3/contracts";
@@ -74,11 +74,14 @@ function Page() {
   const searchSport = Route.useSearch().sport;
   const [date, setDate] = useState(todayISO);
   const [sport, setSport] = useState(searchSport ?? "");
+  // Open on the first sport once; after that "All" ("") is a real choice, not a gap to fill.
+  const sportDefaulted = useRef(searchSport != null);
   useEffect(() => {
-    if (!sport && sports.length > 0) {
+    if (!sportDefaulted.current && sports.length > 0) {
+      sportDefaulted.current = true;
       setSport(sports[0].code);
     }
-  }, [sport, sports]);
+  }, [sports]);
   // The day on screen. A day the server will not show comes back as `error` (not a grid of grey
   // blocks behind a toast), and a late reply for an earlier date never lands on a later one.
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);
@@ -89,8 +92,6 @@ function Page() {
   // Refusals and clash warnings appear above the grid; a tap deep in the grid must still see them.
   const notices = useRef<HTMLDivElement>(null);
   const [overlap, setOverlap] = useState<{ court: Court; hour: number; message: string } | null>(null);
-  // Week strip or whole month — both show how many slots each day has left.
-  const [view, setView] = useState<"week" | "month">("week");
   const [refresh, setRefresh] = useState(0);
   const avail = useAvailability(sport, refresh);
   const [mine, setMine] = useState<MyBooking[] | null>(null);
@@ -580,39 +581,22 @@ function Page() {
         }
       >
         <div className="min-w-0">
-          <div className="grid gap-3">
-            {view === "week" ? (
-              <DateStrip value={date} onChange={setDate} avail={avail} />
-            ) : (
-              <MonthCalendar value={date} onChange={setDate} avail={avail} />
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Seg
-                value={sport}
-                onChange={setSport}
-                options={[
-                  { value: "", label: t("All") },
-                  ...sports
-                    .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s.code))
-                    .map((s) => ({ value: s.code, label: sportLabel(s.code) })),
-                ]}
-              />
-              <Seg
-                value={view}
-                onChange={(v) => setView(v === "month" ? "month" : "week")}
-                options={[
-                  { value: "week", label: t("Week") },
-                  { value: "month", label: t("Month") },
-                ]}
-              />
-              <DateField
-                required
-                value={date}
-                onChange={setDate}
-                invalid={error?.refused === true}
-                aria-label={t("Pick another date")}
-                className="hidden sm:flex"
-              />
+          <div className="grid min-w-0 grid-cols-1 gap-3 rounded-[var(--radius-lg)] border border-line bg-surface/50 p-3 sm:p-4">
+            {/* One way to pick a day: the month, with how many slots each day has left. */}
+            <MonthCalendar value={date} onChange={setDate} avail={avail} />
+            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="w-full min-w-0 sm:w-auto sm:max-w-full">
+                <Seg
+                  value={sport}
+                  onChange={setSport}
+                  options={[
+                    { value: "", label: t("All") },
+                    ...sports
+                      .filter((s) => !data?.courts || data.courts.some((c) => c.sport === s.code))
+                      .map((s) => ({ value: s.code, label: sportLabel(s.code) })),
+                  ]}
+                />
+              </div>
             </div>
             {promoOpen || promoCode ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -805,7 +789,7 @@ function Page() {
                     <p className="mt-1 text-xs text-muted">
                       {t("Your class enrolment stays put. This is only a clash warning.")}
                     </p>
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         disabled={busy}
                         onClick={() =>

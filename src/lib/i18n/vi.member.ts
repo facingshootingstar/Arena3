@@ -403,4 +403,20 @@ export const member: Record<string, string> = {
   "Code {code}": "Mã {code}",
   "Check it at {url}": "Kiểm tra tại {url}",
   "Print or save as PDF": "In hoặc lưu PDF",
+  // Class details for members.
+  "Class details": "Xem chi tiết lớp",
+  "When": "Lịch học",
+  "Seats": "Chỗ",
+  "Course dates": "Thời gian khoá học",
+  "Who it is for": "Dành cho ai",
+  "What you will learn": "Nội dung các buổi",
+  "What to bring": "Cần mang theo",
+  "The coach has not written a description for this class yet.": "Lớp này chưa có mô tả.",
+  // Manager form.
+  "Syllabus": "Giáo trình",
+  "One line per session or topic.": "Mỗi dòng một buổi hoặc một chủ đề.",
+  "Edit description": "Sửa mô tả",
+  "Edit what members read about this class": "Sửa phần hội viên đọc về lớp này",
+  "Save description": "Lưu mô tả",
+  "Description saved": "Đã lưu mô tả",
 };

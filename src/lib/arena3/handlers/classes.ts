@@ -24,6 +24,18 @@ function parsePrice(raw: unknown): number | null {
   return n;
 }
 
+const CLASS_TEXT_LIMITS = { description: 2000, syllabus: 2000, who_for: 300, bring: 300 } as const;
+type ClassTextKey = keyof typeof CLASS_TEXT_LIMITS;
+
+/** Free text about a class (description, syllabus, who it is for, what to bring): empty clears it. */
+function parseClassText(key: ClassTextKey, raw: unknown): string | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== "string") throw err.field(key, "Text expected.");
+  const v = raw.replace(/\r\n/g, "\n").trim();
+  if (v.length > CLASS_TEXT_LIMITS[key]) throw err.field(key, `${CLASS_TEXT_LIMITS[key]} characters at most.`);
+  return v === "" ? null : v;
+}
+
 /** The minimum to run a class: empty for none, otherwise a whole number from 1 up to the capacity. */
 function parseMinEnrolled(raw: unknown, capacity: number): number | null {
   if (raw === undefined || raw === null || raw === "") return null;
@@ -41,6 +53,7 @@ export async function classesList(sql: Sql, request: Request, user: PublicUser |
     `select cl.id, cl.sport, cl.level, cl.capacity, cl.enrolled_count, cl.rrule, cl.duration_min,
             cl.start_on::text, cl.end_on::text, cl.status, cl.court_id, c.court_code,
             cl.coach_id, u.full_name as coach_name, made.at as created_at, cl.price_vnd, cl.min_enrolled,
+            cl.description, cl.syllabus, cl.who_for, cl.bring,
             case when me.id is null then null else jsonb_build_object(
               'id', me.id, 'status', me.status, 'hold_until', me.hold_until,
               'price_vnd', me.price_vnd, 'transfer_requested_at', me.transfer_requested_at) end as my_enrollment
@@ -97,6 +110,12 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   }
   const price_vnd = b.price_vnd === undefined ? null : parsePrice(b.price_vnd);
   const min_enrolled = parseMinEnrolled(b.min_enrolled, capacity);
+  const texts = {
+    description: parseClassText("description", b.description),
+    syllabus: parseClassText("syllabus", b.syllabus),
+    who_for: parseClassText("who_for", b.who_for),
+    bring: parseClassText("bring", b.bring),
+  };
   if (!sport || !level || !coach_id || !court_id || !rrule || !start_on || !end_on) {
     throw err.validation("Class details are incomplete.");
   }
@@ -163,8 +182,9 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   const row = await one(
     sql,
     `insert into classes
-       (sport, level, coach_id, assistant_id, court_id, capacity, rrule, duration_min, start_on, end_on, status, price_vnd, min_enrolled)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11,$12)
+       (sport, level, coach_id, assistant_id, court_id, capacity, rrule, duration_min, start_on, end_on, status, price_vnd, min_enrolled,
+        description, syllabus, who_for, bring)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11,$12,$13,$14,$15,$16)
      returning *`,
     [
       sport,
@@ -179,6 +199,10 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
       end_on,
       price_vnd,
       min_enrolled,
+      texts.description,
+      texts.syllabus,
+      texts.who_for,
+      texts.bring,
     ],
   );
   await audit(sql, user.id, "create_class", "class", (row as { id: string }).id);
@@ -719,12 +743,17 @@ export async function classDetail(sql: Sql, classId: string, user: PublicUser) {
     assistant_name: string | null;
     price_vnd: number | null;
     min_enrolled: number | null;
+    description: string | null;
+    syllabus: string | null;
+    who_for: string | null;
+    bring: string | null;
   }>(
     sql,
     `select cl.id, cl.sport::text as sport, cl.level, cl.status::text as status, cl.capacity, cl.enrolled_count, cl.min_enrolled,
             cl.rrule, cl.duration_min, cl.start_on::text as start_on, cl.end_on::text as end_on,
             cl.court_id, c.court_code, cl.coach_id, cl.assistant_id,
-            co.full_name as coach_name, asst.full_name as assistant_name, cl.price_vnd
+            co.full_name as coach_name, asst.full_name as assistant_name, cl.price_vnd,
+            cl.description, cl.syllabus, cl.who_for, cl.bring
        from classes cl
        join courts c on c.id = cl.court_id
        join users co on co.id = cl.coach_id
@@ -1114,8 +1143,15 @@ export async function classesPatch(sql: Sql, classId: string, request: Request, 
             price_vnd = case when $5::boolean then $6::int else price_vnd end, min_enrolled = $7 where id = $1`,
     [classId, capacity, level, status ?? null, priceSet, price_vnd ?? null, min_enrolled],
   );
+  // Each text changes only when sent; an empty string clears it.
+  const textEdits: Partial<Record<ClassTextKey, string | null>> = {};
+  for (const key of Object.keys(CLASS_TEXT_LIMITS) as ClassTextKey[]) {
+    if (b[key] === undefined) continue;
+    textEdits[key] = parseClassText(key, b[key]);
+    await sql.query(`update classes set ${key} = $2 where id = $1`, [classId, textEdits[key]]);
+  }
   if (capacity > cl.capacity && (status ?? cl.status) === "open") await inviteWaitlist(sql, classId);
-  const after = { capacity, level, status: status ?? cl.status, min_enrolled, ...(priceSet ? { price_vnd } : {}) };
+  const after = { capacity, level, status: status ?? cl.status, min_enrolled, ...(priceSet ? { price_vnd } : {}), ...textEdits };
   await audit(
     sql,
     user.id,
