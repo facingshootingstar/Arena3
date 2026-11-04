@@ -1,4 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { AssistantWidget } from "@/components/assistant-widget";
 import {
   Activity,
   Bell,
@@ -706,6 +707,7 @@ export function Shell({
           {children}
         </PageIn>
       </main>
+      {role === "member" && f6 && !pathname.startsWith("/app/assistant") ? <AssistantWidget docked={showNav} /> : null}
       {showNav ? (
         <>
       {/* The page fades out under the floating bar instead of being cut by it. */}

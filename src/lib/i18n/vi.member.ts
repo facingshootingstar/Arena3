@@ -419,4 +419,8 @@ export const member: Record<string, string> = {
   "Edit what members read about this class": "Sửa phần hội viên đọc về lớp này",
   "Save description": "Lưu mô tả",
   "Description saved": "Đã lưu mô tả",
+  "Hi, I'm Shuttle. Ask me about the timetable, prices, coaches or cancelling.": "Chào bạn, mình là Shuttle. Hỏi mình về lịch, giá, huấn luyện viên hay cách hủy nhé.",
+  "Open full assistant": "Mở trợ lý toàn trang",
+  "Ask the assistant": "Hỏi trợ lý",
+  "Close assistant": "Đóng trợ lý",
 };
