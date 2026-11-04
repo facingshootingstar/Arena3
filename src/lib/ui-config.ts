@@ -60,6 +60,7 @@ export const NAV_PAGES: Record<NavRole, PageSpec[]> = {
     { to: "/manager/members", dock: true, shown: true },
     { to: "/manager/attendance", dock: true, shown: true },
     { to: "/desk/payments", dock: true, shown: true },
+    { to: "/manager/plans", dock: false, shown: true },
     { to: "/manager/promos", dock: false, shown: true },
     { to: "/manager/prices", dock: false, shown: true },
     { to: "/manager/commission", dock: false, shown: true },

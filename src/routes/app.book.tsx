@@ -74,11 +74,14 @@ function Page() {
   const searchSport = Route.useSearch().sport;
   const [date, setDate] = useState(todayISO);
   const [sport, setSport] = useState(searchSport ?? "");
+  // Open on the first sport once; after that "All" ("") is a real choice, not a gap to fill.
+  const sportDefaulted = useRef(searchSport != null);
   useEffect(() => {
-    if (!sport && sports.length > 0) {
+    if (!sportDefaulted.current && sports.length > 0) {
+      sportDefaulted.current = true;
       setSport(sports[0].code);
     }
-  }, [sport, sports]);
+  }, [sports]);
   // The day on screen. A day the server will not show comes back as `error` (not a grid of grey
   // blocks behind a toast), and a late reply for an earlier date never lands on a later one.
   const { data, error, reload } = useRead<{ courts: Court[]; slots: OccSlot[] }>(`/occupancy?date=${date}`);

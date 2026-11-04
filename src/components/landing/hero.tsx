@@ -234,7 +234,6 @@ export function Hero({
         </div>
 
         <div data-shuttle-stage aria-hidden className="hero-stage pointer-events-none" />
-        {next ? <NextFreeCard next={next} day={day} onHold={onHold} /> : null}
       </div>
 
       {/* The shuttle that is served onto "Book a court". Decorative, so hidden from readers. */}
