@@ -244,7 +244,7 @@ function NotificationBell({ active, to }: { active: boolean; to: string }) {
       aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
       className={cn(
         "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
-        active ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-fg hover:bg-wood",
+        active ? "bg-wood text-accent ring-1 ring-inset ring-accent/40" : "text-fg hover:bg-wood",
       )}
     >
       <Bell className="size-4" strokeWidth={1.9} />
@@ -285,7 +285,7 @@ function ChatBell({ active }: { active: boolean }) {
       aria-label={unread ? t("Messages, {n} unread", { n: unread }) : t("Messages")}
       className={cn(
         "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
-        active ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]" : "text-fg hover:bg-wood",
+        active ? "bg-wood text-accent ring-1 ring-inset ring-accent/40" : "text-fg hover:bg-wood",
       )}
     >
       <MessageSquare className="size-4" strokeWidth={1.9} />
@@ -656,8 +656,9 @@ export function Shell({
             ) : null}
             <div className={cn("items-center gap-1", crowded ? "hidden xl:flex" : "flex")}>{tabsAndMenus}</div>
           </nav>
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
             <LangSwitch />
+            <span aria-hidden className="mx-1 hidden h-6 w-px bg-line sm:block" />
             {f6 ? <ChatBell active={pathname.startsWith("/chat")} /> : null}
             <NotificationBell
               to={role === "member" ? "/app/notifications" : "/alerts"}
@@ -670,13 +671,14 @@ export function Shell({
                 className={cn(
                   "grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
                   pathname.startsWith("/app/assistant")
-                    ? "bg-accent text-accent-fg shadow-[var(--shadow-accent)]"
+                    ? "bg-wood text-accent ring-1 ring-inset ring-accent/40"
                     : "text-fg hover:bg-wood",
                 )}
               >
                 <AssistantMark className="size-4" strokeWidth={1.9} />
               </Link>
             ) : null}
+            <span aria-hidden className="mx-1 hidden h-6 w-px bg-line sm:block" />
             <AccountMenu user={user} role={role} showName={!crowded} onLogout={() => void logout()} />
           </div>
         </div>
