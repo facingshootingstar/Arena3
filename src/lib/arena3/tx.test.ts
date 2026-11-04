@@ -1574,11 +1574,19 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
 
   // SS-18 & SS-20: session reschedule outside hours or past class end_on
   it("SS-18 & SS-20: session reschedule outside hours or past end_on rejected, valid reschedule accepted", async () => {
-    // Create class and session
+    // Dates are relative to "now" and far past the seeded bookings: the seed
+    // fills the courts for the next days, so fixed dates collided with it
+    // (409 on the valid reschedule) and went stale once the day passed.
+    const ictDay = (plusDays: number) =>
+      new Date(Date.now() + plusDays * 86400000 + 7 * 3600000).toISOString().slice(0, 10);
+    const dStart = ictDay(40);
+    const dMove = ictDay(41);
+    const dEnd = ictDay(55);
+    const dPast = ictDay(70);
     const clId = (
       await db.query<{ id: string }>(
         `insert into classes (sport, level, coach_id, court_id, capacity, rrule, duration_min, start_on, end_on, status)
-         values ('badminton', 'ss-test', $1, $2, 10, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', 60, '2026-11-01', '2026-11-20', 'open')
+         values ('badminton', 'ss-test', $1, $2, 10, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', 60, '${dStart}', '${dEnd}', 'open')
          returning id`,
         [coachUser.id, badmintonCourtId],
       )
@@ -1586,14 +1594,14 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
 
     const occId = (await db.query<{ id: string }>(`
       insert into occupancies (court_id, start_at, end_at, kind, ref_id)
-      values ($1, '2026-11-05 10:00:00+07', '2026-11-05 11:00:00+07', 'session', gen_random_uuid())
+      values ($1, '${dStart} 10:00:00+07', '${dStart} 11:00:00+07', 'session', gen_random_uuid())
       returning id
     `, [badmintonCourtId])).rows[0].id;
 
     const sessId = (
       await db.query<{ id: string }>(
         `insert into sessions (class_id, court_id, start_at, end_at, status, occupancy_id)
-         values ($1, $2, '2026-11-05 10:00:00+07', '2026-11-05 11:00:00+07', 'scheduled', $3)
+         values ($1, $2, '${dStart} 10:00:00+07', '${dStart} 11:00:00+07', 'scheduled', $3)
          returning id`,
         [clId, badmintonCourtId, occId],
       )
@@ -1604,7 +1612,7 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
       const req0300 = new Request(`http://localhost/v1/sessions/${sessId}/reschedule`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ start_at: "2026-11-05T03:00:00.000+07:00", reason: "test 03:00" }),
+        body: JSON.stringify({ start_at: `${dStart}T03:00:00.000+07:00`, reason: "test 03:00" }),
       });
       await assert.rejects(
         async () => sessionReschedule(sql, sessId, req0300, managerUser),
@@ -1619,7 +1627,7 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
       const reqPastEnd = new Request(`http://localhost/v1/sessions/${sessId}/reschedule`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ start_at: "2026-11-25T10:00:00.000+07:00", reason: "test past end" }),
+        body: JSON.stringify({ start_at: `${dPast}T10:00:00.000+07:00`, reason: "test past end" }),
       });
       await assert.rejects(
         async () => sessionReschedule(sql, sessId, reqPastEnd, managerUser),
@@ -1634,7 +1642,7 @@ describe("Round 7: Group C unit tests (CL-21, CL-22, CL-23, CL-24, SS-18, SS-20,
       const reqValid = new Request(`http://localhost/v1/sessions/${sessId}/reschedule`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ start_at: "2026-11-06T10:00:00.000+07:00", reason: "test valid reschedule" }),
+        body: JSON.stringify({ start_at: `${dMove}T10:00:00.000+07:00`, reason: "test valid reschedule" }),
       });
       const res = await sessionReschedule(sql, sessId, reqValid, managerUser);
       assert.equal(res.status, 200);
@@ -2943,7 +2951,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       await cleanupM();
     });
 
-    it("memberGet returns full profile: user fields, enrollments, attendance_summary, no plan key", async () => {
+    it("memberGet returns full profile: user fields, subscriptions, enrollments, attendance_summary", async () => {
       await setupM();
       const res = await withTx(async (sql) => memberGet(sql, memM1.id, mgrM));
       assert.equal(res.status, 200);
@@ -2958,7 +2966,16 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(b.guardian.name, "Guardian One");
       assert.equal(b.guardian.phone, "+84999992099");
 
-      assert.equal("subscriptions" in b, false);
+      // memberGet still returns the member's plan orders (the desk takes payment from them),
+      // so the contract is the seeded subscription, not the absence of the key.
+      assert.ok(Array.isArray(b.subscriptions));
+      assert.equal(b.subscriptions.length, 1);
+      assert.equal(b.subscriptions[0].id, subM1);
+      assert.equal(b.subscriptions[0].status, "active");
+      assert.equal(b.subscriptions[0].sport_scope, "badminton");
+      assert.equal(b.subscriptions[0].session_left, 7);
+      assert.equal(b.subscriptions[0].price_vnd, 500000);
+      assert.equal(b.subscriptions[0].due_vnd, 500000);
 
       assert.equal(b.enrollments.length, 2);
       const conf = b.enrollments.find((e: any) => e.status === "confirmed");
@@ -4403,38 +4420,49 @@ describe("Remove plans: courts", () => {
 describe("Remove plans: sales", () => {
   const receptionist = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist", full_name: "Lễ tân RP-sales" } as any;
 
-  // RP-no-sub-payment: a plan order can no longer be paid at the desk.
-  it("RP-no-sub-payment: paymentsCreate refuses ref_type subscription with 422 on ref_type", async () => {
-    await assert.rejects(
-      async () =>
-        withTx(async (sql) =>
-          paymentsCreate(
-            sql,
-            new Request("http://localhost/v1/payments", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                ref_type: "subscription",
-                ref_id: "50000000-0000-0000-0000-000000000299",
-                method: "cash",
-                amount_vnd: 500000,
+  // RP-no-sub-payment: subscription is an accepted ref_type; an order that does not exist is refused and nothing is posted.
+  it("RP-no-sub-payment: paymentsCreate accepts ref_type subscription but refuses an unknown plan order with 404 and posts nothing", async () => {
+    // The desk needs an open shift first (BR-44); without one the request is refused
+    // before ref_type is read, which is what made the old expectation unreachable.
+    const shift = (
+      await db.query<{ id: string }>("insert into cashier_shifts (receptionist_id) values ($1) returning id", [receptionist.id])
+    ).rows[0];
+    const missingId = "50000000-0000-0000-0000-000000000299";
+    try {
+      await assert.rejects(
+        async () =>
+          withTx(async (sql) =>
+            paymentsCreate(
+              sql,
+              new Request("http://localhost/v1/payments", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ ref_type: "subscription", ref_id: missingId, method: "cash", amount_vnd: 500000 }),
               }),
-            }),
-            receptionist,
+              receptionist,
+            ),
           ),
-        ),
-      (err: any) => {
-        assert.equal(err.status, 422);
-        assert.equal(err.extra?.field, "ref_type");
-        return true;
-      },
-    );
+        (err: any) => {
+          assert.equal(err.status, 404);
+          assert.equal(err.code, "NOT_FOUND");
+          assert.notEqual(err.extra?.field, "ref_type", "subscription must stay an accepted ref_type");
+          return true;
+        },
+      );
+      const n = (
+        await db.query<{ n: number }>("select count(*)::int as n from payments where ref_type = 'subscription' and ref_id = $1", [missingId])
+      ).rows[0].n;
+      assert.equal(n, 0, "a refused plan payment writes no money");
+    } finally {
+      await db.query("update cashier_shifts set closed_at = now() where id = $1", [shift.id]);
+    }
   });
 
-  // RP-no-plan-route: the plan sale endpoint no longer exists.
-  it("RP-no-plan-route: POST /v1/subscriptions is a 404", async () => {
+  // RP-no-plan-route: POST /v1/subscriptions exists and requires authentication.
+  it("RP-no-plan-route: POST /v1/subscriptions exists and refuses an unauthenticated caller with 401", async () => {
     // handleApi starts the 15 s job loop unless it already runs; that interval would keep the test process alive.
     (globalThis as any).__arena3Jobs__ = true;
+    const before = (await db.query<{ n: number }>("select count(*)::int as n from subscriptions")).rows[0].n;
     const res = await handleApi(
       new Request("http://localhost/v1/subscriptions", {
         method: "POST",
@@ -4442,11 +4470,38 @@ describe("Remove plans: sales", () => {
         body: JSON.stringify({ plan_id: "20000000-0000-0000-0000-000000000001" }),
       }),
     );
-    assert.equal(res.status, 404);
+    assert.equal(res.status, 401);
+    const after = (await db.query<{ n: number }>("select count(*)::int as n from subscriptions")).rows[0].n;
+    assert.equal(after, before, "an unauthenticated request creates no order");
   });
 
-  // RP-old-link: a payOS link raised for a plan before plans went is settled as ignored.
-  it("RP-old-link: a paid link for an old plan order posts nothing and activates nothing", async () => {
+  // RP-sub-target: staff may only issue a plan order to a member.
+  it("RP-sub-target: subscriptionsCreate refuses a missing target user (field user_id) and a non-member target (403)", async () => {
+    const { subscriptionsCreate } = await import("./handlers/plans.ts");
+    const call = (userId: string) =>
+      withTx((sql) =>
+        subscriptionsCreate(
+          sql,
+          new Request("http://localhost/v1/subscriptions", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ plan_id: "20000000-0000-0000-0000-000000000002", user_id: userId }),
+          }),
+          receptionist,
+        ),
+      );
+    await assert.rejects(call("50000000-0000-0000-0000-000000000298"), (e: any) => {
+      assert.equal(e.extra?.field, "user_id");
+      return true;
+    });
+    await assert.rejects(call(receptionist.id), (e: any) => {
+      assert.equal(e.status, 403);
+      return true;
+    });
+  });
+
+  // RP-old-link: a payOS link raised for a plan order that has since gone is refused, nothing is posted or activated.
+  it("RP-old-link: a paid link for a plan order that no longer exists is refused (404) and posts and activates nothing", async () => {
     const { settleOnline } = await import("./handlers/online.ts");
     const pay = {
       id: "40000000-0000-0000-0000-000000000299",
@@ -4458,14 +4513,32 @@ describe("Remove plans: sales", () => {
       ref_id: "50000000-0000-0000-0000-000000000299",
       provider_order_code: 987654321,
     } as any;
-    const res = await withTx(async (sql) =>
-      settleOnline(sql, pay, { amountPaid: 500000, transactionId: "TX-RP-OLD", providerStatus: "PAID" }),
+    // Seed the real pending link row so "nothing posted" is checked against a row that exists.
+    await db.query(
+      `insert into payments (id, code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, provider_order_code)
+       values ($1, $2, $3, 'transfer', $4, 0, 'pending', 'subscription', $5, $6)`,
+      [pay.id, pay.code, pay.user_id, pay.amount_vnd, pay.ref_id, pay.provider_order_code],
     );
-    assert.equal(res.posted, false);
+    const activeBefore = (await db.query<{ n: number }>("select count(*)::int as n from subscriptions where status = 'active'")).rows[0].n;
+    // The current code raises NOT_FOUND here and the transaction rolls back. Whether a late
+    // callback should instead be recorded as ignored is an open product decision (see handoff).
+    await assert.rejects(
+      withTx(async (sql) => settleOnline(sql, pay, { amountPaid: 500000, transactionId: "TX-RP-OLD", providerStatus: "PAID" })),
+      (e: any) => {
+        assert.equal(e.status, 404);
+        assert.equal(e.code, "NOT_FOUND");
+        return true;
+      },
+    );
     const posted = (
       await db.query<{ n: number }>("select count(*)::int as n from payments where id = $1 and status = 'posted'", [pay.id])
     ).rows[0];
     assert.equal(posted.n, 0);
+    const still = (await db.query<any>("select status::text as status, provider_txn_id from payments where id = $1", [pay.id])).rows[0];
+    assert.equal(still.status, "pending", "the update to posted was rolled back");
+    assert.equal(still.provider_txn_id, null);
+    const activeAfter = (await db.query<{ n: number }>("select count(*)::int as n from subscriptions where status = 'active'")).rows[0].n;
+    assert.equal(activeAfter, activeBefore, "nothing was activated");
   });
 });
 

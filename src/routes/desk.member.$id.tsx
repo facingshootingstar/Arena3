@@ -437,8 +437,7 @@ function Page() {
             <StatusBadge status={s.status} />
             <h2 className="mt-2 font-display text-2xl">{tData(s.plan_name)}</h2>
             <p className="text-sm text-muted">
-              {sportLabel(s.sport_scope)} · {t("through {date}", { date: formatDate(s.end_on) })} · {t("{n} court hours", { n: Number(s.court_hours_left) })}
-            </p>
+              {sportLabel(s.sport_scope)} · {t("through {date}", { date: formatDate(s.end_on) })}            </p>
             {s.session_left != null ? (
               <p className="mt-1 text-sm font-medium text-accent-2">
                 {t("{left} of {quota} sessions left", {

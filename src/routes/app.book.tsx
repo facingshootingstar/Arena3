@@ -439,7 +439,7 @@ function Page() {
   const planQuotaCard = (
     <Card className="p-4">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold">{t("Plan quota")}</h2>
+        <h2 className="text-base font-semibold">{t("My plan")}</h2>
         <Link to="/app/plans" className="text-xs font-medium text-accent-2 hover:underline">
           {t("Order a plan")}
         </Link>
@@ -448,12 +448,7 @@ function Page() {
         <ul className="divide-y divide-line">
           {mySubs.map((sub, idx) => (
             <li key={idx} className="py-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-fg">{sub.plan_name}</span>
-                <span className="rounded-[var(--radius-pill)] bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent-2">
-                  {sub.court_hours_left} {t("hours")}
-                </span>
-              </div>
+              <span className="font-medium text-fg">{sub.plan_name}</span>
               <p className="mt-0.5 text-xs text-muted">
                 {sportLabel(sub.sport_scope)} · {t("Ends {date}", { date: sub.end_on })}
               </p>
@@ -462,7 +457,7 @@ function Page() {
         </ul>
       ) : (
         <p className="text-xs text-muted leading-relaxed">
-          {t("No active plan. Buy a plan to get free court hours and member discounts.")}
+          {t("No active plan. See Plans for what each plan includes.")}
         </p>
       )}
     </Card>

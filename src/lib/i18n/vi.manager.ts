@@ -261,7 +261,7 @@ export const manager: Record<string, string> = {
   "Taken": "Đã thu",
   "Refunded": "Đã hoàn tiền",
   "Nothing taken in this period yet. Takings appear here once reception records a payment.": "Chưa thu khoản nào trong kỳ này. Tiền thu sẽ hiện ở đây khi lễ tân ghi nhận thanh toán.",
-  "Class places come out of a plan and gear hire is not charged as a payment, so neither has a line of its own.": "Chỗ trong lớp được trừ từ gói tập và tiền mượn dụng cụ không tính là thanh toán, nên cả hai không có dòng riêng.",
+  "Class places are sold separately and gear hire is posted as a payment, so both appear as sources above (Class seat, Equipment hire). Plan hours used are not money and are not in these totals.": "Chỗ trong lớp được bán riêng và tiền thuê dụng cụ được ghi là thanh toán, nên cả hai hiện ở các nguồn thu phía trên (Chỗ học, Thuê dụng cụ). Giờ dùng từ gói không phải tiền và không nằm trong các tổng này.",
   "By cashier shift": "Theo ca thu ngân",
   "Takings for each shift a cashier opened at the desk.": "Số tiền thu của từng ca thu ngân mở tại quầy.",
   "Shift": "Ca",

@@ -132,7 +132,7 @@ export const core: Record<string, string> = {
   "A class could not be scheduled for one date because the court or coach was busy.": "Một lớp không thể xếp vào một ngày vì sân hoặc HLV đã bận.",
   "A class you are in has changed. Open your classes to see the new time and court.": "Một lớp bạn tham gia đã thay đổi. Mở lớp của bạn để xem giờ và sân mới.",
   "Plan expiring soon": "Gói tập sắp hết hạn",
-  "Your plan ends within a week. Renew to keep your court hours and discount.": "Gói tập của bạn sẽ hết hạn trong vòng một tuần. Hãy gia hạn để giữ giờ sân và ưu đãi.",
+  "Your plan ends within a week. Renew to keep your discount.": "Gói tập của bạn sẽ hết hạn trong vòng một tuần. Hãy gia hạn để giữ ưu đãi.",
   "See plans": "Xem gói tập",
   "A class seat opened": "Có chỗ trống trong lớp",
   "Claim it before the offer runs out. A paid class then holds the seat while you pay.": "Hãy nhận trước khi hết hạn đề nghị. Với lớp có phí, chỗ sẽ được giữ trong lúc bạn thanh toán.",

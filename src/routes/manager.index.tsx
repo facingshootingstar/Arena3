@@ -4,7 +4,6 @@ import {
   Clock,
   FileText,
   HandCoins,
-  Hourglass,
   Image,
   LandPlot,
   Layers,
@@ -357,8 +356,6 @@ function Page() {
                 rev.totals.revenue_vnd,
                 t("Refunds"),
                 rev.totals.refund_vnd ?? 0,
-                t("Plan hours used"),
-                rev.totals.quota_hours,
               ],
               [],
               [t("Method"), t("Amount")],
@@ -378,13 +375,12 @@ function Page() {
       {revError ? (
         <LoadError id="report-error" message={revError.message} onRetry={refused ? undefined : revRead.reload} />
       ) : !rev ? (
-        <div className="grid gap-3 md:grid-cols-3">
-          <Skeleton className="h-28" />
+        <div className="grid gap-3 md:grid-cols-2">
           <Skeleton className="h-28" />
           <Skeleton className="h-28" />
         </div>
       ) : (
-        <Stagger className="grid gap-3 md:grid-cols-3" gap={0.08}>
+        <Stagger className="grid gap-3 md:grid-cols-2" gap={0.08}>
           <StaggerItem>
           <Stat
             label={t("Revenue")}
@@ -401,15 +397,6 @@ function Page() {
             note={t("Money handed back to members")}
             value={money(rev.totals.refund_vnd ?? 0)}
             trend={prev ? delta(rev.totals.refund_vnd ?? 0, prev.totals.refund_vnd ?? 0, false) : undefined}
-          />
-          </StaggerItem>
-          <StaggerItem>
-          <Stat
-            label={t("Plan hours used")}
-            icon={Hourglass}
-            note={t("Court hours members drew from their plans")}
-            value={rev.totals.quota_hours}
-            trend={prev ? delta(rev.totals.quota_hours, prev.totals.quota_hours, true) : undefined}
           />
           </StaggerItem>
         </Stagger>
@@ -582,7 +569,7 @@ function Page() {
               </p>
             )}
             <p className="mt-3 text-xs text-muted">
-              {t("Class places come out of a plan and gear hire is not charged as a payment, so neither has a line of its own.")}
+              {t("Class places are sold separately and gear hire is posted as a payment, so both appear as sources above (Class seat, Equipment hire). Plan hours used are not money and are not in these totals.")}
             </p>
           </Card>
           <Card>

@@ -214,6 +214,7 @@ export const SOURCE_LABEL: Record<string, string> = lazyLabels({
   booking: tk("Court rental"),
   class: tk("Class"),
   enrollment: tk("Class seat"),
+  equipment: tk("Equipment hire"),
   membership: tk("Plan"),
   subscription: tk("Plan"),
   walk_in: tk("Walk-in"),

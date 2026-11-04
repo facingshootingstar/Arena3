@@ -160,7 +160,7 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
     case "sub_expiring":
       return {
         title: t("Plan expiring soon"),
-        body: t("Your plan ends within a week. Renew to keep your court hours and discount."),
+        body: t("Your plan ends within a week. Renew to keep your discount."),
         link: { to: "/app/plans", label: t("See plans") },
       };
     case "waitlist_offer":

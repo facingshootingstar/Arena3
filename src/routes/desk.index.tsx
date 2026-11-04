@@ -443,7 +443,7 @@ function Page() {
                     <p className="font-medium">{tData(p.name)}</p>
                     <p className="text-sm tabular-nums text-muted">
                       {money(p.price_vnd)}
-                      {p.duration_days ? ` · ${t("{n} days", { n: p.duration_days })}` : ""} · {t("{n} court hours", { n: p.court_hours })}
+                      {p.duration_days ? ` · ${t("{n} days", { n: p.duration_days })}` : ""}
                     </p>
                   </button>
                 ))}

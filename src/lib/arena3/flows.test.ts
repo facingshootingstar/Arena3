@@ -206,7 +206,49 @@ describe("MF-01 Member books a court and pays the full slot price", () => {
     )).rows;
     assert.equal(pays.length, 1, "exactly one payment row");
     assert.equal(pays[0].status, "posted");
-    assert.equal(Number(pays[0].amount_vnd), price);
+    // Default settings: the slot's own terms decide (deposit if valid, else full).
+    const deposit = Number(row.deposit_vnd);
+    const expectedDue = deposit > 0 && deposit < price ? deposit : price;
+    assert.equal(Number(pays[0].amount_vnd), expectedDue);
+    assert.equal(Number(row.paid_vnd), expectedDue);
+  });
+
+  it("MF-01b: controlled settings - a 30% deposit collects less than the price and leaves a balance; 0% collects the full price", async () => {
+    const saved = (await db.query<any>("select deposit_pct, deposit_peak_only from center_settings where id = 1")).rows[0];
+    try {
+      const run = async (pct: number, tag: string) => {
+        await db.query("update center_settings set deposit_pct = $1, deposit_peak_only = false where id = 1", [pct]);
+        const m = await seedMember("MF01b " + tag);
+        const court = await seedCourt("D" + tag[0]);
+        const hold = await holdSlot(m, court);
+        assert.equal(hold.status, 201);
+        const id = (hold.body as any).booking.id;
+        const price = Number((hold.body as any).price);
+        await withTx((sql) => bookingsConfirm(sql, id, jsonReq({ method: "transfer" }), m));
+        await withTx((sql) => bookingsTransferConfirm(sql, id, RECEPTIONIST));
+        const row = await bookingRow(id);
+        const pays = (await db.query<any>(
+          "select amount_vnd from payments where ref_type = 'booking' and ref_id = $1 and status = 'posted'", [id],
+        )).rows;
+        assert.equal(pays.length, 1);
+        return { price, row, paid: Number(pays[0].amount_vnd) };
+      };
+      const dep = await run(30, "dep");
+      assert.equal(dep.row.status, "confirmed");
+      assert.ok(dep.paid > 0 && dep.paid < dep.price, `deposit ${dep.paid} must be between 0 and price ${dep.price}`);
+      // 30% of the price within one rounding step (not a copy of depositFor).
+      assert.ok(Math.abs(dep.paid - dep.price * 0.3) <= dep.price * 0.05, "deposit is about 30% of the price");
+      assert.equal(Number(dep.row.deposit_vnd), dep.paid);
+      assert.equal(Number(dep.row.paid_vnd), dep.paid);
+      assert.ok(Number(dep.row.price_vnd) - Number(dep.row.paid_vnd) > 0, "a balance is left for the desk");
+
+      const full = await run(0, "full");
+      assert.equal(Number(full.row.deposit_vnd), 0);
+      assert.equal(full.paid, full.price, "no deposit -> full price collected");
+      assert.equal(Number(full.row.paid_vnd), full.price);
+    } finally {
+      await db.query("update center_settings set deposit_pct = $1, deposit_peak_only = $2 where id = 1", [saved.deposit_pct, saved.deposit_peak_only]);
+    }
   });
 
   it("EF-01a: a second member cannot hold a slot that is already held (409 CONFLICT_SLOT)", async () => {

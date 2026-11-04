@@ -337,7 +337,7 @@ function ChatPage() {
           {/* Left Column: Conversations List */}
           <div
             className={cn(
-              "flex flex-col border-r border-line bg-surface/50 lg:col-span-5 xl:col-span-4",
+              "flex min-h-0 flex-col border-r border-line bg-surface/50 lg:col-span-5 xl:col-span-4",
               activeConvId ? "hidden lg:flex" : "flex",
             )}
           >
@@ -439,14 +439,14 @@ function ChatPage() {
           {/* Right Column: Chat Box */}
           <div
             className={cn(
-              "flex flex-col bg-surface lg:col-span-7 xl:col-span-8",
+              "flex min-h-0 flex-col bg-surface lg:col-span-7 xl:col-span-8",
               activeConvId ? "flex" : "hidden lg:flex",
             )}
           >
             {activeConv ? (
               <>
                 {/* Active Chat Header */}
-                <div className="flex h-16 items-center justify-between border-b border-line px-4">
+                <div className="flex h-16 shrink-0 items-center justify-between border-b border-line px-4">
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
@@ -496,7 +496,7 @@ function ChatPage() {
                 </div>
 
                 {/* Message Stream */}
-                <div className="flex-1 overflow-y-auto p-4">
+                <div className="min-h-0 flex-1 overflow-y-auto p-4">
                   {hasMore ? (
                     <div className="mb-3 text-center">
                       <Button
@@ -588,7 +588,7 @@ function ChatPage() {
                 </div>
 
                 {/* Message Input Box */}
-                <form onSubmit={handleSend} className="border-t border-line p-3">
+                <form onSubmit={handleSend} className="shrink-0 border-t border-line p-3">
                   <div className="flex items-center gap-2">
                     <Input
                       value={inputText}
