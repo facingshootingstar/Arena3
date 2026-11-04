@@ -3,6 +3,15 @@
  * attendance panels. One `"English": "Tiếng Việt",` per line.
  */
 export const manager: Record<string, string> = {
+  "Open Create class, pick a sport, coach and days, then press Create & publish. Members can book as soon as it is published.": "Mở Tạo lớp học, chọn môn, HLV và ngày học, rồi nhấn Tạo & mở lớp. Hội viên có thể đăng ký ngay sau khi mở lớp.",
+  "Matching members": "Hội viên phù hợp",
+  "Plan active": "Gói còn hiệu lực",
+  "On this page": "Trong trang này",
+  "Participating members": "Hội viên tham gia",
+  "With a booking or confirmed class in this period": "Có đặt sân hoặc lớp đã xác nhận trong kỳ",
+  "New members, participation and how full each class is.": "Hội viên mới, mức tham gia và sĩ số từng lớp.",
+  "New members by signup month; confirmed class places by class start month.": "Hội viên mới theo tháng đăng ký; lượt đăng ký lớp đã xác nhận theo tháng bắt đầu lớp.",
+  "Confirmed class places": "Lượt đăng ký lớp đã xác nhận",
   // ---- attendance panels -------------------------------------------------------
   "From": "Từ",
   "To": "Đến",

@@ -90,10 +90,10 @@ function Page() {
 
       <StatStrip
         stats={[
-          { label: tk("Total members"), value: total },
-          { label: tk("Plan active"), value: activeCount },
-          { label: tk("Ends within a week"), value: expiringCount },
-          { label: tk("No plan"), value: noPlanCount },
+          { label: term || status || sport || plan ? t("Matching members") : t("Total members"), value: data ? total : "…" },
+          { label: t("Plan active"), value: data ? activeCount : "…", detail: t("On this page") },
+          { label: t("Ends within a week"), value: data ? expiringCount : "…", detail: t("On this page") },
+          { label: t("No plan"), value: data ? noPlanCount : "…", detail: t("On this page") },
         ]}
         className="mb-6"
       />
