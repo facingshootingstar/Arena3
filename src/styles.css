@@ -944,3 +944,92 @@ select option:disabled {
 
 /* The 3D scene serves its own shuttle; the SVG one is the no-WebGL2 fallback. */
 html.shuttle-on [data-shuttle] { display: none; }
+
+/* Sidebar rail: names appear only while the rail is widened (hover or keyboard focus inside). */
+@media (min-width: 64rem) {
+  aside.group\/side .sidebar-label {
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+  }
+  aside.group\/side:hover .sidebar-label,
+  aside.group\/side:focus-within .sidebar-label {
+    opacity: 1;
+    transition-delay: 60ms;
+  }
+  aside.group\/side:not(:hover):not(:focus-within) .sidebar-label {
+    pointer-events: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  aside.group\/side .sidebar-label { transition: none; }
+}
+
+/* Light scheme ("Court Day"), chosen from the sidebar or the phone's More sheet. Same court
+   greens and lime, on daylight paper. Lime stays the button fill; as text it turns deep green so
+   it reads on white. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f4f6f1;
+  --color-fg: #16201b;
+  --color-surface: #ffffff;
+  --color-muted: #4a5750;
+  --color-subtle: #5f6b64;
+  --color-line: #d8dfd8;
+  --color-line-strong: #b6c1b8;
+  --color-accent-2: #3f7d20;
+  --color-accent-text: #3f7d20;
+  --color-accent-hover: #c8ec2a;
+  --color-danger: #c62f27;
+  --color-hold: #b4630f;
+  --color-ink: #16201b;
+  --color-wood: #eaefe7;
+  --color-espresso: #1b2220;
+  --color-espresso-fg: #f5f8f2;
+  --color-disabled: #e4e9e2;
+  --color-disabled-fg: #7c877f;
+  --color-pass: #ffffff;
+  --color-pass-fg: #16201b;
+  --color-pass-muted: #5f6b64;
+  --color-sport-leaf: #3f8a2a;
+  --color-sport-clay: #c0542b;
+  --color-sport-sun: #a77b00;
+  --color-sport-sky: #2f62c8;
+  --color-sport-plum: #8e3ea0;
+  --color-sport-slate: #546e7a;
+  --color-sport-moss: #5b7f2c;
+  --color-sport-dune: #7a6a62;
+  --color-heat-0: #eef2ea;
+  --color-heat-1: #e2f3b0;
+  --color-heat-2: #cdea78;
+  --color-heat-3: #b2d93f;
+  --color-heat-4: #8fbd1f;
+  --color-heat-5: #5f8f12;
+  --shadow-soft: 0 1px 2px rgba(20, 30, 20, 0.08), 0 12px 32px -14px rgba(20, 30, 20, 0.18);
+  --shadow-border: 0 0 0 1px rgba(20, 40, 25, 0.08), 0 1px 2px rgba(20, 30, 20, 0.06);
+  --shadow-accent: 0 1px 2px rgba(20, 30, 20, 0.15);
+}
+
+/* Light scheme: lime is a fill, never ink. On white it glares, so as text, stroke or outline it
+   turns court green; buttons keep the lime fill with dark text. */
+:root[data-theme="light"] .text-accent,
+:root[data-theme="light"] .hover\:text-accent:hover,
+:root[data-theme="light"] .group:hover .group-hover\:text-accent {
+  color: #3f7d20;
+}
+:root[data-theme="light"] .text-accent\/45 { color: rgb(63 125 32 / 0.45); }
+:root[data-theme="light"] .stroke-accent { stroke: #5f9a1c; }
+:root[data-theme="light"] .fill-accent { fill: #5f9a1c; }
+:root[data-theme="light"] [class~="border-accent"],
+:root[data-theme="light"] [class~="border-accent/20"],
+:root[data-theme="light"] [class~="border-accent/30"],
+:root[data-theme="light"] [class~="border-accent/40"],
+:root[data-theme="light"] [class~="border-accent/60"] { border-color: rgb(95 154 28 / 0.55); }
+:root[data-theme="light"] [class~="ring-accent"],
+:root[data-theme="light"] [class~="ring-accent/15"],
+:root[data-theme="light"] [class~="ring-accent/25"],
+:root[data-theme="light"] [class~="ring-accent/30"],
+:root[data-theme="light"] [class~="ring-accent/40"],
+:root[data-theme="light"] [class~="ring-accent/45"],
+:root[data-theme="light"] [class~="ring-accent/60"],
+:root[data-theme="light"] [class~="ring-accent/70"] { --tw-ring-color: rgb(95 154 28 / 0.5); }
+:root[data-theme="light"] .bg-accent .text-accent { color: var(--color-accent-fg); }

@@ -2,18 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AssistantMark } from "@/components/mark";
-import { Shell } from "@/components/shell";
+import { Shell, useSessionUser } from "@/components/shell";
 import { Button, LoadError } from "@/components/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { GLBackground, Magnet, ShinyText } from "@/components/fx";
 import { apiPost } from "@/lib/arena3/client";
+import { type ChatMsg, useChatLog } from "@/lib/chat-log";
 import { cn } from "@/lib/cn";
 import { scrollBehavior } from "@/lib/calm";
 import { t, tk } from "@/lib/i18n";
 
 export const Route = createFileRoute("/app/assistant")({ component: Page });
 
-type Msg = { role: "me" | "bot"; text: string; source?: "gemini" | "xai" | "rules" };
+type Msg = ChatMsg;
 
 /**
  * The longest question the assistant will read.
@@ -53,7 +54,10 @@ function sourceLabel(s?: Msg["source"]) {
 
 function Page() {
   const [q, setQ] = useState("");
-  const [log, setLog] = useState<Msg[]>([WELCOME]);
+  // Shared with the corner widget and kept across reloads (localStorage, per member).
+  const user = useSessionUser();
+  const { log: saved, append, clear } = useChatLog(user?.id);
+  const log: Msg[] = [WELCOME, ...saved];
   const [busy, setBusy] = useState(false);
   // The question that got no answer, and why. Kept in the thread rather than in a toast that fades, so
   // the member can see what was asked and ask it again without typing it out a second time.
@@ -85,7 +89,7 @@ function Page() {
         .slice(0, -1)
         .map((m) => ({ role: m.role, text: m.text }));
       const r = await apiPost<{ reply: string; source?: Msg["source"] }>("/assistant", { message, history });
-      setLog((l) => [...l, { role: "bot", text: r.reply, source: r.source }]);
+      append({ role: "bot", text: r.reply, source: r.source });
     } catch (e) {
       setFailure({ message, reason: e instanceof Error ? e.message : t("The assistant is switched off") });
     } finally {
@@ -98,8 +102,9 @@ function Page() {
     const message = (text ?? q).trim().slice(0, MAX_CHARS);
     if (message.length < 2 || busy) return;
     setQ("");
-    const nextLog: Msg[] = [...log, { role: "me", text: message }];
-    setLog(nextLog);
+    const mine: Msg = { role: "me", text: message };
+    const nextLog: Msg[] = [...log, mine];
+    append(mine);
     void ask(message, nextLog);
   }
 
@@ -138,7 +143,7 @@ function Page() {
               variant="ghost"
               size="sm"
               onClick={() => {
-                setLog([WELCOME]);
+                clear();
                 setFailure(null);
                 setQ("");
               }}

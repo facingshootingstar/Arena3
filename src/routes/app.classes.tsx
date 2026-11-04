@@ -491,7 +491,9 @@ function Page() {
         </p>
       </Modal>
       <ClassDetailModal cls={detail} onClose={() => setDetail(null)} />
-      <MyAttendance />
+      <div id="attendance" className="scroll-mt-20">
+        <MyAttendance />
+      </div>
     </Shell>
   );
 }

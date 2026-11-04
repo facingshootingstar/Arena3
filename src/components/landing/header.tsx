@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { ArenaMark } from "@/components/mark";
 import { LangSwitch } from "@/components/lang-switch";
+import { ThemeIconToggle } from "@/components/theme-toggle";
 import { ButtonAnchor, ButtonLink } from "@/components/ui";
 import { ScrollTrigger, gsap, useScene } from "@/lib/gsap";
 import { cn } from "@/lib/cn";
@@ -123,6 +124,7 @@ export function SiteHeader() {
             {t("Join")}
           </ButtonLink>
           <LangSwitch />
+<ThemeIconToggle />
         </div>
         <button
           type="button"
@@ -168,6 +170,7 @@ export function SiteHeader() {
             </div>
             <div className="flex items-center justify-center gap-2 pt-1 md:hidden">
               <LangSwitch />
+<ThemeIconToggle />
             </div>
           </nav>
         </div>

@@ -299,6 +299,7 @@ export function NotificationList({
   onRead,
   limit = 8,
   hideRead = false,
+  hideMarkAll = false,
 }: {
   items: Notification[];
   /** Called with the ids just marked read, so the owner can update its copy. */
@@ -306,6 +307,8 @@ export function NotificationList({
   limit?: number;
   /** Tuck read notifications out of the list. Nothing is deleted. */
   hideRead?: boolean;
+  /** The owner shows its own "Mark all as read". */
+  hideMarkAll?: boolean;
 }) {
   const [open, setOpen] = useState<Notification | null>(null);
   const [all, setAll] = useState(false);
@@ -328,7 +331,7 @@ export function NotificationList({
 
   return (
     <>
-      {unread.length ? (
+      {unread.length && !hideMarkAll ? (
         <div className="mt-2 flex items-center justify-between text-sm text-muted">
           <span>{t("{n} unread", { n: unread.length })}</span>
           <button

@@ -668,8 +668,42 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
       where b.user_id = $1
         and b.status in ('hold','confirmed')
         and b.start_at >= now() - interval '12 hours'
-        and b.start_at < now() + interval '24 hours'
-      order by b.start_at`,
+        and b.start_at < now() + interval '7 days'
+      order by b.start_at
+      limit 20`,
+    [user.id],
+  );
+  const subs = await sql.query<{
+    plan: string; sport_scope: string; start_on: string; end_on: string; status: string;
+    court_hours_left: string; session_left: number | null; days_left: number;
+  }>(
+    `select p.name as plan, s.sport_scope::text, s.start_on::text, s.end_on::text, s.status::text,
+            s.court_hours_left::text, s.session_left,
+            (s.end_on - (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as days_left
+       from subscriptions s join membership_plans p on p.id = s.plan_id
+      where s.user_id = $1
+      -- Live plans first, then the latest expired one so "my plan ran out on…" can be answered.
+      order by (s.status = 'expired'), s.end_on desc
+      limit 4`,
+    [user.id],
+  );
+  const myClasses = await sql.query<{ sport: string; level: string; status: string; waitlist_pos: number | null; next_at: string | null }>(
+    `select cl.sport::text, cl.level::text, e.status::text, e.waitlist_pos,
+            (select min(se.start_at)::text from sessions se
+              where se.class_id = cl.id and se.status = 'scheduled' and se.start_at >= now()) as next_at
+       from enrollments e join classes cl on cl.id = e.class_id
+      where e.user_id = $1 and e.status in ('confirmed','waitlisted')
+      order by cl.sport, cl.level`,
+    [user.id],
+  );
+  const recentAtt = await sql.query<{ kind: string; result: string | null; at: string; label: string | null }>(
+    `select a.kind::text, a.result::text, a.at::text, cl.sport || ' ' || cl.level as label
+       from attendance a
+       left join sessions se on se.id = a.session_id
+       left join classes cl on cl.id = se.class_id
+      where a.user_id = $1
+      order by a.at desc
+      limit 5`,
     [user.id],
   );
 
@@ -681,10 +715,14 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     `Open classes:\n${classes.map((c) => `• ${c.sport} ${c.level} · coach ${c.coach_name ?? "—"} · ${c.enrolled_count}/${c.capacity}`).join("\n") || "No classes are open."}`,
     `Coaches:\n${COACHES.map((c) => `• ${c.name} — ${c.title}. ${c.blurb}`).join("\n")}`,
     `Member asking: ${user.full_name} (${user.member_code ?? "no member code yet"}).`,
-    `Today / next 24h:\n${todayBookings.map((b) => `• ${b.court_code} ${b.start_at} (${b.status})`).join("\n") || "Nothing booked."}`,
+    `Today's date (ICT): ${ictDateString()}.`,
+    `Member's plans:\n${subs.map((s) => `• ${s.plan} (${s.sport_scope}) · ${s.status} · ${s.start_on} → ${s.end_on} (${s.days_left} days left) · court hours left ${s.court_hours_left}${s.session_left !== null ? ` · sessions left ${s.session_left}` : ""}`).join("\n") || "No plan ever bought."}`,
+    `Member's classes:\n${myClasses.map((c) => `• ${c.sport} ${c.level} · ${c.status}${c.waitlist_pos !== null ? ` #${c.waitlist_pos}` : ""} · next session ${c.next_at ?? "none scheduled"}`).join("\n") || "Not enrolled in any class."}`,
+    `Court bookings, next 7 days:\n${todayBookings.map((b) => `• ${b.court_code} ${b.start_at} (${b.status})`).join("\n") || "Nothing booked."}`,
+    `Recent attendance:\n${recentAtt.map((a) => `• ${a.at} ${a.kind}${a.label ? ` ${a.label}` : ""}${a.result ? ` · ${a.result}` : ""}`).join("\n") || "No records."}`,
   ].join("\n\n");
 
-  const system = `You are the ${centreName(settings)} front-desk assistant inside the member app. Answer in English, keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
+  const system = `You are the ${centreName(settings)} front-desk assistant inside the member app. Reply in the language of the member's latest message (Vietnamese if they write in Vietnamese, otherwise English), keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
 No medical advice, no discounts beyond the listed prices, never invent a free slot.
 Only name coaches and classes that appear in the data block.
 If you do not know: tell them to ask the desk or start a message with "ticket:" followed by what happened.

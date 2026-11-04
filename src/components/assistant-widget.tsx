@@ -1,9 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Maximize2, Send, X } from "lucide-react";
+import { Maximize2, RotateCcw, Send, X } from "lucide-react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useReducedMotionAfterMount } from "@/components/motion";
+import { useSessionUser } from "@/components/shell";
 import { apiPost } from "@/lib/arena3/client";
+import { useChatLog } from "@/lib/chat-log";
 import { cn } from "@/lib/cn";
 import { scrollBehavior } from "@/lib/calm";
 import { t, tk } from "@/lib/i18n";
@@ -113,8 +115,6 @@ export function Mascot({ thinking = false, size = 64, className }: { thinking?: 
   );
 }
 
-type Msg = { role: "me" | "bot"; text: string };
-
 const MAX_CHARS = 800;
 const CHIPS = [tk("What are your opening hours?"), tk("How do I cancel a court?")];
 const WELCOME = tk("Hi, I'm Shuttle. Ask me about the timetable, prices, coaches or cancelling.");
@@ -127,7 +127,8 @@ const WELCOME = tk("Hi, I'm Shuttle. Ask me about the timetable, prices, coaches
 export function AssistantWidget({ docked }: { docked: boolean }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [log, setLog] = useState<Msg[]>([]);
+  const user = useSessionUser();
+  const { log, append, clear } = useChatLog(user?.id);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const thread = useRef<HTMLDivElement>(null);
@@ -152,11 +153,11 @@ export function AssistantWidget({ docked }: { docked: boolean }) {
     setQ("");
     setErr(null);
     const history = log.filter((m) => m.role === "me").map((m) => ({ role: m.role, text: m.text }));
-    setLog((l) => [...l, { role: "me", text: message }]);
+    append({ role: "me", text: message });
     setBusy(true);
     try {
-      const r = await apiPost<{ reply: string }>("/assistant", { message, history });
-      setLog((l) => [...l, { role: "bot", text: r.reply }]);
+      const r = await apiPost<{ reply: string; source?: "gemini" | "xai" | "rules" }>("/assistant", { message, history });
+      append({ role: "bot", text: r.reply, source: r.source });
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("The assistant is switched off"));
     } finally {
@@ -189,6 +190,21 @@ export function AssistantWidget({ docked }: { docked: boolean }) {
                 <p className="text-sm font-medium leading-tight">Shuttle</p>
                 <p className="text-2xs text-muted">{busy ? t("Typing") : t("Grounded in this centre's timetable and prices")}</p>
               </div>
+              {log.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clear();
+                    setErr(null);
+                  }}
+                  disabled={busy}
+                  aria-label={t("Clear")}
+                  title={t("Clear")}
+                  className="grid size-9 place-items-center rounded-full text-muted hover:bg-wood hover:text-fg disabled:opacity-50"
+                >
+                  <RotateCcw className="size-4" />
+                </button>
+              ) : null}
               <Link
                 to="/app/assistant"
                 onClick={() => setOpen(false)}

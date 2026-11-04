@@ -3,6 +3,8 @@ import { AssistantWidget } from "@/components/assistant-widget";
 import {
   Activity,
   Bell,
+  CheckCheck,
+  X,
   CalendarDays,
   ChevronDown,
   ClipboardList,
@@ -33,6 +35,9 @@ import {
   Users,
   Wallet,
   Wrench,
+  Languages,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { type FocusEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { ArenaMark, AssistantMark } from "./mark";
@@ -59,7 +64,9 @@ import { roleLabel } from "@/lib/arena3/labels";
 import { locale, t, tk } from "@/lib/i18n";
 import { ConnectionBanner } from "./connection-banner";
 import { LangSwitch } from "./lang-switch";
+import { useTheme } from "@/lib/theme";
 import { useDialog } from "./ui";
+import { NotificationList, type Notification } from "./notifications";
 
 export function useSessionUser(): SessionUser | null {
   const [u, setU] = useState<SessionUser | null>(null);
@@ -226,35 +233,150 @@ export { initials } from "@/lib/initials";
 function NotificationBell({ active, to }: { active: boolean; to: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [unread, setUnread] = useState(0);
+  const [items, setItems] = useState<Notification[] | null>(null);
+  const [onlyNew, setOnlyNew] = useState(false);
+  const { open, setOpen, ref, button, panelId, onBlur } = useDropdown();
 
   const fetchUnread = () => {
     void apiGet<{ unread: number }>("/me/notifications?limit=1", { background: true })
       .then((r) => setUnread(r.unread))
       .catch(() => {});
   };
+  const fetchList = () => {
+    void apiGet<{ items: Notification[]; unread: number }>("/me/notifications?limit=10", { background: true })
+      .then((r) => {
+        setItems(r.items);
+        setUnread(r.unread);
+      })
+      .catch(() => setItems((cur) => cur ?? []));
+  };
 
   useEffect(() => {
     fetchUnread();
+    setOpen(false);
   }, [pathname]);
+  useEffect(() => {
+    if (open) fetchList();
+  }, [open]);
 
-  useLive("notifications", fetchUnread);
+  useLive("notifications", () => (open ? fetchList() : fetchUnread()));
 
   return (
-    <Link
-      to={to}
-      aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
-      className={cn(
-        "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
-        active ? "bg-wood text-accent ring-1 ring-inset ring-accent/40" : "text-fg hover:bg-wood",
-      )}
-    >
-      <Bell className="size-4" strokeWidth={1.9} />
-      {unread ? (
-        <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-bold leading-5 text-on-media tabular-nums motion-safe:animate-pulse">
-          {unread > 9 ? "9+" : unread}
-        </span>
-      ) : null}
-    </Link>
+    <div ref={ref} onBlur={onBlur} className="relative">
+      <button
+        ref={button}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
+        className={cn(
+          "relative grid size-11 place-items-center rounded-[var(--radius-pill)] transition-colors duration-150",
+          active || open ? "bg-wood text-accent ring-1 ring-inset ring-accent/40" : "text-fg hover:bg-wood",
+        )}
+      >
+        <Bell className="size-4" strokeWidth={1.9} />
+        {unread ? (
+          <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-danger px-1 text-xs font-bold leading-5 text-on-media tabular-nums motion-safe:animate-pulse">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        ) : null}
+      </button>
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            id={panelId}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-x-3 top-16 z-40 origin-top-right overflow-hidden rounded-[1.25rem] border border-line bg-surface shadow-[0_30px_70px_-30px_rgba(11,18,48,0.55)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-[30rem]"
+          >
+            <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-5">
+              <p className="font-display text-2xl font-bold tracking-tight">{t("Notifications")}</p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={!items?.some((n) => !n.read_at)}
+                  onClick={async () => {
+                    try {
+                      await apiPost("/me/notifications/read", {});
+                      setItems((cur) => (cur ?? []).map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })));
+                      setUnread(0);
+                    } catch {
+                      /* the list stays as the server has it */
+                    }
+                  }}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-pill)] px-2.5 text-xs font-medium text-muted transition-colors hover:bg-wood hover:text-fg disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <CheckCheck aria-hidden="true" className="size-3.5" />
+                  {t("Mark all as read")}
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("Close")}
+                  onClick={() => setOpen(false)}
+                  className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-wood hover:text-fg"
+                >
+                  <X aria-hidden="true" className="size-4" />
+                </button>
+              </div>
+            </div>
+            <div role="tablist" aria-label={t("Show")} className="flex gap-6 border-b border-line px-5 text-sm font-medium">
+              {[false, true].map((v) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  role="tab"
+                  aria-selected={onlyNew === v}
+                  onClick={() => setOnlyNew(v)}
+                  className={cn(
+                    "-mb-px min-h-10 border-b-2 transition-colors duration-150",
+                    onlyNew === v ? "border-fg text-fg" : "border-transparent text-muted hover:text-fg",
+                  )}
+                >
+                  {v ? t("Unread") : t("All")}
+                </button>
+              ))}
+            </div>
+            <div className="max-h-[min(60vh,28rem)] overflow-y-auto overscroll-contain px-3 pb-2">
+              {!items ? (
+                <div className="mt-3 grid gap-2">
+                  <div className="h-14 animate-pulse rounded-[var(--radius-md)] bg-wood" />
+                  <div className="h-14 animate-pulse rounded-[var(--radius-md)] bg-wood" />
+                </div>
+              ) : (onlyNew ? !items.some((n) => !n.read_at) : !items.length) ? (
+                <div className="grid place-items-center gap-1.5 px-6 py-16 text-center">
+                  <Bell aria-hidden="true" className="mb-2 size-8 text-muted" strokeWidth={1.5} />
+                  <p className="font-display text-base font-bold text-fg">{onlyNew ? t("Nothing unread") : t("No notifications yet")}</p>
+                  <p className="text-sm text-muted">{t("Bookings, payments and class updates will appear here.")}</p>
+                </div>
+              ) : (
+                <NotificationList
+                  items={items}
+                  limit={10}
+                  hideRead={onlyNew}
+                  hideMarkAll
+                  onRead={(ids) => {
+                    setItems((cur) =>
+                      (cur ?? []).map((n) => (ids.includes(n.id) && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n)),
+                    );
+                    setUnread((u) => Math.max(0, u - ids.length));
+                  }}
+                />
+              )}
+            </div>
+            <Link
+              to={to}
+              onClick={() => setOpen(false)}
+              className="flex min-h-11 items-center justify-center border-t border-line text-sm font-medium text-accent-text hover:bg-wood"
+            >
+              {t("See all notifications")}
+            </Link>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -313,7 +435,10 @@ function useDropdown() {
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const el = e.target as Element;
+      // A notification opened from the bell shows in a dialog; clicking in it must not close the bell.
+      if (el.closest?.("[role=dialog]")) return;
+      if (!ref.current?.contains(el)) setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -342,11 +467,14 @@ function AccountMenu({
   role,
   showName,
   onLogout,
+  up,
 }: {
   user: SessionUser | null;
   role: SessionUser["role"];
   showName: boolean;
   onLogout: () => void;
+  /** In the sidebar foot: the menu opens upward and the name shows only when the rail is wide. */
+  up?: boolean;
 }) {
   const { open, setOpen, ref, button, panelId, onBlur } = useDropdown();
 
@@ -369,11 +497,11 @@ function AccountMenu({
             initialsClassName="text-xs font-bold tracking-wide text-accent-fg"
           />
         </span>
-        <span className={cn("hidden text-left", showName && "xl:block")}>
+        <span className={cn("text-left", up ? "sidebar-label block" : cn("hidden", showName && "xl:block"))}>
           <span className="block max-w-[10rem] truncate text-sm font-medium leading-tight">{user?.full_name ?? "-"}</span>
           <span className="kicker text-2xs text-muted">{roleLabel(role)}</span>
         </span>
-        <ChevronDown aria-hidden="true" className={cn("hidden size-4 text-muted transition-transform duration-200 sm:block", open && "rotate-180")} />
+        <ChevronDown aria-hidden="true" className={cn("hidden size-4 text-muted transition-transform duration-200", up ? "sidebar-label ml-auto lg:block" : "sm:block", open && "rotate-180")} />
       </button>
       <AnimatePresence>
         {open ? (
@@ -383,7 +511,7 @@ function AccountMenu({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-56 origin-top-right overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]"
+            className={cn("absolute z-30 w-56 overflow-hidden rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]", up ? "bottom-[calc(100%+0.5rem)] left-0 origin-bottom-left" : "right-0 top-[calc(100%+0.5rem)] origin-top-right")}
           >
             <div className="border-b border-line/70 px-3 pb-2.5 pt-2 xl:hidden">
               <p className="truncate text-sm font-medium">{user?.full_name ?? "-"}</p>
@@ -430,56 +558,6 @@ function grouped(items: NavItem[]): NavGroup[] {
     else out.push({ group: it.group, items: [it] });
   }
   return out;
-}
-
-/** Laptop: one drop-down per group, each a plain list of its pages. The button lights up when the page you are on is in it. */
-function NavGroupMenu({ group, pathname, all }: { group: NavGroup; pathname: string; all: NavItem[] }) {
-  const { open, setOpen, ref, button, panelId, onBlur } = useDropdown();
-  const inside = group.items.some((it) => navActive(pathname, it.to, all));
-  return (
-    <div ref={ref} onBlur={onBlur} className="relative">
-      <button
-        ref={button}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        className={cn(
-          "flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-150",
-          inside ? "bg-accent/10 text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
-        )}
-      >
-        {t(group.group)}
-        <ChevronDown aria-hidden="true" className={cn("size-3.5 transition-transform duration-200", open && "rotate-180")} />
-      </button>
-      {open ? (
-        <div id={panelId} className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-56 rounded-[var(--radius-lg)] border border-line bg-surface p-1.5 shadow-[0_24px_50px_-28px_rgba(11,18,48,0.8)]">
-          <ul>
-            {group.items.map((it) => {
-              const Icon = it.icon;
-              const active = navActive(pathname, it.to, all);
-              return (
-                <li key={it.to}>
-                  <NavLink
-                    item={it}
-                    aria-current={active ? "page" : undefined}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex min-h-10 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 text-sm transition-colors duration-150 hover:bg-wood",
-                      active && "bg-wood font-semibold",
-                    )}
-                  >
-                    <Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-                    {tabName(it)}
-                  </NavLink>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 /** Phone: a slide-up sheet with the tabs that do not fit in the bottom bar. */
@@ -544,6 +622,99 @@ function MoreSheet({
   );
 }
 
+/** Light/dark switch. `wide` shows the label beside the icon (sidebar expanded, phone sheet). */
+function ThemeToggle({ className, showLabel }: { className?: string; showLabel?: boolean }) {
+  const [theme, set] = useTheme();
+  const light = theme === "light";
+  const label = light ? t("Dark mode") : t("Light mode");
+  return (
+    <button
+      type="button"
+      onClick={() => set(light ? "dark" : "light")}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 text-sm text-muted transition-colors duration-150 hover:bg-wood hover:text-fg",
+        className,
+      )}
+    >
+      {light ? <Moon aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} /> : <Sun aria-hidden="true" className="size-5 shrink-0" strokeWidth={1.75} />}
+      <span className={cn("whitespace-nowrap", !showLabel && "sidebar-label")}>{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Laptop: a rail of icons down the left edge. Hovering or tabbing into it widens it over the
+ * page (the page does not move) and shows each name. Language, light/dark and the account live
+ * at its foot, so the top bar keeps only what is new: messages and notifications.
+ */
+function Sidebar({
+  items,
+  pathname,
+  extra,
+  user,
+  role,
+  onLogout,
+}: {
+  items: NavItem[];
+  pathname: string;
+  extra: NavItem[];
+  user: SessionUser | null;
+  role: SessionUser["role"];
+  onLogout: () => void;
+}) {
+  const all = [...items, ...extra];
+  return (
+    <aside
+      aria-label={t("Main menu")}
+      className="group/side fixed inset-y-0 left-0 z-30 hidden w-16 flex-col overflow-hidden border-r border-line/80 bg-surface/95 backdrop-blur-md transition-[width,box-shadow] duration-200 ease-out hover:w-60 hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55)] focus-within:w-60 motion-reduce:transition-none lg:flex"
+    >
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 pt-[4.25rem]">
+        {grouped(all).map((g, gi) => (
+          <div key={g.group} className={cn(gi > 0 && "mt-2 border-t border-line/60 pt-2")}>
+            <p className="sidebar-label h-6 px-3 text-2xs font-semibold uppercase tracking-wide text-subtle">{t(g.group)}</p>
+            <ul className="grid gap-0.5">
+              {g.items.map((it) => {
+                const Icon = it.icon;
+                const active = it.to.includes("#") ? false : navActive(pathname, it.to, items);
+                return (
+                  <li key={it.to}>
+                    <NavLink
+                      item={it}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "relative flex min-h-11 items-center gap-3 rounded-[var(--radius-md)] px-3 text-sm transition-colors duration-150",
+                        active ? "bg-accent/10 font-semibold text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
+                      )}
+                    >
+                      {active ? <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent" /> : null}
+                      <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={active ? 2.25 : 1.75} />
+                      <span className="sidebar-label truncate">{tabName(it)}</span>
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+      <div className="grid gap-1 border-t border-line/80 p-2">
+        <div className="flex min-h-11 items-center gap-3 px-1.5">
+          <Languages aria-hidden="true" className="size-5 shrink-0 text-muted" strokeWidth={1.75} />
+          <span className="sidebar-label">
+            <LangSwitch />
+          </span>
+        </div>
+        <ThemeToggle />
+        <div className="sidebar-account">
+          <AccountMenu user={user} role={role} showName onLogout={onLogout} up />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export { roleLabel };
 
 export function Shell({
@@ -584,30 +755,6 @@ export function Shell({
   // desk) has no room for the tabs on a small laptop, so there every group is a drop-down; on a
   // wide one the tabs come back and the wordmark's text and the user's name make way for them.
   const crowded = menuGroups.length > 1;
-  const tabsAndMenus = (
-    <>
-      {dockItems.map((it) => {
-        const active = navActive(pathname, it.to, items);
-        return (
-          <NavLink
-            key={it.to}
-            item={it}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex h-9 items-center whitespace-nowrap rounded-[var(--radius-md)] px-2.5 text-sm font-medium transition-colors duration-150",
-              active ? "bg-accent/10 text-accent-2" : "text-muted hover:bg-wood hover:text-fg",
-            )}
-          >
-            {tabName(it)}
-          </NavLink>
-        );
-      })}
-      {menuGroups.length ? <span aria-hidden="true" className="mx-1 h-5 w-px bg-line" /> : null}
-      {menuGroups.map((g) => (
-        <NavGroupMenu key={g.group} group={g} pathname={pathname} all={items} />
-      ))}
-    </>
-  );
   const [sheet, setSheet] = useState(false);
   // Moving to another page closes the sheet.
   useEffect(() => setSheet(false), [pathname]);
@@ -638,28 +785,29 @@ export function Shell({
     // `isolate` gives the page its own stacking context, so a background field at `-z-[1]` (the
     // desk's dot grid) paints above the body's own background instead of disappearing behind it.
     <div className="isolate min-h-dvh text-fg">
-      <header className="sticky top-0 z-20 border-b border-line/80 bg-surface/80 backdrop-blur-md">
+      {showNav ? (
+        <Sidebar
+          items={items}
+          extra={role === "member" ? [{ to: "/app/classes#attendance", label: tk("Attendance"), icon: ClipboardList, group: G_PLAY }] : []}
+          pathname={pathname}
+          user={user}
+          role={role}
+          onLogout={() => void logout()}
+        />
+      ) : null}
+      <header className={cn("sticky top-0 z-[31] border-b border-line/80 bg-surface/80 backdrop-blur-md", showNav && "lg:z-20 lg:pl-16")}>
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <Link to={home} aria-label={t("Lê Long Sport home")} className="-ml-1.5 flex min-h-11 min-w-11 items-center justify-center gap-2 sm:ml-0 sm:justify-start">
             <ArenaMark className="size-8" />
-            <span className={cn("hidden whitespace-nowrap font-display text-xl font-bold tracking-tight sm:inline", crowded && showNav && "xl:hidden")}>
+            <span className={cn("hidden whitespace-nowrap font-display text-xl font-bold tracking-tight sm:inline")}>
               Lê Long Sport
             </span>
           </Link>
-          {/* Laptop and wider. A tablet gets the bottom bar, like a phone: it is the thumb-friendly one. */}
-          <nav aria-label={t("Main menu")} className={cn("ml-3 items-center gap-1", showNav ? "hidden lg:flex" : "hidden")}>
-            {crowded ? (
-              <div className="flex items-center gap-1 xl:hidden">
-                {grouped(items).map((g) => (
-                  <NavGroupMenu key={g.group} group={g} pathname={pathname} all={items} />
-                ))}
-              </div>
-            ) : null}
-            <div className={cn("items-center gap-1", crowded ? "hidden xl:flex" : "flex")}>{tabsAndMenus}</div>
-          </nav>
           <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
-            <LangSwitch />
-            <span aria-hidden className="mx-1 hidden h-6 w-px bg-line sm:block" />
+            <span className={cn("flex items-center", showNav && "lg:hidden")}>
+              <LangSwitch />
+            </span>
+            <span aria-hidden className={cn("mx-1 hidden h-6 w-px bg-line sm:block", showNav && "lg:hidden")} />
             {f6 ? <ChatBell active={pathname.startsWith("/chat")} /> : null}
             <NotificationBell
               to={role === "member" ? "/app/notifications" : "/alerts"}
@@ -679,8 +827,10 @@ export function Shell({
                 <AssistantMark className="size-4" strokeWidth={1.9} />
               </Link>
             ) : null}
-            <span aria-hidden className="mx-1 hidden h-6 w-px bg-line sm:block" />
-            <AccountMenu user={user} role={role} showName={!crowded} onLogout={() => void logout()} />
+            <span aria-hidden className={cn("mx-1 hidden h-6 w-px bg-line sm:block", showNav && "lg:hidden")} />
+            <span className={cn(showNav && "lg:hidden")}>
+              <AccountMenu user={user} role={role} showName={!crowded} onLogout={() => void logout()} />
+            </span>
           </div>
         </div>
       </header>
@@ -689,6 +839,7 @@ export function Shell({
         tabIndex={-1}
         className={cn(
           "mx-auto max-w-6xl px-4 py-6 lg:pb-10",
+          showNav && "lg:box-content lg:pl-20",
           // Only reserve room for the dock when there is a dock.
           showNav ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]" : "pb-10",
         )}

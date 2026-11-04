@@ -423,4 +423,10 @@ export const member: Record<string, string> = {
   "Open full assistant": "Mở trợ lý toàn trang",
   "Ask the assistant": "Hỏi trợ lý",
   "Close assistant": "Đóng trợ lý",
+  "Light mode": "Giao diện sáng",
+  "Dark mode": "Giao diện tối",
+  "See all notifications": "Xem tất cả thông báo",
+  "Mark all as read": "Đánh dấu đã đọc tất cả",
+  "No notifications yet": "Chưa có thông báo nào",
+  "Bookings, payments and class updates will appear here.": "Đặt sân, thanh toán và cập nhật lớp học sẽ hiện ở đây.",
 };
