@@ -28,6 +28,7 @@ export const NAV_PAGES: Record<NavRole, PageSpec[]> = {
     { to: "/app/classes", dock: true, shown: true },
     { to: "/app/train", dock: false, shown: true },
     { to: "/app/points", dock: false, shown: true },
+    { to: "/app/plans", dock: false, shown: true },
     { to: "/chat", dock: false, shown: true },
     { to: "/app/pass", dock: true, shown: true },
     { to: "/app/assistant", dock: false, shown: false },
