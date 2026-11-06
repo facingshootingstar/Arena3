@@ -1,3 +1,4 @@
+import { classCode } from "../labels";
 import type { Sql } from "@/lib/db";
 import { addMonths, enrollmentAmountDue, enrollmentInvoiceLines } from "../membership";
 import { INVOICE_COLS, PAYMENT_COLS } from "../columns";
@@ -1264,6 +1265,47 @@ export async function priceRulesPut(sql: Sql, request: Request, user: PublicUser
   return priceRulesGet(sql);
 }
 
+// The log stores a table and an id. A manager needs the booking code or the member's name, so each page
+// looks them up by kind. A record deleted since simply has no name and the row falls back to its kind.
+const AUDIT_SUBJECT_SQL: Record<string, string> = {
+  user: `select t.id, t.full_name as subject from users t where t.id = any($1::uuid[])`,
+  payment: `select t.id, concat_ws(' · ', t.code, u.full_name) as subject, t.amount_vnd as subject_vnd
+              from payments t left join users u on u.id = t.user_id where t.id = any($1::uuid[])`,
+  booking: `select t.id, concat_ws(' · ', t.code, u.full_name) as subject
+              from court_bookings t left join users u on u.id = t.user_id where t.id = any($1::uuid[])`,
+  booking_series: `select t.id, concat_ws(' · ', t.code, u.full_name) as subject
+                     from booking_series t left join users u on u.id = t.user_id where t.id = any($1::uuid[])`,
+  court: `select t.id, t.court_code as subject from courts t where t.id = any($1::uuid[])`,
+  plan: `select t.id, t.name as subject from membership_plans t where t.id = any($1::uuid[])`,
+  promotion: `select t.id, t.code as subject from promotions t where t.id = any($1::uuid[])`,
+  equipment: `select t.id, t.name as subject from equipment_items t where t.id = any($1::uuid[])`,
+  work_order: `select t.id, concat_ws(' · ', t.code, t.title) as subject from work_orders t where t.id = any($1::uuid[])`,
+  ticket: `select t.id, u.full_name as subject from tickets t left join users u on u.id = t.user_id where t.id = any($1::uuid[])`,
+  subscription: `select t.id, concat_ws(' · ', u.full_name, p.name) as subject
+                   from subscriptions t join users u on u.id = t.user_id
+                   join membership_plans p on p.id = t.plan_id where t.id = any($1::uuid[])`,
+};
+
+async function auditSubjects(sql: Sql, rows: { entity: string; entity_id: string | null }[]) {
+  const out = new Map<string, { subject: string; subject_vnd?: number }>();
+  const idsOf = (kind: string) => [...new Set(rows.filter((r) => r.entity === kind && r.entity_id).map((r) => r.entity_id!))];
+  for (const [kind, text] of Object.entries(AUDIT_SUBJECT_SQL)) {
+    const ids = idsOf(kind);
+    if (!ids.length) continue;
+    const found = await sql.query<{ id: string; subject: string; subject_vnd?: number }>(text, [ids]);
+    for (const f of found) out.set(`${kind}:${f.id}`, { subject: f.subject, subject_vnd: f.subject_vnd });
+  }
+  const classIds = idsOf("class");
+  if (classIds.length) {
+    const found = await sql.query<{ id: string; sport: string; level: string }>(
+      `select id, sport, level from classes where id = any($1::uuid[])`,
+      [classIds],
+    );
+    for (const c of found) out.set(`class:${c.id}`, { subject: classCode(c.sport, c.level, c.id) });
+  }
+  return out;
+}
+
 export async function auditList(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["manager"]);
   const sp = new URL(request.url).searchParams;
@@ -1305,6 +1347,8 @@ export async function auditList(sql: Sql, request: Request, user: PublicUser) {
   const rows = await page(limit, offset);
   const { items, total } = await pageOf(rows, { limit, offset }, async () => Number((await page(1, 0))[0]?.total ?? 0));
   const more = offset + items.length < total;
+  const subjects = await auditSubjects(sql, items as unknown as { entity: string; entity_id: string | null }[]);
+  const named = items.map((it) => ({ ...it, ...subjects.get(`${it.entity}:${it.entity_id}`) }));
   // What the filters can offer: only what actually exists, so the pickers never
   // drift from the handlers that write the log.
   const actions = await sql.query<{ action: string }>(`select distinct action from audit_logs order by action`);
@@ -1315,7 +1359,7 @@ export async function auditList(sql: Sql, request: Request, user: PublicUser) {
   return {
     status: 200,
     body: {
-      items,
+      items: named,
       more,
       total,
       limit,
