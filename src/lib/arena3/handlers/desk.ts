@@ -652,15 +652,20 @@ export async function paymentsPayOutRefund(sql: Sql, id: string, user: PublicUse
   if (p.status !== "refund_pending" || p.amount_vnd >= 0 || p.created_by) {
     throw err.conflictState("That refund is no longer waiting to be paid out.");
   }
-  const shift = await one<{ id: string }>(
-    sql,
-    `select id from cashier_shifts where receptionist_id = $1 and closed_at is null for update`,
-    [user.id],
-  );
-  if (!shift) throw err.br("BR-44", "The front desk needs an open shift.");
-  await sql.query(`update payments set status = 'posted', shift_id = $2 where id = $1`, [id, shift.id]);
+  // A manager has no till, as when taking a payment: the row stays off any shift and the audit names them.
+  let shiftId: string | null = null;
+  if (user.role === "receptionist") {
+    const shift = await one<{ id: string }>(
+      sql,
+      `select id from cashier_shifts where receptionist_id = $1 and closed_at is null for update`,
+      [user.id],
+    );
+    if (!shift) throw err.br("BR-44", "The front desk needs an open shift.");
+    shiftId = shift.id;
+  }
+  await sql.query(`update payments set status = 'posted', shift_id = $2 where id = $1`, [id, shiftId]);
   await restoreIfFullyRefunded(sql, p.ref_type, p.ref_id);
-  await audit(sql, user.id, "refund_paid_out", "payment", id, { status: "refund_pending", amount_vnd: p.amount_vnd }, { status: "posted", shift_id: shift.id });
+  await audit(sql, user.id, "refund_paid_out", "payment", id, { status: "refund_pending", amount_vnd: p.amount_vnd }, { status: "posted", shift_id: shiftId });
   if (p.user_id) {
     await enqueue(sql, "inapp", "refund_approved", p.user_id, { payment_id: p.id, code: p.code, amount_vnd: Math.abs(p.amount_vnd) }, `refund_approved|${p.id}`);
   }

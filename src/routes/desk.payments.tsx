@@ -711,7 +711,7 @@ function Page() {
         <div className="mt-10">
           <SectionTitle text={t("Cash to hand back")} className="font-display text-2xl" />
           <p className="mt-1 text-sm text-muted">
-            {t("The centre cancelled these classes. Mark a refund paid when the member has the cash.")} {shift ? null : t("Open a till shift first.")}
+            {t("The centre cancelled these classes. Mark a refund paid when the member has the cash.")} {canTake ? null : t("Open a till shift first.")}
           </p>
           <div className="mt-3 grid gap-3">
             {payouts.map((r) => (
@@ -726,7 +726,7 @@ function Page() {
                     {r.code} · {refTypeLabel(r.ref_type)} · {when(r.created_at)}
                   </p>
                 </div>
-                <Button disabled={!shift || busy === r.id} onClick={() => void payOut(r)}>
+                <Button disabled={!canTake || busy === r.id} onClick={() => void payOut(r)}>
                   {t("Mark as paid")}
                 </Button>
               </Card>

@@ -4249,6 +4249,26 @@ describe("Sell classes: final fixes", () => {
     await db.query("update cashier_shifts set closed_at = now() where id = $1", [shiftId]);
   });
 
+  it("SC-cancel-refund-manager: a manager hands the refund over without a till, a receptionist without a shift cannot", async () => {
+    const { paymentsPayOutRefund } = await import("./handlers/desk.ts");
+    const classId = await seedClass({ price: 300000, capacity: 5 });
+    const m = await seedMember(85);
+    const id = await holdFor(classId, m);
+    await payDesk(id, 300000);
+    await withTx((sql) => classesPatch(sql, classId, jsonReq("PATCH", { status: "cancelled", reason: "Coach is away" }), mgr));
+    const row = (await db.query<{ id: string }>("select id from payments where ref_id = $1 and status = 'refund_pending'", [id])).rows[0];
+    const desk = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist" } as any;
+    await db.query("update cashier_shifts set closed_at = now() where receptionist_id = $1 and closed_at is null", [desk.id]);
+    await assert.rejects(
+      () => withTx((sql) => paymentsPayOutRefund(sql, row.id, desk)),
+      (e: any) => e.extra?.br === "BR-44",
+    );
+    await withTx((sql) => paymentsPayOutRefund(sql, row.id, mgr));
+    const paid = (await db.query<{ status: string; shift_id: string | null }>("select status::text as status, shift_id from payments where id = $1", [row.id])).rows[0];
+    assert.equal(paid.status, "posted");
+    assert.equal(paid.shift_id, null);
+  });
+
   it("SC-cancel-class-hold: cancelling a class ends its holds and links, and a late payment is flagged, not seated", async () => {
     const { settleEnrollment } = await import("./handlers/classes.ts");
     const classId = await seedClass({ price: 300000, capacity: 5 });
