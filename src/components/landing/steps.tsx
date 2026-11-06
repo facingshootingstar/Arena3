@@ -7,11 +7,13 @@ import { rise } from "./tweens";
 import { useVenue } from "./util";
 
 /**
- * How booking works, on paper.
+ * How booking works, told as you scroll, on paper.
  *
  * The one light section on a floodlit page, set like a printed programme: a loud three-word
- * heading on the left, the steps as ruled rows on the right. Copy stays readable throughout;
- * the rules briefly draw on entry without holding up the scroll.
+ * heading on the left, the steps as ruled rows on the right. On a computer the section holds
+ * still while the scroll draws each row's rule and brings its number up to full ink: pick, hold,
+ * pay, in the order a booking really happens. On a phone the rows simply arrive one after
+ * another. The markup at rest is the finished picture, which is what reduced motion gets.
  */
 export function StepsScene() {
   const venue = useVenue();
@@ -37,22 +39,33 @@ export function StepsScene() {
     },
   ];
 
-  useScene(root, ({ motion }) => {
+  useScene(root, ({ motion, desktop }) => {
     const el = root.current;
     if (!motion || !el) return;
     rise(el, "[data-rise]");
     const q = gsap.utils.selector(el);
-    gsap.fromTo(q("[data-rule]"), { scaleX: 0 }, {
-      scaleX: 1,
-      duration: 0.55,
-      stagger: 0.1,
-      ease: "power2.out",
-      scrollTrigger: { trigger: el, start: "top 80%", once: true },
+    if (!desktop) {
+      rise(el, "[data-step]", { stagger: 0.14 });
+      return;
+    }
+    const css = getComputedStyle(document.documentElement);
+    const ink = css.getPropertyValue("--color-paper-ink").trim() || "#121410";
+    const tl = gsap.timeline({
+      defaults: { ease: "none" },
+      scrollTrigger: { trigger: el, start: "top top", end: "+=110%", pin: true, scrub: 0.6 },
+    });
+    q("[data-step]").forEach((step, i) => {
+      const at = i * 1.1;
+      tl.fromTo(step.querySelector("[data-rule]"), { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power2.out" }, at);
+      tl.fromTo(step.querySelector("[data-num]"), { color: "rgb(18 20 16 / 0.18)" }, { color: ink, duration: 0.4 }, at + 0.15);
+      tl.fromTo(step.querySelectorAll("[data-copy]"), { opacity: 0.28, y: 10 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.1 }, at);
+      tl.fromTo(step.querySelector("[data-tag]"), { autoAlpha: 0, x: 12 }, { autoAlpha: 1, x: 0, duration: 0.4 }, at + 0.4);
     });
   });
 
   return (
-    <section ref={root} id="how" className="relative scroll-mt-20 overflow-hidden bg-paper text-paper-ink">
+    // Fills the viewport on desktop so the pin never shows the dark page above or below the paper.
+    <section ref={root} id="how" className="relative scroll-mt-20 overflow-hidden bg-paper text-paper-ink md:flex md:min-h-svh md:items-center">
       {/* Pointer-reactive dot field, pressed lightly into the paper like a print screen: small dots
           that barely swell, so the cursor leaves a trace and not ink blots. */}
       <GLBackground variant="dotgrid" color="#121410" gap={22} dot={0.9} radius={110} opacity={0.12} />
