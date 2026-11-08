@@ -869,7 +869,10 @@ export function Stat({
     <Card
       className={cn(
         "group transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[0_10px_30px_-12px_rgb(212_245_60/0.25)] motion-reduce:transform-none motion-reduce:transition-none",
-        glass && "bg-surface/55 backdrop-blur-md",
+        // Frosted pane: see-through fill, a light sheen from the top-left, a bright top edge and a
+        // soft lime glow behind, so the glass reads even on the dark hall background.
+        glass &&
+          "relative overflow-hidden border-white/10 bg-[linear-gradient(135deg,rgb(255_255_255/0.09),rgb(255_255_255/0.02)_45%,rgb(212_245_60/0.05))] backdrop-blur-xl backdrop-saturate-150 [box-shadow:inset_0_1px_0_rgb(255_255_255/0.14),0_12px_40px_-16px_rgb(0_0_0/0.6)] before:pointer-events-none before:absolute before:-right-10 before:-top-12 before:size-40 before:rounded-full before:bg-accent/15 before:blur-3xl before:content-[''] [&>*]:relative",
       )}
     >
       <div className="flex items-center justify-between gap-2">
