@@ -340,6 +340,8 @@ export const redesign: Record<string, string> = {
   // heatmap (AGENT-SPORTS-MEDIA Phase 1)
   "No bookings in this window": "Không có lượt đặt nào trong khoảng thời gian này",
   "Busiest: {hours}": "Đông nhất: {hours}",
+  "Busy hours": "Khung giờ bận",
+  "The whole day, hour by hour, for every court.": "Cả ngày, theo từng giờ, cho mọi sân.",
   "When courts are busy ({from} – {to})": "Khung giờ bận của sân ({from} – {to})",
   "Booked or free, hour by hour.": "Đã đặt hoặc còn trống theo từng khung giờ.",
   "Each square is one court for one hour: green is booked, outlined is free.": "Mỗi ô là một sân trong một giờ: ô xanh là đã đặt, ô viền là còn trống.",

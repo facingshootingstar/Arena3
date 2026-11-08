@@ -676,7 +676,7 @@ function Sidebar({
       aria-label={t("Main menu")}
       className="group/side fixed inset-y-0 left-0 z-30 hidden w-16 flex-col overflow-hidden border-r border-line/80 bg-surface/95 backdrop-blur-md transition-[width,box-shadow] duration-200 ease-out hover:w-60 hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55)] focus-within:w-60 motion-reduce:transition-none lg:flex"
     >
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 pt-[4.25rem]">
+      <nav className="scroll-quiet flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 pt-[4.25rem]">
         {grouped(all).map((g, gi) => (
           <div key={g.group} className={cn(gi > 0 && "mt-2 border-t border-line/60 pt-2")}>
             <p className="sidebar-label h-6 px-3 text-2xs font-semibold uppercase tracking-wide text-subtle">{t(g.group)}</p>

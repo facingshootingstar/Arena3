@@ -674,6 +674,9 @@ function Page() {
       )}
         </>
       )}
+
+      {/* The whole-day court × hour grid sits last: it is the detail behind the numbers above. */}
+      {refused ? null : <CapacityPanel from={from} to={to} part="busy" />}
     </Shell>
   );
 }
