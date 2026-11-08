@@ -4,7 +4,7 @@ import { CardTitle, SectionTitle } from "@/components/section";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { money } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, LoadError, Select, Skeleton, Stat } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, LoadError, Select, ShowMore, Skeleton, Stat } from "@/components/ui";
 import { SportDot, useSports } from "@/components/sports-ui";
 import { downloadReport } from "@/lib/arena3/client";
 import { levelLabel, sportLabel } from "@/lib/arena3/labels";
@@ -473,7 +473,21 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
   const q = new URLSearchParams({ from, to });
   if (sport) q.set("sport", sport);
   const { data, error, reload } = useRead<MembersReport>(`/reports/members?${q}`);
-  const showAttendance = !!data?.attendance_on;
+  // Only show the attendance column when at least one class has a figure for it.
+  const showAttendance = !!data?.attendance_on && !!data?.classes.some((c) => c.attendance_pct != null);
+  const CLASS_STEP = 12;
+  const [classShown, setClassShown] = useState(CLASS_STEP);
+  // Fullest first, so the classes that need a decision (full with a waitlist, or nearly empty) sit at the two ends.
+  const classes = useMemo(
+    () => [...(data?.classes ?? [])].sort((a, b) => b.fill_pct - a.fill_pct || b.waitlisted - a.waitlisted || a.code.localeCompare(b.code)),
+    [data],
+  );
+  const classSummary = useMemo(() => {
+    const full = classes.filter((c) => c.fill_pct >= 100).length;
+    const low = classes.filter((c) => c.fill_pct < 40).length;
+    const waiting = classes.reduce((n, c) => n + c.waitlisted, 0);
+    return { full, low, waiting };
+  }, [classes]);
 
   return (
     <section className="mt-10" aria-labelledby="mem-h">
@@ -545,49 +559,88 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
             )}
           </Card>
 
-          <Card className="mt-3 overflow-x-auto p-0" role="region" aria-label={t("Classes table, scrolls sideways")} tabIndex={0}>
-            <CardTitle className="px-4 pt-4" icon={CalendarDays} title={t("Classes running in this period")} hint={t("How full each class was.")} />
-            {data.classes.length === 0 ? (
+          <Card className="mt-3 p-0">
+            <div className="flex flex-wrap items-end justify-between gap-3 px-4 pt-4">
+              <CardTitle icon={CalendarDays} title={t("Classes running in this period")} hint={t("How full each class was.")} />
+              {classes.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5 text-2xs">
+                  <span className="rounded-full border border-line px-2.5 py-1 tabular-nums text-muted">
+                    {t("{n} classes", { n: classes.length })}
+                  </span>
+                  <span className="rounded-full bg-accent/15 px-2.5 py-1 font-medium tabular-nums text-accent">
+                    {t("{n} full", { n: classSummary.full })}
+                  </span>
+                  {classSummary.waiting > 0 ? (
+                    <span className="rounded-full bg-warn/15 px-2.5 py-1 font-medium tabular-nums text-warn">
+                      {t("{n} waiting", { n: classSummary.waiting })}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full border border-line px-2.5 py-1 tabular-nums text-muted">
+                    {t("{n} under 40%", { n: classSummary.low })}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            {classes.length === 0 ? (
               <p className="px-4 pb-4 pt-2 text-sm text-muted">{t("No classes were running in this period.")}</p>
             ) : (
-              <table className="mt-2 w-full min-w-[560px] text-sm">
-                <thead className="text-left text-2xs text-muted">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">{t("Class")}</th>
-                    <th className="px-3 py-2 font-medium">{t("Coach")}</th>
-                    <th className="px-3 py-2 text-right font-medium">{t("Enrolled")}</th>
-                    <th className="px-3 py-2 text-right font-medium">{t("Waitlist")}</th>
-                    <th className="px-3 py-2 text-right font-medium">{t("Full")}</th>
-                    {showAttendance ? <th className="px-4 py-2 text-right font-medium">{t("Attendance")}</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.classes.map((c) => (
-                    <tr key={c.id} className="border-t border-line/60">
-                      <td className="px-4 py-2">
-                        <span className="font-medium">{c.code}</span>
-                        <span className="block text-xs text-muted">
-                          {sportLabel(c.sport)} · {levelLabel(c.level)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">{c.coach}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {c.enrolled}/{c.capacity}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{c.waitlisted}</td>
-                      <td className="px-3 py-2 text-right">
-                        <Badge tone={c.fill_pct >= 100 ? "accent" : c.fill_pct < 40 ? "hold" : "ink"}>
-                          {c.fill_pct}%
-                        </Badge>
-                      </td>
-                      {showAttendance ? (
-                        <td className="px-4 py-2 text-right tabular-nums">{pctText(c.attendance_pct)}</td>
-                      ) : null}
+              <div className="overflow-x-auto" role="region" aria-label={t("Classes table, scrolls sideways")} tabIndex={0}>
+                <table className="mt-3 w-full min-w-[560px] text-sm">
+                  <thead className="text-left text-2xs text-muted">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">{t("Class")}</th>
+                      <th className="px-3 py-2 font-medium">{t("Coach")}</th>
+                      <th className="w-[38%] px-3 py-2 font-medium">{t("Full")}</th>
+                      <th className="px-3 py-2 text-right font-medium">{t("Waitlist")}</th>
+                      {showAttendance ? <th className="px-4 py-2 text-right font-medium">{t("Attendance")}</th> : null}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {classes.slice(0, classShown).map((c) => {
+                      const full = c.fill_pct >= 100;
+                      const low = c.fill_pct < 40;
+                      return (
+                        <tr key={c.id} className="border-t border-line/50 transition-colors duration-150 hover:bg-fg/[0.03]">
+                          <td className="px-4 py-2.5">
+                            <span className="flex items-center gap-2 font-medium">
+                              <SportDot sport={c.sport} />
+                              {c.code}
+                            </span>
+                            <span className="block pl-4 text-xs text-muted">{levelLabel(c.level)}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-muted">{c.coach}</td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-3">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-fg/[0.07]" aria-hidden="true">
+                                <div
+                                  className={cn("h-full rounded-full", full ? "bg-accent" : low ? "bg-muted/50" : "bg-accent/55")}
+                                  style={{ width: `${Math.min(100, c.fill_pct)}%` }}
+                                />
+                              </div>
+                              <span className="w-24 shrink-0 text-right text-xs tabular-nums">
+                                <span className={cn("font-medium", full ? "text-accent" : low ? "text-muted" : "text-fg")}>
+                                  {c.enrolled}/{c.capacity}
+                                </span>
+                                <span className="ml-1.5 text-muted">{c.fill_pct}%</span>
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">
+                            {c.waitlisted > 0 ? <Badge tone="hold">{c.waitlisted}</Badge> : <span className="text-muted/50">·</span>}
+                          </td>
+                          {showAttendance ? (
+                            <td className="px-4 py-2.5 text-right tabular-nums">{pctText(c.attendance_pct)}</td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
+            <div className="pb-4">
+              <ShowMore shown={classShown} total={classes.length} step={CLASS_STEP} onMore={() => setClassShown((n) => n + CLASS_STEP)} />
+            </div>
           </Card>
         </>
       )}
