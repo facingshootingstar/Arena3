@@ -7,7 +7,7 @@ import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../se
 import { addDays, classMinutes, ictDateString, ictDateTime, slotSpan } from "../time";
 import { quotePromo, redeemPromo } from "../promos";
 import { one } from "../tx";
-import { inviteWaitlist } from "./ops";
+import { compactWaitlist, inviteWaitlist } from "./ops";
 import { lockEnrollmentLinks, withdrawLinks } from "../payos";
 import { assertClassStaff } from "./training";
 import { assertSlotGrid } from "./bookings";
@@ -720,7 +720,7 @@ export async function enrollmentDelete(sql: Sql, id: string, user: PublicUser) {
   }
   if (enr.status === "waitlisted") {
     await sql.query(`update enrollments set status = 'cancelled', waitlist_pos = null where id = $1`, [id]);
-    await sql.query(`select waitlist_compact($1::uuid)`, [enr.class_id]);
+    await compactWaitlist(sql, enr.class_id);
     return { status: 200, body: { ok: true } };
   }
   if (enr.status !== "confirmed") throw err.conflictState();

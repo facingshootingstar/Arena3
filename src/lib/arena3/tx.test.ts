@@ -1177,6 +1177,41 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     }
   });
 
+  it("waitlist claim survives out-of-order compaction and the freed seat goes to the first in line", async () => {
+    const coachId = "00000000-0000-0000-0000-000000000011";
+    const classId = "40000000-0000-0000-0000-0000000000aa";
+    await db.query(
+      `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+       values ($1, 'badminton', 'scratch', $2, $3, 'FREQ=WEEKLY;BYDAY=TU;BYHOUR=15', current_date + 3, current_date + 30, 60, 1, 'open', 0, 300000)`,
+      [classId, coachId, validCourtId],
+    );
+    const a = { id: "00000000-0000-0000-0000-0000000001a1", phone: "+84900001a1", name: "A", role: "member" } as any;
+    const b = { id: "00000000-0000-0000-0000-0000000001a2", phone: "+84900001a2", name: "B", role: "member" } as any;
+    const c = { id: "00000000-0000-0000-0000-0000000001a3", phone: "+84900001a3", name: "C", role: "member" } as any;
+    const d = { id: "00000000-0000-0000-0000-0000000001a4", phone: "+84900001a4", name: "D", role: "member" } as any;
+    for (const m of [a, b, c, d]) {
+      await db.query(`insert into users (id, phone, full_name, name_normalized, role, password_hash) values ($1,$2,$3,$4,'member','hash') on conflict (id) do nothing`, [m.id, m.phone, m.name, m.name.toLowerCase()]);
+      await db.query(`insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status) values ($1, (select id from membership_plans order by price_vnd limit 1), 'all', current_date - 1, current_date + 400, 'active')`, [m.id]);
+    }
+    const ea = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), a));
+    await db.query(`update enrollments set status='confirmed', hold_until=null where id=$1`, [(ea.body as any).enrollment.id]);
+    for (const m of [b, c, d]) await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), m));
+    await withTx(async (sql) => enrollmentDelete(sql, (ea.body as any).enrollment.id, a));
+    const offers = (await db.query(`select o.* from waitlist_offers o join enrollments e on e.id=o.enrollment_id where e.class_id=$1`, [classId])).rows;
+    assert.equal(offers.length, 1);
+    // Touching C moves its row to the end of the heap, so compaction meets D (3 -> 2) before C leaves 2.
+    await db.query(`update enrollments set price_vnd = price_vnd where class_id=$1 and user_id=$2`, [classId, c.id]);
+    const r = await withTx(async (sql) => waitlistAccept(sql, (offers[0] as any).id, b));
+    assert.equal((r.body as any).status, "hold");
+    const re = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), a));
+    assert.equal((re.body as any).enrollment.status, "waitlisted");
+    const pos = (await db.query(`select user_id, waitlist_pos from enrollments where class_id=$1 and status='waitlisted' order by waitlist_pos`, [classId])).rows.map((x: any) => [x.user_id, x.waitlist_pos]);
+    assert.deepEqual(pos, [[c.id, 1], [d.id, 2], [a.id, 3]]);
+    await db.query(`delete from waitlist_offers where enrollment_id in (select id from enrollments where class_id=$1)`, [classId]);
+    await db.query(`delete from enrollments where class_id=$1`, [classId]);
+    await db.query(`delete from classes where id=$1`, [classId]);
+  });
+
   it("inviteWaitlist offers one seat per open place, not only the first person", async () => {
     const coachId = "00000000-0000-0000-0000-000000000011";
     const classId = "40000000-0000-0000-0000-000000000191";

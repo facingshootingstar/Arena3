@@ -200,8 +200,13 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
     [enr.class_id],
   );
   await sql.query(`update waitlist_offers set status = 'accepted' where id = $1`, [offerId]);
-  await sql.query(`select waitlist_compact($1::uuid)`, [enr.class_id]);
+  await compactWaitlist(sql, enr.class_id);
   return { status: 200, body: { ok: true, status: free ? "confirmed" : "hold" } };
+}
+
+/** Renumber a class's waitlist 1..n (two-step, see migration 0052). */
+export async function compactWaitlist(sql: Sql, classId: string) {
+  await sql.query(`select waitlist_compact($1::uuid)`, [classId]);
 }
 
 export async function inviteWaitlist(sql: Sql, classId: string) {
