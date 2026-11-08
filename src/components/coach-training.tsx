@@ -286,6 +286,8 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
   const [note, setNote] = useState("");
   const [focus, setFocus] = useState("core technique");
   const [busy, setBusy] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
   // The plan being changed. Its payload is carried so goal / sport / level survive an edit.
   const [editing, setEditing] = useState<PlanRow | null>(null);
   const [templateId, setTemplateId] = useState("");
@@ -306,18 +308,23 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
   }
 
   async function suggest() {
+    setSuggesting(true);
     try {
-      const r = await apiPost<{ payload: PlanPayload }>("/training-plans/suggest", {
+      const r = await apiPost<{ payload: PlanPayload; ai?: boolean }>("/training-plans/suggest", {
         sport: session.sport,
         level: session.level,
         goal: focus,
+        prompt: aiPrompt.trim() || undefined,
       });
       // The suggestion writes its length into the title ("Net shots 10′"); the minutes box already says it.
       const next = fromPlanBlocks(r.payload.blocks);
       if (r.payload.blocks?.length) setBlocks(next);
-      toast.success(t("Suggestion added. Edit anything before you publish."));
+      if (aiPrompt.trim() && !r.ai) toast.warning(t("The AI is not reachable, so these are the standard drills for this level."));
+      else toast.success(t("Suggestion added. Edit anything before you publish."));
     } catch (e) {
       toast.error(say(e));
+    } finally {
+      setSuggesting(false);
     }
   }
 
@@ -492,12 +499,26 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
                     <option value="match play">{t("Match play")}</option>
                   </Select>
                 </Field>
-                <Button variant="outline" onClick={suggest}>
-                  {t("Suggest")}
+                <Button variant="outline" disabled={suggesting} onClick={() => void suggest()}>
+                  {suggesting ? t("Thinking…") : t("Suggest")}
                 </Button>
               </div>
             ) : null}
           </div>
+          {f5 ? (
+            <Field label={t("Tell the AI what you want (optional)")}>
+              <textarea
+                className="min-h-[72px] w-full rounded-md border border-line bg-transparent px-3 py-2 text-sm placeholder:text-muted/70 focus:border-accent focus:outline-none"
+                maxLength={500}
+                placeholder={t("e.g. 60 minutes, focus on footwork, one student has a sore knee, end with a game")}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !suggesting) void suggest();
+                }}
+              />
+            </Field>
+          ) : null}
 
           {templates.length && !editing ? (
             <div className="grid grid-cols-[1fr_auto] items-end gap-2 md:max-w-md">

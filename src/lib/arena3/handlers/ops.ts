@@ -564,16 +564,53 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
     advanced: ["High-power attack drills 10′", "Cross-court tactics", "Low defence transitions", "Umpired match play"],
   };
   const list = defaultDrills[level] ?? defaultDrills.beginner;
+  // The coach's own instructions, if any. Capped and stripped of control characters before it reaches the model.
+  const prompt = (str(b.prompt) ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 500);
+  let blocks: Array<{ order: number; title: string; minutes: number }> = list.map((title, i) => ({ order: i + 1, title, minutes: 10 + i }));
+  let usedAi = false;
+  const system = [
+    "You plan one training session for a sports coach.",
+    `Sport: ${sport}. Level: ${level}. Focus: ${goal}.`,
+    "Reply with ONLY a JSON array of 3 to 8 blocks, no prose, no code fence.",
+    'Each block: {"title": short drill name (max 60 chars), "minutes": whole number 3-45}.',
+    "Total time 45-120 minutes. Keep drills safe for the level. Answer in the language the coach writes in.",
+  ].join("\n");
+  const ask = prompt ? `Coach instructions: ${prompt}` : `Plan a ${level} ${sport} session on ${goal}.`;
+  const reply = await generateAssistantReply(system, [{ role: "user", text: ask }]);
+  if (reply) {
+    try {
+      const raw = reply.text.replace(/^```(?:json)?\s*|\s*```$/g, "");
+      const parsed = JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1)) as unknown;
+      if (Array.isArray(parsed)) {
+        const clean = parsed
+          .map((x) => (x && typeof x === "object" ? (x as { title?: unknown; minutes?: unknown }) : {}))
+          .filter((x) => typeof x.title === "string" && x.title.trim())
+          .slice(0, 8)
+          .map((x, i) => ({
+            order: i + 1,
+            title: String(x.title).trim().slice(0, 60),
+            minutes: Math.min(45, Math.max(3, Math.round(Number(x.minutes) || 10))),
+          }));
+        if (clean.length >= 2) {
+          blocks = clean;
+          usedAi = true;
+        }
+      }
+    } catch {
+      // A reply that is not JSON falls back to the standard drills below.
+    }
+  }
   const payload = {
     sport,
     level,
     goal,
     source: "ai",
     generated_on: ictDateString(),
-    blocks: list.map((title, i) => ({ order: i + 1, title, minutes: 10 + i })),
+    ...(prompt ? { prompt } : {}),
+    blocks,
     note: "A coach reviews this before it goes out. AI never overwrites a published plan.",
   };
-  return { status: 200, body: { payload } };
+  return { status: 200, body: { payload, ai: usedAi } };
 }
 
 // ticketBody() moved to ../rules — a Unicode-hardened version (zero-width
