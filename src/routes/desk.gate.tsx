@@ -1,19 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SectionTitle } from "@/components/section";
+import { SectionTitle } from "@/client/components/section";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Shell, hhmm, money, useSessionUser } from "@/components/shell";
-import { UserAvatar } from "@/components/user-avatar";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
-import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/components/ui";
-import { ApiClientError, apiGet, apiPost } from "@/lib/arena3/client";
-import { sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer, tData } from "@/lib/i18n";
-import { usePageState } from "@/lib/use-page-state";
-import { readError, useRead } from "@/lib/use-read";
-import { HighlightBadge, useLive } from "@/lib/use-live";
+import { Shell, hhmm, money, useSessionUser } from "@/client/components/shell";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
+import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/client/components/ui";
+import { ApiClientError, apiGet, apiPost } from "@/client/arena3/client";
+import { sportLabel } from "@/shared/arena3/labels";
+import { t, tk, tServer, tData } from "@/client/lib/i18n";
+import { usePageState } from "@/client/lib/use-page-state";
+import { readError, useRead } from "@/client/lib/use-read";
+import { HighlightBadge, useLive } from "@/client/lib/use-live";
 
 export const Route = createFileRoute("/desk/gate")({ component: Page });
 

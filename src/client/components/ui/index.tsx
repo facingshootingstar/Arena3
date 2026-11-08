@@ -26,10 +26,10 @@ import {
   Minus,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/cn";
-import { PAGE_SIZES, lastPageOffset, pageWindow } from "@/lib/paging";
-import { locale, t } from "@/lib/i18n";
-import { formatDate, statusLabel, statusTone } from "@/lib/arena3/labels";
+import { cn } from "@/client/lib/cn";
+import { PAGE_SIZES, lastPageOffset, pageWindow } from "@/client/lib/paging";
+import { locale, t } from "@/client/lib/i18n";
+import { formatDate, statusLabel, statusTone } from "@/shared/arena3/labels";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { EASE_SMOOTH } from "../motion";
 
@@ -924,9 +924,9 @@ export function ShowMore({ shown, total, step, onMore }: { shown: number; total:
   );
 }
 
-export { PageHero, type PageHeroStat } from "@/components/page-hero";
-export { StatStrip, type StatItem } from "@/components/stat-strip";
-export { EmptyState, type EmptyStateAction } from "@/components/empty-state";
-export { RowActions, type RowActionItem } from "@/components/row-actions";
-export { ContextLayout, ContextCard } from "@/components/context-layout";
-export { useSports, SportBadge, SportDot, SportThumbnail, type SportInfo } from "@/components/sports-ui";
+export { PageHero, type PageHeroStat } from "@/client/components/page-hero";
+export { StatStrip, type StatItem } from "@/client/components/stat-strip";
+export { EmptyState, type EmptyStateAction } from "@/client/components/empty-state";
+export { RowActions, type RowActionItem } from "@/client/components/row-actions";
+export { ContextLayout, ContextCard } from "@/client/components/context-layout";
+export { useSports, SportBadge, SportDot, SportThumbnail, type SportInfo } from "@/client/components/sports-ui";

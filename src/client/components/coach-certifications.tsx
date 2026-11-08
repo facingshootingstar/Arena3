@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Award, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge, Button, DateField, Field, Input, Modal, Skeleton } from "@/components/ui";
-import { ApiClientError, apiDelete, apiPost } from "@/lib/arena3/client";
-import { formatDate } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { Badge, Button, DateField, Field, Input, Modal, Skeleton } from "@/client/components/ui";
+import { ApiClientError, apiDelete, apiPost } from "@/client/arena3/client";
+import { formatDate } from "@/shared/arena3/labels";
+import { t, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export type Certification = {
   id: string;

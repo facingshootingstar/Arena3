@@ -1,9 +1,9 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { apiGet } from "@/lib/arena3/client";
-import { cn } from "@/lib/cn";
-import { addDaysISO, todayISO } from "@/lib/arena3/labels";
-import { locale, t, tk } from "@/lib/i18n";
+import { apiGet } from "@/client/arena3/client";
+import { cn } from "@/client/lib/cn";
+import { addDaysISO, todayISO } from "@/shared/arena3/labels";
+import { locale, t, tk } from "@/client/lib/i18n";
 
 /**
  * One day of the calendar: how many court-slots are still free (M-03), and for a member how many

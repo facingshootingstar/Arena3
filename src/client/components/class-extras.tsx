@@ -1,7 +1,7 @@
 import { CalendarPlus } from "lucide-react";
-import { Badge } from "@/components/ui";
-import { googleCalendarUrl, type CalendarEvent } from "@/lib/arena3/gcal";
-import { t } from "@/lib/i18n";
+import { Badge } from "@/client/components/ui";
+import { googleCalendarUrl, type CalendarEvent } from "@/client/arena3/gcal";
+import { t } from "@/client/lib/i18n";
 
 /** Staff see when a running class has fewer members than its minimum. It only warns. */
 export function MinSizeBadge({ enrolled, min, status }: { enrolled: number; min?: number | null; status?: string }) {

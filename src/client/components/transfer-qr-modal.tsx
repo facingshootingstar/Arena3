@@ -4,10 +4,10 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Modal } from "./ui";
 import { money } from "./shell";
-import { apiPost } from "@/lib/arena3/client";
-import { t, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { transferReference, vietQrPayload } from "@/lib/vietqr";
+import { apiPost } from "@/client/arena3/client";
+import { t, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { transferReference, vietQrPayload } from "@/shared/vietqr";
 
 /** The centre's account as `/v1/bank-transfer` answers it. */
 export type CentreBank = {

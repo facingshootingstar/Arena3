@@ -1,10 +1,10 @@
 /**
  * Server messages (errors, warnings, notification bodies) that reach the screen in English.
  *
- * The API answers in English; `tServer()` (src/lib/i18n.tsx) looks the message up here when the UI
+ * The API answers in English; `tServer()` (src/client/lib/i18n.tsx) looks the message up here when the UI
  * is in Vietnamese. Exact messages first, then the patterns for messages that carry numbers or names.
- * Anything not listed is shown as it arrived. Sources: src/lib/arena3/{errors,validate,rules,promos,
- * pricing,checkin,helpers,ratelimit,session,flags,router}.ts and src/lib/arena3/handlers/*.ts.
+ * Anything not listed is shown as it arrived. Sources: src/server/controllers/{errors,validate,helpers,ratelimit,session,router}.ts,
+ * src/server/services/{rules,promos,pricing,checkin,flags}.ts and src/server/controllers/handlers/*.ts.
  */
 export const VI_SERVER_EXACT: Record<string, string> = {
   "The minimum must be a whole number from 1 up to the capacity.": "Mức tối thiểu phải là số nguyên từ 1 đến sĩ số tối đa.",
@@ -379,7 +379,7 @@ const P: [RegExp, string][] = [
   [/^That pass is only valid on (\d{4}-\d{2}-\d{2})\.$/, "Vé này chỉ dùng được vào ngày $1."],
   [/^Redeem at least (\d+) points\.$/, "Hãy đổi ít nhất $1 điểm."],
   [/^A fixed booking runs (\d+)–(\d+) weeks\.$/, "Đặt cố định kéo dài từ $1 đến $2 tuần."],
-  // ── rules.ts price rows (src/lib/arena3/rules.ts)
+  // ── rules.ts price rows (src/server/services/rules.ts)
   [/^Row (\d+): unknown sport\.$/, "Dòng $1: môn thể thao không hợp lệ."],
   [/^Row (\d+): day kind must be weekday, weekend or holiday\.$/, "Dòng $1: loại ngày phải là ngày thường, cuối tuần hoặc ngày lễ."],
   [/^Row (\d+): times must be HH:MM\.$/, "Dòng $1: giờ phải có dạng HH:MM."],

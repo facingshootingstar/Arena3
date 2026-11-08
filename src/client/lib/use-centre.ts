@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { uiConfigFrom, type UiConfig } from "@/lib/ui-config";
-import { venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
-import { useRead } from "@/lib/use-read";
+import { uiConfigFrom, type UiConfig } from "@/shared/ui-config";
+import { venueFrom, type Venue, type VenueRaw } from "@/client/lib/venue";
+import { useRead } from "@/client/lib/use-read";
 
 /*
  * The last answer, kept for the life of the tab. Moving between screens mounts the shell again,

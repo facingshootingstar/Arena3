@@ -1,14 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SectionTitle } from "@/components/section";
+import { SectionTitle } from "@/client/components/section";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowUpRight, Banknote, Clock3, CreditCard, Landmark, Ticket, Undo2 } from "lucide-react";
-import { HoldTimer } from "@/components/media";
-import { PayOnlineButton } from "@/components/pay-online";
-import { TransferQrModal } from "@/components/transfer-qr-modal";
-import { Shell, money, useSessionUser, when } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
+import { HoldTimer } from "@/client/components/media";
+import { PayOnlineButton } from "@/client/components/pay-online";
+import { TransferQrModal } from "@/client/components/transfer-qr-modal";
+import { Shell, money, useSessionUser, when } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
 import {
   Badge,
   Button,
@@ -21,16 +21,16 @@ import {
   Seg,
   Select,
   Skeleton,
-} from "@/components/ui";
-import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
-import { PromoInput } from "@/components/promo-input";
-import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
-import type { PaymentCreateResponse, TransferConfirmResponse, TransferRejectResponse } from "@/lib/arena3/contracts";
-import { levelLabel, refTypeLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer, tData } from "@/lib/i18n";
-import { usePageState } from "@/lib/use-page-state";
-import { useRead } from "@/lib/use-read";
+} from "@/client/components/ui";
+import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
+import { GLBackground, SpotlightCard, StarBorder } from "@/client/components/fx";
+import { PromoInput } from "@/client/components/promo-input";
+import { apiGet, apiPost, openInvoice } from "@/client/arena3/client";
+import type { PaymentCreateResponse, TransferConfirmResponse, TransferRejectResponse } from "@/shared/arena3/contracts";
+import { levelLabel, refTypeLabel, sportLabel } from "@/shared/arena3/labels";
+import { t, tk, tServer, tData } from "@/client/lib/i18n";
+import { usePageState } from "@/client/lib/use-page-state";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/desk/payments")({
   component: Page,

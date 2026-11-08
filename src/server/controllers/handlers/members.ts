@@ -1,8 +1,8 @@
-import type { Sql } from "@/lib/db";
-import { hashPassword } from "../crypto";
+import type { Sql } from "@/server/data/db";
+import { hashPassword } from "../../services/crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, readJson, str } from "../helpers";
-import { isValidVnPhone, normalizePhone, phoneLast9, unaccentVi } from "../phone";
+import { isValidVnPhone, normalizePhone, phoneLast9, unaccentVi } from "../../services/phone";
 import { PUBLIC_COLS, avatarUrlSql, requireRole, toPublic, withAvatarUrl, type PublicUser } from "../session";
 import { one } from "../tx";
 import { revoke, tempPassword } from "./staff";

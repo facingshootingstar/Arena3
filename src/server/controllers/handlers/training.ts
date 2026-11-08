@@ -9,9 +9,9 @@
  * enrolled in a class they lead or assist (BR-45). A student's health notes
  * only leave this module inside that scope (BR-46).
  */
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
-import { requireFlag } from "../flags";
+import { requireFlag } from "../../services/flags";
 import { audit, enqueue, readJson, str } from "../helpers";
 import {
   ABSENT_STREAK_LIMIT,
@@ -23,10 +23,10 @@ import {
   normalizeChecklist,
   normalizeDone,
   validateMetrics,
-} from "../rules";
+} from "../../services/rules";
 import { getActiveSportCodes } from "./sports";
 import { requireRole, type PublicUser } from "../session";
-import { addDays, ictDateString, ictDateTime } from "../time";
+import { addDays, ictDateString, ictDateTime } from "../../../shared/arena3/time";
 import { one } from "../tx";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

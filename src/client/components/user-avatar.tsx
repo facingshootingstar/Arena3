@@ -1,7 +1,7 @@
 import { useRef } from "react";
-import { cn } from "@/lib/cn";
-import { initials } from "@/lib/initials";
-import { useAvatarSrc } from "@/lib/arena3/avatar";
+import { cn } from "@/client/lib/cn";
+import { initials } from "@/client/lib/initials";
+import { useAvatarSrc } from "@/client/arena3/avatar";
 
 export type UserAvatarProps = {
   name?: string | null;

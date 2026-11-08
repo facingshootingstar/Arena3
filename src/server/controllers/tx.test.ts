@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { SHORTEST_PLAN_ID } from "./membership";
+import { SHORTEST_PLAN_ID } from "../services/membership";
 import { describe, it, before, after } from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 
-// Prevent src/lib/db.ts from running bootstrap in test runner
+// Prevent src/server/data/db.ts from running bootstrap in test runner
 process.env.DATABASE_URL = "postgres://mock:mock@localhost/mock";
 process.env.PGLITE_DATA_DIR = "memory";
 
@@ -27,15 +27,15 @@ const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessi
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold, bookingsConfirm, bookingsCancel } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, sessionAttendancePost } = await import("./handlers/ops.ts");
-const { waitlistExpire } = await import("./jobs.ts");
+const { waitlistExpire } = await import("../data/jobs.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
-const { hashPassword, hashOtp } = await import("./crypto.ts");
+const { hashPassword, hashOtp } = await import("../services/crypto.ts");
 const { csvCell } = await import("./handlers/extras.ts");
 const { trainingCreate } = await import("./handlers/training.ts");
 const { clearAll: clearLimits, RULES: LIMITS, take: takeLimit } = await import("./ratelimit.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
 const { handleApi } = await import("./router.ts");
-const { setOverridePaymentLinkCreator, setOverridePaymentLinkCanceller } = await import("./payos.ts");
+const { setOverridePaymentLinkCreator, setOverridePaymentLinkCanceller } = await import("../integrations/payos.ts");
 const chatH = await import("./handlers/chat.ts");
 const avatarH = await import("./handlers/avatar.ts");
 const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
@@ -3433,7 +3433,7 @@ describe("Shared row contracts match the tables", () => {
   // columns.ts replaces `select *`; a migration that adds or drops a column
   // must update contracts.ts and columns.ts too, or the API shape drifts.
   it("lists every column of court_bookings, payments and invoices, and nothing else", async () => {
-    const { BOOKING_COLS, PAYMENT_COLS, INVOICE_COLS } = await import("./columns.ts");
+    const { BOOKING_COLS, PAYMENT_COLS, INVOICE_COLS } = await import("../services/columns.ts");
     for (const [table, cols] of [
       ["court_bookings", BOOKING_COLS],
       ["payments", PAYMENT_COLS],
@@ -4087,7 +4087,7 @@ describe("Sell classes: lifecycle", () => {
   });
 
   it("SC-expire-job: a lapsed hold is cancelled, its seat freed and offered to the waitlist", async () => {
-    const { expireEnrollmentHolds } = await import("./jobs.ts");
+    const { expireEnrollmentHolds } = await import("../data/jobs.ts");
     const classId = await seedClass({ price: 300000, capacity: 1 });
     const a = await seedMember(66);
     const b = await seedMember(67);

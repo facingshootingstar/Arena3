@@ -2,16 +2,16 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { GoogleSignIn } from "@/components/google-sign-in";
-import { ArenaMark } from "@/components/mark";
-import { Cover, HeroVideo, MediaCaption } from "@/components/media";
-import { Button, Card, Field, Input } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion";
-import { GLBackground, Magnet, ShinyText, SplitText, SpotlightCard } from "@/components/fx";
-import { ApiClientError, apiPost, homeFor, setSession, takeSessionNotice, type SessionUser } from "@/lib/arena3/client";
-import { roleLabel } from "@/lib/arena3/labels";
-import { LangSwitch } from "@/components/lang-switch";
-import { t, tServer, tk } from "@/lib/i18n";
+import { GoogleSignIn } from "@/client/components/google-sign-in";
+import { ArenaMark } from "@/client/components/mark";
+import { Cover, HeroVideo, MediaCaption } from "@/client/components/media";
+import { Button, Card, Field, Input } from "@/client/components/ui";
+import { Reveal, Stagger, StaggerItem } from "@/client/components/motion";
+import { GLBackground, Magnet, ShinyText, SplitText, SpotlightCard } from "@/client/components/fx";
+import { ApiClientError, apiPost, homeFor, setSession, takeSessionNotice, type SessionUser } from "@/client/arena3/client";
+import { roleLabel } from "@/shared/arena3/labels";
+import { LangSwitch } from "@/client/components/lang-switch";
+import { t, tServer, tk } from "@/client/lib/i18n";
 
 export const Route = createFileRoute("/login")({ component: Login });
 

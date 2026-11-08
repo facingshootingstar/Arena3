@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
-import { Shell } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
-import { RowActions } from "@/components/row-actions";
-import { SportBadge, useSports } from "@/components/sports-ui";
+import { Shell } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
+import { RowActions } from "@/client/components/row-actions";
+import { SportBadge, useSports } from "@/client/components/sports-ui";
 import {
   Badge,
   Button,
@@ -20,12 +20,12 @@ import {
   Seg,
   Select,
   Skeleton,
-} from "@/components/ui";
-import { ApiClientError, apiPatch, apiPost } from "@/lib/arena3/client";
-import { sportLabel } from "@/lib/arena3/labels";
-import { cn } from "@/lib/cn";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+} from "@/client/components/ui";
+import { ApiClientError, apiPatch, apiPost } from "@/client/arena3/client";
+import { sportLabel } from "@/shared/arena3/labels";
+import { cn } from "@/client/lib/cn";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/manager/courts")({
   component: Page,

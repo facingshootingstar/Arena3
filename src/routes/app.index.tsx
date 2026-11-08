@@ -1,25 +1,25 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SectionTitle } from "@/components/section";
+import { SectionTitle } from "@/client/components/section";
 import { ArrowRight, Map, Star, Ticket, Wallet } from "lucide-react";
-import { AssistantMark } from "@/components/mark";
+import { AssistantMark } from "@/client/components/mark";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { NotificationList, type Notification } from "@/components/notifications";
-import { CancelBookingDialog } from "@/components/cancel-booking";
-import { PayOnlineButton } from "@/components/pay-online";
-import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
-import { Shell, hhmm } from "@/components/shell";
-import { Button, ButtonLink, Card, LoadError, Skeleton, StatusBadge } from "@/components/ui";
-import { CountUp, Lift, Reveal, Stagger, StaggerItem, useReducedMotionAfterMount } from "@/components/motion";
-import { ShinyText, SplitText, SpotlightCard } from "@/components/fx";
-import { apiGet, apiPost, getStoredUser } from "@/lib/arena3/client";
-import { formatDate, levelLabel, sportLabel, statusLabel, todayISO } from "@/lib/arena3/labels";
-import { cn } from "@/lib/cn";
-import { t, tData, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { useLimits } from "@/lib/use-centre";
-import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/lib/venue";
-import { AddToCalendar } from "@/components/class-extras";
+import { NotificationList, type Notification } from "@/client/components/notifications";
+import { CancelBookingDialog } from "@/client/components/cancel-booking";
+import { PayOnlineButton } from "@/client/components/pay-online";
+import { freeHours, useNowMinute, type Court, type OccSlot } from "@/client/components/court-grid";
+import { Shell, hhmm } from "@/client/components/shell";
+import { Button, ButtonLink, Card, LoadError, Skeleton, StatusBadge } from "@/client/components/ui";
+import { CountUp, Lift, Reveal, Stagger, StaggerItem, useReducedMotionAfterMount } from "@/client/components/motion";
+import { ShinyText, SplitText, SpotlightCard } from "@/client/components/fx";
+import { apiGet, apiPost, getStoredUser } from "@/client/arena3/client";
+import { formatDate, levelLabel, sportLabel, statusLabel, todayISO } from "@/shared/arena3/labels";
+import { cn } from "@/client/lib/cn";
+import { t, tData, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { useLimits } from "@/client/lib/use-centre";
+import { DEFAULT_VENUE, hoursOf, venueFrom, type Venue, type VenueRaw } from "@/client/lib/venue";
+import { AddToCalendar } from "@/client/components/class-extras";
 
 export const Route = createFileRoute("/app/")({
   component: Page,

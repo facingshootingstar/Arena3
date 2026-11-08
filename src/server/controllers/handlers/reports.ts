@@ -1,10 +1,10 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
 import { getSettings } from "../helpers";
-import { classCode, formatDate, methodLabel, sourceLabel, sportLabel } from "../labels";
-import { buildReportPdf, buildXlsx, type ReportDoc } from "../report-files";
+import { classCode, formatDate, methodLabel, sourceLabel, sportLabel } from "../../../shared/arena3/labels";
+import { buildReportPdf, buildXlsx, type ReportDoc } from "../../data/report-files";
 import { requireRole, type PublicUser } from "../session";
-import { addDays, ictDateString } from "../time";
+import { addDays, ictDateString } from "../../../shared/arena3/time";
 import { one } from "../tx";
 import { atRiskBody, attendanceReportBody } from "./attendance";
 import { previousWindow, reportDay, revenueBody, revenueParams } from "./desk";

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { SectionTitle } from "@/components/section";
-import { Shell, money, useSessionUser, when } from "@/components/shell";
+import { SectionTitle } from "@/client/components/section";
+import { Shell, money, useSessionUser, when } from "@/client/components/shell";
 import {
   Badge,
   Button,
@@ -17,12 +17,12 @@ import {
   Skeleton,
   Stat,
   Pagination,
-} from "@/components/ui";
-import { Reveal, Stagger, StaggerItem } from "@/components/motion";
-import { ApiClientError, apiPatch, apiPost } from "@/lib/arena3/client";
-import { t, tServer } from "@/lib/i18n";
-import { usePageState } from "@/lib/use-page-state";
-import { useRead } from "@/lib/use-read";
+} from "@/client/components/ui";
+import { Reveal, Stagger, StaggerItem } from "@/client/components/motion";
+import { ApiClientError, apiPatch, apiPost } from "@/client/arena3/client";
+import { t, tServer } from "@/client/lib/i18n";
+import { usePageState } from "@/client/lib/use-page-state";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/desk/maintenance")({ component: Page });
 

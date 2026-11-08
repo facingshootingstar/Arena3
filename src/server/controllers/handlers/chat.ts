@@ -1,6 +1,6 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
-import { requireFlag } from "../flags";
+import { requireFlag } from "../../services/flags";
 import { enqueue, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import type { PublicUser } from "../session";

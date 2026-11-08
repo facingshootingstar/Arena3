@@ -1,7 +1,7 @@
 import { Moon, Sun } from "lucide-react";
-import { cn } from "@/lib/cn";
-import { t } from "@/lib/i18n";
-import { useTheme } from "@/lib/theme";
+import { cn } from "@/client/lib/cn";
+import { t } from "@/client/lib/i18n";
+import { useTheme } from "@/client/lib/theme";
 
 /** A round light/dark switch for the public pages, beside the language switch. */
 export function ThemeIconToggle({ className }: { className?: string }) {

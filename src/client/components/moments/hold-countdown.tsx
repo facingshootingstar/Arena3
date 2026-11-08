@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { CustomEase } from "gsap/CustomEase";
 import { CustomWiggle } from "gsap/CustomWiggle";
 import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
-import { gsap, motionOff, registerGsap, useGSAP } from "@/lib/gsap";
-import { useCalm } from "@/lib/calm";
-import { cn } from "@/lib/cn";
-import { t } from "@/lib/i18n";
+import { gsap, motionOff, registerGsap, useGSAP } from "@/client/lib/gsap";
+import { useCalm } from "@/client/lib/calm";
+import { cn } from "@/client/lib/cn";
+import { t } from "@/client/lib/i18n";
 
 registerGsap(CustomEase, CustomWiggle, DrawSVGPlugin);
 

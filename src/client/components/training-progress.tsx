@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Flame, Trophy, Clock } from "lucide-react";
-import { cn } from "@/lib/cn";
-import { t } from "@/lib/i18n";
+import { cn } from "@/client/lib/cn";
+import { t } from "@/client/lib/i18n";
 import { useReducedMotionAfterMount } from "./motion";
 
 export function ActivityRings({

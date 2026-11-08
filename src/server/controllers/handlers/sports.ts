@@ -1,4 +1,4 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { ApiError, err } from "../errors";
 import { audit, num, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";

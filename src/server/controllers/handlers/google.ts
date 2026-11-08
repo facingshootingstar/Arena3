@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
 import { audit, readJson, str } from "../helpers";
 import { findUserByLogin, issueSession, toPublic } from "../session";

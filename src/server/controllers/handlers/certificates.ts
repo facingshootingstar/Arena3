@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
 import { audit, isUuid, readJson, str } from "../helpers";
 import { requireRole, type PublicUser } from "../session";

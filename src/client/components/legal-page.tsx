@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ArenaMark } from "@/components/mark";
-import { LangSwitch } from "@/components/lang-switch";
-import { formatDate } from "@/lib/arena3/labels";
-import { t, useLang } from "@/lib/i18n";
-import { LEGAL_DRAFT, LEGAL_UPDATED, type LegalDoc } from "@/lib/legal";
+import { ArenaMark } from "@/client/components/mark";
+import { LangSwitch } from "@/client/components/lang-switch";
+import { formatDate } from "@/shared/arena3/labels";
+import { t, useLang } from "@/client/lib/i18n";
+import { LEGAL_DRAFT, LEGAL_UPDATED, type LegalDoc } from "@/client/lib/legal";
 
 export function LegalBody({
   doc,

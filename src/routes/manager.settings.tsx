@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { SectionTitle } from "@/components/section";
+import { SectionTitle } from "@/client/components/section";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Shell } from "@/components/shell";
-import { MenuSettings } from "@/components/menu-settings";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
-import { Button, Card, Check, Field, Input, LoadError, MoneyInput, Skeleton } from "@/components/ui";
-import { Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { ApiClientError, apiPatch } from "@/lib/arena3/client";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { Shell } from "@/client/components/shell";
+import { MenuSettings } from "@/client/components/menu-settings";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
+import { Button, Card, Check, Field, Input, LoadError, MoneyInput, Skeleton } from "@/client/components/ui";
+import { Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
+import { ApiClientError, apiPatch } from "@/client/arena3/client";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/manager/settings")({
   component: Page,

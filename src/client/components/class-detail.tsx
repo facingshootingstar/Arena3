@@ -2,17 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
 import { toast } from "sonner";
-import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge, Textarea } from "@/components/ui";
-import { hhmm, initials, money, useSessionUser, when } from "@/components/shell";
-import { UserAvatar } from "@/components/user-avatar";
-import { MinSizeBadge } from "@/components/class-extras";
-import { Cover } from "@/components/media";
-import { apiPatch, apiPost } from "@/lib/arena3/client";
-import { formatDate, kindLabel, levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
-import { scrollBehavior } from "@/lib/calm";
-import { locale, t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { HighlightBadge, useLive } from "@/lib/use-live";
+import { Badge, Button, Field, Input, LoadError, Modal, Select, Skeleton, StatusBadge, Textarea } from "@/client/components/ui";
+import { hhmm, initials, money, useSessionUser, when } from "@/client/components/shell";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { MinSizeBadge } from "@/client/components/class-extras";
+import { Cover } from "@/client/components/media";
+import { apiPatch, apiPost } from "@/client/arena3/client";
+import { formatDate, kindLabel, levelLabel, rruleLabel, sportLabel } from "@/shared/arena3/labels";
+import { scrollBehavior } from "@/client/lib/calm";
+import { locale, t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { HighlightBadge, useLive } from "@/client/lib/use-live";
 
 /** "Tue 21 Oct" in the centre's timezone. */
 export function sessionDay(iso: string) {

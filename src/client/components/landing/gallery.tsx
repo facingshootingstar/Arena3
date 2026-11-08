@@ -1,7 +1,7 @@
 import { useRef } from "react";
-import { Cover } from "@/components/media";
-import { t } from "@/lib/i18n";
-import { ScrollTrigger, gsap, useScene } from "@/lib/gsap";
+import { Cover } from "@/client/components/media";
+import { t } from "@/client/lib/i18n";
+import { ScrollTrigger, gsap, useScene } from "@/client/lib/gsap";
 import { rise } from "./tweens";
 
 /**

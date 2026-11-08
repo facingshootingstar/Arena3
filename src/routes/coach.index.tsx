@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Award, CalendarDays, ChevronRight, ClipboardCheck, MapPin, Users } from "lucide-react";
-import { sessionDay } from "@/components/class-detail";
-import { ArenaIcon, SportIcon } from "@/components/arena-icons";
-import { Shell, hhmm } from "@/components/shell";
-import { UserAvatar } from "@/components/user-avatar";
-import { PageHero } from "@/components/page-hero";
-import { SportBadge } from "@/components/sports-ui";
-import { SessionCountdown } from "@/components/training-progress";
-import { SpotlightCard } from "@/components/fx";
-import { cn } from "@/lib/cn";
+import { sessionDay } from "@/client/components/class-detail";
+import { ArenaIcon, SportIcon } from "@/client/components/arena-icons";
+import { Shell, hhmm } from "@/client/components/shell";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { PageHero } from "@/client/components/page-hero";
+import { SportBadge } from "@/client/components/sports-ui";
+import { SessionCountdown } from "@/client/components/training-progress";
+import { SpotlightCard } from "@/client/components/fx";
+import { cn } from "@/client/lib/cn";
 import {
   Badge,
   Button,
@@ -18,14 +18,14 @@ import {
   LoadError,
   Skeleton,
   StatusBadge,
-} from "@/components/ui";
-import { levelLabel, sportLabel } from "@/lib/arena3/labels";
-import { locale, t } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { useLimits } from "@/lib/use-centre";
-import { AddToCalendar, MinSizeBadge } from "@/components/class-extras";
-import { CertificationsModal } from "@/components/coach-certifications";
-import { getStoredUser } from "@/lib/arena3/client";
+} from "@/client/components/ui";
+import { levelLabel, sportLabel } from "@/shared/arena3/labels";
+import { locale, t } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { useLimits } from "@/client/lib/use-centre";
+import { AddToCalendar, MinSizeBadge } from "@/client/components/class-extras";
+import { CertificationsModal } from "@/client/components/coach-certifications";
+import { getStoredUser } from "@/client/arena3/client";
 
 export const Route = createFileRoute("/coach/")({
   component: Page,

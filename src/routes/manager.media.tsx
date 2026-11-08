@@ -11,10 +11,10 @@ import {
 } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
-import { Shell } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
-import { useSports } from "@/components/sports-ui";
+import { Shell } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
+import { useSports } from "@/client/components/sports-ui";
 import {
   Badge,
   Button,
@@ -26,11 +26,11 @@ import {
   Modal,
   Seg,
   Skeleton,
-} from "@/components/ui";
-import { apiPatch, apiPost } from "@/lib/arena3/client";
-import { type MediaAspectRatio, type MediaSlotGroup } from "@/lib/arena3/media";
-import { locale, t, tk } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+} from "@/client/components/ui";
+import { apiPatch, apiPost } from "@/client/arena3/client";
+import { type MediaAspectRatio, type MediaSlotGroup } from "@/shared/arena3/media";
+import { locale, t, tk } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/manager/media")({
   component: Page,

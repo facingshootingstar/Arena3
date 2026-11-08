@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import { SectionTitle } from "@/components/section";
+import { SectionTitle } from "@/client/components/section";
 import { toast } from "sonner";
-import { Badge, Button, Card, EmptyState, DateField, Field, Input, LoadError, Select, Skeleton, Textarea } from "@/components/ui";
-import { Reveal } from "@/components/motion";
-import { hhmm } from "@/components/shell";
-import { sessionDay } from "@/components/class-detail";
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/arena3/client";
-import { addDaysISO, formatDate } from "@/lib/arena3/labels";
-import { scrollBehavior } from "@/lib/calm";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { Badge, Button, Card, EmptyState, DateField, Field, Input, LoadError, Select, Skeleton, Textarea } from "@/client/components/ui";
+import { Reveal } from "@/client/components/motion";
+import { hhmm } from "@/client/components/shell";
+import { sessionDay } from "@/client/components/class-detail";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/client/arena3/client";
+import { addDaysISO, formatDate } from "@/shared/arena3/labels";
+import { scrollBehavior } from "@/client/lib/calm";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 type Msg = (e: unknown) => string;
 const say: Msg = (e) => (e instanceof Error ? e.message : t("Something went wrong"));

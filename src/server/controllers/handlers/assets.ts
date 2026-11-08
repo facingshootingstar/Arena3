@@ -1,10 +1,10 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err, json } from "../errors";
 import { audit } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { requireRole, type PublicUser } from "../session";
-import { findSlotDef } from "../media";
-import { MEDIA_FILES } from "../media-files";
+import { findSlotDef } from "../../../shared/arena3/media";
+import { MEDIA_FILES } from "../../data/media-files";
 
 // Dynamically construct media prefix so it never appears as a literal in grep
 const MEDIA_PREFIX = "/" + "media" + "/";

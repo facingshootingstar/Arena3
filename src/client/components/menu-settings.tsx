@@ -1,14 +1,14 @@
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, ExternalLink, X } from "lucide-react";
-import { SectionTitle } from "@/components/section";
-import { pageInfo } from "@/components/shell";
-import { Button, Card, Check, Field, Input, LoadError, Select, Seg, Skeleton } from "@/components/ui";
-import { Reveal } from "@/components/motion";
-import { ApiClientError, apiPatch } from "@/lib/arena3/client";
-import { roleLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { SectionTitle } from "@/client/components/section";
+import { pageInfo } from "@/client/components/shell";
+import { Button, Card, Check, Field, Input, LoadError, Select, Seg, Skeleton } from "@/client/components/ui";
+import { Reveal } from "@/client/components/motion";
+import { ApiClientError, apiPatch } from "@/client/arena3/client";
+import { roleLabel } from "@/shared/arena3/labels";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 import {
   LIMITS,
   LIMIT_KEYS,
@@ -24,7 +24,7 @@ import {
   type NavEntry,
   type NavRole,
   type UiConfig,
-} from "@/lib/ui-config";
+} from "@/shared/ui-config";
 
 // Marked here so the extractor sees them; ui-config.ts stays free of imports.
 tk("Free hours on the member home");

@@ -7,10 +7,10 @@
  * money actually posts, so a hold that expires or a payment that fails never
  * spends a use (BR-41).
  */
-import type { Sql } from "@/lib/db";
-import { err } from "./errors";
+import type { Sql } from "@/server/data/db";
+import { err } from "../controllers/errors";
 import { MIN_PAYABLE_VND, computeDiscount, normalizeCode } from "./rules";
-import { one } from "./tx";
+import { one } from "../controllers/tx";
 
 export type PromoScope = "plan" | "court" | "class";
 

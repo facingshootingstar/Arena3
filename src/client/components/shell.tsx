@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { AssistantWidget } from "@/components/assistant-widget";
+import { AssistantWidget } from "@/client/components/assistant-widget";
 import {
   Activity,
   Bell,
@@ -45,11 +45,11 @@ import { AnimatePresence, PageIn, motion } from "./motion";
 import { GradualBlur } from "./fx";
 import { Spot, spotForPath } from "./illustrations";
 import { UserAvatar } from "./user-avatar";
-import { cn } from "@/lib/cn";
-import { useLive } from "@/lib/use-live";
-import { useRead } from "@/lib/use-read";
-import { useCentre } from "@/lib/use-centre";
-import { isLinkTab, type NavEntry, type NavRole } from "@/lib/ui-config";
+import { cn } from "@/client/lib/cn";
+import { useLive } from "@/client/lib/use-live";
+import { useRead } from "@/client/lib/use-read";
+import { useCentre } from "@/client/lib/use-centre";
+import { isLinkTab, type NavEntry, type NavRole } from "@/shared/ui-config";
 import {
   apiGet,
   apiPost,
@@ -59,12 +59,12 @@ import {
   homeFor,
   onStoredUserChange,
   type SessionUser,
-} from "@/lib/arena3/client";
-import { roleLabel } from "@/lib/arena3/labels";
-import { locale, t, tk } from "@/lib/i18n";
+} from "@/client/arena3/client";
+import { roleLabel } from "@/shared/arena3/labels";
+import { locale, t, tk } from "@/client/lib/i18n";
 import { ConnectionBanner } from "./connection-banner";
 import { LangSwitch } from "./lang-switch";
-import { useTheme } from "@/lib/theme";
+import { useTheme } from "@/client/lib/theme";
 import { useDialog } from "./ui";
 import { NotificationList, type Notification } from "./notifications";
 
@@ -222,7 +222,7 @@ function navActive(pathname: string, to: string, items: { to: string }[]) {
   return best?.to === to;
 }
 
-export { initials } from "@/lib/initials";
+export { initials } from "@/client/lib/initials";
 
 /**
  * The member's notifications, on their own button beside the account menu

@@ -1,13 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
-import { ArenaMark } from "@/components/mark";
-import { LangSwitch } from "@/components/lang-switch";
-import { ThemeIconToggle } from "@/components/theme-toggle";
-import { ButtonAnchor, ButtonLink } from "@/components/ui";
-import { ScrollTrigger, gsap, useScene } from "@/lib/gsap";
-import { cn } from "@/lib/cn";
-import { t, tk } from "@/lib/i18n";
+import { ArenaMark } from "@/client/components/mark";
+import { LangSwitch } from "@/client/components/lang-switch";
+import { ThemeIconToggle } from "@/client/components/theme-toggle";
+import { ButtonAnchor, ButtonLink } from "@/client/components/ui";
+import { ScrollTrigger, gsap, useScene } from "@/client/lib/gsap";
+import { cn } from "@/client/lib/cn";
+import { t, tk } from "@/client/lib/i18n";
 
 /**
  * The public nav, in business order.

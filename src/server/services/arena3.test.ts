@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isValidVnPhone, normalizePhone, passwordOk, phoneLast9 } from "./phone.ts";
-import { rruleLabel } from "./labels.ts";
+import { rruleLabel } from "../../shared/arena3/labels.ts";
 import { numberToVietnamese, vndInWords } from "./money-words.ts";
-import { addDays, ageYears, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "./time.ts";
-import { ApiError, mapDbError } from "./errors.ts";
-import { checkOpeningHours, pageParams, parseSettingsPatch } from "./validate.ts";
-import { alignOffset, lastPageOffset, pageWindow } from "../paging.ts";
-import { crc16, readTlv, transferReference, validBankAccount, vietQrPayload } from "../vietqr.ts";
-import { DEFAULT_VENUE, hhmm, hoursOf, venueFrom } from "../venue.ts";
+import { addDays, ageYears, classMinutes, elapsedAtLeast, ictDateTime, ictHour, ictMinutes, pad2, roundVnd, slotSpan } from "../../shared/arena3/time.ts";
+import { ApiError, mapDbError } from "../controllers/errors.ts";
+import { checkOpeningHours, pageParams, parseSettingsPatch } from "../controllers/validate.ts";
+import { alignOffset, lastPageOffset, pageWindow } from "../../client/lib/paging.ts";
+import { crc16, readTlv, transferReference, validBankAccount, vietQrPayload } from "../../shared/vietqr.ts";
+import { DEFAULT_VENUE, hhmm, hoursOf, venueFrom } from "../../client/lib/venue.ts";
 import {
   absentStreak,
   attendanceLocked,

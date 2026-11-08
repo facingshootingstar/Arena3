@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Quote } from "lucide-react";
-import { Card } from "@/components/ui";
-import { gsap, motionOff, useGSAP, useScene } from "@/lib/gsap";
-import { useCalm } from "@/lib/calm";
-import { t, tk } from "@/lib/i18n";
+import { Card } from "@/client/components/ui";
+import { gsap, motionOff, useGSAP, useScene } from "@/client/lib/gsap";
+import { useCalm } from "@/client/lib/calm";
+import { t, tk } from "@/client/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 

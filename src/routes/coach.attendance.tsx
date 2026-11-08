@@ -2,12 +2,12 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Check, Clock, FileCheck2, MapPin, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckDraw } from "@/components/arena-icons";
-import { StepTabs } from "@/components/coach-ui";
-import { sessionDay } from "@/components/class-detail";
-import { HomeworkPanel, PlanPanel, ResultsPanel } from "@/components/coach-training";
-import { Shell, hhmm, useSessionUser } from "@/components/shell";
-import { UserAvatar } from "@/components/user-avatar";
+import { CheckDraw } from "@/client/components/arena-icons";
+import { StepTabs } from "@/client/components/coach-ui";
+import { sessionDay } from "@/client/components/class-detail";
+import { HomeworkPanel, PlanPanel, ResultsPanel } from "@/client/components/coach-training";
+import { Shell, hhmm, useSessionUser } from "@/client/components/shell";
+import { UserAvatar } from "@/client/components/user-avatar";
 import {
   Badge,
   Button,
@@ -18,14 +18,14 @@ import {
   LoadError,
   Select,
   Skeleton,
-} from "@/components/ui";
-import { apiPost } from "@/lib/arena3/client";
-import { cn } from "@/lib/cn";
-import { levelLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tServer, tk, tData } from "@/lib/i18n";
-import { useRead, type ReadError } from "@/lib/use-read";
-import { HighlightBadge, useLive } from "@/lib/use-live";
-import type { CoachSession } from "./coach.index";
+} from "@/client/components/ui";
+import { apiPost } from "@/client/arena3/client";
+import { cn } from "@/client/lib/cn";
+import { levelLabel, sportLabel } from "@/shared/arena3/labels";
+import { t, tServer, tk, tData } from "@/client/lib/i18n";
+import { useRead, type ReadError } from "@/client/lib/use-read";
+import { HighlightBadge, useLive } from "@/client/lib/use-live";
+import type { CoachSession } from "./coach.index.tsx";
 
 export const Route = createFileRoute("/coach/attendance")({
   validateSearch: (search: Record<string, unknown>): { session?: string } => ({

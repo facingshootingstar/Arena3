@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { monthsLabel } from "@/lib/arena3/labels";
+import { monthsLabel } from "@/shared/arena3/labels";
 import { toast } from "sonner";
-import { Cover } from "@/components/media";
-import { Shell, money } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Input, LoadError, PageHero, Skeleton } from "@/components/ui";
-import { Lift, Stagger, StaggerItem } from "@/components/motion";
-import { GlareHover, SpotlightCard, StarBorder } from "@/components/fx";
-import { cn } from "@/lib/cn";
-import { apiPost } from "@/lib/arena3/client";
-import { t, tData } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { Cover } from "@/client/components/media";
+import { Shell, money } from "@/client/components/shell";
+import { Badge, Button, Card, EmptyState, Input, LoadError, PageHero, Skeleton } from "@/client/components/ui";
+import { Lift, Stagger, StaggerItem } from "@/client/components/motion";
+import { GlareHover, SpotlightCard, StarBorder } from "@/client/components/fx";
+import { cn } from "@/client/lib/cn";
+import { apiPost } from "@/client/arena3/client";
+import { t, tData } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/app/plans")({
   component: Page,

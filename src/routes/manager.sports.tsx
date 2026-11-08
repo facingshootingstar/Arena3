@@ -18,8 +18,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CardTitle, SectionTitle } from "@/components/section";
-import { Shell } from "@/components/shell";
+import { CardTitle, SectionTitle } from "@/client/components/section";
+import { Shell } from "@/client/components/shell";
 import {
   Badge,
   Button,
@@ -32,14 +32,14 @@ import {
   Select,
   Skeleton,
   Stat,
-} from "@/components/ui";
-import { SportDot, SportThumbnail, invalidateSportsCache } from "@/components/sports-ui";
-import { useRefreshAssets } from "@/components/media";
-import { apiDelete, apiPatch, apiPost } from "@/lib/arena3/client";
-import { sportLabel } from "@/lib/arena3/labels";
-import { cn } from "@/lib/cn";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+} from "@/client/components/ui";
+import { SportDot, SportThumbnail, invalidateSportsCache } from "@/client/components/sports-ui";
+import { useRefreshAssets } from "@/client/components/media";
+import { apiDelete, apiPatch, apiPost } from "@/client/arena3/client";
+import { sportLabel } from "@/shared/arena3/labels";
+import { cn } from "@/client/lib/cn";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/manager/sports")({
   component: Page,

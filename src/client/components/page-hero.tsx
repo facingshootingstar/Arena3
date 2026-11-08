@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "@/client/lib/cn";
 import { useAsset } from "./media";
 import { Spot, type SpotName } from "./illustrations";
 import { CountUp, useReducedMotionAfterMount } from "./motion";

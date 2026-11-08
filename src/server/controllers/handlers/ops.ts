@@ -1,23 +1,23 @@
-import type { Sql } from "@/lib/db";
-import { assertMembershipOutlastsClass, hasRunningClass } from "../membership";
+import type { Sql } from "@/server/data/db";
+import { assertMembershipOutlastsClass, hasRunningClass } from "../../services/membership";
 import { err } from "../errors";
-import { flagsMap, requireFlag, type FlagKey } from "../flags";
+import { flagsMap, requireFlag, type FlagKey } from "../../services/flags";
 import { assertNoClassClash, audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
-import { isValidVnPhone, normalizePhone } from "../phone";
-import { generateAssistantReply, type ChatTurn } from "../gemini";
-import { COACHES } from "../coaches";
-import { ATTENDANCE_LOCK_HOURS, attendanceLocked, isAttResult, isTicketMessage, ticketBody } from "../rules";
+import { isValidVnPhone, normalizePhone } from "../../services/phone";
+import { generateAssistantReply, type ChatTurn } from "../../integrations/gemini";
+import { COACHES } from "../../../shared/arena3/coaches";
+import { ATTENDANCE_LOCK_HOURS, attendanceLocked, isAttResult, isTicketMessage, ticketBody } from "../../services/rules";
 import { checkAbsentStreaks, sessionScope } from "./training";
 import { openShift, pickMethod } from "./extras";
-import { addDays, ictDateString } from "../time";
+import { addDays, ictDateString } from "../../../shared/arena3/time";
 import { one } from "../tx";
-import { payosConfigured } from "../payos";
-import { centreBank } from "../bank";
+import { payosConfigured } from "../../integrations/payos";
+import { centreBank } from "../../integrations/bank";
 import { pageParams, parseInteger } from "../validate";
 import { getActiveSportCodes } from "./sports";
-import { uiConfigFrom } from "@/lib/ui-config";
+import { uiConfigFrom } from "@/shared/ui-config";
 
 export async function flagsGet(sql: Sql) {
   const settings = await getSettings(sql);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { gsap, useScene } from "@/lib/gsap";
+import { gsap, useScene } from "@/client/lib/gsap";
 import { canShuttle3D, createShuttle3D, type Shuttle3D } from "./shuttle3d-gl";
 import { drawScene, newSceneState } from "./shuttle3d-scene";
 

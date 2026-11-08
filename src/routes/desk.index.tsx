@@ -2,10 +2,10 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Dumbbell, Repeat, UserMinus, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { SectionTitle } from "@/components/section";
-import { Shell, money, when } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { SportBadge } from "@/components/sports-ui";
+import { SectionTitle } from "@/client/components/section";
+import { Shell, money, when } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { SportBadge } from "@/client/components/sports-ui";
 import {
   Badge,
   Button,
@@ -22,20 +22,20 @@ import {
   Skeleton,
   StatusBadge,
   Pagination,
-} from "@/components/ui";
-import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GLBackground, SpotlightCard, StarBorder } from "@/components/fx";
-import { freeHours, useNowMinute, type Court, type OccSlot } from "@/components/court-grid";
-import { apiGet, apiPost, openInvoice } from "@/lib/arena3/client";
-import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
-import { sportLabel, todayISO, monthsLabel } from "@/lib/arena3/labels";
-import { ageYears } from "@/lib/arena3/time";
-import { UserAvatar } from "@/components/user-avatar";
-import { t, tData, tServer } from "@/lib/i18n";
-import { lastPageOffset } from "@/lib/paging";
-import { usePageState } from "@/lib/use-page-state";
-import { readError, useRead } from "@/lib/use-read";
-import { useLimits } from "@/lib/use-centre";
+} from "@/client/components/ui";
+import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
+import { GLBackground, SpotlightCard, StarBorder } from "@/client/components/fx";
+import { freeHours, useNowMinute, type Court, type OccSlot } from "@/client/components/court-grid";
+import { apiGet, apiPost, openInvoice } from "@/client/arena3/client";
+import type { PaymentCreateResponse } from "@/shared/arena3/contracts";
+import { sportLabel, todayISO, monthsLabel } from "@/shared/arena3/labels";
+import { ageYears } from "@/shared/arena3/time";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { t, tData, tServer } from "@/client/lib/i18n";
+import { lastPageOffset } from "@/client/lib/paging";
+import { usePageState } from "@/client/lib/use-page-state";
+import { readError, useRead } from "@/client/lib/use-read";
+import { useLimits } from "@/client/lib/use-centre";
 
 export const Route = createFileRoute("/desk/")({
   component: Page,

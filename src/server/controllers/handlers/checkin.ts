@@ -13,14 +13,14 @@
  * but if there is nothing at all to let them in on, reception must say why,
  * and the visit is flagged (BR-31). Plans no longer exist, so they are not read here.
  */
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { ApiError, err } from "../errors";
-import { requireFlag } from "../flags";
+import { requireFlag } from "../../services/flags";
 import { audit, getSettings, pageOf, readJson, str } from "../helpers";
-import { signCheckinToken, verifyCheckinToken } from "../checkin";
-import { normalizePhone } from "../phone";
+import { signCheckinToken, verifyCheckinToken } from "../../services/checkin";
+import { normalizePhone } from "../../services/phone";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
-import { addDays, ictDateString, ictDateTime } from "../time";
+import { addDays, ictDateString, ictDateTime } from "../../../shared/arena3/time";
 import { one } from "../tx";
 import { pageParams } from "../validate";
 import { bookingsCheckIn } from "./bookings";

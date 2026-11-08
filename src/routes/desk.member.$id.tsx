@@ -1,11 +1,11 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { AlertTriangle, Calendar, CheckCircle2, Mail, Phone } from "lucide-react";
-import { SectionTitle } from "@/components/section";
-import { PayOnlineButton } from "@/components/pay-online";
+import { SectionTitle } from "@/client/components/section";
+import { PayOnlineButton } from "@/client/components/pay-online";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Shell, money, useSessionUser, when } from "@/components/shell";
-import { UserAvatar } from "@/components/user-avatar";
+import { Shell, money, useSessionUser, when } from "@/client/components/shell";
+import { UserAvatar } from "@/client/components/user-avatar";
 import {
   Badge,
   Button,
@@ -22,17 +22,17 @@ import {
   Skeleton,
   StatusBadge,
   Textarea,
-} from "@/components/ui";
-import { TransferQrModal } from "@/components/transfer-qr-modal";
-import { Lift, Reveal, Stagger, StaggerItem } from "@/components/motion";
-import { SpotlightCard } from "@/components/fx";
-import { CancelBookingDialog } from "@/components/cancel-booking";
-import { ApiClientError, apiDelete, apiPatch, apiPost, openInvoice } from "@/lib/arena3/client";
-import type { PaymentCreateResponse } from "@/lib/arena3/contracts";
-import { METHOD_LABEL, formatDate, levelLabel, refTypeLabel, rruleLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
-import { ageYears } from "@/lib/arena3/time";
-import { t, tServer, tData } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+} from "@/client/components/ui";
+import { TransferQrModal } from "@/client/components/transfer-qr-modal";
+import { Lift, Reveal, Stagger, StaggerItem } from "@/client/components/motion";
+import { SpotlightCard } from "@/client/components/fx";
+import { CancelBookingDialog } from "@/client/components/cancel-booking";
+import { ApiClientError, apiDelete, apiPatch, apiPost, openInvoice } from "@/client/arena3/client";
+import type { PaymentCreateResponse } from "@/shared/arena3/contracts";
+import { METHOD_LABEL, formatDate, levelLabel, refTypeLabel, rruleLabel, sportLabel, statusLabel } from "@/shared/arena3/labels";
+import { ageYears } from "@/shared/arena3/time";
+import { t, tServer, tData } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/desk/member/$id")({
   component: Page,

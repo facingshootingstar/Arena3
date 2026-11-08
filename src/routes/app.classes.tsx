@@ -1,20 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cover, MediaCaption, sportPhoto } from "@/components/media";
-import { MyAttendance } from "@/components/my-attendance";
-import { Shell, money, when } from "@/components/shell";
-import { PayOnlineButton } from "@/components/pay-online";
-import { HoldCountdown } from "@/components/moments/hold-countdown";
-import { Badge, Button, ButtonLink, Card, EmptyState, Input, LoadError, Modal, PageHero, Seg, Select, ShowMore, Skeleton, SportBadge, useSports } from "@/components/ui";
-import { Lift, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GlareHover, SpotlightCard } from "@/components/fx";
-import { cn } from "@/lib/cn";
-import { apiDelete, apiGet, apiPost } from "@/lib/arena3/client";
-import { classSlotMatches, levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
-import { locale, t, tData, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { HighlightBadge, useLive } from "@/lib/use-live";
+import { Cover, MediaCaption, sportPhoto } from "@/client/components/media";
+import { MyAttendance } from "@/client/components/my-attendance";
+import { Shell, money, when } from "@/client/components/shell";
+import { PayOnlineButton } from "@/client/components/pay-online";
+import { HoldCountdown } from "@/client/components/moments/hold-countdown";
+import { Badge, Button, ButtonLink, Card, EmptyState, Input, LoadError, Modal, PageHero, Seg, Select, ShowMore, Skeleton, SportBadge, useSports } from "@/client/components/ui";
+import { Lift, Stagger, StaggerItem, motion } from "@/client/components/motion";
+import { GlareHover, SpotlightCard } from "@/client/components/fx";
+import { cn } from "@/client/lib/cn";
+import { apiDelete, apiGet, apiPost } from "@/client/arena3/client";
+import { classSlotMatches, levelLabel, rruleLabel, sportLabel } from "@/shared/arena3/labels";
+import { locale, t, tData, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { HighlightBadge, useLive } from "@/client/lib/use-live";
 
 export const Route = createFileRoute("/app/classes")({
   validateSearch: (s: Record<string, unknown>): { sport?: string } => ({

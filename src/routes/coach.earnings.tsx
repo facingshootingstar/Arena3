@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { SectionTitle } from "@/components/section";
-import { Shell, money, when } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, LoadError, Skeleton, Stat } from "@/components/ui";
-import { Reveal } from "@/components/motion";
-import { levelLabel } from "@/lib/arena3/labels";
-import { t } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { SectionTitle } from "@/client/components/section";
+import { Shell, money, when } from "@/client/components/shell";
+import { Badge, Button, Card, EmptyState, LoadError, Skeleton, Stat } from "@/client/components/ui";
+import { Reveal } from "@/client/components/motion";
+import { levelLabel } from "@/shared/arena3/labels";
+import { t } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/coach/earnings")({ component: Page });
 

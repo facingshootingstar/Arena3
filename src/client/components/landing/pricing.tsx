@@ -1,12 +1,12 @@
 import { useRef } from "react";
-import { Cover, HeroVideo } from "@/components/media";
-import { SpotlightCard } from "@/components/fx";
-import { money } from "@/components/shell";
-import type { CatalogPrice } from "@/lib/arena3/catalog";
-import { sportLabel } from "@/lib/arena3/labels";
-import { gsap, useScene } from "@/lib/gsap";
-import { t } from "@/lib/i18n";
-import { useSports } from "@/components/sports-ui";
+import { Cover, HeroVideo } from "@/client/components/media";
+import { SpotlightCard } from "@/client/components/fx";
+import { money } from "@/client/components/shell";
+import type { CatalogPrice } from "@/server/services/catalog";
+import { sportLabel } from "@/shared/arena3/labels";
+import { gsap, useScene } from "@/client/lib/gsap";
+import { t } from "@/client/lib/i18n";
+import { useSports } from "@/client/components/sports-ui";
 import { rise } from "./tweens";
 import { useVenue } from "./util";
 

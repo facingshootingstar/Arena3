@@ -18,7 +18,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { CardTitle } from "@/components/section";
+import { CardTitle } from "@/client/components/section";
 import { useEffect, useState } from "react";
 import {
   Area,
@@ -33,17 +33,17 @@ import {
   YAxis,
 } from "recharts";
 
-import { CourtGrid, type Court, type OccSlot } from "@/components/court-grid";
-import { Shell, money, when } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { SportThumbnail } from "@/components/sports-ui";
-import { CapacityPanel, ExportButtons, MembersPanel } from "@/components/report-panels";
-import { Button, ButtonAnchor, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/components/ui";
-import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { GLBackground, SplitText, SpotlightCard } from "@/components/fx";
-import { t } from "@/lib/i18n";
-import { addDaysISO, formatDate, methodLabel, sourceLabel, todayISO } from "@/lib/arena3/labels";
-import { useRead } from "@/lib/use-read";
+import { CourtGrid, type Court, type OccSlot } from "@/client/components/court-grid";
+import { Shell, money, when } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { SportThumbnail } from "@/client/components/sports-ui";
+import { CapacityPanel, ExportButtons, MembersPanel } from "@/client/components/report-panels";
+import { Button, ButtonAnchor, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat, type Trend } from "@/client/components/ui";
+import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
+import { GLBackground, SplitText, SpotlightCard } from "@/client/components/fx";
+import { t } from "@/client/lib/i18n";
+import { addDaysISO, formatDate, methodLabel, sourceLabel, todayISO } from "@/shared/arena3/labels";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/manager/")({
   component: Page,

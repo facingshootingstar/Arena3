@@ -1,13 +1,13 @@
 import { useRef } from "react";
 import { ArrowUpRight, Clock, MapPin, Phone } from "lucide-react";
-import { ArenaMark } from "@/components/mark";
-import { Cover } from "@/components/media";
-import { ButtonLink } from "@/components/ui";
-import { gsap, useScene } from "@/lib/gsap";
-import { t } from "@/lib/i18n";
+import { ArenaMark } from "@/client/components/mark";
+import { Cover } from "@/client/components/media";
+import { ButtonLink } from "@/client/components/ui";
+import { gsap, useScene } from "@/client/lib/gsap";
+import { t } from "@/client/lib/i18n";
 import { rise } from "./tweens";
 import { useVenue } from "./util";
-import { hhmm } from "@/lib/venue";
+import { hhmm } from "@/client/lib/venue";
 
 /** The last ask: opening hours and the two ways in, over the frontage at dusk. */
 export function ClosingCta() {

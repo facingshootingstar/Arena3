@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { apiGet, apiPost, type SessionUser } from "@/lib/arena3/client";
-import { t, useLang } from "@/lib/i18n";
+import { apiGet, apiPost, type SessionUser } from "@/client/arena3/client";
+import { t, useLang } from "@/client/lib/i18n";
 
 type GoogleId = {
   initialize(opts: { client_id: string; callback: (r: { credential?: string }) => void }): void;

@@ -1,22 +1,22 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Shell, money } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
-import { SportBadge, useSports } from "@/components/sports-ui";
-import { Button, Card, DateField, EmptyState, Field, Input, LoadError, Select, ShowMore, Skeleton, StatusBadge } from "@/components/ui";
-import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/components/motion";
-import { SpotlightCard } from "@/components/fx";
-import { ClassDetailModal } from "@/components/class-detail";
-import { MinSizeBadge } from "@/components/class-extras";
-import { apiPost } from "@/lib/arena3/client";
-import { classSlotMatches, composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { useCentre } from "@/lib/use-centre";
-import { hoursOf } from "@/lib/venue";
-import { HighlightBadge, useLive } from "@/lib/use-live";
+import { Shell, money } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
+import { SportBadge, useSports } from "@/client/components/sports-ui";
+import { Button, Card, DateField, EmptyState, Field, Input, LoadError, Select, ShowMore, Skeleton, StatusBadge } from "@/client/components/ui";
+import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
+import { SpotlightCard } from "@/client/components/fx";
+import { ClassDetailModal } from "@/client/components/class-detail";
+import { MinSizeBadge } from "@/client/components/class-extras";
+import { apiPost } from "@/client/arena3/client";
+import { classSlotMatches, composeWeeklyRrule, levelLabel, rruleLabel, sportLabel, todayISO, addDaysISO } from "@/shared/arena3/labels";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { useCentre } from "@/client/lib/use-centre";
+import { hoursOf } from "@/client/lib/venue";
+import { HighlightBadge, useLive } from "@/client/lib/use-live";
 
 export const Route = createFileRoute("/manager/classes")({
   component: Page,

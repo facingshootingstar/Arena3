@@ -1,12 +1,12 @@
 import { useRef } from "react";
-import { Cover, MediaCaption } from "@/components/media";
-import { GlareHover } from "@/components/fx";
-import { cn } from "@/lib/cn";
-import { gsap, useScene } from "@/lib/gsap";
-import { useCalm } from "@/lib/calm";
-import { t, useLang } from "@/lib/i18n";
-import { useSports } from "@/components/sports-ui";
-import type { CatalogCourt } from "@/lib/arena3/catalog";
+import { Cover, MediaCaption } from "@/client/components/media";
+import { GlareHover } from "@/client/components/fx";
+import { cn } from "@/client/lib/cn";
+import { gsap, useScene } from "@/client/lib/gsap";
+import { useCalm } from "@/client/lib/calm";
+import { t, useLang } from "@/client/lib/i18n";
+import { useSports } from "@/client/components/sports-ui";
+import type { CatalogCourt } from "@/server/services/catalog";
 import { rise } from "./tweens";
 
 /**

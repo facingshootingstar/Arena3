@@ -1,4 +1,4 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
 import {
   audit,
@@ -19,12 +19,12 @@ import {
   payosConfigured,
   readPaymentLink,
   verifyWebhook,
-} from "../payos";
+} from "../../integrations/payos";
 import { requireRole, type PublicUser } from "../session";
 import { one } from "../tx";
-import { dueNow } from "../policy";
-import { enrollmentAmountDue, enrollmentInvoiceLines } from "../membership";
-import { redeemPromo } from "../promos";
+import { dueNow } from "../../services/policy";
+import { enrollmentAmountDue, enrollmentInvoiceLines } from "../../services/membership";
+import { redeemPromo } from "../../services/promos";
 import { HELD_COLS, settleHeldBooking } from "./bookings";
 import { activateSubscription, describePayment } from "./desk";
 import { settleEnrollment } from "./classes";

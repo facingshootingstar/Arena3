@@ -1,7 +1,7 @@
 import { useRef } from "react";
-import { GLBackground } from "@/components/fx";
-import { gsap, useScene } from "@/lib/gsap";
-import { t } from "@/lib/i18n";
+import { GLBackground } from "@/client/components/fx";
+import { gsap, useScene } from "@/client/lib/gsap";
+import { t } from "@/client/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 import { useVenue } from "./util";

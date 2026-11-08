@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 
-// Keep src/lib/db.ts from bootstrapping a real connection.
+// Keep src/server/data/db.ts from bootstrapping a real connection.
 process.env.DATABASE_URL = "postgres://mock:mock@localhost/mock";
 process.env.PGLITE_DATA_DIR = "memory";
 

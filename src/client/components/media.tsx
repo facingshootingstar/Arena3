@@ -9,10 +9,10 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { cn } from "@/lib/cn";
-import { useCalm } from "@/lib/calm";
-import { sportPhoto } from "@/lib/arena3/media";
-import { t, useLang } from "@/lib/i18n";
+import { cn } from "@/client/lib/cn";
+import { useCalm } from "@/client/lib/calm";
+import { sportPhoto } from "@/shared/arena3/media";
+import { t, useLang } from "@/client/lib/i18n";
 import { ArenaMark } from "./mark";
 
 export { sportPhoto };

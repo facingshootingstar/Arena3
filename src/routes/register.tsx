@@ -2,19 +2,19 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { ArenaMark } from "@/components/mark";
-import { Cover } from "@/components/media";
-import { Button, Card, Check, DateField, Field, Input, Modal } from "@/components/ui";
+import { ArenaMark } from "@/client/components/mark";
+import { Cover } from "@/client/components/media";
+import { Button, Card, Check, DateField, Field, Input, Modal } from "@/client/components/ui";
 import { AnimatePresence, motion } from "motion/react";
-import { Reveal } from "@/components/motion";
-import { GLBackground, Magnet, SplitText, SpotlightCard } from "@/components/fx";
-import { ApiClientError, apiPost, homeFor, setSession, type SessionUser } from "@/lib/arena3/client";
-import { LangSwitch } from "@/components/lang-switch";
-import { t, tServer } from "@/lib/i18n";
-import { ageYears } from "@/lib/arena3/time";
-import { LegalBody } from "@/components/legal-page";
-import { clearGoogleSignup, readGoogleSignup, type GoogleSignup } from "@/components/google-sign-in";
-import { PRIVACY, TERMS } from "@/lib/legal";
+import { Reveal } from "@/client/components/motion";
+import { GLBackground, Magnet, SplitText, SpotlightCard } from "@/client/components/fx";
+import { ApiClientError, apiPost, homeFor, setSession, type SessionUser } from "@/client/arena3/client";
+import { LangSwitch } from "@/client/components/lang-switch";
+import { t, tServer } from "@/client/lib/i18n";
+import { ageYears } from "@/shared/arena3/time";
+import { LegalBody } from "@/client/components/legal-page";
+import { clearGoogleSignup, readGoogleSignup, type GoogleSignup } from "@/client/components/google-sign-in";
+import { PRIVACY, TERMS } from "@/client/lib/legal";
 
 export const Route = createFileRoute("/register")({
   // `via=google`: the sign-in page sent someone whose Google email has no account yet.

@@ -1,17 +1,17 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Shell } from "@/components/shell";
-import { PageHero } from "@/components/page-hero";
-import { StatStrip } from "@/components/stat-strip";
-import { SportBadge, useSports } from "@/components/sports-ui";
-import { Badge, Button, Card, EmptyState, FilterChip, Input, LoadError, Pagination, Select, Skeleton, StatusBadge } from "@/components/ui";
-import { formatDate } from "@/lib/arena3/labels";
-import { cn } from "@/lib/cn";
-import { ageYears } from "@/lib/arena3/time";
-import { locale, t, tk, tData } from "@/lib/i18n";
-import { UserAvatar } from "@/components/user-avatar";
-import { useRead } from "@/lib/use-read";
-import { usePageState } from "@/lib/use-page-state";
+import { Shell } from "@/client/components/shell";
+import { PageHero } from "@/client/components/page-hero";
+import { StatStrip } from "@/client/components/stat-strip";
+import { SportBadge, useSports } from "@/client/components/sports-ui";
+import { Badge, Button, Card, EmptyState, FilterChip, Input, LoadError, Pagination, Select, Skeleton, StatusBadge } from "@/client/components/ui";
+import { formatDate } from "@/shared/arena3/labels";
+import { cn } from "@/client/lib/cn";
+import { ageYears } from "@/shared/arena3/time";
+import { locale, t, tk, tData } from "@/client/lib/i18n";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { useRead } from "@/client/lib/use-read";
+import { usePageState } from "@/client/lib/use-page-state";
 
 export const Route = createFileRoute("/manager/members")({
   component: Page,

@@ -2,13 +2,13 @@ import { Link } from "@tanstack/react-router";
 import { Maximize2, RotateCcw, Send, X } from "lucide-react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
-import { useReducedMotionAfterMount } from "@/components/motion";
-import { useSessionUser } from "@/components/shell";
-import { apiPost } from "@/lib/arena3/client";
-import { useChatLog } from "@/lib/chat-log";
-import { cn } from "@/lib/cn";
-import { scrollBehavior } from "@/lib/calm";
-import { t, tk } from "@/lib/i18n";
+import { useReducedMotionAfterMount } from "@/client/components/motion";
+import { useSessionUser } from "@/client/components/shell";
+import { apiPost } from "@/client/arena3/client";
+import { useChatLog } from "@/client/lib/chat-log";
+import { cn } from "@/client/lib/cn";
+import { scrollBehavior } from "@/client/lib/calm";
+import { t, tk } from "@/client/lib/i18n";
 
 /**
  * Shuttle, the centre's mascot: a shuttlecock with a face.

@@ -2,16 +2,16 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { AlertCircle, ArrowLeft, Check, CheckCheck, Clock, MessageSquare, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
-import { Guard, Shell, roleLabel, useSessionUser } from "@/components/shell";
-import { Badge, Button, EmptyState, Input, LoadError, Skeleton } from "@/components/ui";
-import { UserAvatar } from "@/components/user-avatar";
-import { apiGet, apiPost, getToken } from "@/lib/arena3/client";
-import { locale, t, tServer } from "@/lib/i18n";
-import { HighlightBadge, useLive } from "@/lib/use-live";
-import { useRead } from "@/lib/use-read";
-import { P2PRoom } from "@/lib/multiplayer/p2p";
-import { cn } from "@/lib/cn";
-import { scrollBehavior } from "@/lib/calm";
+import { Guard, Shell, roleLabel, useSessionUser } from "@/client/components/shell";
+import { Badge, Button, EmptyState, Input, LoadError, Skeleton } from "@/client/components/ui";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { apiGet, apiPost, getToken } from "@/client/arena3/client";
+import { locale, t, tServer } from "@/client/lib/i18n";
+import { HighlightBadge, useLive } from "@/client/lib/use-live";
+import { useRead } from "@/client/lib/use-read";
+import { P2PRoom } from "@/client/lib/multiplayer/p2p";
+import { cn } from "@/client/lib/cn";
+import { scrollBehavior } from "@/client/lib/calm";
 
 export const Route = createFileRoute("/chat")({
   validateSearch: (search: Record<string, unknown>): { conv?: string } => ({

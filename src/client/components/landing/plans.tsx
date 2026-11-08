@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { Cover, sportPhoto } from "@/components/media";
-import { ButtonLink, Card } from "@/components/ui";
-import type { CatalogClass } from "@/lib/arena3/catalog";
-import { levelLabel, rruleLabel, sportLabel } from "@/lib/arena3/labels";
-import { gsap, useScene } from "@/lib/gsap";
-import { t } from "@/lib/i18n";
+import { Cover, sportPhoto } from "@/client/components/media";
+import { ButtonLink, Card } from "@/client/components/ui";
+import type { CatalogClass } from "@/server/services/catalog";
+import { levelLabel, rruleLabel, sportLabel } from "@/shared/arena3/labels";
+import { gsap, useScene } from "@/client/lib/gsap";
+import { t } from "@/client/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
 

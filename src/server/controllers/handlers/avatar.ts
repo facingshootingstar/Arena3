@@ -1,4 +1,4 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
 import { audit } from "../helpers";
 import { limit, RULES } from "../ratelimit";

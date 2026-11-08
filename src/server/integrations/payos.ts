@@ -1,5 +1,5 @@
 import { PayOS } from "@payos/node";
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 
 /**
  * The payOS gateway, wrapped so the rest of the app never talks to it directly.

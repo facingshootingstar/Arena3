@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { money } from "@/components/shell";
-import { Badge, Button, Check, LoadError, Modal, Skeleton } from "@/components/ui";
-import { apiGet, apiPost } from "@/lib/arena3/client";
-import type { CancelQuoteResponse as Quote } from "@/lib/arena3/contracts";
-import { cn } from "@/lib/cn";
-import { t, tServer } from "@/lib/i18n";
-import { readError, type ReadError } from "@/lib/use-read";
+import { money } from "@/client/components/shell";
+import { Badge, Button, Check, LoadError, Modal, Skeleton } from "@/client/components/ui";
+import { apiGet, apiPost } from "@/client/arena3/client";
+import type { CancelQuoteResponse as Quote } from "@/shared/arena3/contracts";
+import { cn } from "@/client/lib/cn";
+import { t, tServer } from "@/client/lib/i18n";
+import { readError, type ReadError } from "@/client/lib/use-read";
 
 /**
  * Cancel a court booking, with the price of doing it said out loud first.

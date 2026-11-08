@@ -1,8 +1,8 @@
-import type { Sql } from "@/lib/db";
-import { hashOtp, hashPassword, randomOtp, randomToken, verifyPassword } from "../crypto";
+import type { Sql } from "@/server/data/db";
+import { hashOtp, hashPassword, randomOtp, randomToken, verifyPassword } from "../../services/crypto";
 import { err } from "../errors";
 import { ageYears, audit, getSettings, pageOf, readJson, str } from "../helpers";
-import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../phone";
+import { isValidVnPhone, normalizePhone, passwordOk, unaccentVi } from "../../services/phone";
 import { limit, RULES } from "../ratelimit";
 import {
   findUserByLogin,
@@ -46,7 +46,7 @@ function mayEchoOtp(): boolean {
  */
 async function deliverOtp(email: string | null | undefined, otp: string): Promise<{ sentTo: string | null }> {
   if (!email) return { sentTo: null };
-  const { deliver } = await import("../notify");
+  const { deliver } = await import("../../integrations/notify");
   const result = await deliver({ channel: "email", template: "otp", to: email, payload: { otp } });
   if (!result.sent) {
     console.warn(`[otp] could not email the code: ${result.detail ?? "unknown"}`);
@@ -280,7 +280,7 @@ export async function login(sql: Sql, request: Request) {
 async function currentTokenHash(request: Request): Promise<string | null> {
   const m = /^Bearer\s+(.+)$/i.exec(request.headers.get("authorization") ?? "");
   if (!m) return null;
-  const { sha256 } = await import("../crypto");
+  const { sha256 } = await import("../../services/crypto");
   return sha256(m[1]!);
 }
 

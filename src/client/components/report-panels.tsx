@@ -1,17 +1,17 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Flame, Gauge, LayoutGrid, TrendingUp, UserPlus, Users } from "lucide-react";
-import { CardTitle, SectionTitle } from "@/components/section";
+import { CardTitle, SectionTitle } from "@/client/components/section";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
-import { money } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, LoadError, Select, ShowMore, Skeleton, Stat } from "@/components/ui";
-import { SportDot, useSports } from "@/components/sports-ui";
-import { downloadReport } from "@/lib/arena3/client";
-import { levelLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tk, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
-import { useLimits } from "@/lib/use-centre";
-import { cn } from "@/lib/cn";
+import { money } from "@/client/components/shell";
+import { Badge, Button, Card, EmptyState, LoadError, Select, ShowMore, Skeleton, Stat } from "@/client/components/ui";
+import { SportDot, useSports } from "@/client/components/sports-ui";
+import { downloadReport } from "@/client/arena3/client";
+import { levelLabel, sportLabel } from "@/shared/arena3/labels";
+import { t, tk, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
+import { useLimits } from "@/client/lib/use-centre";
+import { cn } from "@/client/lib/cn";
 
 type Kind = "revenue" | "capacity" | "members" | "attendance" | "at-risk";
 

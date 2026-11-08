@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
-import { availLabel, type AvailMap } from "@/components/availability-calendar";
-import { cn } from "@/lib/cn";
-import { locale, t } from "@/lib/i18n";
-import { useLive } from "@/lib/use-live";
+import { availLabel, type AvailMap } from "@/client/components/availability-calendar";
+import { cn } from "@/client/lib/cn";
+import { locale, t } from "@/client/lib/i18n";
+import { useLive } from "@/client/lib/use-live";
 import {
   addDaysISO,
   kindLabel,
@@ -11,7 +11,7 @@ import {
   sportLabel,
   todayISO,
   weekdayShort,
-} from "@/lib/arena3/labels";
+} from "@/shared/arena3/labels";
 
 function hhmm(iso: string) {
   return new Date(iso).toLocaleTimeString(locale(), {
@@ -380,7 +380,7 @@ export function CourtGrid({
   freeCount?: number;
   /** Staff grids open with the finished hours showing: the morning's bookings are still work. */
   defaultShowPast?: boolean;
-  /** The hours the centre is open, from its settings (src/lib/venue.ts). */
+  /** The hours the centre is open, from its settings (src/client/lib/venue.ts). */
   hours?: readonly number[];
   /** The hour the caller is currently asking about, marked on the grid. */
   selected?: { courtId: string; hour: number } | null;

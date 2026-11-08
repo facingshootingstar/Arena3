@@ -9,14 +9,14 @@
  * is not counted at all, and an excused absence is left out of the denominator
  * rather than counted against the student.
  */
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
-import { requireFlag } from "../flags";
+import { requireFlag } from "../../services/flags";
 import { audit, getSettings, readJson, str } from "../helpers";
-import { classCode } from "../labels";
-import { absentStreak, ABSENT_STREAK_LIMIT } from "../rules";
+import { classCode } from "../../../shared/arena3/labels";
+import { absentStreak, ABSENT_STREAK_LIMIT } from "../../services/rules";
 import { avatarUrlSql, requireRole, type PublicUser } from "../session";
-import { addDays, ictDateString, ictDateTime } from "../time";
+import { addDays, ictDateString, ictDateTime } from "../../../shared/arena3/time";
 import { one } from "../tx";
 import { reportDay } from "./desk";
 

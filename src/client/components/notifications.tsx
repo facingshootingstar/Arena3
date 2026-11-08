@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button, ButtonLink, Card, Modal } from "@/components/ui";
-import { money, when } from "@/components/shell";
-import { Stagger, StaggerItem } from "@/components/motion";
-import { apiPost, openInvoice } from "@/lib/arena3/client";
-import { levelLabel, sportLabel } from "@/lib/arena3/labels";
-import { locale, t, tServer } from "@/lib/i18n";
+import { Button, ButtonLink, Card, Modal } from "@/client/components/ui";
+import { money, when } from "@/client/components/shell";
+import { Stagger, StaggerItem } from "@/client/components/motion";
+import { apiPost, openInvoice } from "@/client/arena3/client";
+import { levelLabel, sportLabel } from "@/shared/arena3/labels";
+import { locale, t, tServer } from "@/client/lib/i18n";
 
 export type Notification = {
   id: string;

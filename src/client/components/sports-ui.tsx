@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/cn";
-import { sportLabel } from "@/lib/arena3/labels";
-import { locale } from "@/lib/i18n";
+import { cn } from "@/client/lib/cn";
+import { sportLabel } from "@/shared/arena3/labels";
+import { locale } from "@/client/lib/i18n";
 import { useSportPhoto } from "./media";
 
 export type SportInfo = {

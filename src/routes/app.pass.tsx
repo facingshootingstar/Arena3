@@ -2,13 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { ScanLine } from "@/components/arena-icons";
-import { Shell, useSessionUser } from "@/components/shell";
-import { Badge, Button, Card, Field, Input, LoadError, PageHero, Skeleton } from "@/components/ui";
-import { Tilt } from "@/components/motion";
-import { GlareHover } from "@/components/fx";
-import { apiGet, apiPost } from "@/lib/arena3/client";
-import { t } from "@/lib/i18n";
+import { ScanLine } from "@/client/components/arena-icons";
+import { Shell, useSessionUser } from "@/client/components/shell";
+import { Badge, Button, Card, Field, Input, LoadError, PageHero, Skeleton } from "@/client/components/ui";
+import { Tilt } from "@/client/components/motion";
+import { GlareHover } from "@/client/components/fx";
+import { apiGet, apiPost } from "@/client/arena3/client";
+import { t } from "@/client/lib/i18n";
 
 export const Route = createFileRoute("/app/pass")({ component: Page });
 

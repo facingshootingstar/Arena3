@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ScrollSmoother } from "gsap/ScrollSmoother";
-import { ScrollTrigger, motionOff, registerGsap } from "@/lib/gsap";
-import { useCalm } from "@/lib/calm";
+import { ScrollTrigger, motionOff, registerGsap } from "@/client/lib/gsap";
+import { useCalm } from "@/client/lib/calm";
 
 registerGsap(ScrollTrigger, ScrollSmoother);
 

@@ -1,17 +1,17 @@
-import type { Sql } from "@/lib/db";
+import type { Sql } from "@/server/data/db";
 import { err, isConflictSlot } from "../errors";
 import { assertNoClassClash, audit, enqueue, isUuid, getSettings, nextCode, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
-import { classCode, parseWeeklyRrule } from "../labels";
-import { expandWeekly } from "../rrule";
+import { classCode, parseWeeklyRrule } from "../../../shared/arena3/labels";
+import { expandWeekly } from "../../services/rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
-import { addDays, classMinutes, ictDateString, ictDateTime, slotSpan } from "../time";
-import { quotePromo, redeemPromo } from "../promos";
+import { addDays, classMinutes, ictDateString, ictDateTime, slotSpan } from "../../../shared/arena3/time";
+import { quotePromo, redeemPromo } from "../../services/promos";
 import { one } from "../tx";
 import { compactWaitlist, inviteWaitlist } from "./ops";
-import { lockEnrollmentLinks, withdrawLinks } from "../payos";
+import { lockEnrollmentLinks, withdrawLinks } from "../../integrations/payos";
 import { assertClassStaff } from "./training";
 import { assertSlotGrid } from "./bookings";
-import { activeMembershipEnd, applyExtension, assertMembershipOutlastsClass, carryMembersToClassEnd, outlastsClass, planToOutlast, rollbackExtension } from "../membership";
+import { activeMembershipEnd, applyExtension, assertMembershipOutlastsClass, carryMembersToClassEnd, outlastsClass, planToOutlast, rollbackExtension } from "../../services/membership";
 
 export const MAX_CLASS_CAPACITY = 200;
 export const MAX_CLASS_PRICE_VND = 100_000_000;

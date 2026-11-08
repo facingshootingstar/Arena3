@@ -1,9 +1,9 @@
 import { randomInt } from "node:crypto";
-import type { Sql } from "@/lib/db";
-import { hashPassword } from "../crypto";
+import type { Sql } from "@/server/data/db";
+import { hashPassword } from "../../services/crypto";
 import { err } from "../errors";
 import { audit, pageOf, readJson, str } from "../helpers";
-import { isValidVnPhone, normalizePhone, unaccentVi } from "../phone";
+import { isValidVnPhone, normalizePhone, unaccentVi } from "../../services/phone";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
 import { one, q } from "../tx";
 import { pageParams } from "../validate";

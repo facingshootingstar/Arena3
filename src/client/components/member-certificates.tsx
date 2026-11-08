@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Award } from "lucide-react";
 import { toast } from "sonner";
-import { Badge, Button, ButtonAnchor, Card } from "@/components/ui";
-import { SectionTitle } from "@/components/section";
-import { apiPost } from "@/lib/arena3/client";
-import { formatDate, levelLabel, sportLabel } from "@/lib/arena3/labels";
-import { t, tServer } from "@/lib/i18n";
-import { useRead } from "@/lib/use-read";
+import { Badge, Button, ButtonAnchor, Card } from "@/client/components/ui";
+import { SectionTitle } from "@/client/components/section";
+import { apiPost } from "@/client/arena3/client";
+import { formatDate, levelLabel, sportLabel } from "@/shared/arena3/labels";
+import { t, tServer } from "@/client/lib/i18n";
+import { useRead } from "@/client/lib/use-read";
 
 type Completion = {
   enrollment_id: string;

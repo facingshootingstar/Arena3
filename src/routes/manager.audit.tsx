@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SectionTitle } from "@/components/section";
+import { SectionTitle } from "@/client/components/section";
 import { useEffect, useMemo, useState } from "react";
-import { Shell } from "@/components/shell";
-import { Badge, Button, Card, DateField, EmptyState, Input, LoadError, Pagination, Skeleton } from "@/components/ui";
-import { Stagger, StaggerItem } from "@/components/motion";
-import { levelLabel, methodLabel, roleLabel, sportLabel, statusLabel } from "@/lib/arena3/labels";
-import { formatVnd } from "@/lib/arena3/time";
-import { cn } from "@/lib/cn";
-import { locale, t, tk } from "@/lib/i18n";
-import { usePageState } from "@/lib/use-page-state";
-import { useRead } from "@/lib/use-read";
+import { Shell } from "@/client/components/shell";
+import { Badge, Button, Card, DateField, EmptyState, Input, LoadError, Pagination, Skeleton } from "@/client/components/ui";
+import { Stagger, StaggerItem } from "@/client/components/motion";
+import { levelLabel, methodLabel, roleLabel, sportLabel, statusLabel } from "@/shared/arena3/labels";
+import { formatVnd } from "@/shared/arena3/time";
+import { cn } from "@/client/lib/cn";
+import { locale, t, tk } from "@/client/lib/i18n";
+import { usePageState } from "@/client/lib/use-page-state";
+import { useRead } from "@/client/lib/use-read";
 
 export const Route = createFileRoute("/manager/audit")({
   component: Page,

@@ -2,11 +2,11 @@ import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import { Download, Eye, EyeOff, KeyRound, MonitorSmartphone, Receipt, UserRound } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Guard, Shell, money, useF6, useSessionUser, when } from "@/components/shell";
-import { Badge, Button, Card, EmptyState, Field, Input, Label, LoadError, Pagination, Seg, Skeleton, Textarea } from "@/components/ui";
-import { UserAvatar } from "@/components/user-avatar";
-import { Lift, Stagger, StaggerItem } from "@/components/motion";
-import { SpotlightCard, StarBorder } from "@/components/fx";
+import { Guard, Shell, money, useF6, useSessionUser, when } from "@/client/components/shell";
+import { Badge, Button, Card, EmptyState, Field, Input, Label, LoadError, Pagination, Seg, Skeleton, Textarea } from "@/client/components/ui";
+import { UserAvatar } from "@/client/components/user-avatar";
+import { Lift, Stagger, StaggerItem } from "@/client/components/motion";
+import { SpotlightCard, StarBorder } from "@/client/components/fx";
 import {
   ApiClientError,
   api,
@@ -18,12 +18,12 @@ import {
   openInvoice,
   setStoredUser,
   type SessionUser,
-} from "@/lib/arena3/client";
-import { formatDate, sportLabel } from "@/lib/arena3/labels";
-import { usePageState } from "@/lib/use-page-state";
-import { useRead } from "@/lib/use-read";
-import { cn } from "@/lib/cn";
-import { t, tk, tServer } from "@/lib/i18n";
+} from "@/client/arena3/client";
+import { formatDate, sportLabel } from "@/shared/arena3/labels";
+import { usePageState } from "@/client/lib/use-page-state";
+import { useRead } from "@/client/lib/use-read";
+import { cn } from "@/client/lib/cn";
+import { t, tk, tServer } from "@/client/lib/i18n";
 
 export const Route = createFileRoute("/account")({ component: Page });
 

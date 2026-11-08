@@ -108,7 +108,7 @@ export const pub: Record<string, string> = {
   "View details": "Xem chi tiết",
   "See open classes": "Xem lớp đang mở",
   "Close": "Đóng",
-  // coach card copy (rendered through t() from src/lib/arena3/coaches.ts)
+  // coach card copy (rendered through t() from src/shared/arena3/coaches.ts)
   "Head badminton coach": "HLV trưởng cầu lông",
   "Intermediate badminton coach": "HLV cầu lông trình độ trung bình",
   "Head basketball coach": "HLV trưởng bóng rổ",
