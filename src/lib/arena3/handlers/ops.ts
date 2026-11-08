@@ -576,7 +576,7 @@ export async function trainingSuggest(sql: Sql, request: Request, user: PublicUs
     "Total time 45-120 minutes. Keep drills safe for the level. Answer in the language the coach writes in.",
   ].join("\n");
   const ask = prompt ? `Coach instructions: ${prompt}` : `Plan a ${level} ${sport} session on ${goal}.`;
-  const reply = await generateAssistantReply(system, [{ role: "user", text: ask }]);
+  const reply = await generateAssistantReply(system, [{ role: "user", text: ask }], { maxOutputTokens: 1024, json: true });
   if (reply) {
     try {
       const raw = reply.text.replace(/^```(?:json)?\s*|\s*```$/g, "");
