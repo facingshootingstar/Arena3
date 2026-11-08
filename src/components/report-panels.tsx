@@ -147,6 +147,9 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
   const { data, error, reload } = useRead<Capacity>(`/reports/capacity?${q}`);
 
   const isSingleDay = from === to;
+  // Hover/focus shows one readable line about the cell; clicking an hour keeps that column lit.
+  const [spot, setSpot] = useState<{ court: string; hour: number; text: string } | null>(null);
+  const [pinHour, setPinHour] = useState<number | null>(null);
   const courtsBySport = useMemo(() => {
     if (!data?.courts) return [];
     const map = new Map<string, typeof data.courts>();
@@ -273,7 +276,10 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
               )}
             </div>
 
-            <div className="overflow-x-auto px-2 pb-3 pt-2" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
+            <p className="min-h-5 px-4 pt-2 text-xs tabular-nums text-muted" aria-live="polite">
+              {spot ? <span className="font-medium text-fg">{spot.text}</span> : t("Point at a square to read it; click an hour to light up its column.")}
+            </p>
+            <div className="overflow-x-auto px-2 pb-3 pt-1" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
               <table className="w-full min-w-[640px] table-fixed border-separate border-spacing-0.5 text-center text-xs">
                 <thead className="text-2xs text-muted">
                   {/* Share of all courts booked at each hour, one bar per column so each bar sits over its hour;
@@ -306,8 +312,20 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
                   <tr>
                     <th className="sticky left-0 w-24 bg-surface px-2 py-1 text-left font-medium">{t("Court")}</th>
                     {data.hours.map((h) => (
-                      <th key={h} className="px-1 py-1 font-medium">
-                        {String(h).padStart(2, "0")}h
+                      <th key={h} className="px-0.5 py-1 font-medium">
+                        <button
+                          type="button"
+                          onClick={() => setPinHour((cur) => (cur === h ? null : h))}
+                          aria-pressed={pinHour === h}
+                          title={t("Highlight this hour")}
+                          className={cn(
+                            "w-full rounded-[4px] py-0.5 transition-colors duration-150 hover:bg-accent/15 hover:text-fg focus-visible:outline-2 focus-visible:outline-primary",
+                            spot?.hour === h && "text-fg",
+                            pinHour === h && "bg-accent font-semibold text-accent-fg hover:bg-accent hover:text-accent-fg",
+                          )}
+                        >
+                          {String(h).padStart(2, "0")}h
+                        </button>
                       </th>
                     ))}
                   </tr>
@@ -328,7 +346,13 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
                       </tr>
                       {group.courts.map((c) => (
                         <tr key={c.court_id}>
-                          <th scope="row" className="sticky left-0 bg-surface px-2 py-1 text-left font-medium">
+                          <th
+                            scope="row"
+                            className={cn(
+                              "sticky left-0 bg-surface px-2 py-1 text-left font-medium transition-colors",
+                              spot?.court === c.court_code && "text-accent",
+                            )}
+                          >
                             {c.court_code}
                           </th>
                           {c.cells.map((p, i) => {
@@ -345,8 +369,15 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
                             return (
                               <td
                                 key={i}
-                                className="h-7 min-w-[1.75rem] rounded-[4px] border border-transparent transition-colors hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary outline-none cursor-default"
+                                className={cn(
+                                  "h-7 min-w-[1.75rem] rounded-[4px] border border-transparent outline-none cursor-default transition-[transform,opacity] duration-150 ease-out hover:relative hover:z-10 hover:scale-110 hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary motion-reduce:hover:scale-100",
+                                  pinHour != null && pinHour !== data.hours[i] && "opacity-35",
+                                )}
                                 style={heat(p, isSingleDay)}
+                                onMouseEnter={() => setSpot({ court: c.court_code, hour: data.hours[i], text: title })}
+                                onFocus={() => setSpot({ court: c.court_code, hour: data.hours[i], text: title })}
+                                onMouseLeave={() => setSpot(null)}
+                                onBlur={() => setSpot(null)}
                                 tabIndex={0}
                                 role="gridcell"
                                 aria-label={title}

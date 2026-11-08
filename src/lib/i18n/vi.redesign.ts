@@ -341,6 +341,8 @@ export const redesign: Record<string, string> = {
   "No bookings in this window": "Không có lượt đặt nào trong khoảng thời gian này",
   "Busiest: {hours}": "Đông nhất: {hours}",
   "Busy hours": "Khung giờ bận",
+  "Highlight this hour": "Làm nổi giờ này",
+  "Point at a square to read it; click an hour to light up its column.": "Rê chuột vào một ô để xem chi tiết; bấm vào một giờ để làm nổi cả cột.",
   "The whole day, hour by hour, for every court.": "Cả ngày, theo từng giờ, cho mọi sân.",
   "When courts are busy ({from} – {to})": "Khung giờ bận của sân ({from} – {to})",
   "Booked or free, hour by hour.": "Đã đặt hoặc còn trống theo từng khung giờ.",

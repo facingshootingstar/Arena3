@@ -851,6 +851,7 @@ export function Stat({
   trend,
   icon: Icon,
   note,
+  glass = false,
 }: {
   label: string;
   value: ReactNode;
@@ -859,15 +860,22 @@ export function Stat({
   icon?: LucideIcon;
   /** Always-visible plain-words definition of the figure. */
   note?: string;
+  /** Frosted card for headline figures that sit over the page's background effects. */
+  glass?: boolean;
 }) {
   const Arrow =
     trend?.pct == null || trend.pct === 0 ? Minus : trend.pct > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <Card>
+    <Card
+      className={cn(
+        "group transition-[transform,border-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[0_10px_30px_-12px_rgb(212_245_60/0.25)] motion-reduce:transform-none motion-reduce:transition-none",
+        glass && "bg-surface/55 backdrop-blur-md",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <p className="kicker text-2xs text-muted">{t(label)}</p>
         {Icon ? (
-          <span aria-hidden="true" className="grid size-8 place-items-center rounded-[var(--radius-sm)] bg-accent/10 text-accent-2">
+          <span aria-hidden="true" className="grid size-8 place-items-center rounded-[var(--radius-sm)] bg-accent/10 text-accent-2 transition-colors duration-200 group-hover:bg-accent/20">
             <Icon className="size-4" strokeWidth={1.9} />
           </span>
         ) : null}

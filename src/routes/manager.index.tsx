@@ -261,7 +261,7 @@ function Page() {
       ) : null}
       {/* Everything the manager runs besides the numbers. Phones reach the same pages from the
           bottom bar's More sheet, so the strip is for screens with room for it. */}
-      <nav aria-label={t("Quick links")} className="mb-5 hidden flex-wrap gap-2 md:flex">
+      <nav aria-label={t("Quick links")} className="mb-5 hidden flex-wrap gap-1 border-b border-line/60 pb-3 md:flex">
         {(
           [
             { to: "/manager/courts" as const, label: t("Courts"), Icon: LandPlot },
@@ -279,12 +279,12 @@ function Page() {
           ] as const
         ).map((a) =>
           "href" in a ? (
-            <ButtonAnchor key={a.label} href={a.href} variant="outline" size="sm">
+            <ButtonAnchor key={a.label} href={a.href} variant="ghost" size="sm" className="text-muted hover:text-fg">
               <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
               {a.label}
             </ButtonAnchor>
           ) : (
-            <ButtonLink key={a.label} to={a.to} variant="outline" size="sm">
+            <ButtonLink key={a.label} to={a.to} variant="ghost" size="sm" className="text-muted hover:text-fg">
               <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
               {a.label}
             </ButtonLink>
@@ -386,6 +386,7 @@ function Page() {
             label={t("Revenue")}
             icon={Banknote}
             note={t("Payments taken, minus refunds")}
+            glass
             value={money(rev.totals.revenue_vnd)}
             trend={prev ? delta(rev.totals.revenue_vnd, prev.totals.revenue_vnd, true) : undefined}
           />
@@ -395,6 +396,7 @@ function Page() {
             label={t("Refunds")}
             icon={Undo2}
             note={t("Money handed back to members")}
+            glass
             value={money(rev.totals.refund_vnd ?? 0)}
             trend={prev ? delta(rev.totals.refund_vnd ?? 0, prev.totals.refund_vnd ?? 0, false) : undefined}
           />
