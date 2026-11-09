@@ -102,40 +102,36 @@ type Capacity = {
   revenue_by_source: { court_vnd: number; class_vnd: number };
 };
 
-// A free hour is an empty outlined square, so the court × hour grid stays readable where nothing is booked.
-const FREE_CELL: React.CSSProperties = { background: "transparent", boxShadow: "inset 0 0 0 1.5px var(--color-line-strong)", color: "var(--color-fg)" };
-
-function heat(pct: number, isSingleDay: boolean): React.CSSProperties {
-  if (isSingleDay) {
-    if (pct > 0) {
-      // Booked is the ordinary state on a busy day, so it stays a step below full lime.
-      return { background: "var(--color-heat-3)", color: "var(--color-accent-fg)" };
-    }
-    return FREE_CELL;
-  }
-  if (!(pct > 0)) return FREE_CELL;
-  let bg = "var(--color-heat-0)";
-  let fg = "var(--color-fg)";
-  if (pct > 75) {
-    bg = "var(--color-heat-5)";
-    fg = "#ffffff";
-  } else if (pct > 50) {
-    bg = "var(--color-heat-4)";
-    fg = "#ffffff";
-  } else if (pct > 25) {
-    bg = "var(--color-heat-3)";
-    fg = "var(--color-fg)";
-  } else if (pct > 10) {
-    bg = "var(--color-heat-2)";
-    fg = "var(--color-fg)";
-  } else if (pct > 0) {
-    bg = "var(--color-heat-1)";
-    fg = "var(--color-fg)";
-  }
-  return {
-    background: bg,
-    color: fg,
-  };
+/** Share of courts in play per hour, one labelled bar per hour; the peak hours are lit. */
+function BusyBars({ hours: rows, peakPct }: { hours: Array<{ hour: number; pct: number }>; peakPct: number }) {
+  const top = Math.max(1, ...rows.map((x) => x.pct));
+  return (
+    <div className="overflow-x-auto px-4 pb-4 pt-4" role="region" aria-label={t("Busy hours chart, scrolls sideways")} tabIndex={0}>
+      <ol className="flex min-w-[560px] items-end gap-1.5">
+        {rows.map((h) => {
+          const peak = h.pct > 0 && h.pct >= (top * peakPct) / 100;
+          const hh = `${String(h.hour).padStart(2, "0")}h`;
+          return (
+            <li key={h.hour} className="flex flex-1 flex-col items-center gap-1" title={`${hh} · ${Math.round(h.pct)}%`}>
+              <span className={cn("text-2xs tabular-nums", peak ? "font-semibold text-fg" : "text-muted")}>
+                {Math.round(h.pct)}%
+              </span>
+              <div className="flex h-36 w-full items-end rounded-t-[4px] bg-wood/40">
+                <div
+                  className={cn(
+                    "w-full rounded-t-[4px] transition-[height] duration-500 motion-reduce:transition-none",
+                    peak ? "bg-accent shadow-[0_0_14px_rgb(212_245_60/0.4)]" : "bg-accent/40",
+                  )}
+                  style={{ height: h.pct > 0 ? `${Math.max(3, (h.pct / top) * 100)}%` : "2px" }}
+                />
+              </div>
+              <span className={cn("text-2xs tabular-nums", peak ? "font-semibold text-fg" : "text-muted")}>{hh}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
 }
 
 /** `summary` = totals and the per-sport table; `busy` = the whole-day court × hour grid, shown last on the page. */
@@ -145,24 +141,6 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
   if (sport) q.set("sport", sport);
   const limits = useLimits();
   const { data, error, reload } = useRead<Capacity>(`/reports/capacity?${q}`);
-
-  const isSingleDay = from === to;
-  // Hover/focus shows one readable line about the cell; clicking an hour keeps that column lit.
-  const [spot, setSpot] = useState<{ court: string; hour: number; text: string } | null>(null);
-  const [pinHour, setPinHour] = useState<number | null>(null);
-  const courtsBySport = useMemo(() => {
-    if (!data?.courts) return [];
-    const map = new Map<string, typeof data.courts>();
-    for (const c of data.courts) {
-      const list = map.get(c.sport) ?? [];
-      list.push(c);
-      map.set(c.sport, list);
-    }
-    return Array.from(map.entries()).map(([s, list]) => ({
-      sport: s,
-      courts: list,
-    }));
-  }, [data]);
 
   const busiestSummary = useMemo(() => {
     if (!data?.by_hour?.length) return "";
@@ -261,11 +239,7 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
               <CardTitle
                 icon={Flame}
                 title={t("When courts are busy ({from} – {to})", { from, to })}
-                hint={
-                  isSingleDay
-                    ? t("Each square is one court for one hour: green is booked, outlined is free.")
-                    : t("Each square shows how often that court was booked at that hour, {from} – {to}.", { from, to })
-                }
+                hint={t("Share of courts in play at each hour. The brightest bars are the peak.")}
               />
               {busiestSummary && (
                 <div className="text-right">
@@ -276,164 +250,7 @@ export function CapacityPanel({ from, to, part = "summary" }: { from: string; to
               )}
             </div>
 
-            <p className="min-h-5 px-4 pt-2 text-xs tabular-nums text-muted" aria-live="polite">
-              {spot ? <span className="font-medium text-fg">{spot.text}</span> : t("Point at a square to read it; click an hour to light up its column.")}
-            </p>
-            <div className="overflow-x-auto px-2 pb-3 pt-1" role="region" aria-label={t("When courts are busy table, scrolls sideways")} tabIndex={0}>
-              <table className="w-full min-w-[640px] table-fixed border-separate border-spacing-0.5 text-center text-xs">
-                <thead className="text-2xs text-muted">
-                  {/* Share of all courts booked at each hour, one bar per column so each bar sits over its hour;
-                      the busiest hours glow. */}
-                  <tr>
-                    <th scope="row" className="sticky left-0 w-24 bg-surface px-2 pb-1 text-left align-bottom font-medium leading-tight">
-                      {t("Courts booked")}
-                    </th>
-                    {data.by_hour.map((h) => {
-                      const top = Math.max(1, ...data.by_hour.map((x) => x.pct));
-                      const peak = h.pct > 0 && h.pct >= (top * limits.report_peak_pct) / 100;
-                      return (
-                        <th key={h.hour} className="px-0.5 font-normal" title={`${String(h.hour).padStart(2, "0")}:00 · ${Math.round(h.pct)}%`}>
-                          <div className="flex h-20 flex-col items-stretch justify-end gap-1">
-                            <span className={cn("tabular-nums", peak ? "font-semibold text-fg" : "text-muted")}>
-                              {Math.round(h.pct)}%
-                            </span>
-                            <div
-                              className={cn(
-                                "mx-auto w-full max-w-8 rounded-t-[3px]",
-                                peak ? "bg-accent shadow-[0_0_14px_rgb(212_245_60/0.4)]" : "bg-accent/35",
-                              )}
-                              style={{ height: h.pct > 0 ? `${Math.max(0.25, (h.pct / top) * 3)}rem` : "2px" }}
-                            />
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                  <tr>
-                    <th className="sticky left-0 w-24 bg-surface px-2 py-1 text-left font-medium">{t("Court")}</th>
-                    {data.hours.map((h) => (
-                      <th key={h} className="px-0.5 py-1 font-medium">
-                        <button
-                          type="button"
-                          onClick={() => setPinHour((cur) => (cur === h ? null : h))}
-                          aria-pressed={pinHour === h}
-                          title={t("Highlight this hour")}
-                          className={cn(
-                            "w-full rounded-[4px] py-0.5 transition-colors duration-150 hover:bg-accent/15 hover:text-fg focus-visible:outline-2 focus-visible:outline-primary",
-                            spot?.hour === h && "text-fg",
-                            pinHour === h && "bg-accent font-semibold text-accent-fg hover:bg-accent hover:text-accent-fg",
-                          )}
-                        >
-                          {String(h).padStart(2, "0")}h
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {courtsBySport.map((group) => (
-                    <Fragment key={`sport-group-${group.sport}`}>
-                      <tr className="bg-surface/80">
-                        <td
-                          colSpan={data.hours.length + 1}
-                          className="sticky left-0 bg-surface px-2 py-1 text-left text-xs font-semibold text-fg"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <SportDot sport={group.sport} />
-                            <span>{sportLabel(group.sport)}</span>
-                          </div>
-                        </td>
-                      </tr>
-                      {group.courts.map((c) => (
-                        <tr key={c.court_id}>
-                          <th
-                            scope="row"
-                            className={cn(
-                              "sticky left-0 bg-surface px-2 py-1 text-left font-medium transition-colors",
-                              spot?.court === c.court_code && "text-accent",
-                            )}
-                          >
-                            {c.court_code}
-                          </th>
-                          {c.cells.map((p, i) => {
-                            const detail = c.cell_details?.[i];
-                            const booked = detail?.days_booked ?? (p > 0 ? 1 : 0);
-                            const total = detail?.days_total ?? 1;
-                            const title = isSingleDay
-                              ? `${c.court_code} · ${String(data.hours[i]).padStart(2, "0")}:00 · ${p > 0 ? t("Booked") : t("Free")}`
-                              : `${c.court_code} · ${String(data.hours[i]).padStart(2, "0")}:00 · ${t("booked {booked} of {total} days ({pct}%)", {
-                                  booked,
-                                  total,
-                                  pct: Math.round(p),
-                                })}`;
-                            return (
-                              <td
-                                key={i}
-                                className={cn(
-                                  "h-7 min-w-[1.75rem] rounded-[4px] border border-transparent outline-none cursor-default transition-[transform,opacity] duration-150 ease-out hover:relative hover:z-10 hover:scale-110 hover:ring-2 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary motion-reduce:hover:scale-100",
-                                  pinHour != null && pinHour !== data.hours[i] && "opacity-35",
-                                )}
-                                style={heat(p, isSingleDay)}
-                                onMouseEnter={() => setSpot({ court: c.court_code, hour: data.hours[i], text: title })}
-                                onFocus={() => setSpot({ court: c.court_code, hour: data.hours[i], text: title })}
-                                onMouseLeave={() => setSpot(null)}
-                                onBlur={() => setSpot(null)}
-                                tabIndex={0}
-                                role="gridcell"
-                                aria-label={title}
-                                title={title}
-                              />
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {isSingleDay ? (
-              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line/50 px-4 py-2.5 text-2xs text-muted">
-                <span className="font-medium">{t("Status:")}</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3.5 rounded-[2px] border border-line" />
-                  {t("Free")}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3.5 rounded-[2px]" style={{ background: "var(--color-heat-3)" }} />
-                  {t("Booked")}
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line/50 px-4 py-2.5 text-2xs text-muted">
-                <span className="font-medium">{t("Occupancy:")}</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px] border border-line" />
-                  0%
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-1)" }} />
-                  1–10%
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-2)" }} />
-                  11–25%
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-3)" }} />
-                  26–50%
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-4)" }} />
-                  51–75%
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="size-3 rounded-[2px]" style={{ background: "var(--color-heat-5)" }} />
-                  76–100%
-                </span>
-              </div>
-            )}
+            <BusyBars hours={data.by_hour} peakPct={limits.report_peak_pct} />
           </Card>
           )}
         </>

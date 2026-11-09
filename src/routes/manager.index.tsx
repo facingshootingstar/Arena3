@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Banknote, Clock, FileText, HandCoins, Image, LandPlot, Layers, PiggyBank, Repeat, Settings, Tag, TrendingUp, Undo2, UserCog, UserPlus, Wallet, Wrench } from "lucide-react";
 import { CardTitle } from "@/client/components/section";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CourtGrid } from "@/client/components/court-grid";
+import { CourtTimeline } from "@/client/components/court-timeline";
 import { Shell, money, when } from "@/client/components/shell";
 import { PageHero } from "@/client/components/page-hero";
 import { CapacityPanel, ExportButtons, MembersPanel } from "@/client/components/report-panels";
@@ -495,7 +495,7 @@ function Page() {
       </Stagger>
       {map ? (
         <div className="mt-4">
-          <CourtGrid date={to} courts={map.courts} slots={map.slots} defaultShowPast />
+          <CourtTimeline date={to} courts={map.courts} slots={map.slots} />
         </div>
       ) : (
         <Skeleton className="mt-4 h-64" />
