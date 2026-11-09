@@ -14,34 +14,6 @@ declare global {
 
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 
-/** What `/register` needs to finish a Google sign-up: the token, and what Google told us. */
-export type GoogleSignup = { credential: string; email: string; full_name: string };
-const SIGNUP_KEY = "arena3.googleSignup";
-
-// Session storage, not the URL: the token proves who someone is for an hour,
-// and a URL ends up in history, logs and Referer headers.
-export function stashGoogleSignup(s: GoogleSignup) {
-  try {
-    sessionStorage.setItem(SIGNUP_KEY, JSON.stringify(s));
-  } catch {
-    /* private mode: the register page falls back to the ordinary form */
-  }
-}
-export function readGoogleSignup(): GoogleSignup | null {
-  try {
-    const raw = sessionStorage.getItem(SIGNUP_KEY);
-    return raw ? (JSON.parse(raw) as GoogleSignup) : null;
-  } catch {
-    return null;
-  }
-}
-export function clearGoogleSignup() {
-  try {
-    sessionStorage.removeItem(SIGNUP_KEY);
-  } catch {
-    /* nothing to clear */
-  }
-}
 let gisLoad: Promise<void> | null = null;
 
 /** Google Identity Services, loaded once per page and only where the button is shown. */
@@ -61,37 +33,38 @@ function loadGis(): Promise<void> {
 }
 
 /**
- * Google's own "Sign in with Google" button. It renders nothing until the
- * server says a client id is set, so the sign-in page looks the same as before
- * on a machine without one. The ID token goes to `/auth/google`: an existing
- * account signs in, and a new email comes back as `signup`, which is stashed
- * for `/register` to finish (see `handlers/google.ts`).
+ * Google's own button. It renders nothing until a client id is known, so a
+ * machine without one looks the same as before. Each press hands the Google ID
+ * token to `onCredential`; what it means (sign in, or link) is the caller's.
+ * Pass `clientId` when the caller already has it; otherwise it is fetched.
  */
-export function GoogleSignIn({
-  onSignedIn,
-  onNeedsSignup,
-  onError,
+export function GoogleButton({
+  onCredential,
+  text = "continue_with",
+  clientId: knownClientId,
 }: {
-  onSignedIn: (res: { token: string; user: SessionUser }) => void;
-  onNeedsSignup: (s: GoogleSignup) => void;
-  onError: (err: unknown) => void;
+  onCredential: (credential: string) => void | Promise<void>;
+  text?: "continue_with" | "signin_with";
+  clientId?: string | null;
 }) {
   const lang = useLang();
   const box = useRef<HTMLDivElement>(null);
-  const [clientId, setClientId] = useState<string | null>(null);
-  // The latest handlers, so the one-time Google callback never calls a stale closure.
-  const handlers = useRef({ onSignedIn, onNeedsSignup, onError });
-  handlers.current = { onSignedIn, onNeedsSignup, onError };
+  const [fetchedId, setFetchedId] = useState<string | null>(null);
+  const clientId = knownClientId === undefined ? fetchedId : knownClientId;
+  // The latest handler, so the one-time Google callback never calls a stale closure.
+  const handler = useRef(onCredential);
+  handler.current = onCredential;
 
   useEffect(() => {
+    if (knownClientId !== undefined) return;
     let live = true;
     apiGet<{ client_id: string | null }>("/auth/google", { background: true })
-      .then((r) => live && setClientId(r.client_id))
+      .then((r) => live && setFetchedId(r.client_id))
       .catch(() => {});
     return () => {
       live = false;
     };
-  }, []);
+  }, [knownClientId]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -102,21 +75,8 @@ export function GoogleSignIn({
         if (!live || !id || !box.current) return;
         id.initialize({
           client_id: clientId,
-          callback: async ({ credential }) => {
-            try {
-              const res = await apiPost<
-                { token: string; user: SessionUser } | { signup: { email: string; full_name: string } }
-              >("/auth/google", { credential });
-              if ("signup" in res) {
-                const s = { credential: credential!, ...res.signup };
-                stashGoogleSignup(s);
-                handlers.current.onNeedsSignup(s);
-              } else {
-                handlers.current.onSignedIn(res);
-              }
-            } catch (e) {
-              handlers.current.onError(e);
-            }
+          callback: ({ credential }) => {
+            if (credential) void handler.current(credential);
           },
         });
         box.current.replaceChildren();
@@ -125,8 +85,8 @@ export function GoogleSignIn({
           theme: "outline",
           size: "large",
           shape: "pill",
-          text: "continue_with",
-          width: box.current.clientWidth || 320,
+          text,
+          width: Math.min(box.current.clientWidth || 320, 400),
           locale: lang,
         });
       })
@@ -134,7 +94,34 @@ export function GoogleSignIn({
     return () => {
       live = false;
     };
-  }, [clientId, lang]);
+  }, [clientId, lang, text]);
+
+  if (!clientId) return null;
+  return <div ref={box} className="flex min-h-11 w-full justify-center" />;
+}
+
+/**
+ * "Continue with Google" on the sign-in page. It only signs in an account
+ * whose owner already linked this Google account in Account settings; Google
+ * never creates an account.
+ */
+export function GoogleSignIn({
+  onSignedIn,
+  onError,
+}: {
+  onSignedIn: (res: { token: string; user: SessionUser }) => void;
+  onError: (err: unknown) => void;
+}) {
+  const [clientId, setClientId] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    apiGet<{ client_id: string | null }>("/auth/google", { background: true })
+      .then((r) => live && setClientId(r.client_id))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   if (!clientId) return null;
   return (
@@ -144,7 +131,17 @@ export function GoogleSignIn({
         {t("or")}
         <span className="h-px flex-1 bg-line" />
       </div>
-      <div ref={box} className="flex min-h-11 w-full justify-center" />
+      <GoogleButton
+        clientId={clientId}
+        onCredential={async (credential) => {
+          try {
+            onSignedIn(await apiPost<{ token: string; user: SessionUser }>("/auth/google", { credential }));
+          } catch (e) {
+            onError(e);
+          }
+        }}
+      />
+      <p className="text-center text-2xs text-muted">{t("Link Google in Account settings first.")}</p>
     </div>
   );
 }

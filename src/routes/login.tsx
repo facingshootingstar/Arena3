@@ -194,7 +194,6 @@ function Login() {
               toast.success(t("Welcome, {name}", { name: res.user.full_name }), { id: "login-hello" });
               navigate({ to: homeFor(res.user.role) });
             }}
-            onNeedsSignup={() => navigate({ to: "/register", search: { via: "google" } })}
             onError={(err) => {
               const msg = err instanceof Error ? tServer(err.message) : t("Could not sign you in");
               toast.error(msg, { id: "login-error-toast" });

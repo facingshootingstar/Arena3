@@ -145,6 +145,8 @@ export const VI_SERVER_EXACT: Record<string, string> = {
   "Google sign-in is not set up.": "Chưa cấu hình đăng nhập bằng Google.",
   "The Google sign-in did not return a token.": "Google không trả về mã đăng nhập.",
   "Google could not confirm who you are. Please try again.": "Google chưa xác nhận được bạn là ai. Vui lòng thử lại.",
+  "This Google account is not linked to an Arena3 account. Sign in with your password, then link Google in Account settings.": "Tài khoản Google này chưa được liên kết với tài khoản Arena3 nào. Hãy đăng nhập bằng mật khẩu, rồi liên kết Google trong Cài đặt tài khoản.",
+  "That Google account is already linked to another Arena3 account.": "Tài khoản Google này đã được liên kết với một tài khoản Arena3 khác.",
   "This account is locked for 15 minutes.": "Tài khoản bị khóa 15 phút.",
   "5 wrong passwords — locked for 15 minutes.": "Sai mật khẩu 5 lần, khóa 15 phút.",
   "That notification id is not valid.": "Mã thông báo không hợp lệ.",
