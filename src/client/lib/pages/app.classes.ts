@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSports } from "@/client/components/ui";
 import { apiDelete, apiGet, apiPost } from "@/client/arena3/client";
@@ -80,6 +80,10 @@ export function useMemberClasses(useRouteSearch: () => { sport?: string }) {
   const [detail, setDetail] = useState<Cl | null>(null);
   // The member's own classes come first (C-4): they are what someone opens this page to manage.
   const enrolledIds = new Set(mine.map((e) => e.class_id));
+  // The order is fixed from the first load: holding a seat must not move the card the member just tapped.
+  const pinned = useRef<Set<string> | null>(null);
+  if (pinned.current == null && meRead.data) pinned.current = enrolledIds;
+  const firstIds = pinned.current ?? enrolledIds;
   // Narrowing by coach, weekday and part of the day saves scrolling through every class.
   const [coach, setCoach] = useState("");
   const [day, setDay] = useState("");
@@ -91,7 +95,7 @@ export function useMemberClasses(useRouteSearch: () => { sport?: string }) {
     .filter((c) => !sport || c.sport === sport)
     .filter((c) => !coach || c.coach_name === coach)
     .filter((c) => classSlotMatches(c.rrule, day, part))
-    .sort((a, b) => Number(enrolledIds.has(b.id)) - Number(enrolledIds.has(a.id)));
+    .sort((a, b) => Number(firstIds.has(b.id)) - Number(firstIds.has(a.id)));
   const shown = matching.slice(0, limit);
   useEffect(() => setLimit(6), [sport, coach, day, part]);
   const byClass = Object.fromEntries(mine.map((e) => [e.class_id, e]));
