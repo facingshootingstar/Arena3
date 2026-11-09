@@ -319,6 +319,7 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
       // The suggestion writes its length into the title ("Net shots 10′"); the minutes box already says it.
       const next = fromPlanBlocks(r.payload.blocks);
       if (r.payload.blocks?.length) setBlocks(next);
+      if (r.payload.note) setNote(r.payload.note);
       if (aiPrompt.trim() && !r.ai) toast.warning(t("The AI is not reachable, so these are the standard drills for this level."));
       else toast.success(t("Suggestion added. Edit anything before you publish."));
     } catch (e) {

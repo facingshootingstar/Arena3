@@ -41,7 +41,7 @@ export async function capacityBody(sql: Sql, from: string, to: string, sport: st
   );
   const { hours, courts, all, bySport, byHour } = summarizeCapacity(cells, rules, openHour, closeHour, daysTotal);
   // Court rental against class tuition — the report is asked to keep them apart.
-  const revenue = (await revenueBody(sql, from, to, null)).body.by_source as Record<string, number>;
+  const revenue = (await revenueBody(sql, from, to, null, false)).body.by_source as Record<string, number>;
   return {
     from,
     to,
@@ -247,7 +247,7 @@ async function revenueDocument(sql: Sql, request: Request, generated_at: string)
   const { from, to, method } = revenueParams(request);
   const cur = await revenueBody(sql, from, to, method);
   const win = previousWindow(from, to);
-  const prev = await revenueBody(sql, win.from, win.to, method);
+  const prev = await revenueBody(sql, win.from, win.to, method, false);
   const t = cur.body.totals;
   const p = prev.body.totals;
   const change = (a: number, b: number) => (b ? `${a >= b ? "+" : ""}${pct1(a - b, Math.abs(b))}%` : a ? "new" : "same");
@@ -440,14 +440,13 @@ async function loadCapacityCells(sql: Sql, from: string, to: string, sport: stri
      ),
      slot_occupancy as (
        select s.court_id, s.court_code, s.sport, s.hr, s.day,
-              coalesce((
-                select coalesce(sum(extract(epoch from (least(o.end_at, s.s_at + interval '1 hour') - greatest(o.start_at, s.s_at))) / 60), 0)
-                  from occupancies o
-                 where o.court_id = s.court_id
-                   and o.kind in ('booking','session')
-                   and o.start_at < s.s_at + interval '1 hour' and o.end_at > s.s_at
-              ), 0)::int as sold_min
+              coalesce(sum(extract(epoch from (least(o.end_at, s.s_at + interval '1 hour') - greatest(o.start_at, s.s_at))) / 60)
+                filter (where o.id is not null), 0)::int as sold_min
          from slots s
+         left join occupancies o on o.court_id = s.court_id
+           and o.kind in ('booking','session')
+           and o.start_at < s.s_at + interval '1 hour' and o.end_at > s.s_at
+         group by s.court_id, s.court_code, s.sport, s.hr, s.day, s.s_at
      )
      select s.court_id, s.court_code, s.sport, s.hr,
             count(*)::int as slots,

@@ -1036,14 +1036,14 @@ export async function reportsRevenue(sql: Sql, request: Request, user: PublicUse
   // FR-PAY-05: the period against the one before it, from the same query, so the
   // screen and the exported file can never disagree about the comparison.
   const win = previousWindow(from, to);
-  const prev = await revenueBody(sql, win.from, win.to, method);
+  const prev = await revenueBody(sql, win.from, win.to, method, false);
   return {
     status: 200,
     body: { ...body.body, method, prev: { from: win.from, to: win.to, totals: prev.body.totals, by_source: prev.body.by_source } },
   };
 }
 
-export async function revenueBody(sql: Sql, from: string, to: string, method: string | null) {
+export async function revenueBody(sql: Sql, from: string, to: string, method: string | null, includeDetails = true) {
   const rows = await sql.query<{
     method: string;
     ref_type: string;
@@ -1086,7 +1086,7 @@ export async function revenueBody(sql: Sql, from: string, to: string, method: st
   // Takings per cashier shift (G-07). A payment with no shift — an online
   // payment nobody at the desk took — is its own line rather than being
   // dropped, so the shifts and that line still add up to the total.
-  const by_shift = await sql.query<{
+  const by_shift = includeDetails ? await sql.query<{
     shift_id: string | null;
     cashier: string | null;
     opened_at: string | null;
@@ -1108,7 +1108,7 @@ export async function revenueBody(sql: Sql, from: string, to: string, method: st
       group by p.shift_id, u.full_name, s.opened_at, s.closed_at
       order by s.opened_at nulls last`,
     [from, to, method],
-  );
+  ) : [];
   // Revenue per ICT day, gapless across the whole window.
   //
   // The report could only ever be sliced by method and source, so the manager
@@ -1116,7 +1116,7 @@ export async function revenueBody(sql: Sql, from: string, to: string, method: st
   // usually opened to answer. generate_series supplies the days with no
   // takings too: dropping them would make a quiet Tuesday vanish and join
   // Monday straight to Wednesday, which reads as steady trade.
-  const by_day = await sql.query<{ day: string; revenue_vnd: number }>(
+  const by_day = includeDetails ? await sql.query<{ day: string; revenue_vnd: number }>(
     `select to_char(d.day, 'YYYY-MM-DD') as day,
             coalesce(sum(p.amount_vnd) filter (where p.method <> 'quota'), 0)::int as revenue_vnd
        from generate_series($1::date, $2::date, interval '1 day') as d(day)
@@ -1127,7 +1127,7 @@ export async function revenueBody(sql: Sql, from: string, to: string, method: st
       group by d.day
       order by d.day`,
     [from, to, method],
-  );
+  ) : [];
   return {
     status: 200,
     body: {

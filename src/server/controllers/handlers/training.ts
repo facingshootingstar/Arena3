@@ -17,6 +17,7 @@ import {
   ABSENT_STREAK_LIMIT,
   LEVELS,
   PLAN_PHASES,
+  INTENSITIES,
   TRAINING_GOALS,
   absentStreak,
   homeworkComplete,
@@ -607,8 +608,6 @@ export async function meTraining(sql: Sql, user: PublicUser) {
 /* ------------------------------------------------------------------ *
  * Training plans (FR-TRN-04)                                          *
  * ------------------------------------------------------------------ */
-
-const INTENSITIES = ["light", "medium", "hard"] as const;
 
 type Block = {
   order: number;

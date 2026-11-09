@@ -41,8 +41,75 @@ const avatarH = await import("./handlers/avatar.ts");
 const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
 const membersH = await import("./handlers/members.ts");
 const { memberGet, membersDirectory, membersSearch } = membersH;
+const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
+
+describe("training suggestions publish without manual edits", () => {
+  for (const mode of ["ai", "unavailable", "invalid-json"] as const) {
+    it(`publishes ${mode} suggestions through trainingCreate`, async (t) => {
+      const original = process.env.GEMINI_API_KEY;
+      process.env.GEMINI_API_KEY = "test-training-suggestion";
+      t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        assert.equal(body.generationConfig.responseMimeType, "application/json");
+        assert.equal(body.generationConfig.thinkingConfig.thinkingBudget, 0);
+        for (const value of [...PLAN_PHASES, ...INTENSITIES]) assert.ok(body.systemInstruction.parts[0].text.includes(value));
+        if (mode === "unavailable") return new Response("unavailable", { status: 503 });
+        const blocks = [
+          { title: " Khởi động ", minutes: "Infinity", phase: "invalid", intensity: "invalid" },
+          { title: "Kỹ thuật", minutes: 12.5, phase: "technique", intensity: "hard", description: "d".repeat(700), equipment: "e".repeat(250), target: "t".repeat(250) },
+          { title: "Thả lỏng", minutes: -4, phase: null, description: " " },
+          null, [], { title: " " },
+        ];
+        return Response.json({ candidates: [{ content: { parts: [{ text: mode === "invalid-json" ? "not JSON" : JSON.stringify(blocks) }] } }] });
+      });
+      try {
+        await withTx(async (sql) => {
+          await sql.query("insert into feature_flags (key, enabled) values ('F4', true), ('F5', true) on conflict (key) do update set enabled = true");
+          const coach = toPublic((await sql.query("select * from users where role = 'coach' limit 1"))[0] as any);
+          const classId = (await sql.query<{ id: string }>(`insert into classes (sport, level, coach_id, court_id, capacity, rrule, duration_min, start_on, end_on, status)
+            values ('badminton', 'beginner', $1, (select id from courts where sport='badminton' limit 1), 10, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', 60, '2026-01-01', '2026-12-31', 'open') returning id`, [coach.id]))[0].id;
+          const suggestion = await opsH.trainingSuggest(sql, new Request("http://localhost/v1/training-plans/suggest", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ sport: "badminton", level: "beginner", prompt: "Tập kỹ thuật cầu lông" }),
+          }), coach);
+          assert.equal(suggestion.body.ai, mode === "ai");
+          const { payload } = suggestion.body;
+          assert.equal(payload.blocks[0].phase, "warm-up");
+          assert.equal(payload.blocks.at(-1)!.phase, "cool-down");
+          for (const block of payload.blocks) {
+            assert.ok(PLAN_PHASES.includes(block.phase));
+            assert.ok(INTENSITIES.includes(block.intensity));
+            assert.ok(block.description.length > 0 && block.description.length <= 600);
+            assert.ok(block.equipment.length > 0 && block.equipment.length <= 200);
+            assert.ok(block.target.length > 0 && block.target.length <= 200);
+          }
+          if (mode === "ai") {
+            assert.equal(payload.blocks[0].minutes, 10);
+            assert.equal(payload.blocks[0].intensity, "medium");
+            assert.equal(payload.blocks[1].intensity, "hard");
+            assert.equal(payload.blocks[1].minutes, 13);
+            assert.equal(payload.blocks[1].description.length, 600);
+          }
+          const published = await trainingCreate(sql, new Request("http://localhost/v1/training-plans", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ class_id: classId, source: "ai", published: true, payload }),
+          }), coach);
+          assert.equal(published.status, 201);
+          const saved = (await sql.query<{ published: boolean; payload: unknown }>("select published, payload from training_plans where id=$1", [published.body.id]))[0];
+          assert.equal(saved.published, true);
+          assert.deepEqual((saved.payload as { blocks: unknown }).blocks, payload.blocks);
+          await sql.query("delete from training_plans where class_id=$1", [classId]);
+          await sql.query("delete from classes where id=$1", [classId]);
+        });
+      } finally {
+        if (original === undefined) delete process.env.GEMINI_API_KEY;
+        else process.env.GEMINI_API_KEY = original;
+      }
+    });
+  }
+});
 
 before(async () => {
   db = new PGlite();
