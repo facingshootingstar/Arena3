@@ -87,6 +87,17 @@ const STATE_CLASS: Record<SlotState, string> = {
 };
 
 /**
+ * A finished hour that was actually played keeps a faint trace of what filled it, so a past day
+ * on the report reads as the day it was rather than as an empty floor.
+ */
+function playedClass(state: SlotState, occ: OccSlot | undefined): string | false {
+  if (state !== "past" || !occ) return false;
+  if (occ.kind === "session") return "bg-slot-class/40 text-on-media/80";
+  if (occ.kind === "booking") return "bg-accent/25 text-accent-2";
+  return false;
+}
+
+/**
  * An occupied hour whose owner the desk can look up (B-07). Court-level
  * closures have no occupancy behind them, so there is nothing to open.
  */
@@ -537,6 +548,7 @@ export function CourtGrid({
                 const cls = cn(
                   "grid min-h-11 place-items-center rounded-[var(--radius-xs)] text-2xs font-medium tabular-nums",
                   STATE_CLASS[state],
+                  playedClass(state, occ),
                   isNow(date, h, now) && state !== "past" && "ring-1 ring-accent/60",
                   selected?.courtId === c.id &&
                     selected.hour === h &&
@@ -706,6 +718,7 @@ function HourRow({
         const cls = cn(
           "h-9 w-full overflow-hidden rounded-[var(--radius-xs)]",
           STATE_CLASS[state],
+          playedClass(state, occ),
           live && state !== "past" && "ring-1 ring-accent/60",
           selected?.courtId === c.id &&
             selected.hour === hour &&

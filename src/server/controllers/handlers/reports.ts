@@ -1,3 +1,4 @@
+import { PLAYED_SQL } from "./played";
 import { pct1, summarizeCapacity, type CapacityCell } from "../../services/capacity";
 import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
@@ -443,7 +444,7 @@ async function loadCapacityCells(sql: Sql, from: string, to: string, sport: stri
               coalesce(sum(extract(epoch from (least(o.end_at, s.s_at + interval '1 hour') - greatest(o.start_at, s.s_at))) / 60)
                 filter (where o.id is not null), 0)::int as sold_min
          from slots s
-         left join occupancies o on o.court_id = s.court_id
+         left join ${PLAYED_SQL} o on o.court_id = s.court_id
            and o.kind in ('booking','session')
            and o.start_at < s.s_at + interval '1 hour' and o.end_at > s.s_at
          group by s.court_id, s.court_code, s.sport, s.hr, s.day, s.s_at

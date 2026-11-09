@@ -1,3 +1,4 @@
+import { PLAYED_SQL } from "./played";
 import { classCode } from "../../../shared/arena3/labels";
 import type { Sql } from "@/server/data/db";
 import { addMonths, enrollmentAmountDue, enrollmentInvoiceLines } from "../../services/membership";
@@ -1156,8 +1157,8 @@ export async function reportsOccupancy(sql: Sql, request: Request, user: PublicU
               end
             ),0)::int as minutes
        from courts c
-       left join occupancies o
-         on o.court_id = c.id and o.start_at < $2 and o.end_at > $1
+       left join ${PLAYED_SQL} o
+         on o.court_id = c.id and o.kind in ('booking','session') and o.start_at < $2 and o.end_at > $1
        where c.retired_at is null or o.id is not null
       group by c.id, c.court_code
       order by c.court_code`,

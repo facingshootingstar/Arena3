@@ -1,3 +1,4 @@
+import { PLAYED_SQL } from "./played";
 import type { Sql } from "@/server/data/db";
 import { BOOKING_COLS, PAYMENT_COLS } from "../../services/columns";
 import type { Booking, BookingResponse, CancelQuoteResponse, CancelResponse, CheckInResponse, CollectBalanceResponse, ConfirmResponse, HoldResponse, MeBookingsResponse, MyBooking, MyClassSession, Payment, Reply, RescheduleResponse, SettledBooking, TransferConfirmResponse, TransferRejectResponse, WalkInResponse } from "../../../shared/arena3/contracts";
@@ -129,7 +130,7 @@ export async function occupancyGet(sql: Sql, request: Request) {
     kind: string;
     ref_id: string;
   }>(
-    `select court_id, start_at, end_at, kind, ref_id from occupancies
+    `select court_id, start_at, end_at, kind, ref_id from ${PLAYED_SQL} o
       where start_at < $2 and end_at > $1
       order by court_id, start_at`,
     [start.toISOString(), end.toISOString()],
