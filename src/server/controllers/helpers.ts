@@ -44,6 +44,7 @@ export type Settings = {
   loyalty_redeem_vnd: number;
   /** How long a seat is held while a member pays for a class. */
   class_hold_minutes: number;
+  max_active_classes: number;
   /** What a covered member pays per court hour, at every hour. */
   member_court_fee_vnd: number;
   /** What one extra membership day costs when a class outruns the plan. */
@@ -64,7 +65,7 @@ export async function getSettings(sql: Sql): Promise<Settings> {
             tax_code, legal_name, address,
             deposit_pct, deposit_peak_only, cancel_tiers, series_min_weeks, series_max_weeks,
             series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd,
-            class_hold_minutes, member_court_fee_vnd, member_day_rate_vnd, ui_config
+            class_hold_minutes, max_active_classes, member_court_fee_vnd, member_day_rate_vnd, ui_config
        from center_settings where id = 1`,
   );
   if (!row) throw err.validation("center_settings is missing.");
@@ -462,6 +463,21 @@ export function classPatternsClash(a: ClassPattern, b: ClassPattern) {
     if (pa.days.includes(code) && pb.days.includes(code)) return true;
   }
   return false;
+}
+
+/** BR-63: a member may be in at most `max` classes at once (held or confirmed, class not over). */
+export async function assertUnderClassLimit(sql: Sql, userId: string, classId: string, max: number) {
+  const row = await one<{ n: number }>(
+    sql,
+    `select count(*)::int as n
+       from enrollments e join classes c on c.id = e.class_id
+      where e.user_id = $1 and e.class_id <> $2 and e.status in ('confirmed','hold')
+        and c.end_on >= (now() at time zone 'Asia/Ho_Chi_Minh')::date`,
+    [userId, classId],
+  );
+  if ((row?.n ?? 0) >= max) {
+    throw err.br("BR-63", `You are already in ${max} classes, the most at once. Leave one to join another.`);
+  }
 }
 
 export async function assertNoClassClash(sql: Sql, userId: string, classId: string) {

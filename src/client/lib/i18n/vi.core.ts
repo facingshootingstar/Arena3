@@ -564,4 +564,5 @@ export const core: Record<string, string> = {
   "Free all day: {list}": "Trống cả ngày: {list}",
   "In play now": "Đang chơi",
   "Message": "Nhắn tin",
+  "Most classes a member can be in at once": "Số lớp tối đa hội viên học cùng lúc",
 };

@@ -1244,6 +1244,35 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     }
   });
 
+  it("BR-63: a member cannot be in more classes at once than the centre allows", async () => {
+    const coachId = "00000000-0000-0000-0000-000000000011";
+    const c1 = "40000000-0000-0000-0000-0000000000c1";
+    const c2 = "40000000-0000-0000-0000-0000000000c2";
+    const m = { id: "00000000-0000-0000-0000-0000000001c1", phone: "+84900001c1", name: "Cap", role: "member" } as any;
+    const before = (await db.query(`select max_active_classes from center_settings where id = 1`)).rows[0] as any;
+    try {
+      await db.query(`update center_settings set max_active_classes = 1 where id = 1`);
+      for (const [id, day] of [[c1, "MO"], [c2, "TH"]]) {
+        await db.query(
+          `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+           values ($1, 'badminton', 'scratch', $2, $3, $4, current_date + 3, current_date + 30, 60, 5, 'open', 0, 300000)`,
+          [id, coachId, validCourtId, `FREQ=WEEKLY;BYDAY=${day};BYHOUR=6`],
+        );
+      }
+      await db.query(`insert into users (id, phone, full_name, name_normalized, role, password_hash) values ($1,$2,$3,$4,'member','hash') on conflict (id) do nothing`, [m.id, m.phone, m.name, "cap"]);
+      await db.query(`insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status) values ($1, (select id from membership_plans order by price_vnd limit 1), 'all', current_date - 1, current_date + 400, 'active')`, [m.id]);
+      await withTx(async (sql) => classesEnroll(sql, c1, new Request("http://localhost"), m));
+      await assert.rejects(
+        withTx(async (sql) => classesEnroll(sql, c2, new Request("http://localhost"), m)),
+        /the most at once/,
+      );
+    } finally {
+      await db.query(`update center_settings set max_active_classes = $1 where id = 1`, [before.max_active_classes]);
+      await db.query("delete from enrollments where class_id in ($1, $2)", [c1, c2]);
+      await db.query("delete from classes where id in ($1, $2)", [c1, c2]);
+    }
+  });
+
   it("waitlist claim survives out-of-order compaction and the freed seat goes to the first in line", async () => {
     const coachId = "00000000-0000-0000-0000-000000000011";
     const classId = "40000000-0000-0000-0000-0000000000aa";

@@ -36,6 +36,7 @@ const SETTINGS_FORM_KEYS = [
   "self_checkin_enabled",
   "freeze_max_days_year",
   "waitlist_offer_hours",
+  "max_active_classes",
   "member_court_fee_vnd",
   "series_min_weeks",
   "series_max_weeks",
@@ -193,6 +194,7 @@ function Page() {
         {f("at_risk_idle_days", t("At-risk after no visit for (days)"), "number")}
         {f("freeze_max_days_year", t("Freeze cap (days per year)"), "number")}
         {f("waitlist_offer_hours", t("Waitlist offer window (hours)"), "number")}
+        {f("max_active_classes", t("Most classes a member can be in at once"), "number")}
         <p className="mt-2 font-medium md:col-span-2">{t("Membership")}</p>
         {f("member_court_fee_vnd", t("Member court fee per hour"), "money")}
         <p className="mt-2 font-medium md:col-span-2">{t("Fixed weekly bookings and points")}</p>

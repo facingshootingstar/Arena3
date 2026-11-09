@@ -1201,7 +1201,7 @@ export async function settingsPatch(sql: Sql, request: Request, user: PublicUser
             cancel_court_hours, cancel_class_hours, noshow_grace_minutes, checkin_before_minutes,
             refund_manager_vnd, self_checkin_enabled, gate_dedup_minutes, at_risk_idle_days, minor_age, vat_rate, legal_name, tax_code, address,
             freeze_max_days_year, waitlist_offer_hours, deposit_pct, deposit_peak_only, cancel_tiers::text,
-            series_min_weeks, series_max_weeks, series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd, member_court_fee_vnd, member_day_rate_vnd, ui_config::text
+            series_min_weeks, series_max_weeks, series_discount_pct, loyalty_earn_vnd, loyalty_redeem_vnd, member_court_fee_vnd, member_day_rate_vnd, max_active_classes, ui_config::text
        from center_settings where id = 1`,
   );
   if (keys.length === 0) {

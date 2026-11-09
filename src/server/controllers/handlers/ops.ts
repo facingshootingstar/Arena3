@@ -2,7 +2,7 @@ import type { Sql } from "@/server/data/db";
 import { assertMembershipOutlastsClass, hasRunningClass } from "../../services/membership";
 import { err } from "../errors";
 import { flagsMap, requireFlag, type FlagKey } from "../../services/flags";
-import { assertNoClassClash, audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
+import { assertNoClassClash, assertUnderClassLimit, audit, enqueue, enqueueReceipt, getSettings, issueInvoice, nextCode, pageOf, readJson, str } from "../helpers";
 import { limit, RULES } from "../ratelimit";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
 import { isValidVnPhone, normalizePhone } from "../../services/phone";
@@ -185,6 +185,7 @@ export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser
   const settings = await getSettings(sql);
   // The seat is held, not confirmed: payment confirms it, and the price is locked now.
   // A free class has nothing to pay, so the seat is confirmed at once (as classesEnroll does).
+  await assertUnderClassLimit(sql, user.id, enr.class_id, settings.max_active_classes);
   await assertMembershipOutlastsClass(sql, user.id, cl.end_on);
   const total = cl.price_vnd;
   const free = total === 0;

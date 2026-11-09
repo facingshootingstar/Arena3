@@ -1,6 +1,6 @@
 import type { Sql } from "@/server/data/db";
 import { err, isConflictSlot } from "../errors";
-import { assertNoClassClash, audit, enqueue, isUuid, getSettings, nextCode, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
+import { assertNoClassClash, assertUnderClassLimit, audit, enqueue, isUuid, getSettings, nextCode, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
 import { classCode } from "../../../shared/arena3/labels";
 import { expandWeekly } from "../../services/rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
@@ -422,6 +422,7 @@ export async function classesEnroll(sql: Sql, id: string, request: Request, user
   if (cl.price_vnd == null) throw err.br("BR-53", "This class is not open for sale yet.");
   const settings = await getSettings(sql);
   await assertNoClassClash(sql, userId, id);
+  await assertUnderClassLimit(sql, userId, id, settings.max_active_classes);
   await assertMembershipOutlastsClass(sql, userId, cl.end_on);
   const promoCode = cl.price_vnd > 0 ? str(b.promo_code) : null;
   const promo = promoCode
