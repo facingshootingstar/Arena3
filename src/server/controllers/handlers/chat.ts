@@ -24,60 +24,47 @@ export type MessageRow = {
 
 /**
  * Check whether two users are permitted to chat with each other.
- * Rules:
- * - Receptionist and Manager can message anyone.
- * - Member can only message Coach if the member is enrolled (confirmed) in an active class taught by the coach.
- * - Coach can only message Member if the member is enrolled (confirmed) in an active class taught by the coach.
- * - Members cannot message other members directly.
+ *
+ * Anyone signed in can message any other active account: members, coaches,
+ * the desk and the manager alike. Only yourself and closed accounts are refused.
  */
 export async function assertCanChat(sql: Sql, user: PublicUser, otherUserId: string): Promise<void> {
   if (user.id === otherUserId) {
     throw err.validation("Cannot chat with yourself.");
   }
-
-  // Manager and receptionist can chat with anyone
-  if (user.role === "manager" || user.role === "receptionist") {
-    const target = await one<{ id: string }>(sql, `select id from users where id = $1`, [otherUserId]);
-    if (!target) throw err.notFound("User not found.");
-    return;
-  }
-
-  const other = await one<{ id: string; role: string; status: string }>(
-    sql,
-    `select id, role, status from users where id = $1`,
-    [otherUserId],
-  );
+  const other = await one<{ id: string; status: string }>(sql, `select id, status from users where id = $1`, [otherUserId]);
   if (!other) throw err.notFound("User not found.");
-
-  // If other user is receptionist or manager, any member/coach can message them
-  if (other.role === "manager" || other.role === "receptionist") {
-    return;
+  if (other.status !== "active") {
+    throw err.forbidden("You do not have permission to message this person.");
   }
+}
 
-  // Member <-> Coach relationship check
-  const memberId = user.role === "member" ? user.id : other.role === "member" ? other.id : null;
-  const coachId = user.role === "coach" ? user.id : other.role === "coach" ? other.id : null;
-
-  if (memberId && coachId) {
-    const row = await one<{ ok: number }>(
-      sql,
-      `select 1 as ok
-         from enrollments e
-         join classes c on c.id = e.class_id
-        where e.user_id = $1
-          and c.coach_id = $2
-          and e.status = 'confirmed'
-          and c.status <> 'cancelled'
-        limit 1`,
-      [memberId, coachId],
-    );
-    if (!row) {
-      throw err.forbidden("You can only message coaches of classes you are enrolled in.");
-    }
-    return;
-  }
-
-  throw err.forbidden("You do not have permission to message this person.");
+/**
+ * People the signed-in user can start a chat with, found by name or member code.
+ * Only name, role and avatar are returned: no phone or email.
+ */
+export async function searchContacts(sql: Sql, user: PublicUser, url: URL) {
+  await requireFlag(sql, "F6");
+  const q = (str(url.searchParams.get("q")) ?? "").trim().slice(0, 60);
+  const rows = await sql.query<{ id: string; full_name: string; role: string; member_code: string | null; v: number | null }>(
+    `select u.id, u.full_name, u.role, u.member_code,
+            (select version from user_avatars a where a.user_id = u.id) as v
+       from users u
+      where u.id <> $1 and u.status = 'active'
+        and ($2 = '' or u.full_name ilike '%' || $2 || '%' or coalesce(u.member_code, '') ilike '%' || $2 || '%')
+      order by case u.role when 'manager' then 0 when 'receptionist' then 1 when 'coach' then 2 else 3 end, u.full_name
+      limit 20`,
+    [user.id, q],
+  );
+  return {
+    items: rows.map((r) => ({
+      id: r.id,
+      full_name: r.full_name,
+      role: r.role,
+      member_code: r.member_code,
+      avatar_url: r.v != null ? `/v1/users/${r.id}/avatar?v=${r.v}` : null,
+    })),
+  };
 }
 
 /**
@@ -192,14 +179,14 @@ export async function createOrGetConversation(sql: Sql, user: PublicUser, reques
   let memberId = "";
   let staffId = "";
 
-  if (user.role === "member") {
+  if (user.role === "member" && other.role !== "member") {
     memberId = user.id;
     staffId = other.id;
-  } else if (other.role === "member") {
+  } else if (other.role === "member" && user.role !== "member") {
     memberId = other.id;
     staffId = user.id;
   } else {
-    // Both are staff: use deterministic sorting for member_id/staff_id columns
+    // Both staff or both members: use deterministic sorting for member_id/staff_id columns
     if (user.id < other.id) {
       memberId = user.id;
       staffId = other.id;

@@ -78,6 +78,12 @@ async function dispatch(request: Request): Promise<Response | Result> {
 
   // Two-way Chat
   if (p0 === "conversations") {
+    if (method === "GET" && p1 === "contacts" && !p2) {
+      return withTx(async (sql) => {
+        const user = await authFromRequest(sql, request);
+        return { status: 200, body: await chatH.searchContacts(sql, user, url) };
+      });
+    }
     if (method === "GET" && !p1) {
       return withTx(async (sql) => {
         const user = await authFromRequest(sql, request);

@@ -2143,20 +2143,15 @@ describe("Round 10: Two-way Chat unit tests", () => {
       avatar_url: null,
     };
 
-    // Member tries to create conversation with Coach before enrollment -> 403 Forbidden
+    // Anyone may message anyone: a member reaches a coach before enrolling.
     await withTx(async (sql) => {
       const req = new Request("http://localhost/v1/conversations", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ recipient_id: coach.id }),
       });
-      await assert.rejects(
-        async () => chatH.createOrGetConversation(sql, member, req),
-        (err: any) => {
-          assert.equal(err.status, 403);
-          return true;
-        },
-      );
+      const res = await chatH.createOrGetConversation(sql, member, req);
+      assert.ok(res.conversation!.id);
     });
 
       // Create an active class taught by coach and enroll member
