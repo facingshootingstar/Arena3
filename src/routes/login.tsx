@@ -182,7 +182,7 @@ function Login() {
                 {error.message}
               </p>
             ) : null}
-            <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
+            <Magnet radius={80} pull={0.05} wrapperClassName="w-full" className="w-full">
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? t("Signing in…") : t("Sign in")}
               </Button>
