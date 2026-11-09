@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Banknote, Clock, FileText, HandCoins, Image, LandPlot, Layers, PiggyBank, Repeat, Settings, Tag, TrendingUp, Undo2, UserCog, UserPlus, Wallet, Wrench } from "lucide-react";
 import { CardTitle } from "@/client/components/section";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CourtTimeline } from "@/client/components/court-timeline";
 import { Shell, money, when } from "@/client/components/shell";
 import { PageHero } from "@/client/components/page-hero";
 import { CapacityPanel, ExportButtons, MembersPanel } from "@/client/components/report-panels";
@@ -21,7 +20,7 @@ export const Route = createFileRoute("/manager/")({
 function Page() {
   const {
     from, setFrom, to, setTo, period, setPeriod, method, setMethod, revRead, occRead, mapRead, rev,
-    prev, occ, map, missingReceptionist, missingCoach, revError, refused, faulty, dayError,
+    prev, occ, missingReceptionist, missingCoach, revError, refused, faulty, dayError,
     chartReady, applyPeriod, chartData, sourceData, trendData, showTrend,
   } = useManagerOverview();
 
@@ -493,13 +492,6 @@ function Page() {
           </StaggerItem>
         ))}
       </Stagger>
-      {map ? (
-        <div className="mt-4">
-          <CourtTimeline date={to} courts={map.courts} slots={map.slots} />
-        </div>
-      ) : (
-        <Skeleton className="mt-4 h-64" />
-      )}
         </>
       )}
 

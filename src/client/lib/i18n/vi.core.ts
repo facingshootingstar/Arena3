@@ -563,4 +563,5 @@ export const core: Record<string, string> = {
   "No court is booked on this day.": "Ngày này chưa có sân nào được đặt.",
   "Free all day: {list}": "Trống cả ngày: {list}",
   "In play now": "Đang chơi",
+  "Message": "Nhắn tin",
 };

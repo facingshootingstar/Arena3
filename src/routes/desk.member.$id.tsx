@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Shell, money, useSessionUser, when } from "@/client/components/shell";
 import { UserAvatar } from "@/client/components/user-avatar";
+import { MessageButton } from "@/client/components/message-button";
 import {
   Badge,
   Button,
@@ -389,6 +390,7 @@ function Page() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            <MessageButton userId={data.user.id} />
             <Button size="sm" variant="outline" onClick={openEdit}>
               {t("Edit profile")}
             </Button>
