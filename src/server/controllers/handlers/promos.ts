@@ -8,16 +8,15 @@
 import { memberCourtFee } from "../../services/membership";
 import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
-import { audit, bool, readJson, str } from "../helpers";
+import { audit, bool, readJson, sqlPatch, str } from "../helpers";
 import { lookupPrice } from "../../services/pricing";
 import { normalizeCode, quotePromo, type PromoScope } from "../../services/promos";
 import { requireRole, type PublicUser } from "../session";
 import { getSettings } from "../helpers";
 import { one } from "../tx";
-import { parseInteger } from "../validate";
+import { INT4_MAX, parseInteger } from "../validate";
 import { getActiveSportCodes } from "./sports";
 
-const INT4 = 2_147_483_647;
 // On a class a code lowers the tuition only, never the membership extension.
 const SCOPES: PromoScope[] = ["plan", "court", "class"];
 const CODE_RE = /^[A-Z0-9_-]{3,24}$/;
@@ -86,13 +85,13 @@ async function parseBody(sql: Sql, b: Record<string, unknown>, partial: boolean)
     out.kind = kind;
   }
   if (!partial || has("value")) {
-    out.value = parseInteger("value", "Value", b.value, 1, INT4);
+    out.value = parseInteger("value", "Value", b.value, 1, INT4_MAX);
   }
-  if (!partial || has("max_discount_vnd")) out.max_discount_vnd = optInt("max_discount_vnd", "Max discount", b.max_discount_vnd, 1000, INT4);
-  if (!partial || has("min_order_vnd")) out.min_order_vnd = optInt("min_order_vnd", "Minimum order", b.min_order_vnd, 0, INT4) ?? 0;
+  if (!partial || has("max_discount_vnd")) out.max_discount_vnd = optInt("max_discount_vnd", "Max discount", b.max_discount_vnd, 1000, INT4_MAX);
+  if (!partial || has("min_order_vnd")) out.min_order_vnd = optInt("min_order_vnd", "Minimum order", b.min_order_vnd, 0, INT4_MAX) ?? 0;
   if (!partial || has("starts_at")) out.starts_at = optDate("starts_at", b.starts_at);
   if (!partial || has("ends_at")) out.ends_at = optDate("ends_at", b.ends_at);
-  if (!partial || has("max_uses")) out.max_uses = optInt("max_uses", "Total uses", b.max_uses, 1, INT4);
+  if (!partial || has("max_uses")) out.max_uses = optInt("max_uses", "Total uses", b.max_uses, 1, INT4_MAX);
   if (!partial || has("max_per_member")) out.max_per_member = optInt("max_per_member", "Uses per member", b.max_per_member, 1, 1000) ?? 1;
   if (!partial || has("applies_to")) out.applies_to = parseScopes(b.applies_to);
   if (!partial || has("sport")) {
@@ -207,12 +206,7 @@ export async function promosPatch(sql: Sql, id: string, request: Request, user: 
     p.kind ?? cur.kind,
     p.value ?? cur.value,
   );
-  const sets: string[] = [];
-  const vals: unknown[] = [id];
-  const add = (col: string, v: unknown, cast = "") => {
-    vals.push(v);
-    sets.push(`${col} = $${vals.length}${cast}`);
-  };
+  const { sets, params: vals, add } = sqlPatch([id]);
   for (const [k, v] of Object.entries(p)) {
     if (k === "starts_at" && v === null) continue;
     add(k, v, k.endsWith("_at") ? "::timestamptz" : "");
@@ -255,46 +249,52 @@ export async function promosValidate(sql: Sql, request: Request, user: PublicUse
   const staff = user.role === "receptionist" || user.role === "manager";
   const targetUser = staff && str(b.user_id) ? str(b.user_id)! : user.id;
 
-  if (scope === "plan") {
-    const planId = str(b.plan_id);
-    if (!planId) throw err.field("plan_id", "plan_id is required.");
-    const plan = await one<{ price_vnd: number; sport_scope: string }>(
-      sql,
-      `select price_vnd, sport_scope::text as sport_scope from membership_plans where id = $1`,
-      [planId],
-    );
-    if (!plan) throw err.notFound("No such plan.");
-    const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: plan.sport_scope, planId, orderVnd: plan.price_vnd });
-    return { status: 200, body: { valid: true, order_vnd: plan.price_vnd, ...q } };
+  if (scope === "plan") return quotePlanPromo(sql, b, code, targetUser);
+  if (scope === "class") return quoteClassPromo(sql, b, code, targetUser);
+  return quoteCourtPromo(sql, b, code, targetUser);
+}
+async function quotePlanPromo(sql: Sql, b: Record<string, unknown>, code: string, targetUser: string) {
+  const scope = "plan";
+  const planId = str(b.plan_id);
+  if (!planId) throw err.field("plan_id", "plan_id is required.");
+  const plan = await one<{ price_vnd: number; sport_scope: string }>(
+    sql,
+    `select price_vnd, sport_scope::text as sport_scope from membership_plans where id = $1`,
+    [planId],
+  );
+  if (!plan) throw err.notFound("No such plan.");
+  const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: plan.sport_scope, planId, orderVnd: plan.price_vnd });
+  return { status: 200, body: { valid: true, order_vnd: plan.price_vnd, ...q } };
+}
+
+async function quoteClassPromo(sql: Sql, b: Record<string, unknown>, code: string, targetUser: string) {
+  const scope = "class";
+  const classId = str(b.class_id);
+  if (!classId) throw err.field("class_id", "class_id is required.");
+  const cl = await one<{ price_vnd: number; sport: string }>(
+    sql,
+    `select price_vnd, sport::text as sport from classes where id = $1`,
+    [classId],
+  );
+  if (!cl) throw err.notFound("No such class.");
+  const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: cl.sport, orderVnd: cl.price_vnd });
+  return { status: 200, body: { valid: true, order_vnd: cl.price_vnd, ...q } };}
+
+async function quoteCourtPromo(sql: Sql, b: Record<string, unknown>, code: string, targetUser: string) {
+  const scope = "court";
+  const courtId = str(b.court_id);
+  const startAt = str(b.start_at);
+  if (!courtId || !startAt) throw err.field("court_id", "court_id and start_at are required.");
+  const court = await one<{ sport: string }>(sql, `select sport::text as sport from courts where id = $1`, [courtId]);
+  if (!court) throw err.notFound("No such court.");
+  const settings = await getSettings(sql);
+  const start = new Date(startAt);
+  if (Number.isNaN(start.getTime())) throw err.field("start_at", "That time is not valid.");
+  const list = await lookupPrice(sql, { sport: court.sport, courtId, start });
+  if (await memberCourtFee(sql, targetUser, start, settings)) {
+    throw err.br("BR-41", "The member court fee takes no promo code.");
   }
-  if (scope === "class") {
-    const classId = str(b.class_id);
-    if (!classId) throw err.field("class_id", "class_id is required.");
-    const cl = await one<{ price_vnd: number; sport: string }>(
-      sql,
-      `select price_vnd, sport::text as sport from classes where id = $1`,
-      [classId],
-    );
-    if (!cl) throw err.notFound("No such class.");
-    const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: cl.sport, orderVnd: cl.price_vnd });
-    return { status: 200, body: { valid: true, order_vnd: cl.price_vnd, ...q } };
-  }
-  {
-    const courtId = str(b.court_id);
-    const startAt = str(b.start_at);
-    if (!courtId || !startAt) throw err.field("court_id", "court_id and start_at are required.");
-    const court = await one<{ sport: string }>(sql, `select sport::text as sport from courts where id = $1`, [courtId]);
-    if (!court) throw err.notFound("No such court.");
-    const settings = await getSettings(sql);
-    const start = new Date(startAt);
-    if (Number.isNaN(start.getTime())) throw err.field("start_at", "That time is not valid.");
-    const list = await lookupPrice(sql, { sport: court.sport, courtId, start });
-    if (await memberCourtFee(sql, targetUser, start, settings)) {
-      throw err.br("BR-41", "The member court fee takes no promo code.");
-    }
-    const order = list.price_vnd;
-    const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: court.sport, orderVnd: order, listVnd: list.price_vnd });
-    return { status: 200, body: { valid: true, order_vnd: order, ...q } };
-  }
-  throw err.field("scope", "scope must be plan, court or class.");
+  const order = list.price_vnd;
+  const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: court.sport, orderVnd: order, listVnd: list.price_vnd });
+  return { status: 200, body: { valid: true, order_vnd: order, ...q } };
 }

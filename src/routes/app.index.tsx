@@ -100,7 +100,6 @@ function Page() {
   const u = getStoredUser();
   const live = me?.subscriptions.filter((s) => s.status === "active") ?? [];
   const frozen = me?.subscriptions.filter((s) => s.status === "frozen") ?? [];
-  const first = live[0];
   const expiring = live.filter((s) => {
     const d = daysUntil(s.end_on);
     return Number.isFinite(d) && d >= 0 && d <= 7;

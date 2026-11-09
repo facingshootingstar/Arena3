@@ -13,7 +13,7 @@ import { sportLabel } from "@/shared/arena3/labels";
 import { t, tk, tServer, tData } from "@/client/lib/i18n";
 import { usePageState } from "@/client/lib/use-page-state";
 import { readError, useRead } from "@/client/lib/use-read";
-import { HighlightBadge, useLive } from "@/client/lib/use-live";
+import { useLive } from "@/client/lib/use-live";
 
 export const Route = createFileRoute("/desk/gate")({ component: Page });
 

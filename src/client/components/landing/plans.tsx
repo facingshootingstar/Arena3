@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Cover, sportPhoto } from "@/client/components/media";
 import { ButtonLink, Card } from "@/client/components/ui";
-import type { CatalogClass } from "@/server/services/catalog";
+import type { CatalogClass } from "@/shared/arena3/contracts";
 import { levelLabel, rruleLabel, sportLabel } from "@/shared/arena3/labels";
 import { gsap, useScene } from "@/client/lib/gsap";
 import { t } from "@/client/lib/i18n";

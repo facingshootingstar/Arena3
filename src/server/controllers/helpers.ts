@@ -501,6 +501,15 @@ export async function assertNoClassClash(sql: Sql, userId: string, classId: stri
 
 export type Ctx = { sql: Sql; request: Request; user: PublicUser | null };
 
+export function sqlPatch(params: unknown[]) {
+  const sets: string[] = [];
+  function add(column: string, value: unknown, cast = "") {
+    params.push(value);
+    sets.push(`${column} = $${params.length}${cast}`);
+  }
+  return { sets, params, add };
+}
+
 /**
  * Shape a paged query's rows (selected with `count(*) over ()::int as total`) into
  * `{ items, total, limit, offset }`. Past the last page there are no rows to read the total

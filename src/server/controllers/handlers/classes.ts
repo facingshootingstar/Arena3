@@ -1,7 +1,7 @@
 import type { Sql } from "@/server/data/db";
 import { err, isConflictSlot } from "../errors";
 import { assertNoClassClash, audit, enqueue, isUuid, getSettings, nextCode, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
-import { classCode, parseWeeklyRrule } from "../../../shared/arena3/labels";
+import { classCode } from "../../../shared/arena3/labels";
 import { expandWeekly } from "../../services/rrule";
 import { avatarUrlSql, requireRole, withAvatarUrl, type PublicUser } from "../session";
 import { addDays, classMinutes, ictDateString, ictDateTime, slotSpan } from "../../../shared/arena3/time";

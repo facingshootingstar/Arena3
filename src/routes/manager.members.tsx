@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Shell } from "@/client/components/shell";
 import { PageHero } from "@/client/components/page-hero";
 import { StatStrip } from "@/client/components/stat-strip";
-import { SportBadge, useSports } from "@/client/components/sports-ui";
+import { useSports } from "@/client/components/sports-ui";
 import { Badge, Button, Card, EmptyState, FilterChip, Input, LoadError, Pagination, Select, Skeleton, StatusBadge } from "@/client/components/ui";
 import { formatDate } from "@/shared/arena3/labels";
 import { cn } from "@/client/lib/cn";

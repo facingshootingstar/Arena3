@@ -14,7 +14,7 @@ import { useSports } from "@/client/components/sports-ui";
 import { CountTo } from "./kit";
 import { useVenue } from "./util";
 import { hhmm } from "@/client/lib/venue";
-import type { CatalogCourt } from "@/server/services/catalog";
+import type { CatalogCourt } from "@/shared/arena3/contracts";
 import type { Court } from "@/client/components/court-grid";
 
 /** The first free hour on the grid, offered in the hero as the thing to take. */

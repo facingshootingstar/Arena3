@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { CourtGrid, DateStrip, type Court as GridCourt } from "@/client/components/court-grid";
 import { Button, ButtonLink, Card, Seg, Skeleton } from "@/client/components/ui";
 import { money } from "@/client/components/shell";
-import type { CatalogCourt, CatalogPrice, CatalogSlot } from "@/server/services/catalog";
+import type { CatalogCourt, CatalogPrice, CatalogSlot } from "@/shared/arena3/contracts";
 import { sportLabel } from "@/shared/arena3/labels";
 import { gsap, useScene } from "@/client/lib/gsap";
 import { t } from "@/client/lib/i18n";

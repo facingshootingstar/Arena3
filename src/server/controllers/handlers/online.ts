@@ -98,114 +98,11 @@ export async function settleOnline(
     [pay.id, paid.transactionId, paid.providerStatus],
   );
 
-  if (pay.ref_type === "booking") {
-    const booking = await one<Parameters<typeof settleHeldBooking>[1]>(
-      sql,
-      `select ${HELD_COLS} from court_bookings where id = $1 for update`,
-      [pay.ref_id],
-    );
-    if (!booking) throw err.notFound("That booking no longer exists.");
-    const court = await one<{ court_code: string }>(
-      sql,
-      `select court_code from courts where id = $1`,
-      [booking.court_id],
-    );
-    // Reuses the same settle path as cash at the desk — occupancy confirmed,
-    // invoice issued, member notified — against the row that already exists.
-    const buyer = await bookingBuyer(sql, booking.id);
-    await settleHeldBooking(sql, booking, court!, {
-      method: "gateway",
-      payAmount: pay.amount_vnd,
-      quotaHours: 0,
-      buyerName: buyer.name,
-      buyerPhone: buyer.phone,
-      actorId: pay.user_id ?? "",
-      existingPaymentId: pay.id,
-    });
-    return { posted: true };
-  }
+  if (pay.ref_type === "booking") return settleOnlineBooking(sql, pay);
 
-  if (pay.ref_type === "subscription") {
-    const sub = await one<{
-      user_id: string;
-      plan_id: string;
-      promo_id: string | null;
-      promo_discount_vnd: number;
-    }>(sql, `select user_id, plan_id, promo_id, promo_discount_vnd from subscriptions where id = $1`, [
-      pay.ref_id,
-    ]);
-    if (!sub) throw err.notFound("That plan order no longer exists.");
-    const plan = await one<{ name: string; duration_days: number; price_vnd: number }>(
-      sql,
-      `select name, duration_days, price_vnd from membership_plans where id = $1`,
-      [sub.plan_id],
-    );
-    if (sub.promo_id && sub.promo_discount_vnd > 0) {
-      await redeemPromo(sql, {
-        promoId: sub.promo_id,
-        userId: sub.user_id,
-        paymentId: pay.id,
-        discountVnd: sub.promo_discount_vnd,
-      });
-    }
-    // The same activation the front desk uses: the plan starts the day it is paid,
-    // and its hours and sessions are credited (BR-19, BR-20).
-    await activateSubscription(sql, pay.ref_id);
-    const buyer = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [
-      sub.user_id,
-    ]);
-    const settings = await getSettings(sql);
-    const invoiceId = await issueInvoice(sql, {
-      paymentId: pay.id,
-      buyerName: buyer?.full_name ?? "Khách hàng",
-      amountVnd: pay.amount_vnd,
-      vatRate: Number(settings.vat_rate ?? 0),
-      description: plan ? `Gói hội viên — ${plan.name}` : "Gói hội viên",
-      unit: "gói",
-      settings,
-    });
-    await enqueueReceipt(sql, sub.user_id, {
-      payment_id: pay.id,
-      invoice_id: invoiceId,
-      amount_vnd: pay.amount_vnd,
-      method: "gateway",
-    });
-    return { posted: true };
-  }
+  if (pay.ref_type === "subscription") return settleOnlineSubscription(sql, pay);
 
-  if (pay.ref_type === "enrollment") {
-    // The money is in whatever happens to the seat. An outcome that buys no seat
-    // (late, released, class cancelled, paid twice) is flagged to the desk by
-    // settleEnrollment, so the payment stays posted and invoiced.
-    await settleEnrollment(sql, pay.ref_id, { paymentId: pay.id, released: wasReleased });
-    const buyer = await one<{ full_name: string; phone: string | null }>(
-      sql,
-      `select full_name, phone from users where id = $1`,
-      [pay.user_id],
-    );
-    const settings = await getSettings(sql);
-    const item = await describePayment(sql, "enrollment", pay.ref_id);
-    const invoiceId = await issueInvoice(sql, {
-      paymentId: pay.id,
-      buyerName: buyer?.full_name ?? "Khách hàng",
-      buyerPhone: buyer?.phone ?? undefined,
-      amountVnd: pay.amount_vnd,
-      vatRate: Number(settings.vat_rate ?? 0),
-      description: item.description,
-      unit: item.unit,
-      lines: await enrollmentInvoiceLines(sql, pay.ref_id, pay.amount_vnd, item),
-      settings,
-    });
-    if (pay.user_id) {
-      await enqueueReceipt(sql, pay.user_id, {
-        payment_id: pay.id,
-        invoice_id: invoiceId,
-        amount_vnd: pay.amount_vnd,
-        method: "gateway",
-      });
-    }
-    return { posted: true };
-  }
+  if (pay.ref_type === "enrollment") return settleOnlineEnrollment(sql, pay, wasReleased);
 
   throw err.validation(`Online payment does not cover ${pay.ref_type}.`);
 }
@@ -260,112 +157,15 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
   if (!refId) throw err.validation("ref_id is required.");
 
   const staff = user.role === "receptionist" || user.role === "manager";
-  let amount = 0;
-  let payerId: string | null = null;
-  let label = "";
   /** When the class seat hold ends (ms since epoch); null for courts and plans. */
-  let holdEndsAt: number | null = null;
-
-  if (refType === "booking") {
-    const booking = await one<{
-      id: string;
-      user_id: string;
-      status: string;
-      price_vnd: number;
-      deposit_vnd: number;
-      hold_until: string | null;
-    }>(sql, `select id, user_id, status, price_vnd, deposit_vnd, hold_until from court_bookings where id = $1`, [refId]);
-    if (!booking) throw err.notFound();
-    if (!staff && booking.user_id !== user.id) throw err.forbidden();
-    if (booking.status !== "hold") throw err.conflictState("That booking is not waiting for payment.");
-    if (!booking.hold_until || new Date(booking.hold_until) < new Date()) throw err.holdExpired();
-    amount = dueNow(booking);
-    payerId = booking.user_id;
-    label = "court";
-  } else if (refType === "subscription") {
-    // Members order plans in the app but pay at the desk, so raising a link for
-    // one is reception's job.
-    if (!staff) throw err.forbidden("Ask the front desk to take payment for a plan.");
-    const sub = await one<{
-      user_id: string;
-      plan_id: string;
-      status: string;
-      promo_discount_vnd: number;
-      price_vnd: number | null;
-    }>(
-      sql,
-      `select user_id, plan_id, status, promo_discount_vnd, price_vnd from subscriptions where id = $1`,
-      [refId],
-    );
-    if (!sub) throw err.notFound();
-    // A link settles by activating the order, so it only makes sense for one
-    // still waiting for money (D-01).
-    if (sub.status !== "pending") throw err.conflictState("That plan is not waiting for payment.");
-    const plan = await one<{ price_vnd: number }>(
-      sql,
-      `select price_vnd from membership_plans where id = $1`,
-      [sub.plan_id],
-    );
-    const basePrice = sub.price_vnd ?? plan?.price_vnd ?? 0;
-    amount = Math.max(0, basePrice - (sub.promo_discount_vnd ?? 0));
-    payerId = sub.user_id;
-    label = "plan";
-  } else if (refType === "enrollment") {
-    const enr = await one<{
-      user_id: string;
-      status: string;
-      price_vnd: number | null;
-      hold_until: string | null;
-      class_status: string;
-    }>(
-      sql,
-      `select e.user_id, e.status::text as status, e.price_vnd, e.hold_until, c.status::text as class_status
-         from enrollments e join classes c on c.id = e.class_id
-        where e.id = $1`,
-      [refId],
-    );
-    if (!enr) throw err.notFound();
-    if (!staff && enr.user_id !== user.id) throw err.forbidden();
-    if (enr.class_status === "cancelled") throw err.br("BR-18", "That class is cancelled.");
-    if (enr.status !== "hold") throw err.br("BR-28", "That seat is not on hold, so there is nothing to pay.");
-    if (!enr.hold_until || new Date(enr.hold_until) < new Date()) {
-      throw err.br("BR-28", "This seat hold has expired.");
-    }
-    amount = enr.price_vnd ?? 0;
-    payerId = enr.user_id;
-    label = "class";
-    holdEndsAt = new Date(enr.hold_until).getTime();
-  } else {
-    throw err.validation("Online payment covers courts, plans and class seats.");
-  }
+  const order = await onlineOrder(sql, refType, refId, staff, user);
+  let { amount } = order;
+  const { payerId, label, holdEndsAt } = order;
 
   if (amount <= 0) throw err.validation("There is nothing to pay.");
 
-  // One live link per thing being paid for. Without this, pressing the button
-  // twice leaves two pending rows and the second confirmation has no order to
-  // attach to.
-  const existing = await one<PendingPayment>(
-    sql,
-    `select id, code, user_id, amount_vnd, status::text as status, ref_type, ref_id, provider_order_code
-       from payments
-      where ref_type = $1 and ref_id = $2 and status::text = 'pending' and provider = 'payos'
-      order by created_at desc limit 1`,
-    [refType, refId],
-  );
-  if (existing?.provider_order_code) {
-    const state = await readPaymentLink(Number(existing.provider_order_code));
-    if (state.status === "PENDING") {
-      return {
-        status: 200,
-        body: {
-          payment_id: existing.id,
-          order_code: Number(existing.provider_order_code),
-          amount_vnd: existing.amount_vnd,
-          reused: true,
-        },
-      };
-    }
-  }
+  const reused = await reuseOnlineLink(sql, refType, refId);
+  if (reused) return reused;
 
   const settings = await getSettings(sql);
   // A link already live keeps its figure (returned above); a new one prices the seat as of now.
@@ -384,6 +184,106 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     : null;
   const base = baseUrlOf(request);
 
+  const { pay, payCode, orderCode, link } = await issueOnlineLink(sql, user, { amount, payerId, label, holdEndsAt, refType, refId, shiftId, base }, settings);
+
+  await audit(sql, user.id, "online_link", "payment", pay!.id);
+  return {
+    status: 201,
+    body: {
+      payment_id: pay!.id,
+      payment_code: payCode,
+      order_code: orderCode,
+      amount_vnd: amount,
+      checkout_url: link.checkoutUrl,
+      qr_code: link.qrCode,
+      expires_at: link.expiredAt,
+      for: label,
+      /** Whoever raised it: the desk shows the QR, a member is redirected. */
+      raised_by: staff ? "desk" : "member",
+    },
+  };
+}
+
+type OnlineOrder = { amount: number; payerId: string | null; label: string; holdEndsAt: number | null };
+
+async function bookingOnlineOrder(sql: Sql, refId: string, staff: boolean, user: PublicUser): Promise<OnlineOrder> {
+  const booking = await one<{
+    id: string;
+    user_id: string;
+    status: string;
+    price_vnd: number;
+    deposit_vnd: number;
+    hold_until: string | null;
+  }>(sql, `select id, user_id, status, price_vnd, deposit_vnd, hold_until from court_bookings where id = $1`, [refId]);
+  if (!booking) throw err.notFound();
+  if (!staff && booking.user_id !== user.id) throw err.forbidden();
+  if (booking.status !== "hold") throw err.conflictState("That booking is not waiting for payment.");
+  if (!booking.hold_until || new Date(booking.hold_until) < new Date()) throw err.holdExpired();
+  return { amount: dueNow(booking), payerId: booking.user_id, label: "court", holdEndsAt: null };
+}
+
+async function subscriptionOnlineOrder(sql: Sql, refId: string, staff: boolean): Promise<OnlineOrder> {
+  // Members order plans in the app but pay at the desk, so raising a link for
+  // one is reception's job.
+  if (!staff) throw err.forbidden("Ask the front desk to take payment for a plan.");
+  const sub = await one<{
+    user_id: string;
+    plan_id: string;
+    status: string;
+    promo_discount_vnd: number;
+    price_vnd: number | null;
+  }>(
+    sql,
+    `select user_id, plan_id, status, promo_discount_vnd, price_vnd from subscriptions where id = $1`,
+    [refId],
+  );
+  if (!sub) throw err.notFound();
+  // A link settles by activating the order, so it only makes sense for one
+  // still waiting for money (D-01).
+  if (sub.status !== "pending") throw err.conflictState("That plan is not waiting for payment.");
+  const plan = await one<{ price_vnd: number }>(
+    sql,
+    `select price_vnd from membership_plans where id = $1`,
+    [sub.plan_id],
+  );
+  const basePrice = sub.price_vnd ?? plan?.price_vnd ?? 0;
+  return { amount: Math.max(0, basePrice - (sub.promo_discount_vnd ?? 0)), payerId: sub.user_id, label: "plan", holdEndsAt: null };
+}
+
+async function enrollmentOnlineOrder(sql: Sql, refId: string, staff: boolean, user: PublicUser): Promise<OnlineOrder> {
+  const enr = await one<{
+    user_id: string;
+    status: string;
+    price_vnd: number | null;
+    hold_until: string | null;
+    class_status: string;
+  }>(
+    sql,
+    `select e.user_id, e.status::text as status, e.price_vnd, e.hold_until, c.status::text as class_status
+       from enrollments e join classes c on c.id = e.class_id
+      where e.id = $1`,
+    [refId],
+  );
+  if (!enr) throw err.notFound();
+  if (!staff && enr.user_id !== user.id) throw err.forbidden();
+  if (enr.class_status === "cancelled") throw err.br("BR-18", "That class is cancelled.");
+  if (enr.status !== "hold") throw err.br("BR-28", "That seat is not on hold, so there is nothing to pay.");
+  if (!enr.hold_until || new Date(enr.hold_until) < new Date()) {
+    throw err.br("BR-28", "This seat hold has expired.");
+  }
+  return { amount: enr.price_vnd ?? 0, payerId: enr.user_id, label: "class", holdEndsAt: new Date(enr.hold_until).getTime() };
+}
+
+async function onlineOrder(sql: Sql, refType: string, refId: string, staff: boolean, user: PublicUser) {
+  if (refType === "booking") return bookingOnlineOrder(sql, refId, staff, user);
+  if (refType === "subscription") return subscriptionOnlineOrder(sql, refId, staff);
+  if (refType === "enrollment") return enrollmentOnlineOrder(sql, refId, staff, user);
+  throw err.validation("Online payment covers courts, plans and class seats.");
+}
+
+type OnlineLinkInput = OnlineOrder & { refType: string; refId: string; shiftId: string | null; base: string };
+
+async function issueOnlineLink(sql: Sql, user: PublicUser, input: OnlineLinkInput, settings: Awaited<ReturnType<typeof getSettings>>) {
   /*
    * Allocate a code, ask payOS for a link, and move on if that code is taken.
    *
@@ -413,38 +313,10 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     payCode = code;
     orderCode = await nextOrderCode(sql, "payos");
 
-    // The row exists before the link does, so a confirmation always has
-    // somewhere to land — and it is `pending`, which no report counts.
-    pay = (await one<{ id: string }>(
-      sql,
-      `insert into payments
-         (code, user_id, shift_id, method, amount_vnd, vat_rate, status, ref_type, ref_id,
-          created_by, capture_mode, provider, provider_order_code, provider_status)
-       values ($1,$2,$3,'gateway',$4,$5,'pending',$6,$7,$8,'auto','payos',$9,'PENDING')
-       returning id`,
-      [code, payerId, shiftId, amount, Number(settings.vat_rate ?? 0), refType, refId, user.id, orderCode],
-    )) ?? null;
+    pay = await insertOnlinePayment(sql, user, input, settings, code, orderCode);
 
     try {
-      link = await createPaymentLink({
-        orderCode,
-        amountVnd: amount,
-        description: describeForGateway(code),
-        // The payment's own id travels in the URL we control, so the return
-        // page has something to ask about without looking one up by order code.
-        returnUrl: `${base}/pay/return?pid=${pay!.id}`,
-        cancelUrl: `${base}/pay/return?pid=${pay!.id}&cancelled=1`,
-        // Outliving the court hold would let somebody pay for a slot that has
-        // already been released to another member. A class seat's link also
-        // ends with its own hold, whichever comes first.
-        expiresInSeconds:
-          holdEndsAt === null
-            ? settings.transfer_hold_minutes * 60
-            : Math.max(
-                1,
-                Math.min(settings.transfer_hold_minutes * 60, Math.floor((holdEndsAt - Date.now()) / 1000)),
-              ),
-      });
+      link = await requestOnlineLink(pay!.id, input, settings, code, orderCode);
     } catch (e) {
       lastError = e;
       // 231 — payOS already has an order with this code.
@@ -465,22 +337,7 @@ export async function onlineCreate(sql: Sql, request: Request, user: PublicUser)
     throw err.br("C-09", "Could not start the online payment. Take it at the desk instead.");
   }
 
-  await audit(sql, user.id, "online_link", "payment", pay!.id);
-  return {
-    status: 201,
-    body: {
-      payment_id: pay!.id,
-      payment_code: payCode,
-      order_code: orderCode,
-      amount_vnd: amount,
-      checkout_url: link.checkoutUrl,
-      qr_code: link.qrCode,
-      expires_at: link.expiredAt,
-      for: label,
-      /** Whoever raised it: the desk shows the QR, a member is redirected. */
-      raised_by: staff ? "desk" : "member",
-    },
-  };
+  return { pay, payCode, orderCode, link };
 }
 
 /**
@@ -615,3 +472,180 @@ export async function expireOnlineLinks(sql: Sql): Promise<number> {
   }
   return stale.length;
 }
+
+async function reuseOnlineLink(sql: Sql, refType: string, refId: string) {
+  // One live link per thing being paid for. Without this, pressing the button
+  // twice leaves two pending rows and the second confirmation has no order to
+  // attach to.
+  const existing = await one<PendingPayment>(
+    sql,
+    `select id, code, user_id, amount_vnd, status::text as status, ref_type, ref_id, provider_order_code
+       from payments
+      where ref_type = $1 and ref_id = $2 and status::text = 'pending' and provider = 'payos'
+      order by created_at desc limit 1`,
+    [refType, refId],
+  );
+  if (existing?.provider_order_code) {
+    const state = await readPaymentLink(Number(existing.provider_order_code));
+    if (state.status === "PENDING") {
+      return {
+        status: 200,
+        body: {
+          payment_id: existing.id,
+          order_code: Number(existing.provider_order_code),
+          amount_vnd: existing.amount_vnd,
+          reused: true,
+        },
+      };
+    }
+  }
+
+}
+
+async function insertOnlinePayment(sql: Sql, user: PublicUser, input: OnlineLinkInput, settings: Awaited<ReturnType<typeof getSettings>>, code: string, orderCode: number) {
+  const { amount, payerId, shiftId, refType, refId } = input;
+    // The row exists before the link does, so a confirmation always has
+    // somewhere to land — and it is `pending`, which no report counts.
+    return (await one<{ id: string }>(
+      sql,
+      `insert into payments
+         (code, user_id, shift_id, method, amount_vnd, vat_rate, status, ref_type, ref_id,
+          created_by, capture_mode, provider, provider_order_code, provider_status)
+       values ($1,$2,$3,'gateway',$4,$5,'pending',$6,$7,$8,'auto','payos',$9,'PENDING')
+       returning id`,
+      [code, payerId, shiftId, amount, Number(settings.vat_rate ?? 0), refType, refId, user.id, orderCode],
+    )) ?? null;
+
+}
+
+function requestOnlineLink(paymentId: string, input: OnlineLinkInput, settings: Awaited<ReturnType<typeof getSettings>>, code: string, orderCode: number) {
+  const { amount, holdEndsAt, base } = input;
+      return createPaymentLink({
+        orderCode,
+        amountVnd: amount,
+        description: describeForGateway(code),
+        // The payment's own id travels in the URL we control, so the return
+        // page has something to ask about without looking one up by order code.
+        returnUrl: `${base}/pay/return?pid=${paymentId}`,
+        cancelUrl: `${base}/pay/return?pid=${paymentId}&cancelled=1`,
+        // Outliving the court hold would let somebody pay for a slot that has
+        // already been released to another member. A class seat's link also
+        // ends with its own hold, whichever comes first.
+        expiresInSeconds:
+          holdEndsAt === null
+            ? settings.transfer_hold_minutes * 60
+            : Math.max(
+                1,
+                Math.min(settings.transfer_hold_minutes * 60, Math.floor((holdEndsAt - Date.now()) / 1000)),
+              ),
+      });
+}
+
+async function settleOnlineBooking(sql: Sql, pay: PendingPayment): Promise<{ posted: boolean }> {
+    const booking = await one<Parameters<typeof settleHeldBooking>[1]>(
+      sql,
+      `select ${HELD_COLS} from court_bookings where id = $1 for update`,
+      [pay.ref_id],
+    );
+    if (!booking) throw err.notFound("That booking no longer exists.");
+    const court = await one<{ court_code: string }>(
+      sql,
+      `select court_code from courts where id = $1`,
+      [booking.court_id],
+    );
+    // Reuses the same settle path as cash at the desk — occupancy confirmed,
+    // invoice issued, member notified — against the row that already exists.
+    const buyer = await bookingBuyer(sql, booking.id);
+    await settleHeldBooking(sql, booking, court!, {
+      method: "gateway",
+      payAmount: pay.amount_vnd,
+      quotaHours: 0,
+      buyerName: buyer.name,
+      buyerPhone: buyer.phone,
+      actorId: pay.user_id ?? "",
+      existingPaymentId: pay.id,
+    });
+    return { posted: true };
+  }
+
+async function settleOnlineSubscription(sql: Sql, pay: PendingPayment): Promise<{ posted: boolean }> {
+    const sub = await one<{
+      user_id: string;
+      plan_id: string;
+      promo_id: string | null;
+      promo_discount_vnd: number;
+    }>(sql, `select user_id, plan_id, promo_id, promo_discount_vnd from subscriptions where id = $1`, [
+      pay.ref_id,
+    ]);
+    if (!sub) throw err.notFound("That plan order no longer exists.");
+    const plan = await one<{ name: string; duration_days: number; price_vnd: number }>(
+      sql,
+      `select name, duration_days, price_vnd from membership_plans where id = $1`,
+      [sub.plan_id],
+    );
+    if (sub.promo_id && sub.promo_discount_vnd > 0) {
+      await redeemPromo(sql, {
+        promoId: sub.promo_id,
+        userId: sub.user_id,
+        paymentId: pay.id,
+        discountVnd: sub.promo_discount_vnd,
+      });
+    }
+    // The same activation the front desk uses: the plan starts the day it is paid,
+    // and its hours and sessions are credited (BR-19, BR-20).
+    await activateSubscription(sql, pay.ref_id);
+    const buyer = await one<{ full_name: string }>(sql, `select full_name from users where id = $1`, [
+      sub.user_id,
+    ]);
+    const settings = await getSettings(sql);
+    const invoiceId = await issueInvoice(sql, {
+      paymentId: pay.id,
+      buyerName: buyer?.full_name ?? "Khách hàng",
+      amountVnd: pay.amount_vnd,
+      vatRate: Number(settings.vat_rate ?? 0),
+      description: plan ? `Gói hội viên — ${plan.name}` : "Gói hội viên",
+      unit: "gói",
+      settings,
+    });
+    await enqueueReceipt(sql, sub.user_id, {
+      payment_id: pay.id,
+      invoice_id: invoiceId,
+      amount_vnd: pay.amount_vnd,
+      method: "gateway",
+    });
+    return { posted: true };
+  }
+
+async function settleOnlineEnrollment(sql: Sql, pay: PendingPayment, wasReleased: boolean): Promise<{ posted: boolean }> {
+    // The money is in whatever happens to the seat. An outcome that buys no seat
+    // (late, released, class cancelled, paid twice) is flagged to the desk by
+    // settleEnrollment, so the payment stays posted and invoiced.
+    await settleEnrollment(sql, pay.ref_id, { paymentId: pay.id, released: wasReleased });
+    const buyer = await one<{ full_name: string; phone: string | null }>(
+      sql,
+      `select full_name, phone from users where id = $1`,
+      [pay.user_id],
+    );
+    const settings = await getSettings(sql);
+    const item = await describePayment(sql, "enrollment", pay.ref_id);
+    const invoiceId = await issueInvoice(sql, {
+      paymentId: pay.id,
+      buyerName: buyer?.full_name ?? "Khách hàng",
+      buyerPhone: buyer?.phone ?? undefined,
+      amountVnd: pay.amount_vnd,
+      vatRate: Number(settings.vat_rate ?? 0),
+      description: item.description,
+      unit: item.unit,
+      lines: await enrollmentInvoiceLines(sql, pay.ref_id, pay.amount_vnd, item),
+      settings,
+    });
+    if (pay.user_id) {
+      await enqueueReceipt(sql, pay.user_id, {
+        payment_id: pay.id,
+        invoice_id: invoiceId,
+        amount_vnd: pay.amount_vnd,
+        method: "gateway",
+      });
+    }
+    return { posted: true };
+  }

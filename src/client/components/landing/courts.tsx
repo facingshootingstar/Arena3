@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Cover, MediaCaption } from "@/client/components/media";
 import { Button, Card } from "@/client/components/ui";
 import { GlareHover } from "@/client/components/fx";
-import type { CatalogCourt, CatalogPrice } from "@/server/services/catalog";
+import type { CatalogCourt, CatalogPrice } from "@/shared/arena3/contracts";
 import { sportLabel } from "@/shared/arena3/labels";
 import { useScene } from "@/client/lib/gsap";
 import { t } from "@/client/lib/i18n";

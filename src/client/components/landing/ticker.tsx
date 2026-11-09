@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { CatalogClass } from "@/server/services/catalog";
+import type { CatalogClass } from "@/shared/arena3/contracts";
 import { levelLabel, rruleLabel, sportLabel } from "@/shared/arena3/labels";
 import { ScrollTrigger, gsap, useScene } from "@/client/lib/gsap";
 import { useCalm } from "@/client/lib/calm";

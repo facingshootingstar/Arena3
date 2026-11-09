@@ -6,7 +6,7 @@ import { gsap, useScene } from "@/client/lib/gsap";
 import { useCalm } from "@/client/lib/calm";
 import { t, useLang } from "@/client/lib/i18n";
 import { useSports } from "@/client/components/sports-ui";
-import type { CatalogCourt } from "@/server/services/catalog";
+import type { CatalogCourt } from "@/shared/arena3/contracts";
 import { rise } from "./tweens";
 
 /**

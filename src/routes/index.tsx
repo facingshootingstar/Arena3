@@ -108,10 +108,13 @@ function Landing() {
     };
   }, [schedDate, sched.date]);
 
-  const freeBySport = (s: string) =>
-    freeHours(sched.courts.filter((c) => c.sport === s), sched.slots, sched.date, now, true, hoursOf(venue)).length;
   // Guests book like members: an hour that has started is no longer on offer (BR-07).
   const schedFreeList = freeHours(sched.courts, sched.slots, sched.date, now, true, hoursOf(venue));
+  const freeCounts = new Map<string, number>();
+  for (const { court } of schedFreeList) {
+    freeCounts.set(court.sport, (freeCounts.get(court.sport) ?? 0) + 1);
+  }
+  const freeBySport = (sport: string) => freeCounts.get(sport) ?? 0;
   const schedFree = schedFreeList.length;
   // Hours come out earliest first, so the first one is the next you could play. Until the clock
   // arrives (now = 0) nothing has been ruled out yet, so the offer waits for it.
