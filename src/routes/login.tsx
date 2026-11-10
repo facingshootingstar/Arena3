@@ -13,6 +13,21 @@ import { roleLabel } from "@/shared/arena3/labels";
 import { LangSwitch } from "@/client/components/lang-switch";
 import { t, tServer, tk } from "@/client/lib/i18n";
 
+/** Where the member was heading before sign-in (e.g. the desk QR link), else their home. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function navigateAfterLogin(navigate: any, role: SessionUser["role"]) {
+  let next: string | null = null;
+  try {
+    next = sessionStorage.getItem("arena3:after-login");
+    sessionStorage.removeItem("arena3:after-login");
+  } catch {
+    /* storage blocked: go home */
+  }
+  const home = homeFor(role);
+  if (next && next.startsWith(home.split("/").slice(0, 2).join("/") + "/")) navigate({ href: next });
+  else navigate({ to: home });
+}
+
 export const Route = createFileRoute("/login")({ component: Login });
 
 /**
@@ -69,7 +84,7 @@ function Login() {
       });
       setSession(res.token, res.user);
       toast.success(t("Welcome, {name}", { name: res.user.full_name }), { id: "login-hello" });
-      navigate({ to: homeFor(res.user.role) });
+      navigateAfterLogin(navigate, res.user.role);
     } catch (err) {
       const msg = err instanceof Error ? tServer(err.message) : t("Could not sign you in");
       toast.error(msg, { id: "login-error-toast" });
@@ -192,7 +207,7 @@ function Login() {
             onSignedIn={(res) => {
               setSession(res.token, res.user);
               toast.success(t("Welcome, {name}", { name: res.user.full_name }), { id: "login-hello" });
-              navigate({ to: homeFor(res.user.role) });
+              navigateAfterLogin(navigate, res.user.role);
             }}
             onError={(err) => {
               const msg = err instanceof Error ? tServer(err.message) : t("Could not sign you in");

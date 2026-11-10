@@ -8,6 +8,7 @@ import { Badge, Button, Card, Field, Input, LoadError, PageHero, Skeleton } from
 import { Tilt } from "@/client/components/motion";
 import { GlareHover } from "@/client/components/fx";
 import { apiGet, apiPost } from "@/client/arena3/client";
+import { QrScanner, tokenFromScan } from "@/client/components/qr-scanner";
 import { t } from "@/client/lib/i18n";
 
 export const Route = createFileRoute("/app/pass")({ component: Page });
@@ -72,7 +73,7 @@ function Page() {
     setSelfBusy(true);
     try {
       const res = await apiPost<{ allowed: boolean; duplicate?: boolean; message?: string }>("/me/self-checkin", {
-        token: code,
+        token: tokenFromScan(code),
       });
       if (res.allowed) {
         setInside(res.duplicate ? t("You are already checked in today.") : t("You are checked in. Enjoy your session."));
@@ -169,6 +170,12 @@ function Page() {
             >
               <Input value={selfCode} onChange={(e) => setSelfCode(e.target.value)} placeholder={t("Code from the desk screen")} />
             </Field>
+            <QrScanner
+              startLabel={t("Scan the desk code")}
+              onCode={(c) => {
+                if (!selfBusy) void sendSelf(c);
+              }}
+            />
             <div>
               <Button type="submit" variant="outline" disabled={selfBusy || !selfCode.trim()}>
                 {selfBusy ? t("Checking…") : t("Check in")}

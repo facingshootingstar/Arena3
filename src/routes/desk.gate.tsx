@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { toast } from "sonner";
 import { Shell, hhmm, money, useSessionUser } from "@/client/components/shell";
 import { UserAvatar } from "@/client/components/user-avatar";
+import { QrScanner, tokenFromScan } from "@/client/components/qr-scanner";
 import { PageHero } from "@/client/components/page-hero";
 import { StatStrip } from "@/client/components/stat-strip";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/client/components/ui";
@@ -137,7 +138,7 @@ function Page() {
   function submitScan(e: React.FormEvent) {
     e.preventDefault();
     const v = scan.trim();
-    if (v) void send({ kind: "qr", token: v });
+    if (v) void send({ kind: "qr", token: tokenFromScan(v) });
   }
 
   function submitManual(e: React.FormEvent) {
@@ -178,7 +179,7 @@ function Page() {
             />
             {mode === "qr" ? (
               <form onSubmit={submitScan} className="grid gap-3">
-                <CameraScanner onCode={(c) => void send({ kind: "qr", token: c })} />
+                <QrScanner onCode={(c) => void send({ kind: "qr", token: tokenFromScan(c) })} hint={t("Hold the member's phone up to the camera.")} />
                 <Field tone="muted" label={t("Scanner input")} hint={t("A handheld scanner types here. Focus stays on this box.")}>
                   <Input
                     id="gate-scan"
@@ -274,7 +275,7 @@ function Page() {
                 </div>
               </div>
               {result.flagged ? <Badge tone="hold">{t("Flagged for the manager")}</Badge> : null}
-              {result.warnings.map((w) => (
+              {(result.warnings ?? []).map((w) => (
                 <p
                   key={w.kind + w.message}
                   className={`rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium ${
@@ -286,7 +287,7 @@ function Page() {
                   {tServer(w.message)}
                 </p>
               ))}
-              {result.plans.map((p) => (
+              {(result.plans ?? []).map((p) => (
                 <p key={p.id} className="text-sm">
                   {tData(p.name)}
                   <span className="text-muted">
@@ -295,7 +296,7 @@ function Page() {
                   </span>
                 </p>
               ))}
-              {result.today.sessions.length || result.today.bookings.length ? (
+              {result.today?.sessions?.length || result.today?.bookings?.length ? (
                 <div className="text-base font-semibold">
                   <p
                     className={`kicker text-2xs ${
@@ -305,12 +306,12 @@ function Page() {
                     {t("Today")}
                   </p>
                   <ul className="mt-1 grid gap-1">
-                    {result.today.sessions.map((s) => (
+                    {(result.today?.sessions ?? []).map((s) => (
                       <li key={s.id}>
                         {hhmm(s.start_at)} · {t("{sport} class", { sport: sportLabel(s.sport) })} · {s.court_code}
                       </li>
                     ))}
-                    {result.today.bookings.map((b) => (
+                    {(result.today?.bookings ?? []).map((b) => (
                       <li key={b.id}>
                         {hhmm(b.start_at)} · {t("court {code}", { code: b.court_code })} <span className="opacity-70">({b.code})</span>
                       </li>
@@ -418,77 +419,15 @@ function Page() {
   );
 }
 
-/**
- * Reads the member's phone with the device camera where the browser can
- * (BarcodeDetector); everywhere else the scanner-input box above is the way in.
- */
-function CameraScanner({ onCode }: { onCode: (code: string) => void }) {
-  const [on, setOn] = useState(false);
-  const video = useRef<HTMLVideoElement>(null);
-  const supported = typeof window !== "undefined" && "BarcodeDetector" in window;
-  // The latest handler, read at scan time. Listing `onCode` itself as a dependency restarted the
-  // camera on every keystroke elsewhere on the screen, because the parent makes a new one each render.
-  const handler = useRef(onCode);
-  useEffect(() => {
-    handler.current = onCode;
-  });
+/** The address a member's phone can open: VITE_PUBLIC_URL when set, else this page's own origin. */
+function publicOrigin() {
+  const env = (import.meta.env.VITE_PUBLIC_URL as string | undefined)?.replace(/\/+$/, "");
+  return env || window.location.origin;
+}
 
-  useEffect(() => {
-    if (!on) return;
-    let stop = false;
-    let stream: MediaStream | null = null;
-    let last = "";
-    (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (stop) {
-          // Switched off while the browser was still asking: do not leave the camera running.
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        if (!video.current) return;
-        video.current.srcObject = stream;
-        await video.current.play();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const detector = new (window as any).BarcodeDetector({ formats: ["qr_code"] });
-        const loop = async () => {
-          if (stop || !video.current) return;
-          try {
-            const found = await detector.detect(video.current);
-            const raw: string | undefined = found[0]?.rawValue;
-            if (raw && raw !== last) {
-              last = raw;
-              handler.current(raw);
-              setTimeout(() => (last = ""), 4000);
-            }
-          } catch {
-            /* a frame that cannot be read is skipped */
-          }
-          setTimeout(() => void loop(), 250);
-        };
-        void loop();
-      } catch {
-        toast.error(t("The camera is not available. Use the scanner box instead."));
-        setOn(false);
-      }
-    })();
-    return () => {
-      stop = true;
-      stream?.getTracks().forEach((track) => track.stop());
-    };
-  }, [on]);
-
-  if (!supported) return null;
-  return (
-    <div className="grid gap-2">
-      {on ? <video ref={video} muted playsInline className="aspect-video w-full rounded-[var(--radius-md)] bg-black object-cover" /> : null}
-      <div>
-        <Button type="button" variant="outline" size="sm" onClick={() => setOn((v) => !v)}>
-          {on ? t("Turn camera off") : t("Use the camera")}
-        </Button>
-      </div>
-    </div>
-  );
+/** A phone cannot open "localhost": that address points at the phone itself. */
+function phoneCannotReach() {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(publicOrigin());
 }
 
 /** The 30-second code members scan to check themselves in, when the centre allows it. */
@@ -514,7 +453,7 @@ function SelfCheckinCode() {
         const res = await apiGet<{ enabled: boolean; token: string; expires_at: string }>("/desk/checkin-qr");
         if (stop) return;
         if (res.enabled) {
-          const url = `${window.location.origin}/app/pass?d=${encodeURIComponent(res.token)}`;
+          const url = `${publicOrigin()}/app/pass?d=${encodeURIComponent(res.token)}`;
           const drawn = await QRCode.toDataURL(url, { margin: 1, width: 280, errorCorrectionLevel: "M" });
           if (stop) return;
           setImg(drawn);
@@ -560,6 +499,11 @@ function SelfCheckinCode() {
         <p className="text-sm text-muted">{t("Self check-in is switched off. A manager can turn it on in Settings.")}</p>
       ) : null}
       {open && !problem && enabled !== false && !img ? <Skeleton className="mx-auto size-56" /> : null}
+      {open && !problem && enabled && img && phoneCannotReach() ? (
+        <p className="text-xs text-hold">
+          {t("This screen is open on localhost, which a phone cannot reach. Open the desk at this computer's network address (for example http://192.168.1.10:8080), or set VITE_PUBLIC_URL.")}
+        </p>
+      ) : null}
       {open && !problem && enabled && img ? (
         <img src={img} alt={t("Self check-in code")} className="mx-auto size-56 rounded-[var(--radius-md)] bg-white p-2" />
       ) : null}

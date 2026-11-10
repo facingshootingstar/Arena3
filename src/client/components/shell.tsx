@@ -953,6 +953,12 @@ export function Guard({
     const u = getStoredUser();
     const tok = getToken();
     if (!tok || !u) {
+      // Come back here after sign-in, so a scanned link (desk QR) still finishes the check-in.
+      try {
+        sessionStorage.setItem("arena3:after-login", window.location.pathname + window.location.search);
+      } catch {
+        /* storage blocked: the member lands on their home page instead */
+      }
       navigate({ to: "/login" });
       return;
     }

@@ -433,4 +433,9 @@ export const member: Record<string, string> = {
   "Mark all as read": "Đánh dấu đã đọc tất cả",
   "No notifications yet": "Chưa có thông báo nào",
   "Bookings, payments and class updates will appear here.": "Đặt sân, thanh toán và cập nhật lớp học sẽ hiện ở đây.",
+  "Scan the desk code": "Quét mã ở quầy",
+  "Starting camera…": "Đang mở camera…",
+  "Camera permission was refused. Allow the camera in the browser, or type the code.": "Trình duyệt chưa cho dùng camera. Hãy cho phép camera hoặc nhập mã.",
+  "The camera is not available. Type the code instead.": "Không mở được camera. Hãy nhập mã.",
+  "The session is {m} min. You can still publish.": "Buổi học dài {m} phút. Vẫn đăng được.",
 };

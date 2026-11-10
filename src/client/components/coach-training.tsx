@@ -18,6 +18,7 @@ export type TrainingSession = {
   id: string;
   class_id: string;
   start_at: string;
+  end_at?: string;
   sport: string;
   level: string;
   status: string;
@@ -223,7 +224,7 @@ type PlanRow = {
 };
 type Template = { id: string; title: string | null; payload: PlanPayload };
 type Version = { version: number; title: string | null; payload: PlanPayload; created_at: string };
-type PlanWarning = { message: string };
+type PlanWarning = { message: string; kind?: string };
 
 const INTENSITIES = [tk("light"), tk("medium"), tk("hard")] as const;
 const MAX_BLOCKS = 12;
@@ -294,6 +295,11 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
   const [open, setOpen] = useState<Record<number, boolean>>({ 0: true });
   const [history, setHistory] = useState<{ plan: PlanRow; items: Version[] } | null>(null);
 
+  // Same rule as the server (FR-TRN-04): a hint, never a block on publishing.
+  const sessionMinutes = session.end_at
+    ? Math.round((new Date(session.end_at).getTime() - new Date(session.start_at).getTime()) / 60_000)
+    : null;
+
   function reset() {
     setBlocks([blank()]);
     setTitle("");
@@ -304,7 +310,8 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
   }
 
   function warn(warnings: PlanWarning[] | undefined) {
-    for (const w of warnings ?? []) toast.warning(tServer(w.message));
+    // The length check is shown live under the blocks, so a toast after saving only repeats it.
+    for (const w of warnings ?? []) if (w.kind !== "duration_mismatch") toast.warning(tServer(w.message));
   }
 
   async function suggest() {
@@ -646,6 +653,11 @@ export function PlanPanel({ session, f5 }: { session: TrainingSession; f5: boole
               <span className="text-xs text-muted">
                 {t("{n} of {max} blocks · {min} min in total", { n: blocks.length, max: MAX_BLOCKS, min: planMinutes(blocks) })}
               </span>
+              {sessionMinutes && Math.abs(planMinutes(blocks) - sessionMinutes) > 15 ? (
+                <span className="text-xs text-hold">
+                  {t("The session is {m} min. You can still publish.", { m: sessionMinutes })}
+                </span>
+              ) : null}
             </div>
           </div>
 
