@@ -18,17 +18,33 @@ export type ReplyOptions = { maxOutputTokens?: number; json?: boolean };
 const DEFAULT_GEMINI_MODELS = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"];
 const XAI_MODEL = "grok-4.5";
 /** One model's attempt. A Flash reply takes 4–9 s on the free tier. */
-const TRY_MS = 9_000;
+let TRY_MS = 9_000;
 /** The whole question, fallbacks included: one slow answer plus a short second chance. */
-const TOTAL_MS = 14_000;
+let TOTAL_MS = 14_000;
+/**
+ * Longest turn of a conversation, in characters, everywhere it travels: the
+ * reply shown to the member, the reply sealed for the thread
+ * (`assistant-thread.ts`) and each turn sent back to a model. One number, so
+ * a follow-up about the end of a long answer still reaches the model with
+ * that end in it.
+ */
+export const MAX_TURN_CHARS = 4000;
 /** Models asked per question. Each try spends free-tier quota (about 20 a day), so a bad hour costs two, not three. */
 const MAX_MODELS_PER_ASK = 2;
 const MAX_OUT = 1024;
+/** Less time than this left before the deadline is not worth a request. */
+let MIN_TRY_MS = 1_500;
 /** Overloaded / rate-limited / timed out: try it again soon. */
 const COOL_BUSY_MS = 60_000;
 /** Not found / not offered to this key / request rejected: leave it alone for a long time. */
 const COOL_GONE_MS = 6 * 60 * 60_000;
 
+/**
+ * When each model that failed may be asked again. An entry stays after its
+ * time has passed: the model is then "recovering", and only one recovering
+ * model is tried per question, so a chain that was all down comes back one
+ * request at a time instead of every question paying for every model.
+ */
 const coolUntil = new Map<string, number>();
 /** Models that answered 400 to `thinkingConfig` and then worked without it. */
 const noThinkingConfig = new Set<string>();
@@ -58,21 +74,53 @@ export function geminiModels(): string[] {
   return [...new Set(clean.length ? clean : DEFAULT_GEMINI_MODELS)];
 }
 
-/** Models not cooling down, in order. If every one is cooling, all of them — better a try than a sure miss. */
-function modelsToTry(now = Date.now()): string[] {
-  const all = geminiModels();
-  const ready = all.filter((m) => (coolUntil.get(m) ?? 0) <= now);
-  return ready.length ? ready : all;
+/**
+ * The models worth asking now, in the configured order: every healthy one,
+ * plus at most one whose cooldown has run out. A model still cooling is never
+ * asked — when nothing is left the question goes straight to xAI or the
+ * rule-based reply instead of waiting on models known to be failing.
+ */
+export function modelsToTry(now = Date.now()): string[] {
+  let probe = false;
+  return geminiModels().filter((m) => {
+    const until = coolUntil.get(m);
+    if (until === undefined) return true;
+    if (until > now || probe) return false;
+    probe = true;
+    return true;
+  });
 }
 
-/** Test hooks: forget every cooldown, or everything learned about the models. */
+/** Test hooks: forget every cooldown, end them all now, or forget everything learned about the models. */
 export function resetGeminiCooldowns(): void {
   coolUntil.clear();
+}
+
+export function expireGeminiCooldowns(): void {
+  for (const m of coolUntil.keys()) coolUntil.set(m, 0);
+}
+
+export function setGeminiTimingForTests(t: { tryMs?: number; totalMs?: number; minMs?: number } | null): void {
+  TRY_MS = t?.tryMs ?? 9_000;
+  TOTAL_MS = t?.totalMs ?? 14_000;
+  MIN_TRY_MS = t?.minMs ?? 1_500;
 }
 
 export function resetGeminiState(): void {
   coolUntil.clear();
   noThinkingConfig.clear();
+  setGeminiTimingForTests(null);
+}
+
+/**
+ * Thinking switched off as far as the model allows, so it cannot eat the
+ * output budget and cut the answer short. Gemini 3 and later take
+ * `thinkingLevel` (Google's current setting for them; "minimal" is accepted by
+ * every default model above); 2.x takes `thinkingBudget: 0`.
+ */
+export function thinkingOffConfig(model: string): Record<string, unknown> {
+  const gen = Number(/^gemini-(\d+)/.exec(model)?.[1] ?? 0);
+  return gen >= 3 ? { thinkingLevel: "minimal" } : { thinkingBudget: 0 };
 }
 
 type GeminiCandidate = { finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } };
@@ -109,11 +157,10 @@ async function tryGemini(
   thinkingOff = !noThinkingConfig.has(model),
 ): Promise<Outcome> {
   const maxOut = opts.maxOutputTokens ?? MAX_OUT;
-  // Thinking is switched off where the model allows it, so it cannot eat the
-  // output budget and cut the answer short. A model that refuses the setting
-  // is asked without it, with room for its thoughts.
-  const ms = Math.min(TRY_MS, deadline - Date.now());
-  if (ms < 1_500) return { kind: "stop" };
+  // A model that refuses the thinking setting is asked without it, with room for its thoughts.
+  const left = deadline - Date.now();
+  if (left < MIN_TRY_MS) return { kind: "stop" };
+  const ms = Math.min(TRY_MS, left);
   let res: Response;
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -126,7 +173,7 @@ async function tryGemini(
         generationConfig: {
           temperature: 0.35,
           maxOutputTokens: thinkingOff ? maxOut : maxOut * 2,
-          ...(thinkingOff ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          ...(thinkingOff ? { thinkingConfig: thinkingOffConfig(model) } : {}),
           ...(opts.json ? { responseMimeType: "application/json" } : {}),
         },
         safetySettings: [
@@ -195,7 +242,7 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ReplyOptions,
   if (!key) return null;
   const contents = turns
     .filter((t) => t.text.trim().length > 0)
-    .map((t) => ({ role: t.role === "model" ? "model" : "user", parts: [{ text: t.text.slice(0, 2000) }] }));
+    .map((t) => ({ role: t.role === "model" ? "model" : "user", parts: [{ text: t.text.slice(0, MAX_TURN_CHARS) }] }));
   while (contents.length && contents[0]?.role !== "user") contents.shift();
   if (!contents.length) return null;
 
@@ -210,13 +257,14 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ReplyOptions,
 async function callXai(system: string, turns: ChatTurn[], opts: ReplyOptions, deadline: number): Promise<string | null> {
   const key = xaiApiKey();
   if (!key) return null;
-  const ms = Math.min(TRY_MS, deadline - Date.now());
-  if (ms < 1_500) return null;
+  const left = deadline - Date.now();
+  if (left < MIN_TRY_MS) return null;
+  const ms = Math.min(TRY_MS, left);
   const messages = [
     { role: "system", content: system },
     ...turns.map((t) => ({
       role: t.role === "model" ? "assistant" : "user",
-      content: t.text.slice(0, 2000),
+      content: t.text.slice(0, MAX_TURN_CHARS),
     })),
   ];
   const res = await fetch("https://api.x.ai/v1/chat/completions", {

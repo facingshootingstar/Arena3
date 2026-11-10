@@ -12,8 +12,8 @@ import { ATTENDANCE_LOCK_HOURS, PLAN_PHASES, INTENSITIES, attendanceLocked, isAt
 import { checkAbsentStreaks, sessionScope } from "./training";
 import { openShift, pickMethod } from "./extras";
 import { addDays, ictDateString } from "../../../shared/arena3/time";
-import { one } from "../tx";
-import { MAX_BOT_TURN, signReply, verifyReply } from "../../services/assistant-thread";
+import { one, withTx } from "../tx";
+import { MAX_BOT_TURN, MAX_QUESTION, parseHistory, signReply } from "../../services/assistant-thread";
 import { payosConfigured } from "../../integrations/payos";
 import { centreBank } from "../../integrations/bank";
 import { pageParams, parseInteger } from "../validate";
@@ -658,7 +658,7 @@ function ticketQuota(userId: string): void {
 export async function assistantChat(sql: Sql, request: Request, user: PublicUser) {
   await requireFlag(sql, "F6");
   const body = await readJson(request);
-  const message = (str(body.message) ?? "").trim().slice(0, 800);
+  const message = (str(body.message) ?? "").trim().slice(0, MAX_QUESTION);
   if (message.length < 2) throw err.validation("Type a question first.");
   // The ceiling on the endpoint itself (FR-A03), charged before the branch
   // below rather than inside it: every turn costs a `requireFlag` query whether
@@ -689,14 +689,18 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     // the endpoint ceiling above, not a slot in the desk's queue.
     ticketQuota(user.id);
     // The route runs outside a transaction so the model call below holds no
-    // connection; each write here commits on its own. A missing audit row is
-    // the worst a failure between them can leave.
-    const t = await one<{ id: string }>(
-      sql,
-      `insert into tickets (user_id, body) values ($1,$2) returning id`,
-      [user.id, note],
-    );
-    await audit(sql, user.id, "assistant", "chat", user.id, null, { q: note.slice(0, 200), source: "ticket" });
+    // connection. The ticket and its audit row commit together here: had the
+    // audit failed after the ticket was saved, the member would see an error,
+    // send again, and the desk would get the same request twice.
+    const t = await withTx(async (tx) => {
+      const row = await one<{ id: string }>(
+        tx,
+        `insert into tickets (user_id, body) values ($1,$2) returning id`,
+        [user.id, note],
+      );
+      await audit(tx, user.id, "assistant", "chat", user.id, null, { q: note.slice(0, 200), source: "ticket" });
+      return row;
+    });
     return {
       status: 200,
       body: {
@@ -822,40 +826,6 @@ ${facts}`;
   // back as the model's own words taught it to repeat the canned line.
   const sig = ai ? signReply(user.id, message, reply) : undefined;
   return { status: 200, body: { reply, source, ...(sig ? { sig } : {}) } };
-}
-
-/**
- * The earlier turns the browser sends up with a question.
- *
- * Only question → answer pairs whose `sig` proves this server wrote that
- * answer to that question for this member (`assistant-thread.ts`) are kept: a
- * browser must not get to write the assistant's past for it and talk it into a
- * discount or a free court that does not exist.
- *
- * A question with no sealed answer after it (an old thread, a failed call, a
- * rule-based reply, a ticket confirmation) is dropped: handed a row of
- * unanswered questions, the model answered the oldest one again instead of the
- * one just asked.
- */
-function parseHistory(raw: unknown, userId: string): ChatTurn[] {
-  if (!Array.isArray(raw)) return [];
-  type Rec = { role?: unknown; text?: unknown; sig?: unknown };
-  const items = raw.slice(-16).filter((x): x is Rec => !!x && typeof x === "object" && typeof (x as Rec).text === "string");
-  const out: ChatTurn[] = [];
-  for (let i = 0; i < items.length - 1; i++) {
-    const q = items[i]!;
-    const a = items[i + 1]!;
-    if (q.role !== "me" && q.role !== "user") continue;
-    if (a.role !== "bot" && a.role !== "model") continue;
-    // The same trim and cap `assistantChat` applied to the question it sealed.
-    const question = (q.text as string).trim().slice(0, 800);
-    const answer = a.text as string;
-    if (question && verifyReply(userId, question, answer, a.sig)) {
-      out.push({ role: "user", text: question }, { role: "model", text: answer });
-      i++;
-    }
-  }
-  return out.slice(-8);
 }
 
 /**

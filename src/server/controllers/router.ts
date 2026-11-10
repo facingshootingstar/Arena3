@@ -734,8 +734,9 @@ async function dispatch(request: Request): Promise<Response | Result> {
   }
   // Not `authed`: a model call takes seconds, and inside a transaction it held
   // a connection (on PGlite, the only one) for the whole wait. The exception
-  // to the pure-select rule above: its writes (a ticket, an audit row) each
-  // commit on their own, and none needs the others to be atomic.
+  // to the pure-select rule above: the handler opens its own short transaction
+  // for the ticket and its audit row, and writes only the chat audit row on its
+  // own, after the model has answered.
   if (method === "POST" && p0 === "assistant") {
     return authedRead((sql, user) => opsH.assistantChat(sql, request, user));
   }
