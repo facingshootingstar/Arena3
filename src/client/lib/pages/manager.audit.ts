@@ -110,8 +110,11 @@ function fieldLabel(key: string): string {
   const known = FIELD_LABEL[key];
   if (known) return t(known);
   // A nested field (`venue.open_hour`) or one nobody has named yet: its own name, tidied.
-  const tidy = key.replace(/[._]+/g, " ").trim();
-  return tidy.charAt(0).toUpperCase() + tidy.slice(1);
+  // A menu item (`nav.member › /app/pass.dock`) keeps its link as written.
+  const [head, ...rest] = key.split(" › ");
+  const tidy = head.replace(/[._]+/g, " ").trim();
+  const item = rest.join(" › ").replace(/\.(\w+)$/, " · $1");
+  return tidy.charAt(0).toUpperCase() + tidy.slice(1) + (item ? ` › ${item}` : "");
 }
 
 
@@ -120,12 +123,34 @@ function isPlain(v: unknown): v is Record<string, unknown> {
 }
 
 
-/** One level of nesting is opened up (`venue.open_hour`); deeper values are compared whole. */
-function flatten(v: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, val] of Object.entries(v)) {
-    if (isPlain(val)) for (const [k2, v2] of Object.entries(val)) out[`${k}.${k2}`] = v2;
-    else out[k] = val;
+/** A JSON text (a setting stored as a string) is read as the value it holds. */
+function parsed(v: unknown): unknown {
+  if (typeof v !== "string" || !/^\s*[[{]/.test(v)) return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return v;
+  }
+}
+
+
+/**
+ * Nested settings are opened down to their leaves (`nav.member./app/pass.dock`), so a
+ * change to one menu item shows as one line instead of two walls of JSON. Lists of
+ * links are keyed by their `to`, so a removed item reads as removed, not as a shift.
+ */
+function flatten(v: Record<string, unknown>, prefix = "", out: Record<string, unknown> = {}): Record<string, unknown> {
+  for (const [k, raw] of Object.entries(v)) {
+    const val = parsed(raw);
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (isPlain(val)) flatten(val as Record<string, unknown>, key, out);
+    else if (Array.isArray(val) && val.length && val.every((x) => isPlain(x) && typeof (x as { to?: unknown }).to === "string")) {
+      for (const item of val as Array<Record<string, unknown>>) {
+        const { to, ...rest } = item;
+        if (Object.keys(rest).length) flatten(rest, `${key} › ${to as string}`, out);
+        else out[`${key} › ${to as string}`] = true;
+      }
+    } else out[key] = val;
   }
   return out;
 }
@@ -185,6 +210,8 @@ type Change = { key: string; label: string; from: string | null; to: string };
 /** The fields that differ between the two snapshots; a created or deleted row lists what it had. */
 function changesOf(before: unknown, after: unknown): Change[] {
   if (before == null && after == null) return [];
+  before = parsed(before);
+  after = parsed(after);
   if (!isPlain(before ?? {}) || !isPlain(after ?? {})) {
     if (JSON.stringify(before) === JSON.stringify(after)) return [];
     return [{ key: "value", label: t("Value"), from: showValue(before), to: showValue(after) }];
