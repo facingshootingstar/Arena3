@@ -7,7 +7,7 @@ import { Button, LoadError } from "@/client/components/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { GLBackground, Magnet, ShinyText } from "@/client/components/fx";
 import { apiPost } from "@/client/arena3/client";
-import { type ChatMsg, useChatLog } from "@/client/lib/chat-log";
+import { type ChatMsg, historyFor, useChatLog } from "@/client/lib/chat-log";
 import { cn } from "@/client/lib/cn";
 import { scrollBehavior } from "@/client/lib/calm";
 import { t, tk } from "@/client/lib/i18n";
@@ -81,15 +81,12 @@ function Page() {
     setBusy(true);
     setFailure(null);
     try {
-      // Only what the member typed. The server drops anything else anyway —
-      // a browser must not get to write the assistant's side of the thread —
-      // so sending the bot's turns would just be bytes it throws away.
-      const history = thread
-        .filter((m) => m !== WELCOME && m.role === "me")
-        .slice(0, -1)
-        .map((m) => ({ role: m.role, text: m.text }));
-      const r = await apiPost<{ reply: string; source?: Msg["source"] }>("/assistant", { message, history });
-      append({ role: "bot", text: r.reply, source: r.source });
+      // Everything before this question: the member's turns and the
+      // assistant's sealed ones. The server checks each seal, so a browser
+      // still cannot write the assistant's side of the thread.
+      const history = historyFor(thread.filter((m) => m !== WELCOME).slice(0, -1));
+      const r = await apiPost<{ reply: string; source?: Msg["source"]; sig?: string }>("/assistant", { message, history });
+      append({ role: "bot", text: r.reply, source: r.source, sig: r.sig });
     } catch (e) {
       setFailure({ message, reason: e instanceof Error ? e.message : t("The assistant is switched off") });
     } finally {
