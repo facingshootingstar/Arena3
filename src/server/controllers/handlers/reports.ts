@@ -3,7 +3,7 @@ import { pct1, summarizeCapacity, type CapacityCell } from "../../services/capac
 import type { Sql } from "@/server/data/db";
 import { err } from "../errors";
 import { getSettings } from "../helpers";
-import { classCode, formatDate, methodLabel, sourceLabel, sportLabel } from "../../../shared/arena3/labels";
+import { classCode, formatDate, methodLabel, registerSportNames, sourceLabel, sportLabel } from "../../../shared/arena3/labels";
 import { buildReportPdf, buildXlsx, type ReportDoc } from "../../data/report-files";
 import { requireRole, type PublicUser } from "../session";
 import { addDays, ictDateString } from "../../../shared/arena3/time";
@@ -158,6 +158,7 @@ function filterRows(from: string, to: string, extra: [string, string][]): [strin
 }
 
 export async function reportDoc(sql: Sql, request: Request, kind: string): Promise<{ doc: ReportDoc; from: string; to: string }> {
+  registerSportNames(await sql.query<{ code: string; name: string }>("select code, name_en as name from sports"));
   const generated_at = new Date().toLocaleString("en-GB", { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "medium", timeStyle: "short" });
   if (kind === "attendance" || kind === "at-risk") {
     const sp = new URL(request.url).searchParams;

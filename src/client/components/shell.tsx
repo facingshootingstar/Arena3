@@ -45,6 +45,7 @@ import { AnimatePresence, PageIn, motion } from "./motion";
 import { GradualBlur } from "./fx";
 import { Spot, spotForPath } from "./illustrations";
 import { UserAvatar } from "./user-avatar";
+import { useSports } from "./sports-ui";
 import { cn } from "@/client/lib/cn";
 import { useLive } from "@/client/lib/use-live";
 import { useRead } from "@/client/lib/use-read";
@@ -743,6 +744,7 @@ export function Shell({
   // flag is still loading they stay — a nav that flickers away and back reads
   // worse than a button that briefly 403s.
   const { ui } = useCentre();
+  useSports(); // loads the sport catalog so sportLabel() shows DB names everywhere
   const navRole = role in ui.nav ? (role as NavRole) : null;
   const items = (navRole ? navItems(navRole, ui.nav[navRole]) : []).filter(
     (it) => f6 || (it.to !== "/chat" && it.to !== "/app/assistant"),

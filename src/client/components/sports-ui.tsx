@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/client/lib/cn";
-import { sportLabel } from "@/shared/arena3/labels";
+import { registerSportNames, sportLabel } from "@/shared/arena3/labels";
 import { locale } from "@/client/lib/i18n";
 import { useSportPhoto } from "./media";
 
@@ -57,6 +57,7 @@ export function useSports(): UseSportsResult {
           if (data && Array.isArray(data.items) && data.items.length > 0) {
             const enriched = enrichSports(data.items);
             cachedSports = enriched;
+            registerSportNames(enriched);
             if (!cancelled) setSports(toResult(enriched));
           }
         })
