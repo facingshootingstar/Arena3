@@ -246,7 +246,12 @@ async function callGemini(system: string, turns: ChatTurn[], opts: ReplyOptions,
   while (contents.length && contents[0]?.role !== "user") contents.shift();
   if (!contents.length) return null;
 
-  for (const model of modelsToTry().slice(0, MAX_MODELS_PER_ASK)) {
+  const models = modelsToTry().slice(0, MAX_MODELS_PER_ASK);
+  // Claim the probe before the first await: a second request arriving while it
+  // is in flight then sees the model still cooling instead of probing it too.
+  const hold = Date.now() + TRY_MS;
+  for (const m of models) if (coolUntil.has(m)) coolUntil.set(m, hold);
+  for (const model of models) {
     const out = await tryGemini(model, key, system, contents, opts, deadline);
     if (out.kind === "ok") return out.text;
     if (out.kind === "stop") return null;

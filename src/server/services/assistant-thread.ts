@@ -48,7 +48,13 @@ function mac(userId: string, issuedAt: number, question: string, reply: string):
     .subarray(0, 18);
 }
 
-export function signReply(userId: string, question: string, reply: string, now = Date.now()): string {
+let lastIssued = 0;
+
+export function signReply(userId: string, question: string, reply: string, at = Date.now()): string {
+  // Strictly increasing per server, so two answers sealed in the same
+  // millisecond still have one order that `parseHistory` can check.
+  const now = at <= lastIssued && lastIssued - at < 1_000 ? lastIssued + 1 : at;
+  lastIssued = now;
   return `${now.toString(36)}.${mac(userId, now, question, reply).toString("base64url")}`;
 }
 
@@ -89,7 +95,7 @@ export function parseHistory(raw: unknown, userId: string, now = Date.now()): Ch
     const question = (q.text as string).trim().slice(0, MAX_QUESTION);
     const answer = a.text as string;
     const issuedAt = question ? verifyReply(userId, question, answer, a.sig, now) : null;
-    if (issuedAt !== null && issuedAt >= last) {
+    if (issuedAt !== null && issuedAt > last) {
       out.push({ role: "user", text: question }, { role: "model", text: answer });
       last = issuedAt;
       i++;
