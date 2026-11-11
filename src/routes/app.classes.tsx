@@ -205,7 +205,14 @@ function Page() {
                     {t("Class details")}
                   </button>
                   <div className="mt-4 flex items-baseline justify-between gap-2 text-2xs">
-                    <span className="text-muted">{full ? t("Full") : (c.capacity - c.enrolled_count === 1 ? t("1 seat left") : t("{n} seats left", { n: c.capacity - c.enrolled_count }))}</span>
+                    {/* The lime tag on the photo already counts the last few seats; say it once. */}
+                    <span className="text-muted">
+                      {full
+                        ? t("Full")
+                        : c.capacity - c.enrolled_count <= 3
+                          ? t("Seats filled")
+                          : t("{n} seats left", { n: c.capacity - c.enrolled_count })}
+                    </span>
                     <span className="tabular-nums text-subtle">{pct}%</span>
                   </div>
                   <div className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-wood">
@@ -229,7 +236,8 @@ function Page() {
                       each button sat directly under its own text — so a row of
                       four classes showed four buttons at four heights. */}
                   <div className="mt-auto pt-5">
-                  {(holding?.price_vnd ?? c.price_vnd) != null && (
+                  {/* The enrol button carries the price; the line above it is for seats already taken or held. */}
+                  {(holding?.price_vnd ?? c.price_vnd) != null && (holding || enr) && (
                     <p className="mb-2 font-display text-xl tabular-nums">{money((holding?.price_vnd ?? c.price_vnd)!)}</p>
                   )}
                   {holding ? (

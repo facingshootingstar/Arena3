@@ -421,9 +421,9 @@ export function MembersPanel({ from, to }: { from: string; to: string }) {
                           <td className="px-4 py-2.5">
                             <span className="flex items-center gap-2 font-medium">
                               <SportDot sport={c.sport} />
-                              {c.code}
+                              {sportLabel(c.sport)} · {levelLabel(c.level)}
                             </span>
-                            <span className="block pl-4 text-xs text-muted">{levelLabel(c.level)}</span>
+                            <span className="block pl-4 font-mono text-2xs text-muted">{c.code}</span>
                           </td>
                           <td className="px-3 py-2.5 text-muted">{c.coach}</td>
                           <td className="px-3 py-2.5">

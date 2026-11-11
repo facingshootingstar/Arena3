@@ -12,11 +12,11 @@ import { CancelBookingDialog } from "@/client/components/cancel-booking";
 import { PayOnlineButton } from "@/client/components/pay-online";
 import { MemberTransferModal, type CentreBank } from "@/client/components/transfer-qr-modal";
 import { Shell, money, when } from "@/client/components/shell";
-import { Button, Card, ContextLayout, Input, LoadError, PageHero, Seg, Skeleton, SportThumbnail, StatusBadge } from "@/client/components/ui";
+import { Button, ButtonLink, Card, ContextLayout, Input, LoadError, PageHero, Seg, Skeleton, StatusBadge } from "@/client/components/ui";
 import { StarBorder } from "@/client/components/fx";
 import { openInvoice } from "@/client/arena3/client";
 import { addDaysISO, levelLabel, todayISO, sportLabel } from "@/shared/arena3/labels";
-import { locale, t } from "@/client/lib/i18n";
+import { t, tk } from "@/client/lib/i18n";
 import { cn } from "@/client/lib/cn";
 import { hoursOf } from "@/client/lib/venue";
 import { AddToCalendar } from "@/client/components/class-extras";
@@ -29,6 +29,34 @@ export const Route = createFileRoute("/app/book")({
   }),
   component: Page,
 });
+
+const STEPS = [tk("Pick an hour"), tk("Held for you"), tk("Pay")] as const;
+
+/** The three steps of a booking, with the one the member is on lit. */
+function BookingSteps({ step }: { step: 1 | 2 | 3 }) {
+  return (
+    <ol aria-label={t("Booking steps")} className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {STEPS.map((label, i) => {
+        const n = i + 1;
+        const state = n < step ? "done" : n === step ? "now" : "todo";
+        return (
+          <li key={label} aria-current={state === "now" ? "step" : undefined} className="flex items-center gap-2">
+            {i ? <span aria-hidden className="h-px w-4 bg-line-strong sm:w-8" /> : null}
+            <span
+              className={cn(
+                "grid size-6 place-items-center rounded-[var(--radius-pill)] font-mono text-2xs font-bold tabular-nums transition-colors duration-200",
+                state === "now" ? "bg-accent text-accent-fg" : state === "done" ? "bg-accent/15 text-accent-2" : "bg-wood text-muted",
+              )}
+            >
+              {n}
+            </span>
+            <span className={cn("font-medium", state === "now" ? "text-fg" : "text-muted")}>{t(label)}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 function Page() {
   const {
@@ -122,16 +150,6 @@ function Page() {
                 {t("Class")}
               </span>
             </div>
-            <AddToCalendar
-              className="mt-1"
-              event={{
-                title: `${t("Class")} · ${sportLabel(s.sport)} · ${levelLabel(s.level)}`,
-                start: s.start_at,
-                end: s.end_at,
-                details: `${s.court_code} · ${s.coach_name}`,
-                location: "Lê Long Sport",
-              }}
-            />
           </li>
         ))}
       </ul>
@@ -179,53 +197,6 @@ function Page() {
     </Card>
   );
 
-  const bestFreeDays = Object.entries(avail ?? {})
-    .filter(([d, info]) => d >= todayISO() && info.free > 0)
-    .sort((a, b) => b[1].free - a[1].free)
-    .slice(0, limits.book_best_days);
-
-  const bestFreeHoursCard = bestFreeDays.length > 0 ? (
-    <Card className="p-4">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold">{t("Best free hours this week")}</h2>
-        <span className="text-xs text-muted">{t("Tap to book")}</span>
-      </div>
-      <div className="grid gap-2">
-        {bestFreeDays.map(([d, info]) => {
-          const dateObj = new Date(d);
-          const dayName = new Intl.DateTimeFormat(locale() === "vi" ? "vi-VN" : "en-US", {
-            weekday: "short",
-            month: "numeric",
-            day: "numeric",
-          }).format(dateObj);
-
-          return (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDate(d)}
-              className={cn(
-                "flex w-full cursor-pointer items-center justify-between rounded-[var(--radius-md)] border p-2.5 text-left text-xs transition-colors hover:bg-wood/50",
-                date === d ? "border-accent bg-accent/5 font-medium" : "border-line bg-surface",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <SportThumbnail sport={sport || sports[0]?.code || "all"} className="size-7 rounded" />
-                <div>
-                  <span className="font-semibold text-fg capitalize">{dayName}</span>
-                  <span className="block text-2xs text-muted">{sportLabel(sport || "all")}</span>
-                </div>
-              </div>
-              <span className="rounded-[var(--radius-pill)] bg-accent/10 px-2 py-0.5 text-2xs font-semibold text-accent-2">
-                {info.free} {t("free hours")}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </Card>
-  ) : null;
-
   const tomorrowISO = addDaysISO(todayISO(), 1);
   const tomorrowFree = avail?.[tomorrowISO]?.free ?? 0;
   const isTodayNearFull = date === todayISO() && (avail?.[todayISO()]?.free ?? 0) < 4;
@@ -250,10 +221,6 @@ function Page() {
                 live: true,
               },
               {
-                label: t("Courts in service"),
-                value: data?.courts?.length ?? 0,
-              },
-              {
                 label: t("Next free hour"),
                 value: nextFreeHour ?? t("Full"),
               },
@@ -261,6 +228,9 @@ function Page() {
           />
         );
       })()}
+
+      {/* Where you are in the booking: pick an hour, it is held, you pay. */}
+      <BookingSteps step={receipt || pending ? 3 : hold ? 2 : 1} />
 
       {isTodayNearFull ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-accent/40 bg-accent/10 p-3.5 shadow-[var(--shadow-soft)]">
@@ -287,7 +257,6 @@ function Page() {
             {myCourts}
             {myClassesCard}
             {planQuotaCard}
-            {bestFreeHoursCard}
           </>
         }
       >
@@ -419,7 +388,11 @@ function Page() {
                         {keptAfter}
                       </p>
                     </div>
-                    <Button size="sm" onClick={() => void openInvoice(receipt)}>
+                    {/* Paid: the next thing the member needs is the code for the gate. */}
+                    <ButtonLink to="/app/pass" size="sm">
+                      {t("Show pass")}
+                    </ButtonLink>
+                    <Button size="sm" variant="outline" onClick={() => void openInvoice(receipt)}>
                       {t("Open receipt")}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setReceipt(null)} aria-label={t("Dismiss")}>

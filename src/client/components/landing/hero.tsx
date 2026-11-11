@@ -37,6 +37,7 @@ registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
 export function Hero({
   isOpen,
   freeHours,
+  openClasses,
   day,
   cheapestHour,
   next,
@@ -44,6 +45,8 @@ export function Hero({
 }: {
   isOpen: boolean | null;
   freeHours: number;
+  /** Classes taking enrolments now. When there are any, they lead the hero and courts follow. */
+  openClasses: number;
   day: string;
   cheapestHour: number;
   next: NextFree | null;
@@ -180,8 +183,8 @@ export function Hero({
 
           {/* One headline, two lines: the setup in white, the payoff tinted. */}
           <h1 data-enter className="mt-4">
-            <span key={t("Book courts and classes")} data-line1 className="display-xl block">
-              {t("Book courts and classes")}
+            <span key={t("Learn with a coach")} data-line1 className="display-xl block">
+              {t("Learn with a coach")}
             </span>
             <span className="display-xl block">
               <span data-line2 className="lime-glow-text inline-block py-[0.12em] -my-[0.12em]">
@@ -191,29 +194,29 @@ export function Hero({
           </h1>
 
           <p data-enter data-sub className="mt-5 max-w-lg text-on-media-muted">
-            {t("Indoor sports centre. Open {open}-{close}, every day. Book a court online or at the front desk.", {
+            {t("Badminton, basketball and volleyball classes for every level, each led by a coach. Open {open}-{close}, every day, with courts to practise on between lessons.", {
               open: hhmm(venue.open),
               close: hhmm(venue.close),
             })}
           </p>
 
-          {/* The order is the funnel: see a free hour, take it, come back. Membership is the third visit. */}
+          {/* The order is the funnel: find a class first; a court to practise on is the second ask. */}
           <div data-enter data-cta className="mt-8 flex flex-wrap gap-3">
             <ButtonAnchor
-              href="#schedule"
+              href="#classes"
               size="lg"
               className="group bg-accent text-accent-fg font-semibold shadow-[var(--shadow-accent-lg)] hover:bg-accent-hover"
             >
-              {t("Book a court")}
+              {t("See open classes")}
               <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
             </ButtonAnchor>
             <ButtonAnchor
-              href="#courts"
+              href="#schedule"
               variant="outline"
               size="lg"
               className="group border-on-media/40 bg-on-media/10 text-on-media shadow-none backdrop-blur-sm hover:border-on-media/70 hover:bg-on-media/20"
             >
-              {t("See courts & pricing")}
+              {t("Book a court")}
               <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </ButtonAnchor>
           </div>
@@ -221,15 +224,21 @@ export function Hero({
           {/* The live number is the argument for the button above, so it is the biggest thing here. */}
           <p data-enter data-free-big className="mt-8 flex items-baseline gap-3">
             <LiveCount
-              value={freeHours}
+              value={openClasses || freeHours}
               className="hero-free-big font-display font-black leading-none text-accent [font-stretch:78%]"
             />
-            <span className="kicker text-xs text-on-media-muted">{t("court hours free {day}", { day })}</span>
+            <span className="kicker text-xs text-on-media-muted">
+              {openClasses ? t("classes open for enrolment") : t("court hours free {day}", { day })}
+            </span>
           </p>
           <p data-enter data-free className="mt-3 text-sm text-on-media-muted">
-            {t("From {price}/hr · held for {hold} minutes when you pick a slot.", {
-              price: money(cheapestHour), hold: venue.holdMinutes,
-            })}
+            {openClasses
+              ? t("Seats go to whoever signs up first · {n} court hours free {day} for practice, from {price}/hr.", {
+                  n: freeHours, day, price: money(cheapestHour),
+                })
+              : t("From {price}/hr · held for {hold} minutes when you pick a slot.", {
+                  price: money(cheapestHour), hold: venue.holdMinutes,
+                })}
           </p>
         </div>
 
@@ -388,10 +397,11 @@ function Shuttle() {
 
 /**
  * The band that earns the centre's credibility in three seconds: each figure carries the line
- * that makes it checkable, and the first is today's live count. The numbers count up as the band
- * arrives; the cells rise in one after another.
+ * that makes it checkable. Today's live count is not repeated here: the hero directly above owns
+ * it, and it is the one figure that glows. The numbers count up as the band arrives; the cells
+ * rise in one after another.
  */
-export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: string; courts?: CatalogCourt[] }) {
+export function StatsBand({ courts }: { courts?: CatalogCourt[] }) {
   const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   useScene(root, ({ motion }) => {
@@ -417,10 +427,9 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
   const courtsNote = sportsSummary || t("All active courts and halls");
 
   const stats = [
-    { to: freeHours, suffix: "", label: t("Court hours free"), note: t("Live from the booking grid · {day}", { day }), href: "#schedule" },
+    { to: 4, suffix: "", label: t("Head coaches"), note: t("One head coach per sport"), href: "#coaches" },
     { to: totalCourts, suffix: "", label: t("Courts & bays"), note: courtsNote, href: "#courts" },
     { to: venue.close - venue.open, suffix: "h", label: t("Open every day"), note: t("{open}-{close}, every day", { open: hhmm(venue.open), close: hhmm(venue.close) }), href: "#schedule" },
-    { to: 4, suffix: "", label: t("Head coaches"), note: t("One head coach per sport"), href: "#coaches" },
   ];
   return (
     <section ref={root} className="grain relative overflow-hidden border-y border-line bg-bg text-fg">
@@ -432,8 +441,8 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
         opacity={0.28}
         fallback={<div className="wash wash-accent -left-24 -top-32 size-80 opacity-40" />}
       />
-      {/* A bento of four: the live count takes the wide tile, the fixed facts sit beside it. The hairlines are the gap, not per-cell borders. */}
-      <div className="relative z-[1] mx-auto grid max-w-6xl grid-cols-2 gap-px bg-line/70 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+      {/* Three fixed facts: the court count takes the wide tile. The hairlines are the gap, not per-cell borders. */}
+      <div className="relative z-[1] mx-auto grid max-w-6xl grid-cols-2 gap-px bg-line/70 lg:grid-cols-[1.5fr_1fr_1fr]">
         {stats.map((s, i) => (
           <a
             key={s.label}
@@ -441,21 +450,12 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
             href={s.href}
             className={`group relative bg-bg/75 px-5 py-8 transition-colors duration-200 hover:bg-surface sm:px-8 sm:py-10 ${
               i === 0 ? "bg-surface/75 lg:py-12" : ""
-            } ${i === 0 || i === 3 ? "col-span-2 lg:col-span-1" : ""}`}
+            } ${i === 0 ? "col-span-2 lg:col-span-1" : ""}`}
           >
-            {/* The live count leads in lime: it is the only figure that changes while you watch. */}
-            <p className={`font-display text-5xl tabular-nums leading-none sm:text-6xl ${i === 0 ? "lime-glow-text" : ""}`}>
+            <p className="font-display text-5xl tabular-nums leading-none sm:text-6xl">
               <CountTo value={s.to} suffix={s.suffix} />
             </p>
-            <p className="kicker mt-4 flex items-center gap-2.5 text-sm text-fg">
-              {s.label}
-              {i === 0 ? (
-                <span className="relative inline-flex size-2 text-accent" aria-hidden>
-                  <span className="ping-ring" />
-                  <span className="relative inline-flex size-2 rounded-full bg-accent" />
-                </span>
-              ) : null}
-            </p>
+            <p className="kicker mt-4 text-sm text-fg">{s.label}</p>
             <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-muted">{s.note}</p>
           </a>
         ))}

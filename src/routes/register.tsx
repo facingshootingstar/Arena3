@@ -184,7 +184,7 @@ function Register() {
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
               <SplitText
                 as="p"
-                text={t("Book a court by the hour, or pay for one class at a time.")}
+                text={t("Join a class with a coach, or book a court by the hour.")}
                 splitBy="words"
                 stagger={0.05}
                 delay={0.2}
@@ -201,11 +201,15 @@ function Register() {
         <Reveal className="w-full max-w-md" from="up">
         <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
         <Card className="relative z-[2] w-full p-6">
-          <div className="flex items-center gap-2">
+          {/* The photo panel already carries the mark on wide screens. */}
+          <div className="flex items-center gap-2 lg:hidden">
             <ArenaMark className="size-7" />
             <p className="text-2xs text-muted">Lê Long Sport</p>
           </div>
-          <h1 className="mt-3 font-display text-3xl">{t("Create an account")}</h1>
+          <h1 className="mt-3 font-display text-3xl lg:mt-0">{t("Create an account")}</h1>
+          <p className="mt-1 text-xs font-medium tabular-nums text-muted">
+            {t("Step {n} of {total}", { n: step === "form" ? 1 : 2, total: 2 })}
+          </p>
           <AnimatePresence mode="wait">
           {step === "form" ? (
             <motion.form
@@ -343,7 +347,7 @@ function Register() {
                   }
                   className="w-full"
                 >
-                  {busy ? t("Sending…") : t("Send OTP")}
+                  {busy ? t("Sending…") : t("Send the code")}
                 </Button>
               </Magnet>
             </motion.form>

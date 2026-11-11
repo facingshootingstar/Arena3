@@ -105,7 +105,7 @@ export async function subscriptionFreeze(sql: Sql, id: string, request: Request,
     [id, days, end],
   );
   await audit(sql, user.id, "freeze_sub", "subscription", id, sub, { days, end });
-  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
 export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUser) {
@@ -148,7 +148,7 @@ export async function subscriptionUnfreeze(sql: Sql, id: string, user: PublicUse
     [id, newEndOn, frozenDays],
   );
   await audit(sql, user.id, "unfreeze_sub", "subscription", id, sub, { end_on: newEndOn, frozen_days: frozenDays });
-  return { status: 200, body: await one(sql, `select id, user_id, plan_id, sport_scope, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
+  return { status: 200, body: await one(sql, `select id, user_id, plan_id, start_on::text, end_on::text, status, frozen_days, court_hours_left, session_left from subscriptions where id = $1`, [id]) };
 }
 
 export async function waitlistAccept(sql: Sql, offerId: string, user: PublicUser) {
@@ -736,10 +736,10 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     [user.id],
   );
   const subs = await sql.query<{
-    plan: string; sport_scope: string; start_on: string; end_on: string; status: string;
+    plan: string; start_on: string; end_on: string; status: string;
     court_hours_left: string; session_left: number | null; days_left: number;
   }>(
-    `select p.name as plan, s.sport_scope::text, s.start_on::text, s.end_on::text, s.status::text,
+    `select p.name as plan, s.start_on::text, s.end_on::text, s.status::text,
             s.court_hours_left::text, s.session_left,
             (s.end_on - (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as days_left
        from subscriptions s join membership_plans p on p.id = s.plan_id

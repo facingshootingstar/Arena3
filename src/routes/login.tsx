@@ -122,7 +122,7 @@ function Login() {
             </ShinyText>
             <SplitText
               as="p"
-              text={t("One schedule for courts, classes and cash.")}
+              text={t("One schedule for your classes, your coach and your courts.")}
               splitBy="words"
               stagger={0.055}
               delay={0.25}

@@ -3,11 +3,10 @@ import { SectionTitle } from "@/client/components/section";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { toast } from "sonner";
-import { Shell, hhmm, money, useSessionUser } from "@/client/components/shell";
+import { Shell, hhmm, useSessionUser } from "@/client/components/shell";
 import { UserAvatar } from "@/client/components/user-avatar";
 import { QrScanner, tokenFromScan } from "@/client/components/qr-scanner";
 import { PageHero } from "@/client/components/page-hero";
-import { StatStrip } from "@/client/components/stat-strip";
 import { Badge, Button, Card, EmptyState, Field, Input, LoadError, Pagination, Select, Seg, Skeleton } from "@/client/components/ui";
 import { ApiClientError, apiGet, apiPost } from "@/client/arena3/client";
 import { sportLabel } from "@/shared/arena3/labels";
@@ -93,9 +92,6 @@ function Page() {
     todayRead.reload();
   });
   const today = todayRead.data?.items ?? null;
-  const shiftRead = useRead<{ shift: { id: string; opened_at: string } | null; totals?: { cash: number } | null }>("/shifts/current?optional=1");
-  const shift = shiftRead.data?.shift ? { shift: shiftRead.data.shift, totals: shiftRead.data.totals ?? undefined } : null;
-  const waiting = useRead<{ waiting: number }>("/payments/pending?brief=1").data?.waiting ?? 0;
 
   const refocus = (id: string) => setTimeout(() => document.getElementById(id)?.focus(), 0);
 
@@ -156,15 +152,6 @@ function Page() {
         slot="banner.gate"
         title={t("Gate & check-in")}
         subtitle={t("Scan a member's code to let them in. Type a phone number only when the code can't be used.")}
-      />
-      <StatStrip
-        className="mb-6"
-        items={[
-          { label: t("Today's check-ins"), value: todayRead.data?.total ?? 0 },
-          { label: t("Current shift"), value: shift?.shift ? t("Shift open") : t("No open shift") },
-          { label: t("Cash in till"), value: shift?.totals?.cash ? money(shift.totals.cash) : "0 đ" },
-          { label: t("Waiting payments"), value: waiting },
-        ]}
       />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
         <div className="grid content-start gap-4">
@@ -362,7 +349,14 @@ function Page() {
       </div>
 
       <div className="mt-10">
-        <SectionTitle text={t("Through the gate today")} className="font-display text-2xl" />
+        <div className="flex items-baseline justify-between gap-2">
+          <SectionTitle text={t("Through the gate today")} className="font-display text-2xl" />
+          {todayRead.data ? (
+            <span className="text-sm tabular-nums text-muted">
+              {t("Today's check-ins")}: <span className="font-semibold text-fg">{todayRead.data.total}</span>
+            </span>
+          ) : null}
+        </div>
         <div className="mt-3 grid gap-2">
           {todayRead.error ? (
             <LoadError

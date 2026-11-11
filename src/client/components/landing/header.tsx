@@ -19,10 +19,10 @@ import { t, tk } from "@/client/lib/i18n";
  * reassurance does not belong in front of the decision.
  */
 const NAV: [string, string][] = [
-  ["#schedule", tk("Today's schedule")],
-  ["#courts", tk("Courts & pricing")],
   ["#classes", tk("Classes")],
   ["#coaches", tk("Coaches")],
+  ["#schedule", tk("Today's schedule")],
+  ["#courts", tk("Courts & pricing")],
 ];
 
 /**
@@ -49,7 +49,18 @@ export function SiteHeader() {
     gsap.fromTo(
       bar.current,
       { scaleX: 0 },
-      { scaleX: 1, ease: "none", scrollTrigger: { start: 0, end: "max", scrub: motion ? 0.4 : true } },
+      {
+        scaleX: 1,
+        ease: "none",
+        scrollTrigger: {
+          start: 0,
+          end: "max",
+          scrub: motion ? 0.4 : true,
+          // The hero carries its own "Book a court". The header's copy only appears once that one
+          // has scrolled away, so a view never shows two primary buttons for the same thing.
+          onUpdate: (self) => el.toggleAttribute("data-past-hero", self.scroll() > window.innerHeight * 0.55),
+        },
+      },
     );
     if (!motion) return;
     let hidden = false;
@@ -92,7 +103,7 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header ref={root} className="fixed inset-x-0 top-0 z-30 border-b border-line/70 glass">
+    <header ref={root} className="group/hdr fixed inset-x-0 top-0 z-30 border-b border-line/70 glass">
       <div ref={bar} aria-hidden className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-accent" />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link to="/" className="group flex min-h-11 items-center gap-2.5" onClick={() => setOpen(false)}>
@@ -115,8 +126,10 @@ export function SiteHeader() {
         </nav>
         {/* Two zones: what the centre sells is left of the rule, what belongs to a person is right. */}
         <div className="hidden items-center gap-2 md:flex">
-          <ButtonAnchor href="#schedule">{t("Book a court")}</ButtonAnchor>
-          <span aria-hidden className="mx-1 h-6 w-px bg-line-strong/70" />
+          <span className="invisible flex items-center gap-2 opacity-0 transition-[opacity,visibility] duration-300 group-data-[past-hero]/hdr:visible group-data-[past-hero]/hdr:opacity-100">
+            <ButtonAnchor href="#schedule">{t("Book a court")}</ButtonAnchor>
+            <span aria-hidden className="mx-1 h-6 w-px bg-line-strong/70" />
+          </span>
           <ButtonLink to="/login" variant="ghost">
             {t("Sign in")}
           </ButtonLink>
@@ -150,7 +163,7 @@ export function SiteHeader() {
             <ButtonAnchor href="#schedule" onClick={() => setOpen(false)} className="mb-1 w-full">
               {t("Book a court")}
             </ButtonAnchor>
-            {NAV.slice(1).map(([href, label]) => (
+            {NAV.filter(([href]) => href !== "#schedule").map(([href, label]) => (
               <a
                 key={href}
                 href={href}

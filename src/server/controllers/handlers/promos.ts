@@ -257,13 +257,13 @@ async function quotePlanPromo(sql: Sql, b: Record<string, unknown>, code: string
   const scope = "plan";
   const planId = str(b.plan_id);
   if (!planId) throw err.field("plan_id", "plan_id is required.");
-  const plan = await one<{ price_vnd: number; sport_scope: string }>(
+  const plan = await one<{ price_vnd: number }>(
     sql,
-    `select price_vnd, sport_scope::text as sport_scope from membership_plans where id = $1`,
+    `select price_vnd from membership_plans where id = $1`,
     [planId],
   );
   if (!plan) throw err.notFound("No such plan.");
-  const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: plan.sport_scope, planId, orderVnd: plan.price_vnd });
+  const q = await quotePromo(sql, { code, userId: targetUser, scope, sport: "all", planId, orderVnd: plan.price_vnd });
   return { status: 200, body: { valid: true, order_vnd: plan.price_vnd, ...q } };
 }
 

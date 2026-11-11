@@ -1,6 +1,28 @@
 /** Strings added by the UI redesign (navigation groups, booking grid, landing). */
 export const redesign: Record<string, string> = {
   "court hours free {day}": "giờ sân còn trống {day}",
+  // landing: teaching-first copy
+  "Learn with a coach": "Học cùng huấn luyện viên",
+  "Badminton, basketball and volleyball classes for every level, each led by a coach. Open {open}-{close}, every day, with courts to practise on between lessons.": "Lớp cầu lông, bóng rổ và bóng chuyền cho mọi trình độ, lớp nào cũng có huấn luyện viên đứng lớp. Mở cửa {open}-{close} mỗi ngày, có sân để tự tập giữa các buổi học.",
+  "classes open for enrolment": "lớp đang nhận đăng ký",
+  "Seats go to whoever signs up first · {n} court hours free {day} for practice, from {price}/hr.": "Ai đăng ký trước được chỗ trước · còn {n} giờ sân trống {day} để tự tập, từ {price}/giờ.",
+  "Every class here has a coach, a level and a fixed timetable. Pick the one that fits, enrol in the app, and each session lands in your schedule. The courts are yours to practise on in between.": "Mỗi lớp ở đây đều có huấn luyện viên, trình độ và lịch học cố định. Chọn lớp hợp với bạn, đăng ký trong ứng dụng, và từng buổi học sẽ hiện trong lịch của bạn. Giữa các buổi, sân luôn sẵn để bạn tự tập.",
+  "Pick your class": "Chọn lớp",
+  "Choose a sport, a level and a coach. Every class shows its timetable and the seats left.": "Chọn môn, trình độ và huấn luyện viên. Mỗi lớp đều ghi rõ lịch học và số chỗ còn lại.",
+  "Enrol in the app": "Đăng ký trong ứng dụng",
+  "Seats go to whoever signs up first. Your membership has to run past the last session.": "Ai đăng ký trước được chỗ trước. Gói hội viên của bạn phải còn hạn đến sau buổi học cuối.",
+  "First come, first served": "Đăng ký trước, có chỗ trước",
+  "Train with your coach": "Tập cùng huấn luyện viên",
+  "Every session lands in your schedule. Show your pass at the gate and the coach marks you in.": "Từng buổi học hiện trong lịch của bạn. Đưa thẻ ở cổng và huấn luyện viên điểm danh cho bạn.",
+  "Coach-led": "Có HLV đứng lớp",
+  "How to join a class": "Cách tham gia lớp học",
+  "Pick. Enrol. Train.": "Chọn. Đăng ký. Tập.",
+  "One head coach per sport, teaching from first footwork to match play. Join a class and its sessions appear in your schedule.": "Mỗi môn có một HLV trưởng, dạy từ bước chân đầu tiên đến thi đấu. Tham gia lớp và các buổi học sẽ hiện trong lịch của bạn.",
+  "Small groups, one coach, a fixed timetable. Pick your level and start with the next session. Seats go to whoever signs up first.": "Nhóm nhỏ, một huấn luyện viên, lịch học cố định. Chọn trình độ của bạn và bắt đầu từ buổi kế tiếp. Ai đăng ký trước được chỗ trước.",
+  "Create an account to enrol in a class. Reception is open all day if you would like to meet the coaches first.": "Tạo tài khoản để đăng ký lớp. Quầy lễ tân mở cả ngày nếu bạn muốn gặp huấn luyện viên trước.",
+  "Indoor sports centre with coached classes and court booking.": "Trung tâm thể thao trong nhà: lớp học có huấn luyện viên và đặt sân.",
+  "One schedule for your classes, your coach and your courts.": "Một lịch cho lớp học, huấn luyện viên và sân của bạn.",
+  "Join a class with a coach, or book a court by the hour.": "Tham gia lớp có huấn luyện viên, hoặc đặt sân theo giờ.",
   "From {price}/hr · held for {hold} minutes when you pick a slot.": "Từ {price}/giờ · giữ chỗ {hold} phút sau khi chọn khung giờ.",
   "Held for {hold} minutes after you choose": "Giữ chỗ {hold} phút sau khi chọn",
   // shell.tsx: navigation group headings (drop-downs on a laptop, sheet headings on a phone)

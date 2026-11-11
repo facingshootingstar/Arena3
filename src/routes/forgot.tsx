@@ -112,6 +112,9 @@ function Forgot() {
       <Card className="relative w-full p-6">
         <LangSwitch className="absolute right-4 top-4" />
         <h1 className="pr-28 font-display text-3xl">{t("Forgot your password")}</h1>
+        <p className="mt-1 text-xs font-medium tabular-nums text-muted">
+          {t("Step {n} of {total}", { n: step === "phone" ? 1 : 2, total: 2 })}
+        </p>
 
         <AnimatePresence mode="wait">
           {step === "phone" ? (

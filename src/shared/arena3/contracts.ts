@@ -243,7 +243,6 @@ export type PaymentCreateResponse = { payment: Payment; invoice: Invoice };
 export type CatalogPlan = {
   id: string;
   name: string;
-  sport_scope: string;
   duration_days: number | null;
   session_quota: number | null;
   court_hours: number;

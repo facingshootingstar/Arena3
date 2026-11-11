@@ -250,7 +250,7 @@ export async function populate(db, asOf) {
       const end = new Date(Date.UTC(d.getUTCFullYear(), targetMonth, Math.min(d.getUTCDate(), last)) - DAY).toISOString().slice(0, 10);
       const discount = start >= '2026-10-12' && start <= '2026-10-18' ? Math.floor(plan.price_vnd * 0.1) : 0;
       const s = add('subscriptions', { id: id(`sub:${user.id}:${renewal}`), user_id: user.id, plan_id: plan.id,
-        sport_scope: 'all', start_on: start, end_on: end, status: end < today ? 'expired' : 'active', price_vnd: plan.price_vnd,
+        start_on: start, end_on: end, status: end < today ? 'expired' : 'active', price_vnd: plan.price_vnd,
         promo_id: discount ? promoId : null, promo_discount_vnd: discount });
       subs.set(user.id, s);
       const bought = new Date(`${start}T08:00:00+07:00`);

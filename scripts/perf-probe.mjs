@@ -69,8 +69,8 @@ const cases = [
   ["desk_payment", async (sql, sub) => {
     const out = await desk.paymentsCreate(sql, new Request("http://perf.local/v1/payments", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ref_type: "subscription", ref_id: sub.id, method: "cash", amount_vnd: sub.price_vnd }) }), manager);
     return { status: out.status, amount_vnd: out.body.payment.amount_vnd, method: out.body.payment.method, invoice_total: out.body.invoice.total_vnd };
-  }, async () => (await db.query(`insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, price_vnd)
-    select (select id from users where role='member' and not exists (select 1 from subscriptions s where s.user_id=users.id and s.status in ('active','frozen','pending')) limit 1), id, sport_scope, '2026-11-09', '2026-12-09', 'pending', price_vnd from membership_plans where is_on_sale and price_vnd > 0 limit 1 returning id, price_vnd`)).rows[0]],
+  }, async () => (await db.query(`insert into subscriptions (user_id, plan_id, start_on, end_on, status, price_vnd)
+    select (select id from users where role='member' and not exists (select 1 from subscriptions s where s.user_id=users.id and s.status in ('active','frozen','pending')) limit 1), id, '2026-11-09', '2026-12-09', 'pending', price_vnd from membership_plans where is_on_sale and price_vnd > 0 limit 1 returning id, price_vnd`)).rows[0]],
 ];
 const results = [];
 try {

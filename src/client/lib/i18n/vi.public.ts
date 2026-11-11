@@ -248,6 +248,7 @@ export const pub: Record<string, string> = {
   "Enter the phone number on your account. We will email a code to the address we hold for it.": "Nhập số điện thoại của tài khoản. Chúng tôi sẽ gửi mã đến email đã đăng ký với số này.",
   "Phone": "Số điện thoại",
   "Send the code": "Gửi mã",
+  "Step {n} of {total}": "Bước {n} / {total}",
   "If that number has an account, a code is on its way to {email}. It expires in 5 minutes.": "Nếu số này có tài khoản, mã đang được gửi đến {email}. Mã hết hạn sau 5 phút.",
   "If that number has an account with an email on file, a code is on its way. It expires in 5 minutes.": "Nếu số này có tài khoản và đã đăng ký email, mã đang được gửi đến. Mã hết hạn sau 5 phút.",
   "No email on your account, or can't open it? Ask the front desk to reset your password. They will give you a temporary one.": "Tài khoản chưa có email, hoặc không mở được email? Hãy nhờ lễ tân đặt lại mật khẩu, họ sẽ cấp cho bạn một mật khẩu tạm.",

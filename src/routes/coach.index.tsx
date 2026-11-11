@@ -73,6 +73,8 @@ function Page() {
   const items = read.data?.items ?? null;
 
   const [certsOpen, setCertsOpen] = useState(false);
+  // Two weeks of sessions is a wall; the next few days answer "what am I teaching", the rest on demand.
+  const [daysShown, setDaysShown] = useState(DAYS_STEP);
   const me = getStoredUser();
 
   const take = (id: string) => void navigate({ to: "/coach/attendance", search: { session: id } });
@@ -221,7 +223,7 @@ function Page() {
                 <p className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-muted">
                   {t("Coming up")}
                 </p>
-                {[...days.entries()].map(([k, list]) => (
+                {[...days.entries()].slice(0, daysShown).map(([k, list]) => (
                   <div key={k}>
                     <h2 className="mb-2 flex items-baseline justify-between gap-3 font-display text-lg font-bold tracking-tight">
                       {dayName(list[0]!.start_at)}
@@ -236,6 +238,13 @@ function Page() {
                     </ol>
                   </div>
                 ))}
+                {days.size > daysShown ? (
+                  <div>
+                    <Button variant="outline" onClick={() => setDaysShown((n) => n + DAYS_STEP)}>
+                      {t("Show more days")}
+                    </Button>
+                  </div>
+                ) : null}
               </section>
             ) : null}
           </div>
@@ -248,6 +257,8 @@ function Page() {
     </Shell>
   );
 }
+
+const DAYS_STEP = 4;
 
 function TimelineRow({ s, onOpen }: { s: CoachSession; onOpen: () => void }) {
   const need = shortBy(s);

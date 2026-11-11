@@ -301,7 +301,7 @@ async function subscriptionPaymentDetails(sql: Sql, ref_id: string, amount: numb
   const sub = await one<DeskSubscription>(
     sql,
     `select s.user_id, s.plan_id, s.status::text as status, s.promo_id, s.promo_discount_vnd, s.price_vnd as sub_price_vnd,
-            p.price_vnd, p.court_discount_pct, p.sport_scope::text as sport_scope
+            p.price_vnd, p.court_discount_pct
        from subscriptions s join membership_plans p on p.id = s.plan_id
       where s.id = $1 for update of s`,
     [ref_id],
@@ -767,7 +767,7 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
   // `paid_vnd` calculated directly from posted payments: the desk wants to see a part payment
   // for what it is ("2 of 5 taken"), not just the balance left over.
   const orders = await sql.query(
-    `select s.id, s.sport_scope, s.start_on::text as ordered_on, s.end_on::text as end_on,
+    `select s.id, s.start_on::text as ordered_on, s.end_on::text as end_on,
             u.id as user_id, u.full_name, u.phone, u.member_code,
             pl.name as plan_name, coalesce(s.price_vnd, pl.price_vnd)::int as price_vnd, pl.id as plan_id,
             s.promo_discount_vnd, pr.code as promo_code,
@@ -778,7 +778,7 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
        left join promotions pr on pr.id = s.promo_id
        left join payments p on p.ref_type = 'subscription' and p.ref_id = s.id
       where s.status = 'pending'
-      group by s.id, s.sport_scope, s.start_on, s.end_on,
+      group by s.id, s.start_on, s.end_on,
                u.id, u.full_name, u.phone, u.member_code, pl.name, s.price_vnd, pl.price_vnd, pl.id,
                s.promo_discount_vnd, pr.code
       order by s.start_on asc, u.full_name asc`,
@@ -1379,7 +1379,6 @@ type DeskSubscription = {
     price_vnd: number;
     sub_price_vnd: number | null;
     court_discount_pct: number;
-    sport_scope: string;
     promo_id: string | null;
     promo_discount_vnd: number;
   };
@@ -1394,7 +1393,7 @@ async function subscriptionPaymentPromo(sql: Sql, sub: DeskSubscription, b: Reco
       code,
       userId: sub.user_id,
       scope: "plan",
-      sport: sub.sport_scope,
+      sport: "all",
       planId: sub.plan_id,
       orderVnd: basePrice,
     });

@@ -195,7 +195,7 @@ function Page() {
               >
                 {items.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {sessionDay(s.start_at)} · {hhmm(s.start_at)} · {s.class_code} · {s.court_code}
+                    {sessionDay(s.start_at)} · {hhmm(s.start_at)} · {sportLabel(s.sport)} {levelLabel(s.level)} · {t("Court")} {s.court_code}
                   </option>
                 ))}
               </Select>

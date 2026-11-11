@@ -1174,8 +1174,8 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
       }
       await db.query("delete from subscriptions where user_id = any($1::uuid[])", [[mem1.id, mem2.id, mem3.id, mem4.id]]);
       await db.query(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status)
-         select u, (select id from membership_plans order by price_vnd limit 1), 'all', current_date - 1, current_date + 400, 'active'
+        `insert into subscriptions (user_id, plan_id, start_on, end_on, status)
+         select u, (select id from membership_plans order by price_vnd limit 1), current_date - 1, current_date + 400, 'active'
            from unnest($1::uuid[]) as u`,
         [[mem1.id, mem2.id, mem3.id, mem4.id]],
       );
@@ -1260,7 +1260,7 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
         );
       }
       await db.query(`insert into users (id, phone, full_name, name_normalized, role, password_hash) values ($1,$2,$3,$4,'member','hash') on conflict (id) do nothing`, [m.id, m.phone, m.name, "cap"]);
-      await db.query(`insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status) values ($1, (select id from membership_plans order by price_vnd limit 1), 'all', current_date - 1, current_date + 400, 'active')`, [m.id]);
+      await db.query(`insert into subscriptions (user_id, plan_id, start_on, end_on, status) values ($1, (select id from membership_plans order by price_vnd limit 1), current_date - 1, current_date + 400, 'active')`, [m.id]);
       await withTx(async (sql) => classesEnroll(sql, c1, new Request("http://localhost"), m));
       await assert.rejects(
         withTx(async (sql) => classesEnroll(sql, c2, new Request("http://localhost"), m)),
@@ -1287,7 +1287,7 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
     const d = { id: "00000000-0000-0000-0000-0000000001a4", phone: "+84900001a4", name: "D", role: "member" } as any;
     for (const m of [a, b, c, d]) {
       await db.query(`insert into users (id, phone, full_name, name_normalized, role, password_hash) values ($1,$2,$3,$4,'member','hash') on conflict (id) do nothing`, [m.id, m.phone, m.name, m.name.toLowerCase()]);
-      await db.query(`insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status) values ($1, (select id from membership_plans order by price_vnd limit 1), 'all', current_date - 1, current_date + 400, 'active')`, [m.id]);
+      await db.query(`insert into subscriptions (user_id, plan_id, start_on, end_on, status) values ($1, (select id from membership_plans order by price_vnd limit 1), current_date - 1, current_date + 400, 'active')`, [m.id]);
     }
     const ea = await withTx(async (sql) => classesEnroll(sql, classId, new Request("http://localhost"), a));
     await db.query(`update enrollments set status='confirmed', hold_until=null where id=$1`, [(ea.body as any).enrollment.id]);
@@ -2841,8 +2841,8 @@ describe("Round 10: Two-way Chat unit tests", () => {
         [memA.id, memA.phone, memA.full_name, memH.id, memH.phone, memH.full_name, memN.id, memN.phone, memN.full_name, memL.id, memL.phone, memL.full_name, coachW.id, coachW.full_name],
       );
       await db.query(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status)
-         select u, (select id from membership_plans order by price_vnd limit 1), 'all', current_date - 1, current_date + 400, 'active'
+        `insert into subscriptions (user_id, plan_id, start_on, end_on, status)
+         select u, (select id from membership_plans order by price_vnd limit 1), current_date - 1, current_date + 400, 'active'
            from unnest($1::uuid[]) as u`,
         [[memA.id, memH.id, memN.id, memL.id]],
       );
@@ -3046,8 +3046,8 @@ describe("Round 10: Two-way Chat unit tests", () => {
       );
 
       await db.query(
-        `insert into subscriptions (id, user_id, plan_id, sport_scope, start_on, end_on, status, session_left, price_vnd)
-         values ($1, $2, $3, 'badminton', current_date - 5, current_date + 25, 'active', 7, 500000)`,
+        `insert into subscriptions (id, user_id, plan_id, start_on, end_on, status, session_left, price_vnd)
+         values ($1, $2, $3, current_date - 5, current_date + 25, 'active', 7, 500000)`,
         [subM1, memM1.id, planM],
       );
 
@@ -3112,7 +3112,6 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(b.subscriptions.length, 1);
       assert.equal(b.subscriptions[0].id, subM1);
       assert.equal(b.subscriptions[0].status, "active");
-      assert.equal(b.subscriptions[0].sport_scope, "badminton");
       assert.equal(b.subscriptions[0].session_left, 7);
       assert.equal(b.subscriptions[0].price_vnd, 500000);
       assert.equal(b.subscriptions[0].due_vnd, 500000);
@@ -3566,8 +3565,8 @@ async function seedClass(opts: { price: number | null; capacity: number; courtId
 async function seedMember(n: number) {
   const member = await seedPlainUser(n);
   await db.query(
-    `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status)
-     select $1, $2, 'all', current_date - 1, current_date + 400, 'active'
+    `insert into subscriptions (user_id, plan_id, start_on, end_on, status)
+     select $1, $2, current_date - 1, current_date + 400, 'active'
       where not exists (select 1 from subscriptions where user_id = $1 and status = 'active')`,
     [member.id, SHORTEST_PLAN_ID],
   );
@@ -4222,8 +4221,8 @@ describe("Sell classes: attendance", () => {
     const manager = { id: "00000000-0000-0000-0000-000000000001", role: "manager", full_name: "Sell Manager" } as any;
     const subId = (
       await db.query<{ id: string }>(
-        `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, session_left)
-         values ($1, '20000000-0000-0000-0000-000000000002', 'badminton', current_date - 1, current_date + 30, 'active', 3)
+        `insert into subscriptions (user_id, plan_id, start_on, end_on, status, session_left)
+         values ($1, '20000000-0000-0000-0000-000000000002', current_date - 1, current_date + 30, 'active', 3)
          returning id`,
         [m.id],
       )
@@ -4554,14 +4553,14 @@ describe("Remove plans: courts", () => {
   async function seedPlanSubscription(userId: string, courtHoursLeft: number): Promise<void> {
     const planId = (
       await db.query<{ id: string }>(
-        `insert into membership_plans (name, sport_scope, duration_days, court_hours, court_discount_pct, price_vnd, is_on_sale)
-         values ('Remove plans RP', 'badminton', 30, 5, 20, 500000, true)
+        `insert into membership_plans (name, duration_days, court_hours, court_discount_pct, price_vnd, is_on_sale)
+         values ('Remove plans RP', 30, 5, 20, 500000, true)
          returning id`,
       )
     ).rows[0].id;
     await db.query(
-      `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status, court_hours_left)
-       values ($1, $2, 'badminton', current_date - 1, current_date + 30, 'active', $3)`,
+      `insert into subscriptions (user_id, plan_id, start_on, end_on, status, court_hours_left)
+       values ($1, $2, current_date - 1, current_date + 30, 'active', $3)`,
       [userId, planId, courtHoursLeft],
     );
   }
@@ -4815,8 +4814,8 @@ describe("Remove plans: reads", () => {
 
   async function seedSubscription(userId: string, start: string, end: string): Promise<void> {
     await db.query(
-      `insert into subscriptions (user_id, plan_id, sport_scope, start_on, end_on, status)
-       values ($1, $2, 'badminton', $3::date, $4::date, 'active')`,
+      `insert into subscriptions (user_id, plan_id, start_on, end_on, status)
+       values ($1, $2, $3::date, $4::date, 'active')`,
       [userId, planId, start, end],
     );
   }

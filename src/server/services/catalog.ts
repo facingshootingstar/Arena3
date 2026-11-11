@@ -60,7 +60,7 @@ export const getPublicCatalog = createServerFn({ method: "POST" }).handler(async
   const sql = await getSql();
   const [plans, classes, prices, venueRows, coaches] = await Promise.all([
     sql.query<CatalogPlan>(
-      `select id, name, sport_scope, duration_days, session_quota, court_hours,
+      `select id, name, duration_days, session_quota, court_hours,
               court_discount_pct, price_vnd
          from membership_plans
         where is_on_sale = true

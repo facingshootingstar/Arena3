@@ -44,7 +44,7 @@ export function ClassesScene({ classes }: { classes: CatalogClass[] }) {
         <SplitHeading text={t("Classes open for enrolment")} />
       </h2>
       <p data-rise className="mt-3 max-w-lg text-muted">
-        {t("Classes with a coach. They never overlap court hours you have booked. Seats go to whoever signs up first.")}
+        {t("Small groups, one coach, a fixed timetable. Pick your level and start with the next session. Seats go to whoever signs up first.")}
       </p>
 
       {sports.length > 1 ? (

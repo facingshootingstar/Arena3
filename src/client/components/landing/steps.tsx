@@ -4,7 +4,6 @@ import { gsap, useScene } from "@/client/lib/gsap";
 import { t } from "@/client/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
-import { useVenue } from "./util";
 
 /**
  * How booking works, told as you scroll, on paper.
@@ -16,26 +15,25 @@ import { useVenue } from "./util";
  * another. The markup at rest is the finished picture, which is what reduced motion gets.
  */
 export function StepsScene() {
-  const venue = useVenue();
   const root = useRef<HTMLElement>(null);
   const steps = [
     {
       n: "01",
-      title: t("Pick your slot"),
-      body: t("See which courts are free, hour by hour."),
-      tag: t("Live grid"),
+      title: t("Pick your class"),
+      body: t("Choose a sport, a level and a coach. Every class shows its timetable and the seats left."),
+      tag: t("Open classes"),
     },
     {
       n: "02",
-      title: t("Hold it for {n} minutes", { n: venue.holdMinutes }),
-      body: t("The slot is held for you. You do not pay yet."),
-      tag: t("{n}-min hold", { n: venue.holdMinutes }),
+      title: t("Enrol in the app"),
+      body: t("Seats go to whoever signs up first. Your membership has to run past the last session."),
+      tag: t("First come, first served"),
     },
     {
       n: "03",
-      title: t("Pay at the desk"),
-      body: t("Pay for each court booking or class at reception by cash or bank transfer."),
-      tag: t("Cash or transfer"),
+      title: t("Train with your coach"),
+      body: t("Every session lands in your schedule. Show your pass at the gate and the coach marks you in."),
+      tag: t("Coach-led"),
     },
   ];
 
@@ -87,10 +85,10 @@ export function StepsScene() {
       <div className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-14 pt-20 md:grid-cols-2 md:gap-16 md:pb-20 md:pt-24 lg:pl-[max(1rem,calc(9.5rem-(100vw-72rem)/2))]">
         <div>
           <p data-rise className="inline-block rounded-md bg-paper-ink px-2.5 py-1.5 font-mono text-2xs font-bold uppercase tracking-wider text-accent">
-            {t("How to book a court")}
+            {t("How to join a class")}
           </p>
           <h2 className="font-athletic mt-6 text-5xl leading-[0.95] sm:text-7xl">
-            <SplitHeading text={t("Pick. Hold. Play.")} />
+            <SplitHeading text={t("Pick. Enrol. Train.")} />
           </h2>
           {/* Which step the scroll has reached, rolling like a scoreboard. Only exists with motion. */}
           <div aria-hidden data-stage className="invisible mt-8 hidden items-end gap-4 md:flex">

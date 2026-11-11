@@ -117,7 +117,7 @@ export function CourtsScene({
                       {openNow ? t("{n} hours free", { n: openNow }) : t("Fully booked")}
                       <span className="text-subtle"> · {day}</span>
                     </p>
-                    <Button size="sm" onClick={() => onShowTimes(s.id)}>
+                    <Button size="sm" variant="outline" onClick={() => onShowTimes(s.id)}>
                       {t("See free times")}
                     </Button>
                   </div>

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Banknote, Clock, FileText, HandCoins, Image, LandPlot, Layers, PiggyBank, Repeat, Settings, Tag, TrendingUp, Undo2, UserCog, UserPlus, Wallet, Wrench } from "lucide-react";
+import { Banknote, Clock, Layers, PiggyBank, TrendingUp, Undo2, UserPlus, Wallet } from "lucide-react";
 import { CardTitle } from "@/client/components/section";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Shell, money, when } from "@/client/components/shell";
 import { PageHero } from "@/client/components/page-hero";
 import { CapacityPanel, ExportButtons, MembersPanel } from "@/client/components/report-panels";
-import { Button, ButtonAnchor, ButtonLink, Card, DateField, LoadError, Select, Seg, Skeleton, Stat } from "@/client/components/ui";
+import { Button, ButtonAnchor, Card, DateField, LoadError, Select, Seg, Skeleton, Stat } from "@/client/components/ui";
 import { CountUp, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
 import { GLBackground, SplitText, SpotlightCard } from "@/client/components/fx";
 import { t } from "@/client/lib/i18n";
@@ -84,38 +84,6 @@ function Page() {
           </ButtonAnchor>
         </Card>
       ) : null}
-      {/* Everything the manager runs besides the numbers. Phones reach the same pages from the
-          bottom bar's More sheet, so the strip is for screens with room for it. */}
-      <nav aria-label={t("Quick links")} className="mb-5 hidden flex-wrap gap-1 border-b border-line/60 pb-3 md:flex">
-        {(
-          [
-            { to: "/manager/courts" as const, label: t("Courts"), Icon: LandPlot },
-            { to: "/manager/sports" as const, label: t("Sports"), Icon: Layers },
-            { to: "/manager/media" as const, label: t("Media"), Icon: Image },
-            { to: "/manager/staff" as const, label: t("Staff"), Icon: UserCog },
-            { href: "/manager/staff?create=1", label: t("Add staff"), Icon: UserPlus },
-            { to: "/manager/plans" as const, label: t("Plans"), Icon: Wallet },
-            { to: "/manager/promos" as const, label: t("Promos"), Icon: Tag },
-            { to: "/manager/prices" as const, label: t("Pricing"), Icon: Settings },
-            { to: "/desk/series" as const, label: t("Fixed bookings"), Icon: Repeat },
-            { to: "/manager/commission" as const, label: t("Commission"), Icon: HandCoins },
-            { to: "/manager/invoices" as const, label: t("E-invoices"), Icon: FileText },
-            { to: "/desk/maintenance" as const, label: t("Maintenance"), Icon: Wrench },
-          ] as const
-        ).map((a) =>
-          "href" in a ? (
-            <ButtonAnchor key={a.label} href={a.href} variant="ghost" size="sm" className="text-muted hover:text-fg">
-              <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-              {a.label}
-            </ButtonAnchor>
-          ) : (
-            <ButtonLink key={a.label} to={a.to} variant="ghost" size="sm" className="text-muted hover:text-fg">
-              <a.Icon aria-hidden="true" className="size-4 text-muted" strokeWidth={1.75} />
-              {a.label}
-            </ButtonLink>
-          ),
-        )}
-      </nav>
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Seg
           value={period}

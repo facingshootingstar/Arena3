@@ -6,7 +6,6 @@ import { PayOnlineButton } from "@/client/components/pay-online";
 import { TransferQrModal } from "@/client/components/transfer-qr-modal";
 import { Shell, money, when } from "@/client/components/shell";
 import { PageHero } from "@/client/components/page-hero";
-import { StatStrip } from "@/client/components/stat-strip";
 import { Badge, Button, ButtonLink, Card, EmptyState, Input, LoadError, Pagination, Seg, Select, Skeleton } from "@/client/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
 import { GLBackground, SpotlightCard, StarBorder } from "@/client/components/fx";
@@ -35,7 +34,7 @@ function Page() {
     receiptPaging, onlineOn, shiftRead, method, setMethod, busy, setPromo, read, data, awaiting,
     orders, refunds, payouts, receiptPage, toCollect, canTake, noTill, refresh, dueOf,
     transferTarget, setTransferTarget, takePayment, decline, settleTransfer, confirmSeat,
-    settleRefund, payOut, statItems,
+    settleRefund, payOut,
   } = useDeskPayments();
 
   return (
@@ -45,7 +44,6 @@ function Page() {
         title={t("Payments & refunds")}
         subtitle={t("Orders waiting for payment, posted receipts, and audit trail.")}
       />
-      <StatStrip className="mb-6" items={statItems} />
       <GLBackground
         variant="dotgrid"
         position="fixed"
@@ -85,7 +83,7 @@ function Page() {
         ) : null}
         {/* A manager came here from the manager menu, so "back" is their own
             home — `/desk` is the receptionist's counter, with a till they do not run. */}
-        <ButtonLink to={isManager ? "/manager" : "/desk"} variant="espresso" className="ml-auto">
+        <ButtonLink to={isManager ? "/manager" : "/desk"} variant="outline" className="ml-auto">
           {isManager ? t("Back to reports") : t("Back to the desk")}
         </ButtonLink>
       </Reveal>

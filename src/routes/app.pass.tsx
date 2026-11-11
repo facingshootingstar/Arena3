@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { toast } from "sonner";
 import { ScanLine } from "@/client/components/arena-icons";
 import { Shell, useSessionUser } from "@/client/components/shell";
-import { Badge, Button, Card, Field, Input, LoadError, PageHero, Skeleton } from "@/client/components/ui";
+import { Badge, Button, ButtonLink, Card, Field, Input, LoadError, PageHero, Skeleton } from "@/client/components/ui";
 import { Tilt } from "@/client/components/motion";
 import { GlareHover } from "@/client/components/fx";
 import { apiGet, apiPost } from "@/client/arena3/client";
@@ -109,17 +109,6 @@ function Page() {
         title={t("Gate pass")}
         subtitle={t("Show this code to the front desk. It changes every minute.")}
         fallbackSpot="gate"
-        stats={[
-          {
-            label: t("Member Code"),
-            value: tok?.member_code || user?.member_code || "—",
-          },
-          {
-            label: t("Time left"),
-            value: `${left}s`,
-            live: left > 0,
-          },
-        ]}
       />
 
       <div className="grid max-w-md gap-6 mx-auto sm:mx-0">
@@ -181,7 +170,14 @@ function Page() {
                 {selfBusy ? t("Checking…") : t("Check in")}
               </Button>
             </div>
-            {inside ? <p className="text-sm text-accent">{inside}</p> : null}
+            {inside ? (
+              <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-accent/30 bg-accent/5 p-3">
+                <p className="text-sm font-medium text-fg">{inside}</p>
+                <ButtonLink to="/app" size="sm">
+                  {t("Back to schedule")}
+                </ButtonLink>
+              </div>
+            ) : null}
           </form>
         </Card>
       </div>

@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Calendar, CheckCircle2, Mail, Phone } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Calendar, CheckCircle2, Mail, Phone } from "lucide-react";
 import { SectionTitle } from "@/client/components/section";
 import { PayOnlineButton } from "@/client/components/pay-online";
 import { useRef, useState } from "react";
@@ -296,6 +296,11 @@ function Page() {
 
   return (
     <Shell role={role}>
+      {/* History back, not a fixed link: the desk search or the manager's list keeps its filters and scroll. */}
+      <Button size="sm" variant="ghost" className="mb-3 -ml-2" onClick={() => window.history.back()}>
+        <ArrowLeft aria-hidden className="size-4" />
+        {t("Back")}
+      </Button>
       {/* Header block (Task M: Section 5.3) */}
       <div className="mb-6 rounded-[var(--radius-xl)] border border-line bg-surface p-4 sm:p-6 shadow-[var(--shadow-border)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -410,10 +415,10 @@ function Page() {
         {/* Health notes callout */}
         <div className="mt-4 pt-3 border-t border-line/60">
           {data.user.health_notes ? (
-            <div className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 flex items-start gap-2.5">
-              <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" />
+            <div className="rounded-[var(--radius-md)] border border-hold/40 bg-hold/10 p-3 text-sm flex items-start gap-2.5">
+              <AlertTriangle className="size-4 shrink-0 text-hold mt-0.5" />
               <div>
-                <span className="font-semibold text-amber-300 mr-2">{t("Health notes:")}</span>
+                <span className="font-semibold text-hold mr-2">{t("Health notes:")}</span>
                 <span className="text-fg">{data.user.health_notes}</span>
               </div>
             </div>

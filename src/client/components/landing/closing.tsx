@@ -35,7 +35,7 @@ export function ClosingCta() {
             {t("{open}-{close} · seven days", { open: hhmm(venue.open), close: hhmm(venue.close) })}
           </p>
           <p data-rise className="mt-3 max-w-sm text-on-media-muted on-media">
-            {t("Reception is open during all opening hours. You can book at the desk without an account.")}
+            {t("Create an account to enrol in a class. Reception is open all day if you would like to meet the coaches first.")}
           </p>
           <div data-rise className="mt-6 flex flex-wrap gap-3">
             <ButtonLink to="/register" size="lg" className="group bg-on-media text-night hover:bg-on-media">
@@ -68,7 +68,7 @@ export function SiteFooter() {
             <span className="font-display text-xl font-bold">Lê Long Sport</span>
           </div>
           <p className="mt-4 max-w-xs text-sm text-muted">
-            {t("Indoor sports centre with court booking and classes.")}
+            {t("Indoor sports centre with coached classes and court booking.")}
           </p>
         </div>
 
@@ -94,12 +94,12 @@ export function SiteFooter() {
           <p className="kicker text-2xs text-muted">{t("Explore")}</p>
           <ul className="mt-3 grid gap-0 text-sm sm:mt-4 sm:gap-1">
             {[
+              ["#classes", t("Open classes")],
+              ["#coaches", t("Coaches")],
+              ["#how", t("How to join a class")],
               ["#schedule", t("Today's schedule")],
               ["#courts", t("Courts & pricing")],
-              ["#classes", t("Open classes")],
-              ["#how", t("How booking works")],
               ["#facilities", t("Facilities")],
-              ["#coaches", t("Coaches")],
               ["/credits", t("Media Credits")],
             ].map(([href, label]) => (
               <li key={href}>

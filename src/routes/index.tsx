@@ -165,12 +165,13 @@ function Landing() {
       <Hero
         isOpen={isOpen}
         freeHours={schedFree}
+        openClasses={classes.length}
         day={schedDay}
         cheapestHour={cheapestHour}
         next={nextFree}
         onHold={holdNext}
       />
-      <StatsBand freeHours={schedFree} day={schedDay} courts={sched.courts} />
+      <StatsBand courts={sched.courts} />
       <CourtsScene weekday={weekday} freeBySport={freeBySport} day={schedDay} onShowTimes={showTimes} courts={sched.courts} />
       <ScheduleScene
         sched={sched}
