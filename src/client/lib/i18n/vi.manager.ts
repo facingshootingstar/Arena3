@@ -79,6 +79,7 @@ export const manager: Record<string, string> = {
   "Export Excel": "Xuất Excel",
   "Export PDF": "Xuất PDF",
   "All sports": "Tất cả môn",
+  "No sport yet": "Chưa có môn",
   "Court capacity": "Công suất sân",
   "Share of open hours that were sold, as bookings or class sessions.": "Tỷ lệ giờ mở cửa đã được bán, dưới dạng đặt sân hoặc buổi học.",
   "No courts to report on": "Chưa có sân nào để báo cáo",

@@ -146,7 +146,9 @@ function Page() {
       : t("The minimum must be a whole number from 1 up to the capacity.");
   const priceError =
     form.price.trim() === "" || Number.isInteger(whole(form.price)) ? null : t("Price must be a whole number of dong, or empty.");
-  const invalid = !!(capacityError || minError || priceError);
+  const startError =
+    form.start_on && form.start_on < todayISO() ? t("A class cannot start or end in the past. Pick today or a later first day.") : null;
+  const invalid = !!(capacityError || minError || priceError || startError);
 
   function toggleDay(k: string) {
     setDays((prev) => (prev.includes(k) ? prev.filter((d) => d !== k) : [...prev, k]));
@@ -267,8 +269,13 @@ function Page() {
             ))}
           </Select>
         </Field>
-        <Field label={t("First day")}>
-          <DateField value={form.start_on} onChange={(v) => setForm({ ...form, start_on: v })} aria-label={t("Start date")} />
+        <Field label={t("First day")} hint={startError ?? undefined} tone={startError ? "danger" : "muted"}>
+          {/* The class runs 60 days from its first day, so the end moves with it. */}
+          <DateField
+            value={form.start_on}
+            onChange={(v) => setForm({ ...form, start_on: v, end_on: v ? addDaysISO(v, 60) : form.end_on })}
+            aria-label={t("Start date")}
+          />
         </Field>
         <Field label={t("Capacity")} hint={capacityError ?? undefined}>
           <Input

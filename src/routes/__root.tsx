@@ -128,6 +128,8 @@ function RootComponent() {
             visibleToasts={3}
             toastOptions={{
               className: "font-sans",
+              // sonner's own description grey is meant for a light card and nearly vanished on ours.
+              classNames: { description: "!text-muted" },
               style: {
                 background: "var(--color-surface)",
                 color: "var(--color-fg)",

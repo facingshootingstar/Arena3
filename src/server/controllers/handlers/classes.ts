@@ -124,6 +124,10 @@ export async function classesCreate(sql: Sql, request: Request, user: PublicUser
   if (start_on > end_on) {
     throw err.field("end_on", "End date must be on or after start date.");
   }
+  // A timetable that begins before today would publish sessions that already happened.
+  if (start_on < ictDateString()) {
+    throw err.field("start_on", "A class cannot start or end in the past. Pick today or a later first day.");
+  }
 
   const rruleParts = Object.fromEntries(
     rrule.split(";").map((p) => {
