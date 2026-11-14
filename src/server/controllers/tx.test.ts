@@ -45,6 +45,96 @@ const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
 
+describe("G2 certificates and G7 Progress attendance", () => {
+  async function fixture(sql: Parameters<Parameters<typeof withTx>[0]>[0]) {
+    const users = await sql.query<any>(
+      `insert into users (full_name, name_normalized, role, password_hash, phone)
+       values ('G2 Member', 'g2 member', 'member', 'hash', substr(gen_random_uuid()::text, 1, 16)),
+              ('G2 Coach', 'g2 coach', 'coach', 'hash', substr(gen_random_uuid()::text, 1, 16)) returning *`,
+    );
+    const member = toPublic(users.find((u) => u.role === 'member'));
+    const coach = users.find((u) => u.role === 'coach');
+    const court = (await sql.query<{ id: string }>(
+      `insert into courts (court_code, sport, status)
+       values ('G2-' || substr(gen_random_uuid()::text, 1, 5), 'badminton', 'ready') returning id`,
+    ))[0];
+    const cls = (await sql.query<{ id: string }>(
+      `insert into classes (sport, level, coach_id, court_id, capacity, rrule, duration_min, start_on, end_on, status)
+       values ('badminton', 'beginner', $1, $2, 10, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', 60,
+         (now() at time zone 'Asia/Ho_Chi_Minh')::date - 30,
+         (now() at time zone 'Asia/Ho_Chi_Minh')::date + 1, 'open') returning id`,
+      [coach.id, court.id],
+    ))[0];
+    const enrollment = (await sql.query<{ id: string }>(
+      `insert into enrollments (class_id, user_id, status) values ($1, $2, 'confirmed') returning id`,
+      [cls.id, member.id],
+    ))[0];
+    const sessions = await sql.query<{ id: string }>(
+      `insert into sessions (class_id, court_id, start_at, end_at, status)
+       select $1, $2, now() - n * interval '1 day', now() - n * interval '1 day' + interval '1 hour', 'done'
+       from generate_series(2, 6) n returning id`, [cls.id, court.id],
+    );
+    for (const [i, session] of sessions.entries()) {
+      await sql.query(
+        `insert into attendance (kind, user_id, session_id, result)
+         values ('session', $1, $2, $3::att_result)`,
+        [member.id, session.id, i === 0 ? 'late' : i === 4 ? 'absent' : 'present'],
+      );
+    }
+    return { member, cls, enrollment, sessions };
+  }
+
+  it("G2: generated sessions alone cannot qualify a class ending today or later in Vietnam", async () => {
+    const { meCertificates, meCertificateIssue } = await import('./handlers/certificates.ts');
+    await withTx(async (sql) => {
+      // Keep the database session date different from Vietnam's date at any hour.
+      const { zone } = (await sql.query<{ zone: string }>(
+        `select case when (now() at time zone 'Pacific/Honolulu')::date
+           <> (now() at time zone 'Asia/Ho_Chi_Minh')::date
+         then 'Pacific/Honolulu' else 'Pacific/Kiritimati' end as zone`,
+      ))[0];
+      await sql.query(`select set_config('TimeZone', $1, true)`, [zone]);
+      const { member, cls, enrollment } = await fixture(sql);
+      for (const offset of [1, 0, -1]) {
+        await sql.query(
+          `update classes set end_on = (now() at time zone 'Asia/Ho_Chi_Minh')::date + $2::int where id = $1`,
+          [cls.id, offset],
+        );
+        const listed = (await meCertificates(sql, member)).body.items[0];
+        assert.equal(listed.remaining, 0);
+        assert.equal(listed.sessions, 5);
+        assert.equal(listed.attended, 4);
+        assert.equal(listed.eligible, offset < 0);
+        if (offset >= 0) {
+          await assert.rejects(meCertificateIssue(sql, enrollment.id, member), {
+            code: 'CONFLICT_STATE', message: 'The class is not over yet.',
+          });
+          assert.equal((await sql.query(`select 1 from class_certificates where enrollment_id = $1`, [enrollment.id])).length, 0);
+        } else {
+          const issued = await meCertificateIssue(sql, enrollment.id, member);
+          assert.equal(issued.status, 201);
+          assert.ok(issued.body.code);
+          assert.deepEqual((await meCertificateIssue(sql, enrollment.id, member)).body, issued.body);
+        }
+      }
+    });
+  });
+
+  it("G7: Progress counts present and late sessions without coach results, excluding absent and cancelled", async () => {
+    const { meTraining } = await import('./handlers/training.ts');
+    await withTx(async (sql) => {
+      await sql.query(`insert into feature_flags (key, enabled) values ('F4', true)
+        on conflict (key) do update set enabled = true`);
+      const { member, sessions } = await fixture(sql);
+      assert.equal((await meTraining(sql, member)).body.completed_sessions, 4);
+      await sql.query(`update sessions set status = 'cancelled' where id = $1`, [sessions[1].id]);
+      const progress = (await meTraining(sql, member)).body;
+      assert.equal(progress.completed_sessions, 3);
+      assert.equal(progress.results.length, 0);
+    });
+  });
+});
+
 describe("training suggestions publish without manual edits", () => {
   for (const mode of ["ai", "unavailable", "invalid-json"] as const) {
     it(`publishes ${mode} suggestions through trainingCreate`, async (t) => {
