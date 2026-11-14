@@ -12,7 +12,8 @@ import { ATTENDANCE_LOCK_HOURS, PLAN_PHASES, INTENSITIES, attendanceLocked, isAt
 import { checkAbsentStreaks, sessionScope } from "./training";
 import { openShift, pickMethod } from "./extras";
 import { addDays, ictDateString } from "../../../shared/arena3/time";
-import { one } from "../tx";
+import { one, withTx } from "../tx";
+import { MAX_BOT_TURN, MAX_QUESTION, parseHistory, signReply } from "../../services/assistant-thread";
 import { payosConfigured } from "../../integrations/payos";
 import { centreBank } from "../../integrations/bank";
 import { pageParams, parseInteger } from "../validate";
@@ -657,7 +658,7 @@ function ticketQuota(userId: string): void {
 export async function assistantChat(sql: Sql, request: Request, user: PublicUser) {
   await requireFlag(sql, "F6");
   const body = await readJson(request);
-  const message = (str(body.message) ?? "").trim().slice(0, 800);
+  const message = (str(body.message) ?? "").trim().slice(0, MAX_QUESTION);
   if (message.length < 2) throw err.validation("Type a question first.");
   // The ceiling on the endpoint itself (FR-A03), charged before the branch
   // below rather than inside it: every turn costs a `requireFlag` query whether
@@ -687,12 +688,19 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     // After the blank check, so asking for the rest of a sentence costs only
     // the endpoint ceiling above, not a slot in the desk's queue.
     ticketQuota(user.id);
-    const t = await one<{ id: string }>(
-      sql,
-      `insert into tickets (user_id, body) values ($1,$2) returning id`,
-      [user.id, note],
-    );
-    await audit(sql, user.id, "assistant", "chat", user.id, null, { q: note.slice(0, 200), source: "ticket" });
+    // The route runs outside a transaction so the model call below holds no
+    // connection. The ticket and its audit row commit together here: had the
+    // audit failed after the ticket was saved, the member would see an error,
+    // send again, and the desk would get the same request twice.
+    const t = await withTx(async (tx) => {
+      const row = await one<{ id: string }>(
+        tx,
+        `insert into tickets (user_id, body) values ($1,$2) returning id`,
+        [user.id, note],
+      );
+      await audit(tx, user.id, "assistant", "chat", user.id, null, { q: note.slice(0, 200), source: "ticket" });
+      return row;
+    });
     return {
       status: 200,
       body: {
@@ -773,6 +781,15 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
     `Centre: ${centreName(settings)}. Open ${settings.open_time.slice(0, 5)}–${settings.close_time.slice(0, 5)} ICT every day.`,
     `Court holds last ${settings.hold_minutes} minutes. A customer who cancels a court or a class, or does not show up, gets no refund. If the centre cancels, the money comes back in cash at the desk. One membership covers every sport; plans differ only by length. Covered on the day, a court costs ${settings.member_court_fee_vnd.toLocaleString("en-US")}đ an hour at any time; otherwise the list price. A class charges tuition, and can be joined only when the membership ends after the class ends; otherwise buy or extend a plan first.`,
     `Waitlists are first-come; an offer stands for ${settings.waitlist_offer_hours}h. Under-${settings.minor_age}s cannot book or enrol on their own.`,
+    // The screens by the names the member actually sees. Without these the model
+    // made up steps and rules ("cancel at least 2 hours before") that the app does not have.
+    `How to, in the app (Vietnamese menu name in brackets):
+• Book a court: Book (Đặt sân) → pick a court and a free hour → hold → pay at the desk before the hold runs out.
+• Cancel a court booking: open it under Book (Đặt sân) or on Home (Trang chủ) → Cancel (Huỷ). Possible any time before it starts, never after; no refund.
+• Join or leave a class: Classes (Lớp học). Attendance is under Classes → Attendance.
+• Plans and their dates: Plans (Gói tập). Check-in QR code: Pass (Mã QR). Notifications: Notifications (Thông báo).
+• Support requests and the desk's replies: Account › Support (Tài khoản › Hỗ trợ).
+There is no cancellation deadline, fee or notice period other than what is written here.`,
     `Classes on sale:\n${onSale.map((c) => `• ${c.sport} ${c.level} · coach ${c.coach_name ?? "—"} · ${c.price_vnd.toLocaleString("en-US")}đ`).join("\n") || "—"}`,
     `Open classes:\n${classes.map((c) => `• ${c.sport} ${c.level} · coach ${c.coach_name ?? "—"} · ${c.enrolled_count}/${c.capacity}`).join("\n") || "No classes are open."}`,
     `Coaches:\n${COACHES.map((c) => `• ${c.name} — ${c.title}. ${c.blurb}`).join("\n")}`,
@@ -787,54 +804,28 @@ export async function assistantChat(sql: Sql, request: Request, user: PublicUser
   const system = `You are the ${centreName(settings)} front-desk assistant inside the member app. Reply in the language of the member's latest message (Vietnamese if they write in Vietnamese, otherwise English), keep it short (2–8 sentences), and stay strictly inside the DATA BLOCK.
 No medical advice, no discounts beyond the listed prices, never invent a free slot.
 Only name coaches and classes that appear in the data block.
-If you do not know: tell them to ask the desk or start a message with "ticket:" followed by what happened.
-You can walk them through Book / Classes in the app. Payment is taken at the desk for each court booking or class they buy in the app.
+Never state a rule, deadline, fee or step that is not in the DATA BLOCK. If the answer is not there, say you do not know and tell them to ask the desk or start a message with "ticket:" followed by what happened.
+Walk them through the app with the screen names in "How to"; when replying in Vietnamese use the Vietnamese names. Payment is taken at the desk for each court booking or class they buy in the app.
+Answer only the member's latest message; earlier turns are context.
 
 DATA BLOCK:
 ${facts}`;
 
-  const history = parseHistory(body.history);
+  const history = parseHistory(body.history, user.id);
   const turns: ChatTurn[] = [...history, { role: "user", text: message }];
 
   const ai = await generateAssistantReply(system, turns);
-  const reply = ai?.text ?? ruleReply(q, settings, onSale, classes);
+  const reply = (ai?.text ?? ruleReply(q, settings, onSale, classes)).slice(0, MAX_BOT_TURN);
   const source = ai?.source ?? "rules";
 
   await audit(sql, user.id, "assistant", "chat", user.id, null, {
     q: message.slice(0, 200),
     source,
   });
-  return { status: 200, body: { reply, source } };
-}
-
-/**
- * The earlier turns the browser sends up with a question.
- *
- * Only the member's own turns are kept. The client used to be able to post
- * turns as `role: "model"` too, which is the browser telling the model what the
- * model supposedly already said — a free hand to write the assistant's past for
- * it, and from there to talk it past the system prompt into quoting a discount
- * or a free court that does not exist.
- *
- * The cost is real and worth naming: with no assistant turns to look back on, a
- * follow-up that leans on the last answer ("what about the other one?") has
- * less to go on. Fixing that properly means the server keeping the thread
- * itself, which needs a table it does not have — this is the honest version
- * until then, because a confident wrong answer the member themselves planted is
- * worse than a vaguer right one.
- */
-function parseHistory(raw: unknown): ChatTurn[] {
-  if (!Array.isArray(raw)) return [];
-  const out: ChatTurn[] = [];
-  for (const item of raw.slice(-8)) {
-    if (!item || typeof item !== "object") continue;
-    const rec = item as { role?: unknown; text?: unknown };
-    if (rec.role !== "me" && rec.role !== "user") continue;
-    const text = typeof rec.text === "string" ? rec.text.trim().slice(0, 800) : "";
-    if (text.length < 1) continue;
-    out.push({ role: "user", text });
-  }
-  return out;
+  // Only a model's answer is sealed for the thread. A rule-based fallback fed
+  // back as the model's own words taught it to repeat the canned line.
+  const sig = ai ? signReply(user.id, message, reply) : undefined;
+  return { status: 200, body: { reply, source, ...(sig ? { sig } : {}) } };
 }
 
 /**

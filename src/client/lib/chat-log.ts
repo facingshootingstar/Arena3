@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 
 /** One line of the assistant conversation as both the widget and the full page keep it. */
-export type ChatMsg = { role: "me" | "bot"; text: string; source?: "gemini" | "xai" | "rules" };
+export type ChatMsg = { role: "me" | "bot"; text: string; source?: "gemini" | "xai" | "rules"; sig?: string };
+
+/**
+ * The thread as the server takes it back: the member's turns, and the assistant's
+ * turns with the seal the server put on them. The server drops a bot turn whose
+ * seal does not match, so an edited log cannot put words in the assistant's mouth.
+ */
+export function historyFor(log: ChatMsg[]): Array<{ role: ChatMsg["role"]; text: string; sig?: string }> {
+  return log
+    .filter((m) => m.role === "me" || typeof m.sig === "string")
+    .slice(-16)
+    .map((m) => (m.role === "me" ? { role: m.role, text: m.text } : { role: m.role, text: m.text, sig: m.sig }));
+}
 
 /** Enough for a conversation to survive a reload without the key growing for ever. */
 const LIMIT = 50;

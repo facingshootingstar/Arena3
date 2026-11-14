@@ -732,8 +732,13 @@ async function dispatch(request: Request): Promise<Response | Result> {
   if (method === "GET" && p0 === "promotions" && p1 && p2 === "redemptions") {
     return authedRead((sql, user) => promoH.promosRedemptions(sql, p1, user));
   }
+  // Not `authed`: a model call takes seconds, and inside a transaction it held
+  // a connection (on PGlite, the only one) for the whole wait. The exception
+  // to the pure-select rule above: the handler opens its own short transaction
+  // for the ticket and its audit row, and writes only the chat audit row on its
+  // own, after the model has answered.
   if (method === "POST" && p0 === "assistant") {
-    return authed((sql, user) => opsH.assistantChat(sql, request, user));
+    return authedRead((sql, user) => opsH.assistantChat(sql, request, user));
   }
   // Before the bare /tickets read, or "mine" is matched as a ticket id.
   if (method === "GET" && p0 === "tickets" && p1 === "mine") {

@@ -42,6 +42,7 @@ const { sniffAvatar, meAvatarPut, meAvatarDelete, userAvatarGet } = avatarH;
 const membersH = await import("./handlers/members.ts");
 const { memberGet, membersDirectory, membersSearch } = membersH;
 const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
+const { thinkingOffConfig } = await import("../integrations/gemini.ts");
 
 let db: PGlite;
 
@@ -50,10 +51,12 @@ describe("training suggestions publish without manual edits", () => {
     it(`publishes ${mode} suggestions through trainingCreate`, async (t) => {
       const original = process.env.GEMINI_API_KEY;
       process.env.GEMINI_API_KEY = "test-training-suggestion";
-      t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+      t.mock.method(globalThis, "fetch", async (url: unknown, init?: RequestInit) => {
         const body = JSON.parse(String(init?.body));
         assert.equal(body.generationConfig.responseMimeType, "application/json");
-        assert.equal(body.generationConfig.thinkingConfig.thinkingBudget, 0);
+        // Thinking off, in the form the model takes: thinkingLevel on Gemini 3+, thinkingBudget before.
+        const model = String(url).match(/models\/([^:]+):/)?.[1] ?? "";
+        assert.deepEqual(body.generationConfig.thinkingConfig, thinkingOffConfig(model));
         for (const value of [...PLAN_PHASES, ...INTENSITIES]) assert.ok(body.systemInstruction.parts[0].text.includes(value));
         if (mode === "unavailable") return new Response("unavailable", { status: 503 });
         const blocks = [
@@ -5135,6 +5138,64 @@ describe("F6 flag gate", () => {
     // This one returns its body directly rather than a {status, body} pair.
     const convs = await withTx((sql) => chatH.listConversations(sql, member));
     assert.ok(Array.isArray(convs.conversations));
+  });
+});
+
+/**
+ * `POST /assistant` runs outside a transaction (the model call must not hold
+ * one), so its `ticket:` branch opens a short one of its own. A ticket and its
+ * audit row commit together: if the audit write fails after the ticket was
+ * saved, nothing is left behind, so the member's retry does not hand the desk
+ * the same request twice.
+ */
+describe("assistant ticket is written atomically", () => {
+  const member = { id: "00000000-0000-0000-0000-0000000000f3", role: "member", full_name: "Member F3" } as any;
+  // The route's own connection: no transaction around the handler, as with `authedRead`.
+  const plain = () =>
+    Object.assign(async () => {
+      throw new Error("tagged template not used here");
+    }, { query: async (text: string, params: unknown[] = []) => (await db.query(text, params)).rows }) as any;
+  const ask = (message: string) =>
+    new Request("http://localhost/v1/assistant", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+  const count = async () =>
+    Number((await db.query<{ n: number }>(`select count(*)::int as n from tickets where user_id = $1`, [member.id])).rows[0]!.n);
+
+  before(async () => {
+    await db.query(
+      `insert into users (id, phone, full_name, name_normalized, role, status, password_hash)
+       values ($1, '0987000503', 'Member F3', 'member f3', 'member', 'active', 'hash')
+       on conflict (id) do nothing`,
+      [member.id],
+    );
+    await db.query(
+      `insert into feature_flags (key, enabled) values ('F6', true)
+       on conflict (key) do update set enabled = excluded.enabled`,
+    );
+  });
+
+  it("leaves no ticket when the audit write fails, and exactly one on the retry", async () => {
+    clearLimits();
+    const before = await count();
+    await db.query(`alter table audit_logs rename to audit_logs_off`);
+    try {
+      await assert.rejects(async () => opsH.assistantChat(plain(), ask("ticket: lights out on BC2"), member));
+    } finally {
+      await db.query(`alter table audit_logs_off rename to audit_logs`);
+    }
+    assert.equal(await count(), before, "the failed attempt must not leave a ticket");
+
+    const res = await opsH.assistantChat(plain(), ask("ticket: lights out on BC2"), member);
+    assert.equal(res.status, 200);
+    assert.equal(await count(), before + 1);
+    const audit = await db.query<{ n: number }>(
+      `select count(*)::int as n from audit_logs where actor_id = $1 and action = 'assistant'`,
+      [member.id],
+    );
+    assert.equal(Number(audit.rows[0]!.n), 1);
   });
 });
 

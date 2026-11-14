@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useReducedMotionAfterMount } from "@/client/components/motion";
 import { useSessionUser } from "@/client/components/shell";
 import { apiPost } from "@/client/arena3/client";
-import { useChatLog } from "@/client/lib/chat-log";
+import { historyFor, useChatLog } from "@/client/lib/chat-log";
 import { cn } from "@/client/lib/cn";
 import { scrollBehavior } from "@/client/lib/calm";
 import { t, tk } from "@/client/lib/i18n";
@@ -152,12 +152,12 @@ export function AssistantWidget({ docked }: { docked: boolean }) {
     if (message.length < 2 || busy) return;
     setQ("");
     setErr(null);
-    const history = log.filter((m) => m.role === "me").map((m) => ({ role: m.role, text: m.text }));
+    const history = historyFor(log);
     append({ role: "me", text: message });
     setBusy(true);
     try {
-      const r = await apiPost<{ reply: string; source?: "gemini" | "xai" | "rules" }>("/assistant", { message, history });
-      append({ role: "bot", text: r.reply, source: r.source });
+      const r = await apiPost<{ reply: string; source?: "gemini" | "xai" | "rules"; sig?: string }>("/assistant", { message, history });
+      append({ role: "bot", text: r.reply, source: r.source, sig: r.sig });
     } catch (e) {
       setErr(e instanceof Error ? e.message : t("The assistant is switched off"));
     } finally {
