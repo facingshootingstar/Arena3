@@ -37,6 +37,7 @@ type Refund = {
   member_code: string | null;
   raised_by: string | null;
   centre_owed?: boolean;
+  needs_approval: boolean;
 };
 
 
@@ -190,8 +191,8 @@ export function useDeskPayments() {
   const awaiting = data?.awaiting ?? [];
   const orders = data?.orders ?? [];
   const allRefunds = data?.refunds ?? [];
-  const refunds = allRefunds.filter((r) => !r.centre_owed);
-  const payouts = allRefunds.filter((r) => r.centre_owed);
+  const refunds = allRefunds.filter((r) => r.needs_approval);
+  const payouts = allRefunds.filter((r) => !r.needs_approval);
   // The server filters and pages the receipts across the whole window, so every row in it can be
   // reached when the list is read back against a bank statement; this is one page of them.
   const receiptPage = data?.receipts ?? [];

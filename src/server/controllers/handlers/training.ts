@@ -577,6 +577,11 @@ export async function meTraining(sql: Sql, user: PublicUser) {
     );
     next_sessions.push({ ...s, plans });
   }
+  const attended = await one<{ count: number }>(sql,
+    `select count(distinct a.session_id)::int as count from attendance a
+      join sessions s on s.id = a.session_id
+      where a.user_id = $1 and a.kind = 'session' and a.result in ('present', 'late')
+        and s.status <> 'cancelled'`, [user.id]);
   const results = await sql.query(
     `select r.session_id, r.plan_pct, r.metrics, r.note, s.start_at, cl.sport::text as sport
        from session_results r
@@ -601,7 +606,7 @@ export async function meTraining(sql: Sql, user: PublicUser) {
   );
   return {
     status: 200,
-    body: { goal: goal?.goal ?? null, levels, next_sessions, results, reviews, homework },
+    body: { goal: goal?.goal ?? null, levels, next_sessions, results, reviews, homework, completed_sessions: attended?.count ?? 0 },
   };
 }
 

@@ -1,4 +1,16 @@
 export const core: Record<string, string> = {
+  "Refund pending. Pay it in cash from the payments queue after any required manager approval.": "Khoản hoàn đang chờ. Trả tiền mặt từ danh sách thanh toán sau khi được quản lý duyệt nếu cần.",
+  "Awaiting cash payout": "Chờ trả tiền mặt",
+  "Court closed for maintenance, …": "Sân đóng để bảo trì, …",
+  "A reason is required for a centre cancellation.": "Cần nhập lý do trung tâm hủy.",
+  "A refund reason is required.": "Cần nhập lý do hoàn tiền.",
+  "A manager must approve this refund before cash is paid out.": "Quản lý phải duyệt khoản hoàn này trước khi trả tiền mặt.",
+  "Collect your refund in cash at the front desk.": "Nhận tiền hoàn bằng tiền mặt tại quầy lễ tân.",
+  "Nothing is refunded.": "Không hoàn tiền.",
+  "Your refund of {amount} was paid in cash at the front desk.": "Khoản hoàn {amount} đã được trả bằng tiền mặt tại quầy lễ tân.",
+  "Your refund was paid in cash at the front desk.": "Khoản hoàn đã được trả bằng tiền mặt tại quầy lễ tân.",
+  "Hand refunds back in cash at the front desk. Mark paid only after handing over the cash.": "Trả tiền hoàn bằng tiền mặt tại quầy. Chỉ đánh dấu đã trả sau khi giao tiền.",
+
   // header, language, skip link
   "Language": "Ngôn ngữ",
   "Skip to main content": "Chuyển đến nội dung chính",

@@ -431,7 +431,8 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
   requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
   const amount = num(b.amount_vnd);
-  const reason = str(b.reason) ?? "";
+  const reason = str(b.reason)?.trim() ?? "";
+  if (!reason) throw err.field("reason", "A refund reason is required.");
   if (amount == null || amount === 0) throw err.validation("amount_vnd must not be zero.");
   const orig = await one<{
     id: string;
@@ -446,7 +447,6 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
 
   if (!orig) throw err.notFound();
   if (orig.amount_vnd <= 0) throw err.validation("That row is already a refund.");
-  const settings = await getSettings(sql);
   const signed = amount > 0 ? -amount : amount;
 
   /*
@@ -488,28 +488,14 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
     shiftId = sh.id;
   }
 
-  const needMgr = Math.abs(signed) >= settings.refund_manager_vnd;
-  if (needMgr && user.role !== "manager") {
-    const payCode = await nextCode(sql, "PAY");
-    const row = await one(
-      sql,
-      `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by, shift_id)
-       values ($1,$2,'cash',$3,$4,'refund_pending',$5,$6,$7,$8) returning *`,
-      [payCode, orig.user_id, signed, orig.vat_rate, orig.ref_type, orig.ref_id, user.id, shiftId],
-    );
-    await audit(sql, user.id, "refund_pending", "payment", (row as { id: string }).id, null, { reason });
-    return { status: 201, body: { payment: row } };
-  }
-  const payCode = await nextCode(sql, "PAY");
   const row = await one(
     sql,
     `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by, shift_id)
-     values ($1,$2,'cash',$3,$4,'posted',$5,$6,$7,$8) returning *`,
-    [payCode, orig.user_id, signed, orig.vat_rate, orig.ref_type, orig.ref_id, user.id, shiftId],
+     values ($1,$2,'cash',$3,$4,'refund_pending',$5,$6,$7,$8) returning *`,
+    [await nextCode(sql, "PAY"), orig.user_id, signed, orig.vat_rate, orig.ref_type, orig.ref_id, user.id, shiftId],
   );
-  await audit(sql, user.id, "refund", "payment", (row as { id: string }).id, null, { reason });
-  const restored = await restoreIfFullyRefunded(sql, orig.ref_type, orig.ref_id);
-  return { status: 201, body: { payment: row, promo_restored: restored } };
+  await audit(sql, user.id, "refund_pending", "payment", (row as { id: string }).id, null, { reason });
+  return { status: 201, body: { payment: row } };
 }
 
 type PendingRefund = {
@@ -540,8 +526,6 @@ async function lockPendingRefund(sql: Sql, id: string, user: PublicUser): Promis
   if (p.status !== "refund_pending" || p.amount_vnd >= 0) {
     throw err.conflictState("That refund is no longer waiting for a decision.");
   }
-  // No one at the desk raised it: the centre cancelled a class and owes this. Nothing to decide.
-  if (!p.created_by) throw err.conflictState("The centre owes this refund: the front desk pays it out.");
   // A role can change after the refund was raised, so "managers only" is not
   // enough on its own: whoever asked for the money back does not also release it.
   if (p.created_by && p.created_by === user.id) {
@@ -551,7 +535,7 @@ async function lockPendingRefund(sql: Sql, id: string, user: PublicUser): Promis
 }
 
 /**
- * Approve or reject, then tell the member.
+ * Authorize a cash payout, or reject a discretionary refund and tell the member.
  *
  * The status flip, the audit row and the notification all run inside the one
  * request transaction (`authed`): a refund that is decided but unaudited, or
@@ -568,66 +552,17 @@ async function decideRefund(
   const b = request ? await readJson(request) : {};
   const note = str(b.reason);
   if (note && note.length > 500) throw err.field("reason", "The note must be at most 500 characters.");
-  const next = approve ? "posted" : "refund_rejected";
-
-  let shiftId: string | null = p.shift_id;
   if (approve) {
-    const open = shiftId
-      ? await one<{ id: string }>(
-          sql,
-          `select id from cashier_shifts where id = $1 and closed_at is null for update`,
-          [shiftId],
-        )
-      : undefined;
-    if (!open) {
-      const cur = p.created_by
-        ? await one<{ id: string }>(
-            sql,
-            `select id from cashier_shifts where receptionist_id = $1 and closed_at is null for update`,
-            [p.created_by],
-          )
-        : undefined;
-      if (!cur) {
-        throw err.conflictState(
-          "The cashier who raised this refund has no open till shift. Ask them to open one, then approve again.",
-        );
-      }
-      shiftId = cur.id;
-    }
+    // Approval authorizes release; only payout records cash leaving a drawer.
+    await audit(sql, user.id, "refund_authorized", "payment", id, null, { note });
+    return { status: 200, body: { status: "refund_pending" } };
   }
-
-  await sql.query(
-    `update payments set status = $2, shift_id = coalesce($3, shift_id) where id = $1`,
-    [id, next, approve ? shiftId : null],
-  );
-  if (approve) {
-    const ref = await one<{ ref_type: string; ref_id: string }>(
-      sql,
-      `select ref_type, ref_id from payments where id = $1`,
-      [id],
-    );
-    if (ref) await restoreIfFullyRefunded(sql, ref.ref_type, ref.ref_id);
-  }
-  await audit(
-    sql,
-    user.id,
-    approve ? "refund_approved" : "refund_rejected",
-    "payment",
-    id,
-    { status: "refund_pending", amount_vnd: p.amount_vnd },
-    { status: next, ...(note ? { note } : {}), ...(approve && shiftId ? { shift_id: shiftId } : {}) },
-  );
-  if (p.user_id) {
-    await enqueue(
-      sql,
-      "inapp",
-      approve ? "refund_approved" : "refund_rejected",
-      p.user_id,
-      { payment_id: p.id, code: p.code, amount_vnd: Math.abs(p.amount_vnd), ...(note ? { note } : {}) },
-      `refund_${approve ? "approved" : "rejected"}|${p.id}`,
-    );
-  }
-  return { status: 200, body: { status: next } };
+  if (!p.created_by) throw err.conflictState("The centre owes this refund: the front desk pays it out.");
+  await sql.query(`update payments set status = 'refund_rejected' where id = $1`, [id]);
+  await audit(sql, user.id, "refund_rejected", "payment", id, null, { note });
+  if (p.user_id) await enqueue(sql, "inapp", "refund_rejected", p.user_id,
+    { payment_id: p.id, code: p.code, amount_vnd: Math.abs(p.amount_vnd), note }, `refund_rejected|${p.id}`);
+  return { status: 200, body: { status: "refund_rejected" } };
 }
 
 export async function paymentsApproveRefund(sql: Sql, id: string, request: Request, user: PublicUser) {
@@ -639,7 +574,7 @@ export async function paymentsRejectRefund(sql: Sql, id: string, request: Reques
 }
 
 /**
- * The desk hands over cash the centre owes for a cancelled class.
+ * The desk hands over cash for a pending refund, after approval when required.
  *
  * The refund only counts as paid from this moment, and it comes out of the till of whoever paid it.
  */
@@ -651,20 +586,18 @@ export async function paymentsPayOutRefund(sql: Sql, id: string, user: PublicUse
     [id],
   );
   if (!p) throw err.notFound("That refund does not exist.");
-  if (p.status !== "refund_pending" || p.amount_vnd >= 0 || p.created_by) {
+  if (p.status !== "refund_pending" || p.amount_vnd >= 0) {
     throw err.conflictState("That refund is no longer waiting to be paid out.");
   }
-  // A manager has no till, as when taking a payment: the row stays off any shift and the audit names them.
-  let shiftId: string | null = null;
-  if (user.role === "receptionist") {
-    const shift = await one<{ id: string }>(
-      sql,
-      `select id from cashier_shifts where receptionist_id = $1 and closed_at is null for update`,
-      [user.id],
-    );
-    if (!shift) throw err.br("BR-44", "The front desk needs an open shift.");
-    shiftId = shift.id;
+  const settings = await getSettings(sql);
+  if (Math.abs(p.amount_vnd) >= settings.refund_manager_vnd) {
+    const approval = await one(sql, `select id from audit_logs where entity = 'payment' and entity_id = $1 and action = 'refund_authorized' limit 1`, [id]);
+    if (!approval) throw err.forbidden("A manager must approve this refund before cash is paid out.");
   }
+  const shift = await one<{ id: string }>(sql,
+    `select id from cashier_shifts where receptionist_id = $1 and closed_at is null for update`, [user.id]);
+  if (!shift) throw err.br("BR-44", "The front desk needs an open shift.");
+  const shiftId = shift.id;
   await sql.query(`update payments set status = 'posted', shift_id = $2 where id = $1`, [id, shiftId]);
   await restoreIfFullyRefunded(sql, p.ref_type, p.ref_id);
   await audit(sql, user.id, "refund_paid_out", "payment", id, { status: "refund_pending", amount_vnd: p.amount_vnd }, { status: "posted", shift_id: shiftId });
@@ -784,15 +717,20 @@ export async function paymentsPending(sql: Sql, request: Request, user: PublicUs
       order by s.start_on asc, u.full_name asc`,
   );
 
+  const refundSettings = await getSettings(sql);
   const refunds = await sql.query(
     `select p.id, p.code, p.amount_vnd, p.created_at, p.ref_type, p.ref_id,
             u.full_name as member_name, u.member_code,
-            r.full_name as raised_by, p.created_by is null as centre_owed
+            r.full_name as raised_by, p.created_by is null as centre_owed,
+            (abs(p.amount_vnd) >= $1 and not exists (
+              select 1 from audit_logs a where a.entity = 'payment' and a.entity_id = p.id and a.action = 'refund_authorized'
+            )) as needs_approval
        from payments p
        left join users u on u.id = p.user_id
        left join users r on r.id = p.created_by
       where p.status = 'refund_pending'
       order by p.created_at asc`,
+    [refundSettings.refund_manager_vnd],
   );
 
   /*

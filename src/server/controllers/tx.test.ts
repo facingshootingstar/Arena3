@@ -25,7 +25,7 @@ const { readJson, withIdempotency } = await import("./helpers.ts");
 const opsH = await import("./handlers/ops.ts");
 const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessionCancel, classDetail, classRoster, classesPatch, classQuote } = await import("./handlers/classes.ts");
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold, bookingsConfirm, bookingsCancel } = await import("./handlers/bookings.ts");
-const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund } = await import("./handlers/desk.ts");
+const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund, paymentsPayOutRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, sessionAttendancePost } = await import("./handlers/ops.ts");
 const { waitlistExpire } = await import("../data/jobs.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
@@ -833,7 +833,9 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     assert.equal((resRefund.body as any).payment?.shift_id, shift.id);
     assert.equal((resRefund.body as any).payment?.amount_vnd, -40000);
 
-    // Verify shift totals: 100k - 40k = 60k
+    assert.equal((resRefund.body as any).payment.status, "refund_pending");
+    await withTx((sql) => paymentsPayOutRefund(sql, (resRefund.body as any).payment.id, receptionistUser));
+    // Verify shift totals after cash payout: 100k - 40k = 60k
     const reqCurrent = new Request("http://localhost/v1/shifts/current");
     const cur = await withTx(async (sql) => shiftCurrent(sql, receptionistUser, reqCurrent));
     assert.equal(cur.status, 200);
@@ -881,6 +883,8 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     });
     const resApprove = await withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
     assert.equal(resApprove.status, 200);
+    assert.equal((resApprove.body as any).status, "refund_pending");
+    await withTx((sql) => paymentsPayOutRefund(sql, pendingId, receptionistUser));
 
     // Shift totals for receptionist MUST drop by refund amount (the approved refund has shift_id = shift.id)
     const curAfter = await withTx(async (sql) => shiftCurrent(sql, receptionistUser, reqCurrentBefore));
@@ -903,7 +907,7 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     const reqRefund = new Request("http://localhost/v1/payments/" + pay.id + "/refund", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ amount_vnd: 20000 }),
+      body: JSON.stringify({ amount_vnd: 20000, reason: "Staff decision" }),
     });
 
     await assert.rejects(
@@ -2336,7 +2340,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal((res.body as any).payment?.shift_id, s1);
     });
 
-    it("A2-3: manager approves while S1 is still open -> posted, shift_id = S1, cash total drops", async () => {
+    it("A2-3: manager approves then cashier pays -> posted, shift_id = S1, cash total drops", async () => {
       await setupA2();
       const s1 = (await db.query<{ id: string }>(
         `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
@@ -2364,6 +2368,8 @@ describe("Round 10: Two-way Chat unit tests", () => {
       });
       const resApprove = await withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
       assert.equal(resApprove.status, 200);
+      assert.equal((resApprove.body as any).status, "refund_pending");
+      await withTx((sql) => paymentsPayOutRefund(sql, pendingId, receptionistUser));
 
       const checkRow = (await db.query<{ status: string; shift_id: string }>(
         `select status, shift_id from payments where id = $1`,
@@ -2376,7 +2382,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal((curAfter.body as any).totals?.cash, cashBefore - 1000000);
     });
 
-    it("A2-4: S1 closes -> receptionist opens S2 -> approve -> shift_id = S2; S1's figures unchanged", async () => {
+    it("A2-4: S1 closes -> receptionist opens S2 -> approve and pay out -> shift_id = S2; S1's figures unchanged", async () => {
       await setupA2();
       const s1 = (await db.query<{ id: string }>(
         `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
@@ -2418,6 +2424,8 @@ describe("Round 10: Two-way Chat unit tests", () => {
       });
       const resApprove = await withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
       assert.equal(resApprove.status, 200);
+      assert.equal((resApprove.body as any).status, "refund_pending");
+      await withTx((sql) => paymentsPayOutRefund(sql, pendingId, receptionistUser));
 
       const checkRow = (await db.query<{ status: string; shift_id: string }>(
         `select status, shift_id from payments where id = $1`,
@@ -2441,7 +2449,7 @@ describe("Round 10: Two-way Chat unit tests", () => {
       assert.equal(s2Totals, 1000000);
     });
 
-    it("A2-5: S1 closes, no new shift -> approve refused; payment still refund_pending", async () => {
+    it("A2-5: S1 closes, no new shift -> payout refused after approval; payment still refund_pending", async () => {
       await setupA2();
       const s1 = (await db.query<{ id: string }>(
         `insert into cashier_shifts (receptionist_id) values ($1) returning id`,
@@ -2467,9 +2475,10 @@ describe("Round 10: Two-way Chat unit tests", () => {
         body: JSON.stringify({ reason: "Approved" }),
       });
 
+      await withTx((sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser));
       await assert.rejects(
-        () => withTx(async (sql) => paymentsApproveRefund(sql, pendingId, reqApprove, managerUser)),
-        (e: any) => e.code === "CONFLICT_STATE",
+        () => withTx((sql) => paymentsPayOutRefund(sql, pendingId, receptionistUser)),
+        (e: any) => e.extra?.br === "BR-44",
       );
 
       const checkRow = (await db.query<{ status: string; shift_id: string }>(
@@ -4362,7 +4371,8 @@ describe("Sell classes: final fixes", () => {
       [m.id, classId],
     );
     assert.equal(told.rows[0].payload.refund_vnd, 200000);
-    await assert.rejects(() => withTx((sql) => paymentsApproveRefund(sql, row.id, jsonReq("POST", {}), { ...mgr, id: "00000000-0000-0000-0000-000000000009" })));
+    const approved = await withTx((sql) => paymentsApproveRefund(sql, row.id, jsonReq("POST", {}), mgr));
+    assert.equal(approved.body.status, "refund_pending");
     const desk = { id: "00000000-0000-0000-0000-000000000002", role: "receptionist" } as any;
     const open = await db.query<{ id: string }>("select id from cashier_shifts where receptionist_id = $1 and closed_at is null", [desk.id]);
     const shiftId = open.rows[0]?.id ?? (await db.query<{ id: string }>("insert into cashier_shifts (receptionist_id) values ($1) returning id", [desk.id])).rows[0].id;
@@ -4374,7 +4384,7 @@ describe("Sell classes: final fixes", () => {
     await db.query("update cashier_shifts set closed_at = now() where id = $1", [shiftId]);
   });
 
-  it("SC-cancel-refund-manager: a manager hands the refund over without a till, a receptionist without a shift cannot", async () => {
+  it("SC-cancel-refund-manager: neither a manager nor a receptionist can pay without a till", async () => {
     const { paymentsPayOutRefund } = await import("./handlers/desk.ts");
     const classId = await seedClass({ price: 300000, capacity: 5 });
     const m = await seedMember(85);
@@ -4388,9 +4398,9 @@ describe("Sell classes: final fixes", () => {
       () => withTx((sql) => paymentsPayOutRefund(sql, row.id, desk)),
       (e: any) => e.extra?.br === "BR-44",
     );
-    await withTx((sql) => paymentsPayOutRefund(sql, row.id, mgr));
+    await assert.rejects(() => withTx((sql) => paymentsPayOutRefund(sql, row.id, mgr)), (e: any) => e.extra?.br === "BR-44");
     const paid = (await db.query<{ status: string; shift_id: string | null }>("select status::text as status, shift_id from payments where id = $1", [row.id])).rows[0];
-    assert.equal(paid.status, "posted");
+    assert.equal(paid.status, "refund_pending");
     assert.equal(paid.shift_id, null);
   });
 

@@ -84,7 +84,7 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
     case "booking_cancelled":
       return {
         title: t("Booking cancelled"),
-        body: t("That booking was cancelled and the court is free again. Any refund follows the cancellation rules."),
+        body: Number(p.refund_vnd) > 0 ? t("Collect your refund in cash at the front desk.") : t("Nothing is refunded."),
         link: { to: "/app/book", label: t("Book another court") },
       };
     case "booking_rescheduled":
@@ -201,12 +201,8 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
     case "refund_approved": {
       const amount = typeof p.amount_vnd === "number" ? money(p.amount_vnd) : null;
       const subject = amount
-        ? code
-          ? t("{amount} ({code}) was approved and paid back.", { amount, code })
-          : t("{amount} was approved and paid back.", { amount })
-        : code
-          ? t("Your refund ({code}) was approved and paid back.", { code })
-          : t("Your refund was approved and paid back.");
+        ? t("Your refund of {amount} was paid in cash at the front desk.", { amount })
+        : t("Your refund was paid in cash at the front desk.");
       return {
         title: t("Refund approved"),
         body: `${subject}${typeof p.note === "string" ? ` ${t("Note: {note}", { note: p.note })}` : ""}`,
