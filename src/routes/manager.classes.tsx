@@ -5,7 +5,7 @@ import { Shell, money } from "@/client/components/shell";
 import { PageHero } from "@/client/components/page-hero";
 import { StatStrip } from "@/client/components/stat-strip";
 import { SportBadge, useSports } from "@/client/components/sports-ui";
-import { Button, Card, DateField, EmptyState, Field, Input, LoadError, Select, ShowMore, Skeleton, StatusBadge } from "@/client/components/ui";
+import { Badge, Button, Card, DateField, EmptyState, Field, Input, LoadError, Select, ShowMore, Skeleton, StatusBadge } from "@/client/components/ui";
 import { Lift, Reveal, Stagger, StaggerItem, motion } from "@/client/components/motion";
 import { SpotlightCard } from "@/client/components/fx";
 import { ClassDetailModal } from "@/client/components/class-detail";
@@ -44,6 +44,8 @@ type ClassRow = {
   court_code: string;
   coach_name: string;
   enrolled_count: number;
+  confirmed_count: number;
+  running_below_minimum: boolean;
   capacity: number;
   rrule?: string;
   duration_min?: number;
@@ -407,10 +409,15 @@ function Page() {
               <div className="flex items-center gap-2">
                 <SportBadge sport={c.sport} />
                 <StatusBadge status={c.status} />
-                <MinSizeBadge enrolled={c.enrolled_count} min={c.min_enrolled} status={c.status} />
+                {!c.running_below_minimum && <MinSizeBadge enrolled={c.confirmed_count} min={c.min_enrolled} status={c.status} />}
               </div>
               <span className="text-2xs tabular-nums text-muted">{c.code}</span>
             </div>
+            {c.running_below_minimum && (
+              <Badge tone="hold" className="mt-2 max-w-full whitespace-normal">
+                {t("Running below minimum · {count}/{minimum} confirmed", { count: c.confirmed_count, minimum: c.min_enrolled ?? 0 })}
+              </Badge>
+            )}
             <h2 className="mt-2 font-display text-2xl">
               {sportLabel(c.sport)} · {levelLabel(c.level)}
             </h2>

@@ -27,7 +27,9 @@ const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessi
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold, bookingsConfirm, bookingsCancel } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund, paymentsPayOutRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, sessionAttendancePost } = await import("./handlers/ops.ts");
-const { waitlistExpire } = await import("../data/jobs.ts");
+const { waitlistExpire, notifyClassMinimums } = await import("../data/jobs.ts");
+const { classesList } = await import("./handlers/classes.ts");
+const { classCode } = await import("../../shared/arena3/labels.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
 const { hashPassword, hashOtp } = await import("../services/crypto.ts");
 const { csvCell } = await import("./handlers/extras.ts");
@@ -44,6 +46,113 @@ const { memberGet, membersDirectory, membersSearch } = membersH;
 const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
+
+describe("G5 class minimum warnings", () => {
+  it("warns managers once in the first-session 24-hour window, counts only confirmed seats, and flags running classes without cancelling", async () => {
+    const rollback = new Error("Roll back G5 fixtures");
+    await assert.rejects(withTx(async (sql) => {
+      const users = await sql.query<any>(
+        `insert into users (full_name, name_normalized, role, password_hash, phone)
+         select 'G5 ' || role, 'g5 ' || role, role::user_role, 'hash', substr(gen_random_uuid()::text, 1, 16)
+           from unnest(array['manager','manager','manager','coach','member','member','member','member','member']) role
+         returning *`,
+      );
+      const managers = users.filter((u) => u.role === "manager");
+      const coach = users.find((u) => u.role === "coach");
+      const members = users.filter((u) => u.role === "member");
+      await sql.query(`update users set status = 'disabled' where id = $1`, [managers[2].id]);
+      const cases = [
+        { name: "boundary", hours: 24, minimum: 2, status: "open", confirmed: 1, warn: true, running: false },
+        { name: "soon", hours: 12, minimum: 2, status: "open", confirmed: 1, warn: true, running: false },
+        { name: "early", hours: 25, minimum: 2, status: "open", confirmed: 1, warn: false, running: false },
+        { name: "met", hours: 12, minimum: 2, status: "open", confirmed: 2, warn: false, running: false },
+        { name: "none", hours: 12, minimum: null, status: "open", confirmed: 1, warn: false, running: false },
+        { name: "draft", hours: 12, minimum: 2, status: "draft", confirmed: 1, warn: false, running: false },
+        { name: "cancelled", hours: 12, minimum: 2, status: "cancelled", confirmed: 1, warn: false, running: false },
+        { name: "started", hours: 0, minimum: 2, status: "open", confirmed: 1, warn: false, running: true },
+        { name: "later-session", hours: 12, minimum: 2, status: "open", confirmed: 1, warn: false, running: true },
+        { name: "no-session", hours: null, minimum: 2, status: "open", confirmed: 1, warn: false, running: false },
+      ];
+      const fixtures: Array<(typeof cases)[number] & { id: string }> = [];
+      for (const c of cases) {
+        const court = (await sql.query<{ id: string }>(
+          `insert into courts (court_code, sport, status)
+           values ('G5-' || substr(gen_random_uuid()::text, 1, 5),'badminton','ready') returning id`,
+        ))[0];
+        const cls = (await sql.query<{ id: string }>(
+          `insert into classes (sport, level, coach_id, court_id, capacity, enrolled_count,
+                                min_enrolled, rrule, duration_min, start_on, end_on, status)
+           values ('badminton','beginner',$1,$2,10,5,$3,'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10',60,
+                   current_date - 7,current_date + 30,$4::class_status) returning id`,
+          [coach.id, court.id, c.minimum, c.status],
+        ))[0];
+        fixtures.push({ ...c, id: cls.id });
+        for (const [i, member] of members.entries()) {
+          const status = i < c.confirmed ? "confirmed" : i === 2 ? "hold" : i === 3 ? "waitlisted" : "cancelled";
+          await sql.query(
+            `insert into enrollments (class_id,user_id,status,waitlist_pos,hold_until)
+             values ($1,$2,$3::enroll_status,case when $3 = 'waitlisted' then 1 else null end,
+                     case when $3 = 'hold' then now() + interval '1 hour' else null end)`,
+            [cls.id, member.id, status],
+          );
+        }
+        // All times are relative to the transaction's stable now(), never wall-clock hours.
+        if (c.hours !== null) await sql.query(
+          `with occupied as (
+             insert into occupancies (court_id,start_at,end_at,kind,ref_id)
+             values ($2,now() + $3 * interval '1 hour',now() + ($3 + 1) * interval '1 hour','session',gen_random_uuid())
+             returning id,ref_id,start_at,end_at
+           ) insert into sessions (id,class_id,court_id,start_at,end_at,status,occupancy_id)
+             select ref_id,$1,$2,start_at,end_at,'scheduled',id from occupied`,
+          [cls.id, court.id, c.hours],
+        );
+        if (c.name === "later-session") await sql.query(
+          `insert into sessions (class_id,court_id,start_at,end_at,status)
+           values ($1,$2,now() - interval '7 days',now() - interval '7 days' + interval '1 hour','done')`,
+          [cls.id, court.id],
+        );
+      }
+      const ids = fixtures.map((c) => c.id);
+      const states = () => sql.query(
+        `select id,status::text,enrolled_count from classes where id = any($1::uuid[]) order by id`, [ids],
+      );
+      const before = await states();
+      await notifyClassMinimums(sql);
+      const notices = () => sql.query<any>(
+        `select user_id,payload,channel,sent_at,dedupe_key from outbox
+          where template = 'class_below_minimum' and payload->>'class_id' = any($1::text[])
+            and user_id = any($2::uuid[]) order by dedupe_key`, [ids, users.map((u) => u.id)],
+      );
+      const first = await notices();
+      assert.equal(first.length, 4);
+      for (const c of fixtures) {
+        const messages = first.filter((n) => n.payload.class_id === c.id);
+        assert.equal(messages.length, c.warn ? 2 : 0, c.name);
+        for (const n of messages) {
+          assert.ok(managers.slice(0, 2).some((u) => u.id === n.user_id));
+          assert.equal(n.channel, "inapp");
+          assert.ok(n.sent_at);
+          assert.deepEqual(n.payload, { class_id: c.id, code: classCode("badminton", "beginner", c.id), confirmed_count: 1, min_enrolled: 2 });
+        }
+      }
+      await notifyClassMinimums(sql);
+      assert.deepEqual(await notices(), first, "repeat sweeps do not duplicate notifications");
+      assert.deepEqual(await states(), before, "warnings never cancel or change a class");
+      assert.deepEqual(await sql.query(
+        `select p.id from payments p join enrollments e on p.ref_type = 'enrollment' and p.ref_id = e.id
+          where e.class_id = any($1::uuid[])`, [ids],
+      ), [], "warnings create no refunds");
+      const listed = await classesList(sql, new Request("http://localhost/classes"), toPublic(managers[0]));
+      const listedItems = listed.body.items as Array<{ code: string; id: string; confirmed_count: number; running_below_minimum: boolean }>;
+      for (const c of fixtures) {
+        const row = listedItems.find((item) => item.id === c.id)!;
+        assert.equal(row.confirmed_count, c.confirmed, c.name);
+        assert.equal(row.running_below_minimum, c.running, c.name);
+      }
+      throw rollback;
+    }), (error) => error === rollback);
+  });
+});
 
 describe("G4 voluntary class departure", () => {
   it("keeps paid tuition without a refund and offers the released seat to the waitlist", async () => {

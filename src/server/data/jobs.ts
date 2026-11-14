@@ -1,5 +1,51 @@
 import { withTx } from "../controllers/tx";
 import { elapsedAtLeast, ictDateString } from "../../shared/arena3/time";
+import type { Sql } from "./db";
+import { classCode } from "../../shared/arena3/labels";
+
+// Shared by the due probe and the job so their eligibility cannot drift.
+// Keep done sessions in the minimum: a later session is not another class start.
+const CLASS_MINIMUM_DUE = `
+  select cl.id, cl.sport, cl.level, cl.min_enrolled, seats.confirmed_count, manager.id as manager_id
+    from classes cl
+    cross join lateral (
+      select min(start_at) as first_at from sessions
+       where class_id = cl.id and status <> 'cancelled'
+    ) first_session
+    cross join lateral (
+      select count(*)::int as confirmed_count from enrollments
+       where class_id = cl.id and status = 'confirmed'
+    ) seats
+    join users manager on manager.role = 'manager' and manager.status = 'active'
+   where cl.status = 'open' and seats.confirmed_count < cl.min_enrolled
+     and first_session.first_at > now()
+     and first_session.first_at <= now() + interval '24 hours'
+     and not exists (
+       select 1 from outbox o
+        where o.dedupe_key = 'class_minimum:' || cl.id::text || ':' || manager.id::text
+     )`;
+
+/** Warn only; the manager decides whether to cancel. Run inside the job transaction. */
+export async function notifyClassMinimums(sql: Sql): Promise<number> {
+  const targets = await sql.query<{
+    id: string; sport: string; level: string; min_enrolled: number;
+    confirmed_count: number; manager_id: string;
+  }>(CLASS_MINIMUM_DUE);
+  let sent = 0;
+  for (const c of targets) {
+    const inserted = await sql.query(
+      `insert into outbox (channel, template, user_id, payload, dedupe_key, sent_at)
+       values ('inapp', 'class_below_minimum', $1, $2::jsonb, $3, now())
+       on conflict (dedupe_key) do nothing returning id`,
+      [c.manager_id, JSON.stringify({
+        class_id: c.id, code: classCode(c.sport, c.level, c.id),
+        confirmed_count: c.confirmed_count, min_enrolled: c.min_enrolled,
+      }), `class_minimum:${c.id}:${c.manager_id}`],
+    );
+    sent += inserted.length;
+  }
+  return sent;
+}
 
 export async function expireHolds() {
   return withTx(async (sql) => {
@@ -304,6 +350,7 @@ const g = globalThis as typeof globalThis & {
  */
 const DUE_PROBE = `
   select
+    exists(${CLASS_MINIMUM_DUE}) as class_minimum,
     exists(select 1 from court_bookings
             where status = 'hold' and hold_until < now())                              as expire_holds,
     exists(select 1 from court_bookings b join center_settings s on s.id = 1
@@ -337,6 +384,7 @@ const DUE_PROBE = `
 `;
 
 type DueFlags = {
+  class_minimum: boolean;
   expire_holds: boolean;
   mark_noshow: boolean;
   complete_bookings: boolean;
@@ -355,6 +403,7 @@ export async function runDueJobs() {
     const sql = await getSql();
     const [due] = await sql.query<DueFlags>(DUE_PROBE);
     if (!due) return;
+    if (due.class_minimum) await withTx(notifyClassMinimums);
     if (due.expire_holds) await expireHolds();
     if (due.mark_noshow) await markNoshow();
     if (due.complete_bookings) await completeBookings();

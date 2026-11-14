@@ -57,12 +57,21 @@ export async function classesList(sql: Sql, request: Request, user: PublicUser |
             cl.start_on::text, cl.end_on::text, cl.status, cl.court_id, c.court_code,
             cl.coach_id, u.full_name as coach_name, made.at as created_at, cl.price_vnd, cl.min_enrolled,
             cl.description, cl.syllabus, cl.who_for, cl.bring,
+            seats.confirmed_count,
+            (cl.status = 'open' and cl.min_enrolled is not null
+              and seats.confirmed_count < cl.min_enrolled
+              and exists (select 1 from sessions s where s.class_id = cl.id
+                           and s.status <> 'cancelled' and s.start_at <= now())) as running_below_minimum,
             case when me.id is null then null else jsonb_build_object(
               'id', me.id, 'status', me.status, 'hold_until', me.hold_until,
               'price_vnd', me.price_vnd, 'transfer_requested_at', me.transfer_requested_at) end as my_enrollment
        from classes cl
        join courts c on c.id = cl.court_id
        join users u on u.id = cl.coach_id
+       cross join lateral (
+         select count(*)::int as confirmed_count from enrollments e
+          where e.class_id = cl.id and e.status = 'confirmed'
+       ) seats
        left join lateral (
          select e.id, e.status, e.hold_until, e.price_vnd, e.transfer_requested_at
            from enrollments e

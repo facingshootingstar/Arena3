@@ -62,6 +62,14 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
   const p = asObj(n.payload);
   const code = typeof p.code === "string" ? p.code : null;
   switch (n.template) {
+    case "class_below_minimum":
+      return {
+        title: t("Class below minimum"),
+        body: t("Class {code} starts within 24 hours with {count} confirmed seats; the minimum is {minimum}. Review the class and decide whether to run it or cancel it.", {
+          code: String(p.code ?? ""), count: Number(p.confirmed_count), minimum: Number(p.min_enrolled),
+        }),
+        link: { to: "/manager/classes", label: t("Review classes") },
+      };
     case "payment_receipt": {
       const amount = typeof p.amount_vnd === "number" ? money(p.amount_vnd) : null;
       const method = methodLabel(p.method);

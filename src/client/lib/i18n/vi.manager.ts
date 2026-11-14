@@ -3,6 +3,10 @@
  * attendance panels. One `"English": "Tiếng Việt",` per line.
  */
 export const manager: Record<string, string> = {
+  "Class below minimum": "Lớp chưa đủ sĩ số tối thiểu",
+  "Class {code} starts within 24 hours with {count} confirmed seats; the minimum is {minimum}. Review the class and decide whether to run it or cancel it.": "Lớp {code} bắt đầu trong vòng 24 giờ với {count} học viên đã xác nhận; sĩ số tối thiểu là {minimum}. Xem xét và quyết định tiếp tục hay hủy lớp.",
+  "Review classes": "Xem xét các lớp",
+  "Running below minimum · {count}/{minimum} confirmed": "Lớp đang học chưa đủ sĩ số · {count}/{minimum} đã xác nhận",
   "Open Create class, pick a sport, coach and days, then press Create & publish. Members can book as soon as it is published.": "Mở Tạo lớp học, chọn môn, HLV và ngày học, rồi nhấn Tạo & mở lớp. Hội viên có thể đăng ký ngay sau khi mở lớp.",
   "Matching members": "Hội viên phù hợp",
   "Plan active": "Gói còn hiệu lực",
