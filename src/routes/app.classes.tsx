@@ -148,7 +148,7 @@ function Page() {
           {shown.map((c) => {
             const full = c.enrolled_count >= c.capacity;
             const pct = Math.min(100, Math.round((c.enrolled_count / Math.max(1, c.capacity)) * 100));
-            // The class runs once it reaches its minimum; until then the bar marks how far that is.
+            // The minimum only flags the class (it still runs); the bar marks how far it is from that number.
             const short = c.min_enrolled ? Math.max(0, c.min_enrolled - c.enrolled_count) : 0;
             const minPct = c.min_enrolled ? Math.min(100, (c.min_enrolled / Math.max(1, c.capacity)) * 100) : null;
             const enr = byClass[c.id];
@@ -228,7 +228,7 @@ function Page() {
                   </div>
                   {short > 0 ? (
                     <p className="mt-1.5 text-2xs text-clay">
-                      {t("{n} more needed for this class to run", { n: short })}
+                      {t("{n} more to reach the class minimum", { n: short })}
                     </p>
                   ) : null}
                   {/* `mt-auto` pins the action to the bottom of the card. The
