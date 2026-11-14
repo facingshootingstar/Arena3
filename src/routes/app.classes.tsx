@@ -243,6 +243,7 @@ function Page() {
                   {holding ? (
                     <div className="grid gap-2">
                       <HoldCountdown until={holding.hold_until!} onExpire={load} label={t("Holding your seat")} />
+                      <p className="text-sm text-muted">{t("Tuition is not refunded if you leave.")}</p>
                       {holding.transfer_requested_at ? (
                         <p className="text-sm text-muted">{t("Waiting for the desk to confirm your transfer")}</p>
                       ) : (
@@ -447,6 +448,7 @@ function Page() {
               </Button>
             </div>
             <p className="text-xs text-muted">{t("A code lowers the tuition only.")}</p>
+            <p className="text-muted">{t("Tuition is not refunded if you leave.")}</p>
           </div>
         ) : null}
       </Modal>

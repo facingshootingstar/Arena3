@@ -487,6 +487,7 @@ export const core: Record<string, string> = {
   "Create the first plan so members can buy a membership in the app.": "Tạo gói đầu tiên để hội viên mua ngay trong ứng dụng.",
   "Your seat goes to the next person on the waitlist. No refund: tuition and membership days already paid stay paid.": "Chỗ của bạn sẽ chuyển cho người kế tiếp trong danh sách chờ. Không hoàn tiền: học phí và số ngày hội viên đã trả không được trả lại.",
   "Before you enrol": "Trước khi đăng ký",
+  "Tuition is not refunded if you leave.": "Học phí không được hoàn lại nếu bạn rời lớp.",
   "Hold my seat · {price}": "Giữ chỗ · {price}",
   "Class tuition": "Học phí",
   "Membership, {n} more days": "Hội viên, thêm {n} ngày",

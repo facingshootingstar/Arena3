@@ -45,6 +45,59 @@ const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
 
+describe("G4 voluntary class departure", () => {
+  it("keeps paid tuition without a refund and offers the released seat to the waitlist", async () => {
+    const rollback = new Error("Roll back G4 fixtures");
+    await assert.rejects(withTx(async (sql) => {
+      const users = await sql.query<any>(
+        `insert into users (full_name, name_normalized, role, password_hash, phone)
+         select 'G4 ' || role, 'g4 ' || role, role::user_role, 'hash', substr(gen_random_uuid()::text, 1, 16)
+           from unnest(array['coach','member','member']) role returning *`,
+      );
+      const coach = users.find((u) => u.role === "coach");
+      const [member, waiting] = users.filter((u) => u.role === "member");
+      const court = (await sql.query<{ id: string }>(
+        `insert into courts (court_code, sport, status)
+         values ('G4-' || substr(gen_random_uuid()::text, 1, 5), 'badminton', 'ready') returning id`,
+      ))[0];
+      // No scheduled session: this tests a permitted departure, independent of clock/cutoff.
+      const cls = (await sql.query<{ id: string }>(
+        `insert into classes (sport, level, coach_id, court_id, capacity, enrolled_count,
+                              rrule, duration_min, start_on, end_on, status)
+         values ('badminton','beginner',$1,$2,1,1,'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10',60,
+                 '2099-01-01','2099-02-01','open') returning id`, [coach.id, court.id],
+      ))[0];
+      const seat = (await sql.query<{ id: string }>(
+        `insert into enrollments (class_id, user_id, status, price_vnd)
+         values ($1,$2,'confirmed',300000) returning id`, [cls.id, member.id],
+      ))[0];
+      const queued = (await sql.query<{ id: string }>(
+        `insert into enrollments (class_id, user_id, status, waitlist_pos)
+         values ($1,$2,'waitlisted',1) returning id`, [cls.id, waiting.id],
+      ))[0];
+      await sql.query(
+        `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id)
+         values ('G4-' || substr(gen_random_uuid()::text, 1, 20),$1,'transfer',300000,0,'posted','enrollment',$2)`,
+        [member.id, seat.id],
+      );
+      const paymentsBefore = await sql.query(`select * from payments where user_id = $1`, [member.id]);
+      const result = await enrollmentDelete(sql, seat.id, toPublic(member));
+      assert.equal(result.status, 200);
+      assert.deepEqual(result.body, { ok: true });
+      assert.deepEqual(await sql.query(`select * from payments where user_id = $1`, [member.id]), paymentsBefore);
+      assert.deepEqual(await sql.query(`select status::text as status from enrollments where id = $1`, [seat.id]),
+        [{ status: "cancelled" }]);
+      assert.deepEqual(await sql.query(`select enrolled_count from classes where id = $1`, [cls.id]),
+        [{ enrolled_count: 0 }]);
+      assert.deepEqual(await sql.query(
+        `select enrollment_id, status::text as status from waitlist_offers
+          where enrollment_id in ($1,$2)`, [seat.id, queued.id],
+      ), [{ enrollment_id: queued.id, status: "pending" }]);
+      throw rollback;
+    }), (error) => error === rollback);
+  });
+});
+
 describe("G3 centre-cancelled session refunds", () => {
   const request = (body: Record<string, unknown> = { reason: "Court unavailable" }) =>
     new Request("http://localhost", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
