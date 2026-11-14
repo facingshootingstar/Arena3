@@ -979,6 +979,15 @@ export async function sessionCancel(sql: Sql, sessionId: string, request: Reques
   const b = await readJson(request);
   const reason = reasonOf(b);
   if (!reason) throw err.field("reason", "Give a reason for cancelling this session.");
+  // Match whole-class cancellation's class -> session lock order, and serialize refunds
+  // for different sessions of the same class before reading the remaining paid balance.
+  const cl = await one<{ rrule: string; duration_min: number; start_on: string; end_on: string }>(
+    sql,
+    `select cl.rrule, cl.duration_min, cl.start_on::text, cl.end_on::text
+       from classes cl join sessions s on s.class_id = cl.id where s.id = $1 for update of cl`,
+    [sessionId],
+  );
+  if (!cl) throw err.notFound("No such session.");
   const s = await lockSession(sql, sessionId);
   if (s.status !== "scheduled") throw err.conflictState("Only a scheduled session can be cancelled.");
   if (new Date(s.end_at).getTime() <= Date.now()) throw err.conflictState("That session has already finished.");
@@ -986,17 +995,53 @@ export async function sessionCancel(sql: Sql, sessionId: string, request: Reques
   await sql.query(`select occupancy_release_session($1::uuid, 'cancelled'::session_status)`, [sessionId]);
   await sql.query(`update sessions set change_reason = $2 where id = $1`, [sessionId, reason]);
 
-  const members = await confirmedMembers(sql, s.class_id);
-  const refunded = 0;
+  const plannedSessions = Math.max(1, expandWeekly(
+    cl.rrule, cl.duration_min, ictDateTime(cl.start_on, "00:00"), ictDateTime(addDays(cl.end_on, 1), "00:00"),
+  ).length);
+  const seats = await sql.query<{ id: string; user_id: string; price_vnd: number | null; extension_vnd: number }>(
+    `select id, user_id, price_vnd, extension_vnd from enrollments
+      where class_id = $1 and status = 'confirmed' order by user_id, id for update`, [s.class_id],
+  );
+  let refunded = 0;
+  let refundedVnd = 0;
+  const refundByUser = new Map<string, number>();
+  for (const seat of seats) {
+    await sql.query(`select id from users where id = $1 for update`, [seat.user_id]);
+    const balance = (await sql.query<{ paid_vnd: number; returned_vnd: number }>(
+      `select coalesce(sum(amount_vnd) filter (where status = 'posted' and amount_vnd > 0), 0)::int as paid_vnd,
+              coalesce(sum(-amount_vnd) filter (where status in ('posted','refund_pending') and amount_vnd < 0), 0)::int as returned_vnd
+         from payments where ref_type = 'enrollment' and ref_id = $1`, [seat.id],
+    ))[0];
+    // The seat's price includes membership extension days; cancelling a session only returns tuition.
+    const tuition = Math.min(balance.paid_vnd, Math.max(0, (seat.price_vnd ?? 0) - seat.extension_vnd));
+    const refund = Math.min(Math.floor(tuition / plannedSessions), Math.max(0, balance.paid_vnd - balance.returned_vnd));
+    if (refund <= 0) continue;
+    const code = await nextCode(sql, "PAY");
+    await sql.query(
+      `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
+       values ($1,$2,'cash',$3,0,'refund_pending','enrollment',$4,null)`,
+      [code, seat.user_id, -refund, seat.id],
+    );
+    await reconcileLoyaltyRefund(sql, seat.user_id);
+    refundByUser.set(seat.user_id, (refundByUser.get(seat.user_id) ?? 0) + refund);
+    refunded += 1;
+    refundedVnd += refund;
+  }
+  const members = seats.map((seat) => seat.user_id);
   await notifyClass(
     sql,
     s.class_id,
-    [...members, s.coach_id, ...(s.assistant_id ? [s.assistant_id] : [])],
-    { kind: "session_cancelled", session_id: sessionId, start: s.start_at, reason },
+    [...members, s.coach_id, ...(s.assistant_id ? [s.assistant_id] : [])].filter((id) => !refundByUser.has(id)),
+    { kind: "session_cancelled", session_id: sessionId, start: s.start_at, reason, refund_vnd: 0 },
     `session_cancel|${sessionId}`,
   );
+  for (const [uid, refund_vnd] of refundByUser) {
+    await notifyClass(sql, s.class_id, [uid],
+      { kind: "session_cancelled", session_id: sessionId, start: s.start_at, reason, refund_vnd },
+      `session_cancel|${sessionId}`);
+  }
   await audit(sql, user.id, "cancel_session", "session", sessionId, { status: "scheduled", start_at: s.start_at }, { status: "cancelled", reason });
-  return { status: 200, body: { ok: true, notified: members.length, refunded } };
+  return { status: 200, body: { ok: true, notified: members.length, refunded, refunded_vnd: refundedVnd } };
 }
 
 /** Move one session to another time (FR-CLS-05, BR-26, BR-27). Same court, same coach. */

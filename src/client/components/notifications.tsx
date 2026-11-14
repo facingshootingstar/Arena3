@@ -125,7 +125,7 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
         case "session_cancelled":
           return {
             title: t("A class session was cancelled"),
-            body: `${typeof p.start === "string" ? t("The session on {when} will not run.", { when: sessionWhen(p.start) }) : t("A session will not run.")}${reason}`,
+            body: `${typeof p.start === "string" ? t("The session on {when} will not run.", { when: sessionWhen(p.start) }) : t("A session will not run.")}${typeof p.refund_vnd === "number" && p.refund_vnd > 0 ? ` ${t("Collect your {amount} refund in cash at the front desk.", { amount: money(p.refund_vnd) })}` : ""}${reason}`,
             link,
           };
         case "session_moved":

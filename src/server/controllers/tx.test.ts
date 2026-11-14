@@ -45,6 +45,128 @@ const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
 
+describe("G3 centre-cancelled session refunds", () => {
+  const request = (body: Record<string, unknown> = { reason: "Court unavailable" }) =>
+    new Request("http://localhost", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  async function fixture(sql: Parameters<Parameters<typeof withTx>[0]>[0]) {
+    // Use a Monday at least six weeks away, with fixed local session times.
+    // No time-of-day cutoff or mocked global clock can affect these fixtures.
+    const monday = new Date();
+    monday.setUTCHours(0, 0, 0, 0);
+    monday.setUTCDate(monday.getUTCDate() + 42 + (8 - monday.getUTCDay()) % 7);
+    const day = (offset: number) => new Date(monday.getTime() + offset * 86400000).toISOString().slice(0, 10);
+    const users = await sql.query<any>(
+      `insert into users (full_name, name_normalized, role, password_hash, phone)
+       select 'G3 ' || role, 'g3 ' || role, role::user_role, 'hash', substr(gen_random_uuid()::text, 1, 16)
+         from unnest(array['manager','coach','member','member','member','member','member','member']) role
+       returning *`,
+    );
+    const manager = toPublic(users.find((u) => u.role === "manager"));
+    const coach = users.find((u) => u.role === "coach");
+    const members = users.filter((u) => u.role === "member");
+    const court = (await sql.query<{ id: string }>(
+      `insert into courts (court_code, sport, status)
+       values ('G3-' || substr(gen_random_uuid()::text, 1, 5), 'badminton', 'ready') returning id`,
+    ))[0];
+    // Five Mondays including both endpoints, but only two materialized sessions.
+    const cls = (await sql.query<{ id: string }>(
+      `insert into classes (sport, level, coach_id, court_id, capacity, rrule, duration_min, start_on, end_on, status)
+       values ('badminton', 'beginner', $1, $2, 10, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', 60,
+               $3::date, $4::date, 'open') returning id`, [coach.id, court.id, day(0), day(28)],
+    ))[0];
+    const seats: string[] = [];
+    const amounts = [110003, 50000, 0, 100000, 12347, 30000];
+    for (const [i, member] of members.entries()) {
+      const seat = (await sql.query<{ id: string }>(
+        `insert into enrollments (class_id, user_id, status, price_vnd, extension_vnd, waitlist_pos)
+         values ($1,$2,$3::enroll_status,$4,$5,case when $3 = 'waitlisted' then 1 else null end) returning id`,
+        [cls.id, member.id, i === 3 ? 'waitlisted' : 'confirmed', i === 4 ? 100000 : amounts[i], i === 0 ? 10000 : 0],
+      ))[0];
+      seats.push(seat.id);
+      if (amounts[i]) await sql.query(
+        `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id)
+         values ('G3-' || substr(gen_random_uuid()::text, 1, 20),$1,'transfer',$2,0,'posted','enrollment',$3)`,
+        [member.id, amounts[i], seat.id],
+      );
+    }
+    for (const [index, amount, status] of [[1, -35000, 'posted'], [1, -12000, 'refund_pending'], [5, -30000, 'posted']] as const) {
+      await sql.query(
+        `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id)
+         values ('G3-' || substr(gen_random_uuid()::text, 1, 20),$1,'cash',$2,0,$3::pay_status,'enrollment',$4)`,
+        [members[index].id, amount, status, seats[index]],
+      );
+    }
+    const sessions = await sql.query<{ id: string }>(
+      `with occupied as (
+         insert into occupancies (court_id, start_at, end_at, kind, ref_id)
+         select $2,d,d + interval '1 hour','session',gen_random_uuid()
+           from unnest(array[$3::timestamptz,$4::timestamptz]) d
+         returning id, ref_id, start_at, end_at
+       ) insert into sessions (id, class_id, court_id, start_at, end_at, status, occupancy_id)
+         select ref_id,$1,$2,start_at,end_at,'scheduled',id from occupied returning id`,
+      [cls.id, court.id, `${day(0)}T10:00:00+07:00`, `${day(7)}T10:00:00+07:00`],
+    );
+    return { manager, members, cls, seats, sessions, moveDay: day(1) };
+  }
+
+  it("refunds actual tuition over the full recurrence, caps posted and pending returns, and rejects repeat cancellation", async () => {
+    await withTx(async (sql) => {
+      const { manager, members, seats, sessions } = await fixture(sql);
+      const result = await sessionCancel(sql, sessions[0].id, request(), manager);
+      assert.deepEqual(result.body, { ok: true, notified: 5, refunded: 3, refunded_vnd: 25469 });
+      const refunds = await sql.query<any>(
+        `select ref_id, amount_vnd, method, status, shift_id, created_by from payments
+          where ref_id = any($1::uuid[]) and status = 'refund_pending' and amount_vnd <> -12000`, [seats],
+      );
+      assert.equal(refunds.length, 3);
+      for (const [index, amount] of [[0, -20000], [1, -3000], [4, -2469]]) {
+        assert.deepEqual(refunds.find((r) => r.ref_id === seats[index]), {
+          ref_id: seats[index], amount_vnd: amount, method: 'cash', status: 'refund_pending', shift_id: null, created_by: null,
+        });
+      }
+      const notifications = await sql.query<any>(
+        `select user_id, payload from outbox where template = 'class_changed' and payload->>'session_id' = $1`, [sessions[0].id],
+      );
+      for (const [index, amount] of [[0, 20000], [1, 3000], [2, 0], [4, 2469], [5, 0]]) {
+        const notification = notifications.find((n) => n.user_id === members[index].id);
+        assert.equal(notification.payload.kind, 'session_cancelled');
+        assert.equal(notification.payload.refund_vnd, amount);
+      }
+      assert.equal(notifications.some((n) => n.user_id === members[3].id), false);
+      await assert.rejects(sessionCancel(sql, sessions[0].id, request(), manager), { code: 'CONFLICT_STATE' });
+      const second = await sessionCancel(sql, sessions[1].id, request(), manager);
+      assert.equal(second.body.refunded, 2);
+      assert.equal(second.body.refunded_vnd, 22469);
+      const capped = await sql.query<{ returned: number }>(
+        `select sum(-amount_vnd)::int as returned from payments where ref_id = $1 and amount_vnd < 0`, [seats[1]],
+      );
+      assert.equal(capped[0].returned, 50000);
+    });
+  });
+
+  it("uses at least one planned session when the recurrence has no occurrences", async () => {
+    await withTx(async (sql) => {
+      const { manager, cls, sessions, moveDay } = await fixture(sql);
+      await sql.query(`update classes set start_on = $2::date, end_on = $2::date where id = $1`, [cls.id, moveDay]);
+      const result = await sessionCancel(sql, sessions[0].id, request(), manager);
+      assert.equal(result.body.refunded, 3);
+      assert.equal(result.body.refunded_vnd, 115350);
+    });
+  });
+
+  it("moving a session leaves payments unchanged", async () => {
+    await withTx(async (sql) => {
+      const { manager, seats, sessions, moveDay } = await fixture(sql);
+      const before = await sql.query(`select * from payments where ref_id = any($1::uuid[]) order by id`, [seats]);
+      const result = await sessionReschedule(sql, sessions[0].id,
+        request({ start_at: `${moveDay}T10:00:00+07:00`, reason: 'Move only' }), manager);
+      assert.equal(result.status, 200);
+      assert.deepEqual(await sql.query(`select * from payments where ref_id = any($1::uuid[]) order by id`, [seats]), before);
+    });
+  });
+});
+
 describe("G2 certificates and G7 Progress attendance", () => {
   async function fixture(sql: Parameters<Parameters<typeof withTx>[0]>[0]) {
     const users = await sql.query<any>(

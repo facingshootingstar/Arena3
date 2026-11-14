@@ -1,4 +1,5 @@
 export const core: Record<string, string> = {
+  "Collect your {amount} refund in cash at the front desk.": "Nhận khoản hoàn {amount} bằng tiền mặt tại quầy lễ tân.",
   "Refund pending. Pay it in cash from the payments queue after any required manager approval.": "Khoản hoàn đang chờ. Trả tiền mặt từ danh sách thanh toán sau khi được quản lý duyệt nếu cần.",
   "Awaiting cash payout": "Chờ trả tiền mặt",
   "Court closed for maintenance, …": "Sân đóng để bảo trì, …",
