@@ -1,3 +1,5 @@
+import { loyaltyBalance } from "../../services/loyalty";
+export { loyaltyBalance } from "../../services/loyalty";
 import type { Sql } from "@/server/data/db";
 import { err, isConflictSlot } from "../errors";
 import {
@@ -380,43 +382,6 @@ export async function seriesCancel(sql: Sql, id: string, request: Request, user:
 
 /* ───────────────────────────── Loyalty ───────────────────────────── */
 
-const TIERS = [
-  { key: "gold", min: 600 },
-  { key: "silver", min: 200 },
-  { key: "bronze", min: 0 },
-] as const;
-
-export async function loyaltyBalance(sql: Sql, userId: string) {
-  const settings = await getSettings(sql);
-  const row = await one<{ net: number; spent: number }>(
-    sql,
-    `select coalesce((select sum(amount_vnd) from payments
-                       where user_id = $1 and status in ('posted','refund_pending')
-                         -- 'day_pass' stays: day passes are no longer sold, but what a member already paid for them still counts toward loyalty.
-                         and ref_type in ('booking','subscription','day_pass')), 0)::int as net,
-            coalesce((select sum(points) from loyalty_adjustments where user_id = $1), 0)::int as spent`,
-    [userId],
-  );
-  const earned = Math.max(0, Math.floor((row?.net ?? 0) / settings.loyalty_earn_vnd));
-  const adjust = row?.spent ?? 0;
-  const points = Math.max(0, earned + adjust);
-  // Tier counts every point ever earned, so spending points never demotes a member.
-  const lifetime = earned + Math.max(0, adjust);
-  const tier = TIERS.find((t) => lifetime >= t.min)!;
-  const idx = TIERS.indexOf(tier);
-  const next = idx > 0 ? TIERS[idx - 1]! : null;
-  return {
-    points,
-    earned,
-    spend_vnd: row?.net ?? 0,
-    tier: tier.key,
-    next_tier: next ? { key: next.key, need: Math.max(0, next.min - lifetime) } : null,
-    earn_vnd: settings.loyalty_earn_vnd,
-    redeem_vnd: settings.loyalty_redeem_vnd,
-    min_redeem: 50,
-  };
-}
-
 /** The balance, and the history a page at a time (`?limit=&offset=`, newest first). */
 export async function meLoyalty(sql: Sql, request: Request, user: PublicUser) {
   requireRole(user, ["member"]);
@@ -445,6 +410,7 @@ export async function loyaltyRedeem(sql: Sql, request: Request, user: PublicUser
   requireRole(user, ["member"]);
   const b = await readJson(request);
   const points = num(b.points);
+  await sql.query(`select id from users where id = $1 for update`, [user.id]);
   const bal = await loyaltyBalance(sql, user.id);
   if (points == null || !Number.isInteger(points) || points < bal.min_redeem) {
     throw err.field("points", `Redeem at least ${bal.min_redeem} points.`);

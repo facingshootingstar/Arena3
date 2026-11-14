@@ -1,3 +1,4 @@
+import { reconcileLoyaltyRefund } from "../../services/loyalty";
 import { PLAYED_SQL } from "./played";
 import { classCode } from "../../../shared/arena3/labels";
 import type { Sql } from "@/server/data/db";
@@ -488,12 +489,14 @@ export async function paymentsRefund(sql: Sql, id: string, request: Request, use
     shiftId = sh.id;
   }
 
+  await sql.query(`select id from users where id = $1 for update`, [orig.user_id]);
   const row = await one(
     sql,
     `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by, shift_id)
      values ($1,$2,'cash',$3,$4,'refund_pending',$5,$6,$7,$8) returning *`,
     [await nextCode(sql, "PAY"), orig.user_id, signed, orig.vat_rate, orig.ref_type, orig.ref_id, user.id, shiftId],
   );
+  await reconcileLoyaltyRefund(sql, orig.user_id);
   await audit(sql, user.id, "refund_pending", "payment", (row as { id: string }).id, null, { reason });
   return { status: 201, body: { payment: row } };
 }

@@ -1,3 +1,4 @@
+import { reconcileLoyaltyRefund } from "../../services/loyalty";
 import { PLAYED_SQL } from "./played";
 import type { Sql } from "@/server/data/db";
 import { BOOKING_COLS, PAYMENT_COLS } from "../../services/columns";
@@ -1094,6 +1095,7 @@ export async function bookingsCancel(
     // nothing to give back: those hours are history, and no row is touched.
     refund = null;
   } else if (quote.refund_vnd > 0) {
+    await sql.query(`select id from users where id = $1 for update`, [booking.user_id]);
     const payCode = await nextCode(sql, "PAY");
     const amount = -quote.refund_vnd;
     const st = "refund_pending";
@@ -1104,6 +1106,7 @@ export async function bookingsCancel(
          values ($1,$2,'cash',$3,0,$4,'booking',$5,null) returning ${PAYMENT_COLS}`,
         [payCode, booking.user_id, amount, st, id],
       )) ?? null;
+    await reconcileLoyaltyRefund(sql, booking.user_id);
     // A full refund gives the member their use of the code back (BR-41).
     if (quote.fee_vnd === 0) await restoreIfFullyRefunded(sql, "booking", id);
   }

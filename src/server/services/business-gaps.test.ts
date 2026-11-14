@@ -47,16 +47,16 @@ before(async () => {
 });
 after(async () => { setOverridePglite(null); await db?.close(); });
 
-async function booking(amount = 100000) {
+async function booking(amount = 100000, owner = member) {
   const id = randomUUID();
   const day = ++seq;
   // Relative to the database clock, always in the future regardless of the time of day.
   const occ = (await db.query<{ id: string }>(`insert into occupancies (court_id,start_at,end_at,kind,ref_id)
     values ($1,now()+$3*interval '1 day',now()+$3*interval '1 day'+interval '1 hour','booking',$2) returning id`, [court,id,day])).rows[0].id;
   await db.query(`insert into court_bookings (id,code,court_id,user_id,start_at,end_at,status,channel,price_vnd,paid_vnd,occupancy_id)
-    select $1,$2,$3,$4,start_at,end_at,'confirmed','app',$5,$5,id from occupancies where id=$6`, [id,`BK-GAP-${day}`,court,member.id,amount,occ]);
+    select $1,$2,$3,$4,start_at,end_at,'confirmed','app',$5,$5,id from occupancies where id=$6`, [id,`BK-GAP-${day}`,court,owner.id,amount,occ]);
   const payment = (await db.query<{ id: string }>(`insert into payments (code,user_id,method,amount_vnd,vat_rate,status,ref_type,ref_id)
-    values ($1,$2,'card',$3,0,'posted','booking',$4) returning id`, [`PAY-GAP-${day}`,member.id,amount,id])).rows[0].id;
+    values ($1,$2,'card',$3,0,'posted','booking',$4) returning id`, [`PAY-GAP-${day}`,owner.id,amount,id])).rows[0].id;
   return { id, payment };
 }
 async function openShift(user: PublicUser) {
@@ -146,4 +146,100 @@ it("G7 Progress counts present and late attendance beyond the results page, excl
   const progress = await withTx((sql) => meTraining(sql,member));
   assert.equal(progress.body.results.length,0);
   assert.equal(progress.body.completed_sessions,12);
+});
+
+const { loyaltyRedeem } = await import("../controllers/handlers/extras");
+const { loyaltyBalance, reconcileLoyaltyRefund } = await import("./loyalty");
+const { quotePromo, redeemPromo } = await import("./promos");
+async function loyaltyMember() {
+  const id = randomUUID();
+  await db.query(`insert into users (id,phone,full_name,name_normalized,role,password_hash)
+    values ($1,$2,'Loyalty test','loyalty test','member','hash')`, [id, '0966'+String(++seq).padStart(6,'0')]);
+  return { id, role: 'member', full_name: 'Loyalty test' } as PublicUser;
+}
+const redeem = (u: PublicUser, points: number) => withTx(sql => loyaltyRedeem(sql,request({points}),u));
+const balance = (u: PublicUser, clamp = true) => withTx(sql => loyaltyBalance(sql,u.id,clamp));
+const promoId = async (code: string) => (await db.query<{id:string}>("select id from promotions where code=$1",[code])).rows[0].id;
+const quote = (u: PublicUser | null, code: string) => withTx(sql => quotePromo(sql,{code,userId:u?.id ?? null,scope:'court',orderVnd:1000000}));
+
+describe("G1: loyalty rewards keep their owner and cannot outlive refunded earnings", () => {
+  it("locks the member before reading earnings and rejects a competing redemption", async () => {
+    const u = await loyaltyMember();
+    const earn = (await balance(u)).earn_vnd;
+    await booking(50*earn,u);
+    const queries: string[] = [];
+    const first = withTx(async sql => {
+      const original = sql.query.bind(sql);
+      sql.query = ((text: string, params?: unknown[]) => { queries.push(text); return original(text,params); }) as typeof sql.query;
+      return loyaltyRedeem(sql,request({points:50}),u);
+    });
+    const outcomes = await Promise.allSettled([first,redeem(u,50)]);
+    assert.equal(outcomes.filter(r=>r.status==='fulfilled').length,1);
+    assert.equal(outcomes.filter(r=>r.status==='rejected').length,1);
+    const lock = queries.findIndex(q=>q.includes('from users') && q.includes('for update'));
+    const earnings = queries.findIndex(q=>q.includes('sum(amount_vnd)'));
+    assert.ok(lock>=0 && earnings>lock);
+    assert.equal((await balance(u)).points,0);
+  });
+
+  it("allows only the owner at quote and payment, then voids the newest unused code once on a desk refund", async () => {
+    const u = await loyaltyMember(), stranger = await loyaltyMember();
+    const earn = (await balance(u)).earn_vnd;
+    const b = await booking(150*earn,u);
+    const old = (await redeem(u,50)).body.code;
+    const newest = (await redeem(u,100)).body.code;
+    await db.query("update loyalty_adjustments set created_at=now()-interval '1 day' where promo_id=$1",[await promoId(old)]);
+    assert.ok((await quote(u,newest)).discount_vnd>0);
+    await assert.rejects(()=>quote(stranger,newest),(e:any)=>e.extra?.br==='BR-40');
+    await assert.rejects(()=>quote(null,newest),(e:any)=>e.extra?.br==='BR-40');
+    const id = await promoId(newest);
+    await assert.rejects(()=>withTx(sql=>redeemPromo(sql,{promoId:id,userId:stranger.id,paymentId:b.payment,discountVnd:100})),(e:any)=>e.extra?.br==='BR-40');
+    await withTx(sql=>paymentsRefund(sql,b.payment,request({amount_vnd:50*earn,reason:'Centre adjustment'}),manager));
+    await assert.rejects(()=>quote(u,newest));
+    assert.ok((await quote(u,old)).discount_vnd>0);
+    await assert.rejects(()=>withTx(sql=>redeemPromo(sql,{promoId:id,userId:u.id,paymentId:b.payment,discountVnd:100})),(e:any)=>e.extra?.br==='BR-40');
+    await withTx(sql=>reconcileLoyaltyRefund(sql,u.id));
+    const corrections = (await db.query<{points:number;note:string}>("select points,note from loyalty_adjustments where user_id=$1 and reason='correction'",[u.id])).rows;
+    assert.deepEqual(corrections,[{points:100,note:newest}]);
+    assert.equal((await balance(u)).points,50);
+  });
+
+  it("centre cancellation preserves used codes and debt, which future earnings repay before redemption", async () => {
+    const u = await loyaltyMember();
+    const earn = (await balance(u)).earn_vnd;
+    const b = await booking(100*earn,u);
+    const code = (await redeem(u,100)).body.code;
+    const id = await promoId(code);
+    await withTx(sql=>redeemPromo(sql,{promoId:id,userId:u.id,paymentId:b.payment,discountVnd:100}));
+    await withTx(sql=>bookingsCancel(sql,b.id,manager,request({waive:true,reason:'Centre closed'})));
+    const refundId = (await db.query<{id:string}>("select id from payments where ref_id=$1 and amount_vnd<0",[b.id])).rows[0].id;
+    await withTx(sql=>paymentsApproveRefund(sql,refundId,request({}),manager));
+    await openShift(payer);
+    await withTx(sql=>paymentsPayOutRefund(sql,refundId,payer));
+    assert.equal((await db.query<{status:string}>("select status from promotion_redemptions where promo_id=$1",[id])).rows[0].status,'applied');
+    assert.equal((await balance(u,false)).points,-100);
+    assert.equal((await balance(u)).points,0);
+    assert.equal((await db.query("select id from loyalty_adjustments where user_id=$1 and reason='correction'",[u.id])).rows.length,0);
+    await booking(50*earn,u);
+    assert.equal((await balance(u,false)).points,-50);
+    await assert.rejects(()=>redeem(u,50));
+    await booking(100*earn,u);
+    assert.equal((await balance(u)).points,50);
+    assert.equal((await redeem(u,50)).body.points_left,0);
+  });
+
+  it("class refunds reconcile existing debt without adding tuition to loyalty earnings", async () => {
+    const u = await loyaltyMember();
+    const earn = (await balance(u)).earn_vnd;
+    await booking(50*earn,u);
+    const code = (await redeem(u,50)).body.code;
+    await db.query("insert into loyalty_adjustments (user_id,points,reason,note) values ($1,-50,'correction','Test debit')",[u.id]);
+    const cl = await makeClass();
+    const seat = (await db.query<{id:string}>("insert into enrollments (class_id,user_id,status,price_vnd) values ($1,$2,'confirmed',200000) returning id",[cl,u.id])).rows[0].id;
+    await db.query(`insert into payments (code,user_id,method,amount_vnd,vat_rate,status,ref_type,ref_id)
+      values ($1,$2,'card',200000,0,'posted','enrollment',$3)`,['PAY-G1-'+(++seq),u.id,seat]);
+    await withTx(sql=>classesPatch(sql,cl,request({status:'cancelled',reason:'Centre closed'}),manager));
+    await assert.rejects(()=>quote(u,code));
+    assert.equal((await balance(u,false)).points,0);
+  });
 });

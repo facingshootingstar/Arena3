@@ -1,3 +1,4 @@
+import { reconcileLoyaltyRefund } from "../../services/loyalty";
 import type { Sql } from "@/server/data/db";
 import { err, isConflictSlot } from "../errors";
 import { assertNoClassClash, assertUnderClassLimit, audit, enqueue, isUuid, getSettings, nextCode, num, readJson, str, type ClassPattern, classPatternsClash } from "../helpers";
@@ -1316,12 +1317,14 @@ async function cancelClass(
     const extension = await rollbackExtension(sql, seat.id, settings.member_day_rate_vnd);
     const refund = Math.min(tuition + extension.refund_vnd, Math.max(0, seat.paid_vnd - seat.returned_vnd));
     if (refund <= 0) continue;
+    await sql.query(`select id from users where id = $1 for update`, [seat.user_id]);
     const code = await nextCode(sql, "PAY");
     await sql.query(
       `insert into payments (code, user_id, method, amount_vnd, vat_rate, status, ref_type, ref_id, created_by)
        values ($1,$2,'cash',$3,0,'refund_pending','enrollment',$4,null)`,
       [code, seat.user_id, -refund, seat.id],
     );
+    await reconcileLoyaltyRefund(sql, seat.user_id);
     refundByUser.set(seat.user_id, (refundByUser.get(seat.user_id) ?? 0) + refund);
     refunded += 1;
     refundedVnd += refund;

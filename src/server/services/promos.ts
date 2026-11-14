@@ -81,6 +81,9 @@ export async function quotePromo(sql: Sql, input: QuoteInput): Promise<PromoQuot
   );
   const no = (message: string) => err.br("BR-40", message, { field: "promo_code", promo_code: code });
   if (!promo || promo.status !== "active") throw no("That code is not valid.");
+  const owner = await one<{ user_id: string }>(sql,
+    `select user_id from loyalty_adjustments where promo_id = $1 and reason = 'redeem'`, [promo.id]);
+  if (owner && owner.user_id !== input.userId) throw no("That code is not valid.");
   const now = input.now ?? new Date();
   if (new Date(promo.starts_at) > now) throw no("That code is not active yet.");
   if (promo.ends_at && new Date(promo.ends_at) <= now) throw no("That code has expired.");
@@ -141,6 +144,12 @@ export async function redeemPromo(
   sql: Sql,
   args: { promoId: string; userId: string | null; paymentId: string; discountVnd: number },
 ): Promise<void> {
+  const owner = await one<{ user_id: string }>(sql,
+    `select user_id from loyalty_adjustments where promo_id = $1 and reason = 'redeem'`, [args.promoId]);
+  if (owner) {
+    if (owner.user_id !== args.userId) throw err.br("BR-40", "That code is not valid.", { field: "promo_code" });
+    await sql.query(`select id from users where id = $1 for update`, [owner.user_id]);
+  }
   const promo = await one<Pick<PromoRow, "id" | "code" | "max_uses" | "max_per_member">>(
     sql,
     `select id, code, max_uses, max_per_member from promotions where id = $1 for update`,
@@ -148,6 +157,11 @@ export async function redeemPromo(
   );
   if (!promo) throw err.br("BR-41", "That promo code no longer exists.");
   if (await one(sql, `select 1 as ok from promotion_redemptions where payment_id = $1`, [args.paymentId])) return;
+  if (owner && !await one(sql,
+    `select id from promotions where id = $1 and status = 'active'
+      and starts_at <= now() and (ends_at is null or ends_at > now())`, [promo.id])) {
+    throw err.br("BR-40", "That code is not valid.", { field: "promo_code" });
+  }
   const used = await usage(sql, promo.id, args.userId);
   if (promo.max_uses != null && used.total >= promo.max_uses) {
     throw err.br("BR-41", `Code ${promo.code} was just fully used — price the order again.`, { field: "promo_code" });
@@ -166,11 +180,14 @@ export async function redeemPromo(
   ]);
 }
 
-/** A full refund gives the use back; a part refund or a no-show does not (BR-41). */
+/** A full refund restores ordinary codes; spent loyalty rewards stay spent (G1). */
 export async function restoreRedemption(sql: Sql, paymentId: string): Promise<boolean> {
   const rows = await sql.query<{ id: string }>(
     `update promotion_redemptions set status = 'restored', restored_at = now()
-      where payment_id = $1 and status = 'applied' returning id`,
+      where payment_id = $1 and status = 'applied'
+        and not exists (select 1 from loyalty_adjustments la
+                         where la.promo_id = promotion_redemptions.promo_id and la.reason = 'redeem')
+      returning id`,
     [paymentId],
   );
   return rows.length > 0;
@@ -220,6 +237,7 @@ export async function restoreIfFullyRefunded(sql: Sql, refType: string, refId: s
     `update promotion_redemptions r set status = 'restored', restored_at = now()
        from payments p
       where p.id = r.payment_id and p.ref_type = $1 and p.ref_id = $2 and r.status = 'applied'
+        and not exists (select 1 from loyalty_adjustments la where la.promo_id = r.promo_id and la.reason = 'redeem')
       returning r.id`,
     [refType, refId],
   );
