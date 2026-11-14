@@ -7,6 +7,7 @@
  * src/server/services/{rules,promos,pricing,checkin,flags}.ts and src/server/controllers/handlers/*.ts.
  */
 export const VI_SERVER_EXACT: Record<string, string> = {
+  "This court has upcoming bookings or class sessions. Confirm before blocking it.": "Sân này có lượt đặt hoặc buổi học sắp tới. Hãy xác nhận trước khi đóng sân.",
   "The minimum must be a whole number from 1 up to the capacity.": "Mức tối thiểu phải là số nguyên từ 1 đến sĩ số tối đa.",
   "Capacity cannot go below the class's minimum.": "Sĩ số tối đa không được thấp hơn mức tối thiểu của lớp.",
   "No such certification.": "Không tìm thấy chứng chỉ.",

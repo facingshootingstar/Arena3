@@ -32,7 +32,7 @@ const { classesList } = await import("./handlers/classes.ts");
 const { classCode } = await import("../../shared/arena3/labels.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
 const { hashPassword, hashOtp } = await import("../services/crypto.ts");
-const { csvCell } = await import("./handlers/extras.ts");
+const { csvCell, workOrdersCreate, workOrdersPatch } = await import("./handlers/extras.ts");
 const { trainingCreate } = await import("./handlers/training.ts");
 const { clearAll: clearLimits, RULES: LIMITS, take: takeLimit } = await import("./ratelimit.ts");
 const { onlineCreate } = await import("./handlers/online.ts");
@@ -46,6 +46,104 @@ const { memberGet, membersDirectory, membersSearch } = membersH;
 const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
+
+describe("G6 maintenance commitments", () => {
+  for (const mode of ["create", "reopen", "enable blocking"] as const) {
+    it(`${mode}: requires confirmation, refunds only remaining cash, and preserves sessions with staff alerts`, async () => {
+      const rollback = new Error("Roll back G6 fixtures");
+      await assert.rejects(withTx(async (sql) => {
+        const users = await sql.query<any>(
+          `insert into users (full_name,name_normalized,role,password_hash,phone)
+           select 'G6 ' || role,'g6 ' || role,role::user_role,'hash',substr(gen_random_uuid()::text,1,16)
+           from unnest(array['manager','receptionist','coach','member']) role returning *`,
+        );
+        const manager = users.find((u) => u.role === "manager");
+        const desk = users.find((u) => u.role === "receptionist");
+        const coach = users.find((u) => u.role === "coach");
+        const member = users.find((u) => u.role === "member");
+        const court = (await sql.query<{ id: string }>(
+          `insert into courts (court_code,sport,status)
+           values ('G6-' || substr(gen_random_uuid()::text,1,5),'badminton','ready') returning id`,
+        ))[0];
+        const cls = (await sql.query<{ id: string }>(
+          `insert into classes (sport,level,coach_id,court_id,capacity,rrule,duration_min,start_on,end_on,status)
+           values ('badminton','beginner',$1,$2,10,'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10',60,
+                   current_date - 7,current_date + 30,'open') returning id`, [coach.id, court.id],
+        ))[0];
+        const bookings: { id: string; occupancy_id: string }[] = [];
+        for (let i = 0; i < 8; i++) {
+          bookings.push((await sql.query<{ id: string; occupancy_id: string }>(
+            `with occupied as (
+               insert into occupancies (court_id,start_at,end_at,kind,ref_id)
+               values ($1,now() + $3 * interval '2 hours',now() + $3 * interval '2 hours' + interval '1 hour',
+                       'booking',gen_random_uuid()) returning *
+             ) insert into court_bookings (id,court_id,user_id,start_at,end_at,status,price_vnd,deposit_vnd,paid_vnd,code,channel,occupancy_id)
+               select ref_id,$1,$2,start_at,end_at,$4::booking_status,100000,0,$5,
+                      'G6-' || substr(ref_id::text,1,20),'app',id from occupied returning id,occupancy_id`,
+            [court.id, member.id, i === 7 ? -2 : i + 1, i === 1 ? "hold" : "confirmed", i === 0 ? 100000 : 0],
+          ))[0]);
+        }
+        await sql.query(
+          `insert into payments (code,user_id,method,amount_vnd,vat_rate,status,ref_type,ref_id)
+           values ('G6-' || substr(gen_random_uuid()::text,1,20),$1,'card',100000,0,'posted','booking',$2),
+                  ('G6-' || substr(gen_random_uuid()::text,1,20),$1,'cash',-20000,0,'refund_pending','booking',$2)`,
+          [member.id, bookings[0].id],
+        );
+        const session = (await sql.query<{ id: string; occupancy_id: string }>(
+          `with occupied as (
+             insert into occupancies (court_id,start_at,end_at,kind,ref_id)
+             values ($2,now() + interval '2 days',now() + interval '2 days 1 hour','session',gen_random_uuid()) returning *
+           ) insert into sessions (id,class_id,court_id,start_at,end_at,status,occupancy_id)
+             select ref_id,$1,$2,start_at,end_at,'scheduled',id from occupied returning id,occupancy_id`, [cls.id, court.id],
+        ))[0];
+        const request = (body: object) => new Request("http://test/work-orders", {
+          method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+        });
+        let id: string | undefined;
+        if (mode !== "create") {
+          id = (await workOrdersCreate(sql, request({ title: "G6 repair", court_id: court.id }), desk)).body.id;
+          if (mode === "reopen") await workOrdersPatch(sql, id, request({ status: "done", blocks_court: true }), desk);
+        }
+        const run = (confirm?: boolean) => mode === "create"
+          ? workOrdersCreate(sql, request({ title: "G6 repair", court_id: court.id, blocks_court: true, confirm }), coach)
+          : workOrdersPatch(sql, id!, request({ status: "open", blocks_court: true, confirm }), desk);
+        await assert.rejects(run(), (error: any) => {
+          assert.equal(error.status, 409);
+          assert.equal(error.extra.requires_confirm, true);
+          assert.equal(error.extra.affected.booking_count, 7);
+          assert.equal(error.extra.affected.session_count, 1);
+          assert.equal(error.extra.affected.bookings.length, 5);
+          assert.equal(error.extra.affected.bookings[0].id, bookings[0].id);
+          assert.ok(error.extra.affected.sessions[0].start_at);
+          return true;
+        });
+        assert.equal((await sql.query<any>(`select status from courts where id = $1`, [court.id]))[0].status, "ready");
+        assert.equal((await sql.query<any>(`select count(*)::int n from work_orders where court_id = $1`, [court.id]))[0].n, mode === "create" ? 0 : 1);
+        assert.equal((await sql.query<any>(`select count(*)::int n from outbox where payload->>'session_id' = $1`, [session.id]))[0].n, 0);
+        const result = await run(true);
+        if (mode === "create") id = (result.body as { id: string }).id;
+        assert.equal((await sql.query<any>(`select status from courts where id = $1`, [court.id]))[0].status, "maintenance");
+        const cancelled = await sql.query<any>(`select status,occupancy_id from court_bookings where id = any($1::uuid[])`, [bookings.slice(0, 7).map((b) => b.id)]);
+        assert.ok(cancelled.every((b) => b.status === "cancelled" && b.occupancy_id === null));
+        assert.equal((await sql.query<any>(`select count(*)::int n from occupancies where id = any($1::uuid[])`, [bookings.slice(0, 7).map((b) => b.occupancy_id)]))[0].n, 0);
+        assert.equal((await sql.query<any>(`select status from court_bookings where id = $1`, [bookings[7].id]))[0].status, "confirmed");
+        const refunds = await sql.query<any>(`select amount_vnd,method,status,shift_id from payments where ref_id = $1 and amount_vnd < 0 order by amount_vnd`, [bookings[0].id]);
+        assert.deepEqual(refunds, [
+          { amount_vnd: -80000, method: "cash", status: "refund_pending", shift_id: null },
+          { amount_vnd: -20000, method: "cash", status: "refund_pending", shift_id: null },
+        ]);
+        assert.equal((await sql.query<any>(`select count(*)::int n from outbox where template = 'booking_cancelled' and payload->>'id' = any($1::text[])`, [bookings.map((b) => b.id)]))[0].n, 7);
+        assert.deepEqual((await sql.query<any>(`select status,occupancy_id from sessions where id = $1`, [session.id]))[0], { status: "scheduled", occupancy_id: session.occupancy_id });
+        const notices = () => sql.query<any>(`select user_id from outbox where template = 'maintenance_session' and payload->>'session_id' = $1 and user_id = any($2::uuid[]) order by user_id`, [session.id, users.map((u) => u.id)]);
+        assert.deepEqual((await notices()).map((n) => n.user_id).sort(), [manager.id, coach.id].sort());
+        await workOrdersPatch(sql, id!, request({ status: "in_progress", confirm: true }), desk);
+        assert.equal((await notices()).length, 2);
+        assert.equal((await sql.query<any>(`select count(*)::int n from payments where ref_id = $1`, [bookings[0].id]))[0].n, 3);
+        throw rollback;
+      }), (error) => error === rollback);
+    });
+  }
+});
 
 describe("G5 class minimum warnings", () => {
   it("warns managers once in the first-session 24-hour window, counts only confirmed seats, and flags running classes without cancelling", async () => {

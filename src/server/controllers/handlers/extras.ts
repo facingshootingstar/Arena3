@@ -1,4 +1,5 @@
-import { loyaltyBalance } from "../../services/loyalty";
+import { loyaltyBalance, reconcileLoyaltyRefund } from "../../services/loyalty";
+import { restoreIfFullyRefunded } from "../../services/promos";
 export { loyaltyBalance } from "../../services/loyalty";
 import type { Sql } from "@/server/data/db";
 import { err, isConflictSlot } from "../errors";
@@ -626,6 +627,65 @@ export async function coachEarnings(sql: Sql, request: Request, user: PublicUser
 const WO_PRIORITY = ["low", "normal", "urgent"];
 const WO_STATUS = ["open", "in_progress", "done", "cancelled"];
 
+/** Runs in the work-order transaction: a refusal leaves no ticket or side effects. */
+async function blockCourtCommitments(sql: Sql, courtId: string, confirm: boolean, user: PublicUser) {
+  await sql.query(`select id from courts where id = $1 for update`, [courtId]);
+  const bookings = await sql.query<{ id: string; code: string; start_at: string; user_id: string; paid_vnd: number }>(
+    `select id, code, start_at, user_id, paid_vnd from court_bookings
+      where court_id = $1 and status in ('hold','confirmed') and start_at >= now()
+      order by start_at, id for update`, [courtId],
+  );
+  const sessions = await sql.query<{ id: string; class_id: string; start_at: string; coach_id: string }>(
+    `select s.id, s.class_id, s.start_at, c.coach_id from sessions s join classes c on c.id = s.class_id
+      where s.court_id = $1 and s.status = 'scheduled' and s.start_at >= now()
+      order by s.start_at, s.id for update of s`, [courtId],
+  );
+  if (!confirm && (bookings.length || sessions.length)) {
+    throw err.conflictState("This court has upcoming bookings or class sessions. Confirm before blocking it.", {
+      requires_confirm: true,
+      affected: {
+        booking_count: bookings.length, session_count: sessions.length,
+        bookings: bookings.slice(0, 5).map(({ id, code, start_at }) => ({ id, code, start_at })),
+        sessions: sessions.slice(0, 5).map(({ id, start_at }) => ({ id, start_at })),
+      },
+    });
+  }
+  for (const booking of bookings) {
+    // Include earlier desk refunds in the cap, including cash still awaiting collection.
+    await sql.query(`select id from users where id = $1 for update`, [booking.user_id]);
+    const returned = await one<{ amount: number }>(sql,
+      `select coalesce(-sum(amount_vnd), 0)::int as amount from payments
+        where ref_type = 'booking' and ref_id = $1 and amount_vnd < 0 and status in ('posted','refund_pending')`, [booking.id]);
+    const refund = Math.max(0, booking.paid_vnd - (returned?.amount ?? 0));
+    await sql.query(`select occupancy_release_booking($1::uuid, 'cancelled'::booking_status)`, [booking.id]);
+    await sql.query(`update court_bookings set cancel_refund_pct = 100, cancel_fee_vnd = 0 where id = $1`, [booking.id]);
+    if (refund > 0) {
+      await sql.query(
+        `insert into payments (code,user_id,method,amount_vnd,vat_rate,status,ref_type,ref_id,created_by)
+         values ($1,$2,'cash',$3,0,'refund_pending','booking',$4,$5)`,
+        [await nextCode(sql, "PAY"), booking.user_id, -refund, booking.id, user.id],
+      );
+      await reconcileLoyaltyRefund(sql, booking.user_id);
+      await restoreIfFullyRefunded(sql, "booking", booking.id);
+    }
+    await enqueue(sql, "inapp", "booking_cancelled", booking.user_id,
+      { id: booking.id, fee_vnd: 0, refund_vnd: refund }, `booking_cancelled|${booking.id}`);
+    await audit(sql, user.id, "cancel_booking", "booking", booking.id, null,
+      { refund_pct: 100, fee_vnd: 0, refund_vnd: refund, reason: "court_maintenance" });
+  }
+  if (sessions.length) {
+    const managers = await sql.query<{ id: string }>(`select id from users where role = 'manager' and status = 'active'`);
+    const activation = crypto.randomUUID();
+    for (const session of sessions) {
+      for (const recipient of new Set([...managers.map((m) => m.id), session.coach_id])) {
+        await enqueue(sql, "inapp", "maintenance_session", recipient,
+          { session_id: session.id, class_id: session.class_id, court_id: courtId, start_at: session.start_at },
+          `maintenance_session|${activation}|${session.id}|${recipient}`);
+      }
+    }
+  }
+}
+
 async function syncCourtBlock(sql: Sql, courtId: string | null) {
   if (!courtId) return;
   const blocking = await one<{ n: number }>(
@@ -686,6 +746,7 @@ export async function workOrdersCreate(sql: Sql, request: Request, user: PublicU
   const courtId = str(b.court_id) || null;
   if (courtId) await one(sql, `select 1 from courts where id = $1 and retired_at is null`, [courtId]).then((r) => { if (!r) throw err.notFound("No such court."); });
   const blocks = b.blocks_court === true && !!courtId;
+  if (blocks) await blockCourtCommitments(sql, courtId!, b.confirm === true, user);
   const code = await nextCode(sql, "WO");
   const row = await one<{ id: string }>(
     sql,
@@ -701,7 +762,7 @@ export async function workOrdersCreate(sql: Sql, request: Request, user: PublicU
 export async function workOrdersPatch(sql: Sql, id: string, request: Request, user: PublicUser) {
   requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
-  const cur = await one<{ court_id: string | null; status: string }>(sql, `select court_id, status from work_orders where id = $1 for update`, [id]);
+  const cur = await one<{ court_id: string | null; status: string; blocks_court: boolean }>(sql, `select court_id, status, blocks_court from work_orders where id = $1 for update`, [id]);
   if (!cur) throw err.notFound();
   const status = str(b.status);
   if (status !== undefined && !WO_STATUS.includes(status)) throw err.field("status", "Unknown status.");
@@ -712,6 +773,11 @@ export async function workOrdersPatch(sql: Sql, id: string, request: Request, us
     throw err.field("cost_vnd", "Enter the cost in whole đồng.");
   }
   const closing = status === "done" || status === "cancelled";
+  const nextBlocks = typeof b.blocks_court === "boolean" ? b.blocks_court : cur.blocks_court;
+  if (cur.court_id && nextBlocks && ["open", "in_progress"].includes(status ?? cur.status)
+      && (!cur.blocks_court || !["open", "in_progress"].includes(cur.status))) {
+    await blockCourtCommitments(sql, cur.court_id, b.confirm === true, user);
+  }
   await sql.query(
     `update work_orders set
         status = coalesce($2, status),

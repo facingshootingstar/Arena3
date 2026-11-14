@@ -62,6 +62,13 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
   const p = asObj(n.payload);
   const code = typeof p.code === "string" ? p.code : null;
   switch (n.template) {
+    case "maintenance_session":
+      return {
+        title: t("Class session needs attention"),
+        body: t("The court for the session on {when} is closed for maintenance. Move or cancel this session; it is still scheduled.", {
+          when: sessionWhen(String(p.start_at)),
+        }),
+      };
     case "class_below_minimum":
       return {
         title: t("Class below minimum"),
