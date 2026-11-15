@@ -47,6 +47,127 @@ const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
 
+describe("G10 public OTP abuse guards", () => {
+  it("checks captcha before queries, quietly drops honeypots, and replaces challenges after 60 seconds", async (t) => {
+    const envNames = ["TURNSTILE_SECRET_KEY", "OTP_ECHO", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "MAIL_TRANSPORT"];
+    const saved = envNames.map((key) => process.env[key]);
+    for (const key of envNames) delete process.env[key];
+    process.env.OTP_ECHO = "1";
+    const mail = t.mock.method(console, "info", () => {});
+    const fetchMock = t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ success: true })));
+    const rollback = new Error("Roll back G10 fixtures");
+    try {
+      await assert.rejects(withTx(async (sql) => {
+        // Shadow seed tables with private, transaction-local fixtures.
+        for (const table of ["users", "otp_challenges"]) {
+          await sql.query(`create temporary table ${table} (like public.${table} including all) on commit drop`);
+        }
+        await sql.query(`insert into users (full_name,name_normalized,role,password_hash,phone,email)
+          values ('G10 Reset','g10 reset','member','hash','+84987654102','g10-reset@example.test')`);
+        for (const purpose of ["register", "reset"] as const) {
+          clearLimits();
+          const handler = purpose === "register" ? authH.register : authH.forgot;
+          const body = purpose === "register"
+            ? { full_name: "G10 Signup", phone: "0987654101", email: "g10-signup@example.test", password: "G10Password!", pii_consent: true }
+            : { phone: "0987654102" };
+          const request = (extra: Record<string, unknown> = {}) => new Request("http://localhost/v1/auth/test", {
+            method: "POST", headers: { "x-forwarded-for": "192.0.2.10" }, body: JSON.stringify({ ...body, ...extra }),
+          });
+          const count = async () => (await sql.query<{ n: number }>(`select count(*)::int as n from otp_challenges where purpose=$1`, [purpose]))[0].n;
+          process.env.TURNSTILE_SECRET_KEY = "test-secret";
+          const noQueries = { query: async () => { assert.fail("captcha/honeypot must run before any query"); } } as unknown as typeof sql;
+          const captchaError = (e: any) => e.code === "VALIDATION" && e.extra.field === "captcha";
+          const mailsBefore = mail.mock.callCount();
+          const callsBefore = fetchMock.mock.callCount();
+          await assert.rejects(handler(noQueries, request()), captchaError);
+          assert.equal(fetchMock.mock.callCount(), callsBefore);
+          for (const response of ["rejected", "network", "malformed", "http"] as const) {
+            fetchMock.mock.mockImplementation(async () => {
+              if (response === "network") throw new Error("offline");
+              if (response === "malformed") return new Response("not json");
+              return new Response(JSON.stringify({ success: response === "http" }), { status: response === "http" ? 503 : 200 });
+            });
+            await assert.rejects(handler(noQueries, request({ captcha_token: "bad" })), captchaError);
+          }
+          assert.equal(await count(), 0);
+          assert.equal(mail.mock.callCount(), mailsBefore);
+          assert.equal((await handler(noQueries, request({ website: "spam" }))).status, 202);
+          assert.equal(await count(), 0);
+          assert.equal(mail.mock.callCount(), mailsBefore);
+          fetchMock.mock.mockImplementation(async (_url, init) => {
+            assert.equal(String(_url), "https://challenges.cloudflare.com/turnstile/v0/siteverify");
+            assert.deepEqual(JSON.parse(String(init?.body)), { secret: "test-secret", response: "valid", remoteip: "192.0.2.10" });
+            return new Response(JSON.stringify({ success: true }));
+          });
+          const first = await handler(sql, request({ captcha_token: "valid" }));
+          assert.equal(first.status, 202);
+          assert.equal(await count(), 1);
+          assert.equal(mail.mock.callCount(), mailsBefore + 1);
+          const initial = (await sql.query<any>(`select * from otp_challenges where purpose=$1`, [purpose]))[0];
+          assert.equal(initial.otp_hash, hashOtp((first.body as any).otp));
+          delete process.env.TURNSTILE_SECRET_KEY;
+          const verifiedCalls = fetchMock.mock.callCount();
+          await assert.rejects(handler(sql, request()), (e: any) => e.status === 429 && e.message === "Wait 60 seconds before requesting another code.");
+          assert.equal(mail.mock.callCount(), mailsBefore + 1);
+          // Advance the persisted send time, not the wall clock or time of day.
+          await sql.query(`update otp_challenges set expires_at=now() + interval '239 seconds', attempts=4 where id=$1`, [initial.id]);
+          const resent = await handler(sql, request());
+          const replacement = (await sql.query<any>(`select * from otp_challenges where purpose=$1`, [purpose]))[0];
+          assert.equal(resent.status, 202);
+          assert.equal(replacement.id, initial.id);
+          assert.equal(replacement.attempts, 0);
+          assert.equal(replacement.otp_hash, hashOtp((resent.body as any).otp));
+          assert.equal(await count(), 1);
+          assert.equal(mail.mock.callCount(), mailsBefore + 2);
+          assert.equal(fetchMock.mock.callCount(), verifiedCalls);
+          await sql.query(`delete from otp_challenges where id=$1`, [initial.id]);
+          assert.equal((await handler(sql, request())).status, 202); // Initial send also works without a key.
+        }
+        throw rollback;
+      }), (e) => e === rollback);
+    } finally {
+      envNames.forEach((key, index) => { if (saved[index] === undefined) delete process.env[key]; else process.env[key] = saved[index]; });
+      clearLimits();
+      mail.mock.restore();
+      fetchMock.mock.restore();
+    }
+  });
+
+  it("limits sends and resends per IP, phone and email, and verification per IP and phone", async () => {
+    const secret = process.env.TURNSTILE_SECRET_KEY;
+    delete process.env.TURNSTILE_SECRET_KEY;
+    const reachedDatabase = new Error("request passed guards");
+    const sql = { query: async () => { throw reachedDatabase; } } as any;
+    const request = (body: unknown, ip: string) => new Request("http://localhost/v1/auth/test", {
+      method: "POST", headers: { "x-forwarded-for": ip }, body: JSON.stringify(body),
+    });
+    try {
+      for (const dimension of ["ip", "phone", "email"] as const) {
+        clearLimits();
+        const maximum = dimension === "ip" ? LIMITS.authSendIp.limit : LIMITS.authSendIdentity.limit;
+        for (let i = 0; i <= maximum; i++) {
+          const body = { full_name: "G10", phone: dimension === "phone" ? "0987654103" : `0987654${String(200 + i)}`,
+            email: dimension === "email" ? " G10@example.test " : `g10-${i}@example.test`, password: "Password123", pii_consent: true };
+          await assert.rejects(authH.register(sql, request(body, dimension === "ip" ? "192.0.2.1" : `192.0.2.${i + 1}`)),
+            (e: any) => i < maximum ? e === reachedDatabase : e.status === 429);
+        }
+      }
+      for (const dimension of ["ip", "phone"] as const) {
+        clearLimits();
+        const maximum = dimension === "ip" ? LIMITS.authVerifyIp.limit : LIMITS.authVerifyIdentity.limit;
+        for (let i = 0; i <= maximum; i++) {
+          await assert.rejects(authH.verifyOtp(sql, request({ phone: dimension === "phone" ? "0987654103" : `0987654${String(300 + i)}`, otp: "123456" },
+            dimension === "ip" ? "192.0.2.1" : `192.0.2.${i + 1}`)),
+            (e: any) => i < maximum ? e === reachedDatabase : e.status === 429);
+        }
+      }
+    } finally {
+      if (secret === undefined) delete process.env.TURNSTILE_SECRET_KEY; else process.env.TURNSTILE_SECRET_KEY = secret;
+      clearLimits();
+    }
+  });
+});
+
 describe("G8 manager accounts", () => {
   it("creates and resets managers, audits changes, and refuses removing the last active manager", async () => {
     const { staffCreate, staffPatch, staffResetPassword, staffRevokeSessions } = await import("./handlers/staff.ts");
