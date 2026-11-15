@@ -27,7 +27,7 @@ const { classesCreate, enrollmentDelete, classesEnroll, sessionReschedule, sessi
 const { bookingGet, bookingsReschedule, walkIn, bookingsHold, bookingsConfirm, bookingsCancel } = await import("./handlers/bookings.ts");
 const { shiftClose, paymentsCreate, shiftCurrent, paymentsRefund, paymentsApproveRefund, paymentsRejectRefund, paymentsPayOutRefund } = await import("./handlers/desk.ts");
 const { waitlistAccept, inviteWaitlist, sessionAttendancePost } = await import("./handlers/ops.ts");
-const { waitlistExpire, notifyClassMinimums } = await import("../data/jobs.ts");
+const { waitlistExpire, notifyClassMinimums, notifyOverdueShifts } = await import("../data/jobs.ts");
 const { classesList } = await import("./handlers/classes.ts");
 const { classCode } = await import("../../shared/arena3/labels.ts");
 const { findUserByLogin, issueSession, authFromRequest, toPublic } = await import("./session.ts");
@@ -46,6 +46,102 @@ const { memberGet, membersDirectory, membersSearch } = membersH;
 const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
+
+describe("G7 till shift safeguards", () => {
+  it("requires a manager reason, preserves ownership checks, audits closure and reports cash differences", async () => {
+    const rollback = new Error("Roll back G7 close fixtures");
+    await assert.rejects(withTx(async (sql) => {
+      const users = await sql.query<any>(
+        `insert into users (full_name,name_normalized,role,password_hash,phone)
+         select 'G7 ' || role,'g7 ' || role,role::user_role,'hash',substr(gen_random_uuid()::text,1,16)
+         from unnest(array['manager','receptionist','receptionist','member']) role returning *`,
+      );
+      const manager = users.find((u) => u.role === "manager");
+      const [owner, other] = users.filter((u) => u.role === "receptionist");
+      const member = users.find((u) => u.role === "member");
+      const shift = (await sql.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`, [owner.id],
+      ))[0];
+      await sql.query(
+        `insert into payments (code,shift_id,method,amount_vnd,vat_rate,status,ref_type,ref_id)
+         select 'G7-' || substr(gen_random_uuid()::text,1,20),$1,method::pay_method,amount,0,status::pay_status,'booking',gen_random_uuid()
+         from (values ('cash',100000,'posted'),('cash',-20000,'posted'),
+                      ('cash',-10000,'refund_pending'),('card',50000,'posted')) p(method,amount,status)`, [shift.id],
+      );
+      const request = (body: unknown) => new Request(`http://localhost/v1/shifts/${shift.id}/close`, {
+        method: "POST", body: JSON.stringify(body),
+      });
+      for (const reason of [undefined, "", "  ", 42]) {
+        await assert.rejects(shiftClose(sql, shift.id, request({ cash_declared_vnd: 70000, reason }), manager),
+          (e: any) => e.code === "VALIDATION" && e.extra.field === "reason");
+      }
+      for (const user of [other, member]) {
+        await assert.rejects(shiftClose(sql, shift.id, request({ cash_declared_vnd: 70000, reason: "Review" }), user),
+          (e: any) => e.code === "FORBIDDEN");
+      }
+      const closed = await shiftClose(sql, shift.id, request({ cash_declared_vnd: 70000, reason: "  Forgotten shift  " }), manager);
+      assert.deepEqual(closed.body, { ok: true, cash_declared_vnd: 70000, cash_system_vnd: 80000 });
+      const audits = await sql.query<any>(`select actor_id,action,after from audit_logs where entity_id=$1`, [shift.id]);
+      assert.equal(audits.length, 1);
+      assert.equal(audits[0].actor_id, manager.id);
+      assert.equal(audits[0].action, "force_close_shift");
+      assert.deepEqual(audits[0].after, { declared: 70000, actual: 80000, reason: "Forgotten shift" });
+      const alerts = await sql.query<any>(`select payload from outbox where template='shift_cash_difference' and user_id=$1 and payload->>'shift_id'=$2`, [manager.id, shift.id]);
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].payload.cash_declared_vnd, 70000);
+      assert.equal(alerts[0].payload.cash_system_vnd, 80000);
+      await assert.rejects(shiftClose(sql, shift.id, request({ cash_declared_vnd: 70000, reason: "Retry" }), manager),
+        (e: any) => e.code === "CONFLICT_STATE");
+      // Normal owner closure still works; matching cash produces no warning.
+      const ownShift = (await sql.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`, [owner.id],
+      ))[0];
+      await shiftClose(sql, ownShift.id, request({ cash_declared_vnd: 0 }), owner);
+      assert.equal((await sql.query(`select id from outbox where payload->>'shift_id'=$1`, [ownShift.id])).length, 0);
+      assert.equal((await sql.query<any>(`select action from audit_logs where entity_id=$1`, [ownShift.id]))[0].action, "close_shift");
+      const mismatch = (await sql.query<{ id: string }>(
+        `insert into cashier_shifts (receptionist_id) values ($1) returning id`, [owner.id],
+      ))[0];
+      await shiftClose(sql, mismatch.id, request({ cash_declared_vnd: 1 }), owner);
+      assert.equal((await sql.query(`select id from outbox where user_id=$1 and payload->>'shift_id'=$2`, [manager.id, mismatch.id])).length, 1);
+      throw rollback;
+    }), (e) => e === rollback);
+  });
+
+  it("warns active managers once only for open shifts strictly older than 16 hours", async () => {
+    const rollback = new Error("Roll back G7 overdue fixtures");
+    await assert.rejects(withTx(async (sql) => {
+      const users = await sql.query<any>(
+        `insert into users (full_name,name_normalized,role,password_hash,phone)
+         select 'G7 ' || role,'g7 ' || role,role::user_role,'hash',substr(gen_random_uuid()::text,1,16)
+         from unnest(array['manager','manager','receptionist','receptionist','receptionist','receptionist']) role returning *`,
+      );
+      const [manager, disabled] = users.filter((u) => u.role === "manager");
+      await sql.query(`update users set status='disabled' where id=$1`, [disabled.id]);
+      const owners = users.filter((u) => u.role === "receptionist");
+      const shifts: string[] = [];
+      for (const [i, hours] of [17, 16, 15, 20].entries()) {
+        shifts.push((await sql.query<{ id: string }>(
+          `insert into cashier_shifts (receptionist_id,opened_at,closed_at)
+           values ($1,now()-($2 * interval '1 hour'),case when $3 then now() else null end) returning id`,
+          [owners[i].id, hours, i === 3],
+        ))[0].id);
+      }
+      await notifyOverdueShifts(sql);
+      await notifyOverdueShifts(sql);
+      const alerts = await sql.query<any>(
+        `select user_id,payload from outbox where template='shift_overdue'
+         and user_id=any($1::uuid[]) and payload->>'shift_id'=any($2::text[])`,
+        [[manager.id, disabled.id], shifts],
+      );
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].user_id, manager.id);
+      assert.equal(alerts[0].payload.shift_id, shifts[0]);
+      assert.equal(alerts[0].payload.receptionist_id, owners[0].id);
+      throw rollback;
+    }), (e) => e === rollback);
+  });
+});
 
 describe("G6 maintenance commitments", () => {
   for (const mode of ["create", "reopen", "enable blocking"] as const) {

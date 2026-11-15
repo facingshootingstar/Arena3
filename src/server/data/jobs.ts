@@ -3,6 +3,35 @@ import { elapsedAtLeast, ictDateString } from "../../shared/arena3/time";
 import type { Sql } from "./db";
 import { classCode } from "../../shared/arena3/labels";
 
+const OVERDUE_SHIFT_DUE = `
+  select s.id, s.receptionist_id, s.opened_at, manager.id as manager_id
+    from cashier_shifts s
+    join users manager on manager.role = 'manager' and manager.status = 'active'
+   where s.closed_at is null and s.opened_at < now() - interval '16 hours'
+     and not exists (
+       select 1 from outbox o
+        where o.dedupe_key = 'shift_overdue:' || s.id::text || ':' || manager.id::text
+     )`;
+
+export async function notifyOverdueShifts(sql: Sql): Promise<number> {
+  const targets = await sql.query<{
+    id: string; receptionist_id: string; opened_at: string; manager_id: string;
+  }>(OVERDUE_SHIFT_DUE);
+  let sent = 0;
+  for (const shift of targets) {
+    const inserted = await sql.query(
+      `insert into outbox (channel, template, user_id, payload, dedupe_key, sent_at)
+       values ('inapp', 'shift_overdue', $1, $2::jsonb, $3, now())
+       on conflict (dedupe_key) do nothing returning id`,
+      [shift.manager_id, JSON.stringify({
+        shift_id: shift.id, receptionist_id: shift.receptionist_id, opened_at: shift.opened_at,
+      }), `shift_overdue:${shift.id}:${shift.manager_id}`],
+    );
+    sent += inserted.length;
+  }
+  return sent;
+}
+
 // Shared by the due probe and the job so their eligibility cannot drift.
 // Keep done sessions in the minimum: a later session is not another class start.
 const CLASS_MINIMUM_DUE = `
@@ -350,6 +379,7 @@ const g = globalThis as typeof globalThis & {
  */
 const DUE_PROBE = `
   select
+    exists(${OVERDUE_SHIFT_DUE}) as overdue_shift,
     exists(${CLASS_MINIMUM_DUE}) as class_minimum,
     exists(select 1 from court_bookings
             where status = 'hold' and hold_until < now())                              as expire_holds,
@@ -384,6 +414,7 @@ const DUE_PROBE = `
 `;
 
 type DueFlags = {
+  overdue_shift: boolean;
   class_minimum: boolean;
   expire_holds: boolean;
   mark_noshow: boolean;
@@ -403,6 +434,7 @@ export async function runDueJobs() {
     const sql = await getSql();
     const [due] = await sql.query<DueFlags>(DUE_PROBE);
     if (!due) return;
+    if (due.overdue_shift) await withTx(notifyOverdueShifts);
     if (due.class_minimum) await withTx(notifyClassMinimums);
     if (due.expire_holds) await expireHolds();
     if (due.mark_noshow) await markNoshow();

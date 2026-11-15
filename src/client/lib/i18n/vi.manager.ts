@@ -3,6 +3,11 @@
  * attendance panels. One `"English": "Tiếng Việt",` per line.
  */
 export const manager: Record<string, string> = {
+  "Till shift open over 16 hours": "Ca thu ngân mở quá 16 giờ",
+  "Shift {id}, opened {when}, is still open. Review the till and close the shift with a counted cash amount and a reason.": "Ca {id}, mở lúc {when}, vẫn chưa đóng. Kiểm tra quỹ và đóng ca với số tiền mặt đã kiểm đếm cùng lý do.",
+  "Till cash difference": "Chênh lệch tiền mặt trong ca",
+  "Shift {id} closed with {declared} counted cash; the recorded cash total is {actual}.": "Ca {id} đã đóng với tiền mặt kiểm đếm là {declared}; tổng tiền mặt ghi nhận là {actual}.",
+  "A reason is required to force close a shift.": "Cần nhập lý do để buộc đóng ca thu ngân.",
   "Class below minimum": "Lớp chưa đủ sĩ số tối thiểu",
   "Class {code} starts within 24 hours with {count} confirmed seats; the minimum is {minimum}. Review the class and decide whether to run it or cancel it.": "Lớp {code} bắt đầu trong vòng 24 giờ với {count} học viên đã xác nhận; sĩ số tối thiểu là {minimum}. Xem xét và quyết định tiếp tục hay hủy lớp.",
   "Review classes": "Xem xét các lớp",

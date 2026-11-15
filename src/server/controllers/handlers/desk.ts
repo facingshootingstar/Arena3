@@ -73,8 +73,11 @@ export async function shiftCurrent(sql: Sql, user: PublicUser, request: Request)
 }
 
 export async function shiftClose(sql: Sql, id: string, request: Request, user: PublicUser) {
-  requireRole(user, ["receptionist"]);
+  requireRole(user, ["receptionist", "manager"]);
   const b = await readJson(request);
+  const forceClose = user.role === "manager";
+  const reason = typeof b.reason === "string" ? b.reason.trim() : "";
+  if (forceClose && !reason) throw err.field("reason", "A reason is required to force close a shift.");
   const raw = b.cash_declared_vnd;
   if (raw === null || raw === undefined || raw === "" || Number.isNaN(Number(raw))) {
     throw err.validation("cash_declared_vnd is required.");
@@ -86,7 +89,7 @@ export async function shiftClose(sql: Sql, id: string, request: Request, user: P
     [id],
   );
   if (!sh) throw err.notFound();
-  if (sh.receptionist_id !== user.id) throw err.forbidden();
+  if (!forceClose && sh.receptionist_id !== user.id) throw err.forbidden();
   if (sh.closed_at) throw err.conflictState("That shift is already closed.");
   await sql.query(
     `update cashier_shifts set closed_at = now(), cash_declared_vnd = $2 where id = $1`,
@@ -98,10 +101,22 @@ export async function shiftClose(sql: Sql, id: string, request: Request, user: P
        from payments where shift_id = $1`,
     [id],
   );
-  await audit(sql, user.id, "close_shift", "shift", id, null, {
+  await audit(sql, user.id, forceClose ? "force_close_shift" : "close_shift", "shift", id, null, {
     declared: cash,
     actual: actual?.cash,
+    ...(forceClose ? { reason } : {}),
   });
+  if (cash !== (actual?.cash ?? 0)) {
+    const managers = await sql.query<{ id: string }>(
+      `select id from users where role = 'manager' and status = 'active'`,
+    );
+    for (const manager of managers) {
+      await enqueue(sql, "inapp", "shift_cash_difference", manager.id, {
+        shift_id: id, receptionist_id: sh.receptionist_id,
+        cash_declared_vnd: cash, cash_system_vnd: actual?.cash ?? 0,
+      }, `shift_cash_difference:${id}:${manager.id}`);
+    }
+  }
   return {
     status: 200,
     body: { ok: true, cash_declared_vnd: cash, cash_system_vnd: actual?.cash ?? 0 },

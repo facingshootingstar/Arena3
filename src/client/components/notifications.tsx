@@ -62,6 +62,20 @@ export function notificationContent(n: Pick<Notification, "template" | "payload"
   const p = asObj(n.payload);
   const code = typeof p.code === "string" ? p.code : null;
   switch (n.template) {
+    case "shift_overdue":
+      return {
+        title: t("Till shift open over 16 hours"),
+        body: t("Shift {id}, opened {when}, is still open. Review the till and close the shift with a counted cash amount and a reason.", {
+          id: String(p.shift_id), when: sessionWhen(String(p.opened_at)),
+        }),
+      };
+    case "shift_cash_difference":
+      return {
+        title: t("Till cash difference"),
+        body: t("Shift {id} closed with {declared} counted cash; the recorded cash total is {actual}.", {
+          id: String(p.shift_id), declared: money(Number(p.cash_declared_vnd)), actual: money(Number(p.cash_system_vnd)),
+        }),
+      };
     case "maintenance_session":
       return {
         title: t("Class session needs attention"),
