@@ -2,6 +2,19 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Input } from "./ui";
 import { t } from "../lib/i18n";
 
+export function spreadOtpDigits(value: string, index: number, text: string) {
+  const incoming = text.replace(/\D/g, "").slice(0, 6 - index);
+  const digits = value.padEnd(6, " ").split("");
+  if (!text) digits[index] = " ";
+  for (let offset = 0; offset < incoming.length; offset++) {
+    digits[index + offset] = incoming[offset];
+  }
+  return {
+    value: digits.join("").trimEnd(),
+    focusIndex: incoming.length ? Math.min(5, index + incoming.length) : null,
+  };
+}
+
 export function OtpInput({ value, onChange, invalid, errorId }: {
   value: string; onChange: (value: string) => void; invalid?: boolean; errorId?: string;
 }) {
@@ -10,11 +23,9 @@ export function OtpInput({ value, onChange, invalid, errorId }: {
   const digits = value.padEnd(6, " ").split("");
   const focus = (index: number) => inputs.current[Math.max(0, Math.min(5, index))]?.focus();
   const fill = (index: number, text: string) => {
-    if (!/^[0-9]*$/.test(text)) return;
-    if (text.length === 6) { onChange(text); focus(5); return; }
-    digits[index] = text.slice(-1) || " ";
-    onChange(digits.join("").trimEnd());
-    if (text) focus(index + 1);
+    const next = spreadOtpDigits(value, index, text);
+    onChange(next.value);
+    if (next.focusIndex !== null) focus(next.focusIndex);
   };
   return <div role="group" aria-labelledby={label} aria-describedby={invalid ? errorId : undefined}>
     <p id={label} className="mb-2 text-center text-sm font-medium">{t("6-digit code")}</p>
@@ -30,8 +41,7 @@ export function OtpInput({ value, onChange, invalid, errorId }: {
         onChange={(e) => fill(index, e.target.value)}
         onPaste={(e) => {
           e.preventDefault();
-          const code = e.clipboardData.getData("text").trim();
-          if (/^[0-9]{6}$/.test(code)) fill(0, code);
+          fill(index, e.clipboardData.getData("text"));
         }}
         onKeyDown={(e) => {
           if (e.key === "Backspace" && !digit.trim()) { e.preventDefault(); focus(index - 1); }

@@ -239,3 +239,11 @@ F-26 pass. Run `npx tsx --test src/server/controllers/tx.test.ts` five times and
 **Leave alone.** Demo logins and the demo OTP echo (`mayEchoOtp`, `OTP_ECHO`). No migration, no seed change. Login is not given a captcha in this gap (it already locks after 5 wrong passwords).
 
 **Tests.** With the secret unset, register and forgot behave as before. With it set (stub `fetch`), a missing token and a rejected token are refused and no `otp_challenges` row is written; a valid token passes. Honeypot filled: no row, no email. Resend inside 60 seconds is refused, after it replaces the challenge. English copy first, Vietnamese added to the matching `vi.*.ts` files.
+
+## 15. G11: the code boxes drop digits when several arrive at once
+
+**Why.** In `src/client/components/otp-input.tsx`, `fill(index, text)` handles one character or exactly six. When 2 to 5 digits arrive in one change event (fast typing, IME, a partial paste, autofill into a later box) it keeps only the last digit, and `onPaste` ignores anything that is not exactly six digits.
+
+**Do.** In `fill`, spread the digits of `text` across the boxes starting at `index` (strip non-digits first, stop at box 6), then focus the box after the last one filled. A paste goes through the same path from the focused box, so "123 456" or a 4-digit fragment also works. Replacing a digit in a filled box still replaces only that box. Keep the component's props and markup; touch no other file unless a test needs it.
+
+**Tests.** If the repo has no component test setup, do not add one: extract the spreading logic as a small pure function in the same file and cover it in an existing `*.test.ts` under `src/server/services/` only if that is already where pure client helpers are tested; otherwise state in your report that it is covered by manual check only.
