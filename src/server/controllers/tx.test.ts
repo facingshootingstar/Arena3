@@ -1335,9 +1335,28 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
 
   // F-09: walkIn phone validation & slot clash
   it("validates phone and rejects conflicting slot with 409 in walkIn (F-09)", async () => {
+    const court = (await db.query<{ id: string }>(
+      `insert into courts (court_code, sport, status) values ('G9-F09', 'badminton', 'ready') returning id`,
+    )).rows[0];
+    const receptionist = (await db.query<any>(
+      `insert into users (phone, full_name, name_normalized, role, password_hash)
+       values ('+84987654907', 'G9 Receptionist', 'g9 receptionist', 'receptionist', 'hash') returning *`,
+    )).rows[0];
+    const member = (await db.query<{ phone: string }>(
+      `insert into users (phone, full_name, name_normalized, role, password_hash)
+       values ('+84987654909', 'G9 Walkin Member', 'g9 walkin member', 'member', 'hash') returning phone`,
+    )).rows[0];
+    // Tomorrow at opening time in ICT is future, on-grid and in hours even at night.
+    const slot = (await db.query<{ start_at: Date; end_at: Date }>(
+      `select ((now() at time zone 'Asia/Ho_Chi_Minh')::date + 1 + open_time)
+                at time zone 'Asia/Ho_Chi_Minh' as start_at,
+              (((now() at time zone 'Asia/Ho_Chi_Minh')::date + 1 + open_time)
+                at time zone 'Asia/Ho_Chi_Minh') + slot_minutes * interval '1 minute' as end_at
+         from center_settings where id = 1`,
+    )).rows[0];
     const shift = (await db.query<{ id: string }>(
       "insert into cashier_shifts (receptionist_id) values ($1) returning id",
-      [receptionistUser.id]
+      [receptionist.id]
     )).rows[0];
 
     // SĐT rác -> validation error
@@ -1345,15 +1364,15 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        court_id: validCourtId,
-        start_at: "2026-11-20T09:00:00.000Z",
+        court_id: court.id,
+        start_at: slot.start_at,
         guest_name: "Walkin Guest",
         guest_phone: "12345",
         method: "cash",
       }),
     });
     await assert.rejects(
-      async () => withTx(async (sql) => walkIn(sql, reqBadPhone, receptionistUser)),
+      async () => withTx(async (sql) => walkIn(sql, reqBadPhone, receptionist)),
       (err: any) => {
         assert.equal(err.status, 422);
         assert.equal(err.extra?.field, "phone");
@@ -1364,22 +1383,22 @@ describe("Round 5: Money & Cashier Shift unit tests (F-17, F-12, F-13, F-09)", (
     // Slot đã hold -> 409 CONFLICT_SLOT
     await db.query(`
       insert into occupancies (id, court_id, start_at, end_at, kind, ref_id)
-      values (gen_random_uuid(), $1, '2026-11-20 09:00:00+00', '2026-11-20 10:00:00+00', 'hold', gen_random_uuid())
-    `, [validCourtId]);
+      values (gen_random_uuid(), $1, $2, $3, 'hold', gen_random_uuid())
+    `, [court.id, slot.start_at, slot.end_at]);
 
     const reqClash = new Request("http://localhost/v1/walk-in", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        court_id: validCourtId,
-        start_at: "2026-11-20T09:00:00.000Z",
+        court_id: court.id,
+        start_at: slot.start_at,
         guest_name: "Walkin Clash",
-        guest_phone: "0912345678",
+        guest_phone: member.phone,
         method: "cash",
       }),
     });
     await assert.rejects(
-      async () => withTx(async (sql) => walkIn(sql, reqClash, receptionistUser)),
+      async () => withTx(async (sql) => walkIn(sql, reqClash, receptionist)),
       (err: any) => {
         assert.equal(err.status, 409);
         assert.equal(err.code, "CONFLICT_SLOT");
@@ -1782,31 +1801,31 @@ describe("Round 6: F-06, F-07, F-26, F-04 unit tests", () => {
 
   // F-26: Waitlist queue jumping
   it("F-26: pending offer reserves seat against newcomer; offer accepted -> 200; offer expired -> newcomer can take seat", async () => {
-    const coachId = "00000000-0000-0000-0000-000000000011";
-    const classId = "40000000-0000-0000-0000-000000000001";
-    await db.query("delete from enrollments where class_id = $1", [classId]);
-    await db.query("delete from classes where id = $1", [classId]);
-    await db.query(
-      `insert into classes (id, sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
-       values ($1, 'badminton', 'f26-test', $2, $3, 'FREQ=WEEKLY;BYDAY=MO;BYHOUR=10', current_date + 1, current_date + 14, 60, 1, 'open', 0, 300000)`,
-      [classId, coachId, validCourtId]
-    );
-
-    const mem1 = { id: "00000000-0000-0000-0000-000000000104", phone: "+84900000104", name: "Mem 1", role: "member" } as any;
-    const mem2 = { id: "00000000-0000-0000-0000-000000000105", phone: "+84900000105", name: "Mem 2", role: "member" } as any;
-    const mem3 = { id: "00000000-0000-0000-0000-000000000106", phone: "+84900000106", name: "Mem 3", role: "member" } as any;
-    const mem4 = { id: "00000000-0000-0000-0000-000000000107", phone: "+84900000107", name: "Mem 4", role: "member" } as any;
+    const coach = (await db.query<{ id: string }>(
+      `insert into users (phone, full_name, name_normalized, role, password_hash)
+       values ('+84987654908', 'G9 Coach', 'g9 coach', 'coach', 'hash') returning id`,
+    )).rows[0];
+    const court = (await db.query<{ id: string }>(
+      `insert into courts (court_code, sport, status) values ('G9-F26', 'badminton', 'ready') returning id`,
+    )).rows[0];
+    const { id: classId } = (await db.query<{ id: string }>(
+      `insert into classes (sport, level, coach_id, court_id, rrule, start_on, end_on, duration_min, capacity, status, enrolled_count, price_vnd)
+       select 'badminton', 'f26-test', $1, $2,
+              'FREQ=WEEKLY;BYDAY=MO;BYHOUR=' || extract(hour from open_time)::int,
+              (now() at time zone 'Asia/Ho_Chi_Minh')::date + 1,
+              (now() at time zone 'Asia/Ho_Chi_Minh')::date + 14,
+              slot_minutes, 1, 'open', 0, 300000
+         from center_settings where id = 1 returning id`,
+      [coach.id, court.id],
+    )).rows[0];
+    const members = (await db.query<any>(
+      `insert into users (phone, full_name, name_normalized, role, password_hash)
+       select '+8498765490' || n, 'G9 Member ' || n, 'g9 member ' || n, 'member', 'hash'
+         from generate_series(1, 4) n returning *`,
+    )).rows;
+    const [mem1, mem2, mem3, mem4] = members;
 
     try {
-      for (const m of [mem1, mem2, mem3, mem4]) {
-        await db.query(
-          `insert into users (id, phone, full_name, name_normalized, role, password_hash)
-           values ($1, $2, $3, $4, 'member', 'hash')
-           on conflict (id) do nothing`,
-          [m.id, m.phone, m.name, m.name.toLowerCase()]
-        );
-      }
-      await db.query("delete from subscriptions where user_id = any($1::uuid[])", [[mem1.id, mem2.id, mem3.id, mem4.id]]);
       await db.query(
         `insert into subscriptions (user_id, plan_id, start_on, end_on, status)
          select u, (select id from membership_plans order by price_vnd limit 1), current_date - 1, current_date + 400, 'active'
