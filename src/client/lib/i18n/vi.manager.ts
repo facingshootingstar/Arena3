@@ -3,6 +3,8 @@
  * attendance panels. One `"English": "Tiếng Việt",` per line.
  */
 export const manager: Record<string, string> = {
+  "Manager, receptionist and coach logins are issued here. Members sign themselves up.": "Tài khoản quản lý, lễ tân và HLV được cấp tại đây. Hội viên tự đăng ký.",
+  "Add a manager, receptionist or coach to give them a login.": "Thêm quản lý, lễ tân hoặc HLV để cấp tài khoản đăng nhập cho họ.",
   "Till shift open over 16 hours": "Ca thu ngân mở quá 16 giờ",
   "Shift {id}, opened {when}, is still open. Review the till and close the shift with a counted cash amount and a reason.": "Ca {id}, mở lúc {when}, vẫn chưa đóng. Kiểm tra quỹ và đóng ca với số tiền mặt đã kiểm đếm cùng lý do.",
   "Till cash difference": "Chênh lệch tiền mặt trong ca",

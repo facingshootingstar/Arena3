@@ -47,6 +47,68 @@ const { PLAN_PHASES, INTENSITIES } = await import("../services/rules.ts");
 
 let db: PGlite;
 
+describe("G8 manager accounts", () => {
+  it("creates and resets managers, audits changes, and refuses removing the last active manager", async () => {
+    const { staffCreate, staffPatch, staffResetPassword, staffRevokeSessions } = await import("./handlers/staff.ts");
+    const rollback = new Error("Roll back G8 fixtures");
+    await assert.rejects(withTx(async (sql) => {
+      // Empty tables with the real schema isolate the manager count from seed data.
+      // These transaction-local fixtures disappear on rollback; no seed row is changed.
+      for (const table of ["users", "sessions_auth", "audit_logs", "coach_sports", "user_avatars", "classes", "site_assets"]) {
+        await sql.query(`create temporary table ${table} (like public.${table} including all) on commit drop`);
+      }
+      const actor = (await sql.query<any>(
+        `insert into users (full_name,name_normalized,role,password_hash,phone)
+         values ('G8 Manager','g8 manager','manager','hash','+84987654001') returning *`,
+      ))[0];
+      const request = (body: unknown) => new Request("http://localhost/v1/staff", {
+        method: "POST", body: JSON.stringify(body),
+      });
+      const created = await staffCreate(sql, request({ full_name: "G8 Second Manager", phone: "0987654002", role: "manager" }), actor);
+      const second = created.body.staff;
+      assert.equal(created.status, 201);
+      assert.equal(second.role, "manager");
+      assert.equal(second.status, "active");
+      assert.equal(second.must_change_password, true);
+      await issueSession(sql, { ...actor, id: second.id });
+      const reset = await staffResetPassword(sql, second.id, actor);
+      assert.notEqual(reset.body.temp_password, created.body.temp_password);
+      const { verifyPassword } = await import("../services/crypto.ts");
+      const password = (await sql.query<any>(`select password_hash from users where id=$1`, [second.id]))[0];
+      assert.ok(verifyPassword(reset.body.temp_password, password.password_hash));
+      assert.ok((await sql.query<any>(`select revoked_at from sessions_auth where user_id=$1`, [second.id]))[0].revoked_at);
+
+      const patch = (id: string, body: unknown, by = actor) => staffPatch(sql, id, request(body), by);
+      const forbidden = (e: any) => e.code === "FORBIDDEN";
+      await assert.rejects(patch(actor.id, { status: "locked" }), forbidden);
+      await assert.rejects(patch(actor.id, { role: "receptionist" }), forbidden);
+      await assert.rejects(staffResetPassword(sql, actor.id, actor), forbidden);
+      await assert.rejects(staffRevokeSessions(sql, actor.id, actor), forbidden);
+      await assert.rejects(staffCreate(sql, request({ role: "manager" }), { ...actor, role: "member" }), forbidden);
+
+      assert.equal((await patch(second.id, { status: "locked" })).body.staff.status, "locked");
+      await patch(second.id, { status: "active" });
+      assert.equal((await patch(second.id, { role: "receptionist" })).body.staff.role, "receptionist");
+      await patch(second.id, { role: "manager" });
+      assert.equal((await patch(second.id, { role: "coach", sports: ["badminton"] })).body.staff.role, "coach");
+      await patch(second.id, { role: "manager" });
+      // The second manager retires the first. Its already-authorized request
+      // must still be unable to remove the remaining manager (the race case).
+      await patch(actor.id, { role: "receptionist" }, { ...actor, id: second.id });
+      const conflict = (e: any) => e.status === 409 && e.message === "At least one active manager must remain.";
+      for (const body of [{ status: "locked" }, { role: "receptionist" }, { role: "coach", sports: ["badminton"] }, { role: "manager", status: "locked" }]) {
+        await assert.rejects(patch(second.id, body), conflict);
+      }
+      assert.deepEqual(await sql.query(`select role,status from users where id=$1`, [second.id]), [{ role: "manager", status: "active" }]);
+      const audits = await sql.query<any>(`select actor_id,action from audit_logs where entity_id=$1 order by at`, [second.id]);
+      assert.equal(audits.length, 8);
+      assert.ok(audits.every((a) => a.actor_id === actor.id));
+      assert.deepEqual(audits.map((a) => a.action).sort(), ["create_staff", "reset_staff_password", "lock_staff", "unlock_staff", ...Array(4).fill("change_staff_role")].sort());
+      throw rollback;
+    }), (e) => e === rollback);
+  });
+});
+
 describe("G7 till shift safeguards", () => {
   it("requires a manager reason, preserves ownership checks, audits closure and reports cash differences", async () => {
     const rollback = new Error("Roll back G7 close fixtures");
