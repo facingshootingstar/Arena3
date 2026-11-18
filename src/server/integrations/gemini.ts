@@ -36,7 +36,7 @@ const MAX_OUT = 1024;
 let MIN_TRY_MS = 1_500;
 /** Overloaded / rate-limited / timed out: try it again soon. */
 const COOL_BUSY_MS = 60_000;
-/** Not found / not offered to this key / request rejected: leave it alone for a long time. */
+/** 404, the model is gone or not offered to this key: leave it alone for a long time. */
 const COOL_GONE_MS = 6 * 60 * 60_000;
 
 /**
@@ -140,8 +140,10 @@ type Outcome = { kind: "ok"; text: string } | { kind: "next" } | { kind: "stop" 
 
 async function errorMessage(res: Response): Promise<string> {
   try {
-    const body = (await res.json()) as { error?: { message?: string } };
-    return (body.error?.message ?? "").replace(/\s+/g, " ").slice(0, 200);
+    const body = (await res.json()) as { error?: { message?: string; details?: Array<{ reason?: string }> } };
+    // The reason (API_KEY_INVALID, …) sits in details, not in the message.
+    const reasons = (body.error?.details ?? []).map((d) => d?.reason ?? "").join(" ");
+    return `${body.error?.message ?? ""} ${reasons}`.replace(/\s+/g, " ").trim().slice(0, 200);
   } catch {
     return "";
   }
@@ -192,20 +194,23 @@ async function tryGemini(
   if (!res.ok) {
     const msg = await errorMessage(res);
     console.warn(`[assistant] gemini ${model} ${res.status}${msg ? `: ${msg}` : ""}`);
-    if (res.status === 400 && thinkingOff) {
-      // Often the thinking setting. Ask once more without it, and remember
-      // that only if it then works — a 400 for any other reason must not
-      // turn thinking back on for good.
+    // A bad key is the key, not the model: every model would say the same.
+    // Gemini answers a wrong key with 400 API_KEY_INVALID, not 401/403.
+    const badKey =
+      (res.status === 400 && /API_KEY_INVALID|API key not valid|API key expired/i.test(msg)) ||
+      ((res.status === 401 || res.status === 403) && /api key|permission|unauthori[sz]ed/i.test(msg) && !/model/i.test(msg));
+    if (badKey) return { kind: "stop" };
+    if (res.status === 400 && thinkingOff && /thinking/i.test(msg)) {
+      // The model refused the thinking setting. Ask once more without it, and
+      // remember that only if it then works.
       const again = await tryGemini(model, key, system, contents, opts, deadline, false);
       if (again.kind === "ok") noThinkingConfig.add(model);
       return again;
     }
-    // 401/403 with "API key" is the key, not the model: every model would say the same.
-    if ((res.status === 401 || res.status === 403) && /api key|permission|unauthori[sz]ed/i.test(msg) && !/model/i.test(msg)) {
-      return { kind: "stop" };
-    }
-    const busy = res.status === 429 || res.status >= 500;
-    coolUntil.set(model, Date.now() + (busy ? COOL_BUSY_MS : COOL_GONE_MS));
+    // Only 404 says the model is gone; any other 4xx is about this one request,
+    // so the next model answers and this one stays available for everyone.
+    if (res.status === 404) coolUntil.set(model, Date.now() + COOL_GONE_MS);
+    else if (res.status === 429 || res.status >= 500) coolUntil.set(model, Date.now() + COOL_BUSY_MS);
     return { kind: "next" };
   }
 

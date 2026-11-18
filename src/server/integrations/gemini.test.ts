@@ -5,7 +5,6 @@ import {
   generateAssistantReply,
   geminiModels,
   MAX_TURN_CHARS,
-  resetGeminiCooldowns,
   resetGeminiState,
   setGeminiTimingForTests,
   thinkingOffConfig,
@@ -126,19 +125,21 @@ describe("gemini model chain", () => {
   });
 
   it("asks a model again without thinkingConfig when it rejects the setting", async () => {
-    script({ "m-a": [{ status: 400, body: { error: { message: "invalid argument" } } }, ok("fine")] });
+    const refused = { message: `Invalid JSON payload received. Unknown name "thinkingLevel" at 'generation_config.thinking_config'` };
+    script({ "m-a": [{ status: 400, body: { error: refused } }, ok("fine")] });
     assert.deepEqual(await ask(), { text: "fine", source: "gemini" });
     assert.deepEqual(calls.map((c) => [c.model, c.thinking !== null]), [["m-a", true], ["m-a", false]]);
   });
 
-  it("keeps thinking off when a 400 had another cause", async () => {
+  it("does not retry or cool a model after a 400 with another cause, and keeps thinking off", async () => {
     script({
-      "m-a": [{ status: 400, body: {} }, { status: 400, body: {} }, ok("later")],
+      "m-a": [{ status: 400, body: { error: { message: "Request contains an invalid argument." } } }, ok("later")],
       "m-b": [ok("now")],
     });
     assert.deepEqual(await ask(), { text: "now", source: "gemini" });
-    resetGeminiCooldowns();
+    // No cooldown to reset: one bad request must not take m-a away from the next question.
     assert.deepEqual(await ask(), { text: "later", source: "gemini" });
+    assert.deepEqual(calls.map((c) => c.model), ["m-a", "m-b", "m-a"]);
     assert.notEqual(calls.at(-1)?.thinking, null);
   });
 
@@ -146,6 +147,26 @@ describe("gemini model chain", () => {
     script({ "m-a": [{ status: 403, body: { error: { message: "API key not valid" } } }] });
     assert.equal(await ask(), null);
     assert.equal(calls.length, 1);
+  });
+
+  it("stops at Gemini's real bad-key answer (400 API_KEY_INVALID), asks once and cools nothing", async () => {
+    // The body Gemini sends for a wrong key: 400, with the reason only in details.
+    const badKey = {
+      status: 400,
+      body: {
+        error: {
+          code: 400,
+          message: "API key not valid. Please pass a valid API key.",
+          status: "INVALID_ARGUMENT",
+          details: [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "API_KEY_INVALID", domain: "googleapis.com" }],
+        },
+      },
+    };
+    script({ "m-a": [badKey, ok("fixed key")] });
+    assert.equal(await ask(), null);
+    assert.equal(calls.length, 1);
+    // Once the key is fixed the model answers at once: it was never cooled.
+    assert.deepEqual(await ask(), { text: "fixed key", source: "gemini" });
   });
 
   it("returns null with no key, so the rules answer", async () => {
