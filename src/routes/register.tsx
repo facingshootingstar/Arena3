@@ -384,7 +384,7 @@ function Register() {
                   {error.message}
                 </p>
               ) : null}
-              <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
+              <Magnet radius={140} pull={0.22} speed={0.4} wrapperClassName="w-full" className="w-full">
                 <Button
                   type="submit"
                   disabled={
@@ -429,7 +429,7 @@ function Register() {
                   {error.message}
                 </p>
               ) : null}
-              <Magnet radius={140} pull={0.22} wrapperClassName="w-full" className="w-full">
+              <Magnet radius={140} pull={0.22} speed={0.4} wrapperClassName="w-full" className="w-full">
                 <Button type="submit" disabled={busy} className="w-full">
                   {t("Verify")}
                 </Button>
