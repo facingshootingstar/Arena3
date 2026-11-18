@@ -1,3 +1,11 @@
+/**
+ * File: src/client/components/landing/header.tsx
+ * Vai trò: Thanh điều hướng đầu trang (SiteHeader) cố định cho trang giới thiệu (landing page).
+ * Vị trí trong app: Được gắn vào LandingSmoother tại src/routes/index.tsx (route "/"),
+ * cung cấp thanh đo tiến trình cuộn trang, tự động ẩn/hiện thông minh theo hướng cuộn chuột (GSAP),
+ * chuyển đổi ngôn ngữ (LangSwitch), giao diện sáng/tối (ThemeIconToggle), điều hướng nhanh tới các khu vực
+ * và menu rút gọn dạng sheet tương thích tốt trên màn hình di động.
+ */
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
@@ -19,10 +27,10 @@ import { t, tk } from "@/client/lib/i18n";
  * reassurance does not belong in front of the decision.
  */
 const NAV: [string, string][] = [
-  ["#schedule", tk("Today's schedule")],
-  ["#courts", tk("Courts & pricing")],
   ["#classes", tk("Classes")],
   ["#coaches", tk("Coaches")],
+  ["#schedule", tk("Today's schedule")],
+  ["#courts", tk("Courts & pricing")],
 ];
 
 /**
@@ -33,14 +41,22 @@ const NAV: [string, string][] = [
  * hamburger below `xl` opens the same links as a sheet. A thin bar along its top
  * edge fills with how far down the page you are.
  */
+/**
+ * Làm gì: Hiển thị thanh điều hướng đầu trang (SiteHeader) cố định cho landing page; tích hợp thanh tiến trình cuộn trang, hiệu ứng tự động ẩn khi cuộn xuống và hiện khi cuộn lên, cùng menu sheet trên thiết bị di động.
+ * Được gọi ở: src/routes/index.tsx (component Home, truyền vào prop header của LandingSmoother tại route "/").
+ * @returns Khối JSX header cố định ở mép trên màn hình trang landing.
+ */
 export function SiteHeader() {
+  // Bước 1: Khởi tạo state điều khiển mở menu mobile (open) và các ref tham chiếu DOM (root, bar) cùng ref đồng bộ trạng thái.
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLElement>(null);
   const bar = useRef<HTMLDivElement>(null);
+  // Lưu trạng thái open vào ref để callback ScrollTrigger luôn đọc được giá trị mới nhất mà không bị stale closure.
   const openRef = useRef(open);
   openRef.current = open;
   const showRef = useRef<() => void>(() => undefined);
 
+  // Bước 2: Thiết lập hoạt ảnh GSAP cho header qua useScene: thanh tiến trình cuộn trang và hiệu ứng trượt ẩn/hiện.
   useScene(root, ({ motion }) => {
     const el = root.current;
     if (!el) return;
@@ -49,18 +65,33 @@ export function SiteHeader() {
     gsap.fromTo(
       bar.current,
       { scaleX: 0 },
-      { scaleX: 1, ease: "none", scrollTrigger: { start: 0, end: "max", scrub: motion ? 0.4 : true } },
+      {
+        scaleX: 1,
+        ease: "none",
+        scrollTrigger: {
+          start: 0,
+          end: "max",
+          scrub: motion ? 0.4 : true,
+          // The hero carries its own "Book a court". The header's copy only appears once that one
+          // has scrolled away, so a view never shows two primary buttons for the same thing.
+          onUpdate: (self) => el.toggleAttribute("data-past-hero", self.scroll() > window.innerHeight * 0.55),
+        },
+      },
     );
+    // Nếu người dùng bật chế độ giảm chuyển động (reduced-motion), giữ nguyên vị trí header cố định, không áp dụng hiệu ứng ẩn khi cuộn.
     if (!motion) return;
     let hidden = false;
     // Made now, inside the scene, so reverting it (breakpoint, unmount) always returns the header.
     const slide = gsap.quickTo(el, "yPercent", { duration: 0.32, ease: "arena" });
+    // Hàm điều khiển trượt header: next = true trượt lên (-100%) để ẩn, next = false trượt về vị trí ban đầu (0%) để hiện.
     const show = (next: boolean) => {
       if (next === hidden) return;
       hidden = next;
       slide(next ? -100 : 0);
     };
+    // Gán hàm hiện header vào ref để các hook bên ngoài (như khi mở menu mobile) có thể gọi trực tiếp.
     showRef.current = () => show(false);
+    // Tạo ScrollTrigger theo dõi sự kiện cuộn trang để quyết định ẩn hay hiện header.
     ScrollTrigger.create({
       start: 0,
       end: "max",
@@ -68,7 +99,9 @@ export function SiteHeader() {
         const y = self.scroll();
         // Ignore the top of the page and the rubber band, and never hide over an open sheet.
         if (y < 96 || openRef.current) return show(false);
+        // Bỏ qua các chuyển động cuộn quá chậm hoặc rung lắc nhẹ (vận tốc < 40 px/s) để tránh header bị giật/nhấp nháy.
         if (Math.abs(self.getVelocity()) < 40) return;
+        // Cuộn xuống (direction === 1) thì ẩn header (-100%), cuộn ngược lên (direction === -1) thì hiện lại (0%).
         show(self.direction === 1);
       },
     });
@@ -77,11 +110,13 @@ export function SiteHeader() {
     };
   });
 
+  // Bước 3: Đảm bảo header luôn hiển thị lại khi người dùng mở menu sheet trên thiết bị di động.
   // Opening the sheet brings a hidden header back.
   useEffect(() => {
     if (open) showRef.current();
   }, [open]);
 
+  // Bước 4: Lắng nghe phím Escape để người dùng có thể đóng nhanh menu mobile bằng bàn phím.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -91,8 +126,9 @@ export function SiteHeader() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // Bước 5: Render giao diện header cố định gồm thanh tiến trình cuộn, logo, thanh nav desktop, các nút hành động và menu mobile.
   return (
-    <header ref={root} className="fixed inset-x-0 top-0 z-30 border-b border-line/70 glass">
+    <header ref={root} className="group/hdr fixed inset-x-0 top-0 z-30 border-b border-line/70 glass">
       <div ref={bar} aria-hidden className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-accent" />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link to="/" className="group flex min-h-11 items-center gap-2.5" onClick={() => setOpen(false)}>
@@ -115,8 +151,10 @@ export function SiteHeader() {
         </nav>
         {/* Two zones: what the centre sells is left of the rule, what belongs to a person is right. */}
         <div className="hidden items-center gap-2 md:flex">
-          <ButtonAnchor href="#schedule">{t("Book a court")}</ButtonAnchor>
-          <span aria-hidden className="mx-1 h-6 w-px bg-line-strong/70" />
+          <span className="invisible flex items-center gap-2 opacity-0 transition-[opacity,visibility] duration-300 group-data-[past-hero]/hdr:visible group-data-[past-hero]/hdr:opacity-100">
+            <ButtonAnchor href="#schedule">{t("Book a court")}</ButtonAnchor>
+            <span aria-hidden className="mx-1 h-6 w-px bg-line-strong/70" />
+          </span>
           <ButtonLink to="/login" variant="ghost">
             {t("Sign in")}
           </ButtonLink>
@@ -150,7 +188,7 @@ export function SiteHeader() {
             <ButtonAnchor href="#schedule" onClick={() => setOpen(false)} className="mb-1 w-full">
               {t("Book a court")}
             </ButtonAnchor>
-            {NAV.slice(1).map(([href, label]) => (
+            {NAV.filter(([href]) => href !== "#schedule").map(([href, label]) => (
               <a
                 key={href}
                 href={href}

@@ -1,10 +1,14 @@
+/**
+ * File: src/client/components/landing/steps.tsx
+ * Vai trò: Component hiển thị phân đoạn quy trình 3 bước tham gia lớp học thể thao (Pick. Enrol. Train.) trên Landing page.
+ * Vị trí trong app: Được nhúng vào trang chủ (src/routes/index.tsx, route "/"), tạo trải nghiệm cuộn ghim trang (scroll-pinning) theo phong cách báo in (paper), đồng bộ trục số lăn và khối highlight di chuyển theo tiến trình cuộn của người dùng.
+ */
 import { useRef } from "react";
 import { GLBackground } from "@/client/components/fx";
 import { gsap, useScene } from "@/client/lib/gsap";
 import { t } from "@/client/lib/i18n";
 import { SplitHeading } from "./kit";
 import { rise } from "./tweens";
-import { useVenue } from "./util";
 
 /**
  * How booking works, told as you scroll, on paper.
@@ -15,45 +19,56 @@ import { useVenue } from "./util";
  * pick, hold, pay, in the order a booking really happens. On a phone the rows simply arrive one after
  * another. The markup at rest is the finished picture, which is what reduced motion gets.
  */
+/**
+ * Làm gì: Hiển thị phân đoạn hướng dẫn 3 bước đăng ký và tham gia lớp học thể thao ("Pick. Enrol. Train.") với hiệu ứng cuộn ghim trang (pinning), cuộn số bước (roll) và highlight khối bước học theo vị trí cuộn.
+ * Được gọi ở: src/routes/index.tsx (trong component Home, route "/").
+ * @returns Thẻ JSX section id="how" chứa tiêu đề, đồng hồ số cuộn bước học và danh sách 3 bước hướng dẫn.
+ */
 export function StepsScene() {
-  const venue = useVenue();
+  // Bước 1: Khởi tạo ref tham chiếu phần tử DOM gốc và định nghĩa dữ liệu 3 bước học (chọn lớp, đăng ký qua ứng dụng, tập cùng HLV).
   const root = useRef<HTMLElement>(null);
   const steps = [
     {
       n: "01",
-      title: t("Pick your slot"),
-      body: t("See which courts are free, hour by hour."),
-      tag: t("Live grid"),
+      title: t("Pick your class"),
+      body: t("Choose a sport, a level and a coach. Every class shows its timetable and the seats left."),
+      tag: t("Open classes"),
     },
     {
       n: "02",
-      title: t("Hold it for {n} minutes", { n: venue.holdMinutes }),
-      body: t("The slot is held for you. You do not pay yet."),
-      tag: t("{n}-min hold", { n: venue.holdMinutes }),
+      title: t("Enrol in the app"),
+      body: t("Seats go to whoever signs up first. Your membership has to run past the last session."),
+      tag: t("First come, first served"),
     },
     {
       n: "03",
-      title: t("Pay at the desk"),
-      body: t("Pay for each court booking or class at reception by cash or bank transfer."),
-      tag: t("Cash or transfer"),
+      title: t("Train with your coach"),
+      body: t("Every session lands in your schedule. Show your pass at the gate and the coach marks you in."),
+      tag: t("Coach-led"),
     },
   ];
 
+  // Bước 2: Thiết lập hiệu ứng hoạt họa GSAP với useScene (tự động dọn dẹp khi unmount hoặc khi thay đổi kích thước màn hình).
   useScene(root, ({ motion, desktop }) => {
     const el = root.current;
+    // Bỏ qua toàn bộ hiệu ứng nếu người dùng bật tùy chọn giảm chuyển động (prefers-reduced-motion) hoặc phần tử gốc chưa gắn vào DOM.
     if (!motion || !el) return;
+    // Kích hoạt hiệu ứng xuất hiện trượt từ dưới lên (rise) cho nhãn định danh phân đoạn [data-rise].
     rise(el, "[data-rise]");
     const q = gsap.utils.selector(el);
+    // Trên màn hình di động (!desktop): không dùng hiệu ứng ghim trang (pin) mà chỉ cho từng dòng bước học trượt lên lần lượt so le 0.14s.
     if (!desktop) {
       rise(el, "[data-step]", { stagger: 0.14 });
       return;
     }
+    // Bước 3: Trên desktop, cấu hình timeline GSAP kết hợp ScrollTrigger ghim cố định phân đoạn (pin: true) trong phạm vi cuộn 170% chiều cao viewport, cuộn mượt (scrub: 0.6).
     const css = getComputedStyle(document.documentElement);
     const ink = css.getPropertyValue("--color-paper-ink").trim() || "#121410";
     const tl = gsap.timeline({
       defaults: { ease: "none" },
       scrollTrigger: { trigger: el, start: "top top", end: "+=170%", pin: true, scrub: 0.6, invalidateOnRefresh: true },
     });
+    // Bước 4: Thiết lập trạng thái ban đầu: đặt khối màu highlight (block) khớp vị trí bước 1, hiện cụm số lăn và tạo hiệu ứng parallax cho tiêu đề h2 khi cuộn.
     const rows = q("[data-step]");
     const block = q("[data-block]")[0];
     const roll = q("[data-roll]")[0];
@@ -62,13 +77,16 @@ export function StepsScene() {
     tl.fromTo(q("h2"), { y: 28 }, { y: -28, duration: 3.4 }, 0);
     // The dot marks the step you are on, so it keeps breathing even when the scroll rests.
     gsap.to(q("[data-pulse]"), { scale: 1.7, opacity: 0.35, duration: 0.9, ease: "sine.inOut", repeat: -1, yoyo: true });
+    // Bước 5: Lặp qua từng bước học để đồng bộ timeline chuyển động: di chuyển khối highlight nền, lăn trục số hiển thị bước và kích hoạt nội dung chữ.
     rows.forEach((step, i) => {
       const at = i * 1.1;
+      // Từ bước thứ hai trở đi (i > 0): trượt khối highlight nền tới dòng tương ứng, lăn con lăn số sang số thứ tự mới và giảm độ đậm (opacity: 0.6) của bước trước.
       if (i > 0) {
         tl.to(block, { y: () => step.offsetTop, height: () => step.offsetHeight, duration: 0.55, ease: "power3.inOut" }, at - 0.3);
         tl.to(roll, { yPercent: (-100 / rows.length) * i, duration: 0.55, ease: "back.inOut(1.6)" }, at - 0.3);
         tl.to(rows[i - 1].querySelectorAll("[data-copy]"), { opacity: 0.6, duration: 0.3 }, at - 0.2);
       }
+      // Tạo hiệu ứng trượt dòng bước học từ phải sang trái (x: 28 -> 0), kéo dài đường kẻ ngang (scaleX: 0 -> 1), đổi màu số bước sang mực đậm và hiện rõ chữ mô tả kèm thẻ tag.
       tl.fromTo(step, { x: 28 }, { x: 0, duration: 0.6, ease: "power3.out" }, at - 0.1);
       tl.fromTo(step.querySelector("[data-rule]"), { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power2.out" }, at);
       tl.fromTo(step.querySelector("[data-num]"), { color: "rgb(18 20 16 / 0.18)" }, { color: ink, duration: 0.4 }, at + 0.15);
@@ -77,6 +95,7 @@ export function StepsScene() {
     });
   });
 
+  // Bước 6: Render giao diện phân đoạn #how gồm nền dotgrid WebGL phản hồi chuột, tiêu đề kèm đồng hồ số cuộn bên trái và danh sách 3 bước hướng dẫn bên phải.
   return (
     // Fills the viewport on desktop so the pin never shows the dark page above or below the paper.
     <section ref={root} id="how" className="relative scroll-mt-20 overflow-hidden bg-paper text-paper-ink md:flex md:min-h-svh md:items-center">
@@ -87,10 +106,10 @@ export function StepsScene() {
       <div className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-14 pt-20 md:grid-cols-2 md:gap-16 md:pb-20 md:pt-24 lg:pl-[max(1rem,calc(9.5rem-(100vw-72rem)/2))]">
         <div>
           <p data-rise className="inline-block rounded-md bg-paper-ink px-2.5 py-1.5 font-mono text-2xs font-bold uppercase tracking-wider text-accent">
-            {t("How to book a court")}
+            {t("How to join a class")}
           </p>
           <h2 className="font-athletic mt-6 text-5xl leading-[0.95] sm:text-7xl">
-            <SplitHeading text={t("Pick. Hold. Play.")} />
+            <SplitHeading text={t("Pick. Enrol. Train.")} />
           </h2>
           {/* Which step the scroll has reached, rolling like a scoreboard. Only exists with motion. */}
           <div aria-hidden data-stage className="invisible mt-8 hidden items-end gap-4 md:flex">

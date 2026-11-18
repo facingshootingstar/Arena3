@@ -1,3 +1,10 @@
+/**
+ * File: src/routes/register.tsx
+ * Vai trò: Định nghĩa route và giao diện trang đăng ký tài khoản hội viên mới (/register) của hệ thống thể thao Lê Long Sport (Arena 3).
+ * Vị trí trong app: Tuyến đường public gồm quy trình 2 bước: điền form thông tin cá nhân (họ tên, SĐT, email, ngày sinh, người giám hộ nếu dưới 18 tuổi, đồng ý Nghị định 13/2023) và xác thực mã OTP gửi về email để kích hoạt tài khoản.
+ */
+import { Captcha, useCaptcha } from "@/client/components/captcha";
+import { OtpInput, OtpResend } from "@/client/components/otp-input";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
@@ -15,6 +22,12 @@ import { ageYears } from "@/shared/arena3/time";
 import { LegalBody } from "@/client/components/legal-page";
 import { PRIVACY, TERMS } from "@/client/lib/legal";
 
+/**
+ * Làm gì: Định nghĩa route cho trang đăng ký ("/register") thông qua TanStack Router, liên kết URL với component Register.
+ * Được gọi ở: URL /register (TanStack Router tự động nạp qua routeTree.gen.ts).
+ * @returns Route cấu hình cho đường dẫn /register.
+ * @throws Không ném lỗi.
+ */
 export const Route = createFileRoute("/register")({
   component: Register,
 });
@@ -70,11 +83,18 @@ const slot = (text: string, node: ReactNode) => {
   );
 };
 
+/**
+ * Làm gì: Component giao diện trang đăng ký tài khoản, quản lý luồng 2 bước: điền thông tin người dùng (và người giám hộ nếu dưới 18 tuổi) và xác thực mã OTP gửi qua email.
+ * Được gọi ở: src/routes/register.tsx (khai báo làm component hiển thị trong Route tại dòng 21).
+ * @returns JSX layout trang đăng ký gồm 2 cột (media thương hiệu bên trái và form đăng ký/OTP bên phải).
+ * @throws Không ném lỗi.
+ */
 function Register() {
   const navigate = useNavigate();
+  const captcha = useCaptcha();
+  const [resendAt, setResendAt] = useState(0);
   const [step, setStep] = useState<"form" | "otp">("form");
   const [otp, setOtp] = useState("");
-  const [shown, setShown] = useState("");
   const [busy, setBusy] = useState(false);
   const [legalDoc, setLegalDoc] = useState<"terms" | "privacy" | null>(null);
   // Nothing about the password is pre-filled. It used to arrive holding the
@@ -114,52 +134,80 @@ function Register() {
   // at once. 18 is the default minor age; a centre that set it higher still gets asked by the server.
   const needGuardian = askGuardian || (form.dob !== "" && ageYears(form.dob) < MINOR_AGE);
   const mismatch = confirm.length > 0 && confirm !== form.password;
+  // Kiểm tra độ mạnh mật khẩu: tối thiểu 8 ký tự, phải gồm cả chữ cái và chữ số để đảm bảo an toàn tài khoản.
   const tooWeak =
     form.password.length > 0 && !(form.password.length >= 8 && /[A-Za-z]/.test(form.password) && /\d/.test(form.password));
 
-  async function send(e: FormEvent) {
-    e.preventDefault();
+  /**
+   * Làm gì: Xử lý gửi form đăng ký tài khoản tới API /auth/register, kèm thông tin người giám hộ (nếu chưa thành niên) và captcha; sau đó chuyển sang bước xác thực OTP.
+   * Được gọi ở: src/routes/register.tsx (form onSubmit tại dòng 229 và nút gửi lại mã OtpResend onResend tại dòng 402).
+   * @param e Sự kiện FormEvent từ trình duyệt khi người dùng submit form (tùy chọn).
+   * @returns Promise<void>
+   * @throws Không ném lỗi ra ngoài; tự bắt lỗi API để hiển thị thông báo và đánh dấu trường bị lỗi trên form.
+   */
+  async function send(e?: FormEvent) {
+    // Bước 1: Ngăn hành vi tải lại trang mặc định của form, xóa lỗi cũ và kiểm tra mật khẩu xác nhận có khớp không.
+    e?.preventDefault();
     setError(null);
     if (form.password !== confirm) {
       setError({ message: t("The two passwords do not match."), field: "confirm" });
       return;
     }
+    // Bước 2: Bật trạng thái chờ (busy) và gửi thông tin đăng ký (kèm người giám hộ nếu dưới 18 tuổi và mã captcha) lên API /auth/register.
     setBusy(true);
     try {
       const res = await apiPost<{ otp?: string; sent_to?: string | null }>(
         "/auth/register",
-        needGuardian ? { ...form, guardian_name: guardian.name, guardian_phone: guardian.phone } : form,
+        { ...form, ...(needGuardian ? { guardian_name: guardian.name, guardian_phone: guardian.phone } : {}), captcha_token: captcha.token, website: captcha.website },
       );
-      setShown(res.otp ?? "");
+      // Bước 3: Đăng ký bước đầu thành công: lưu mã OTP demo (nếu có), email nhận mã, chuyển sang bước nhập OTP và đặt thời gian chờ gửi lại sau 60 giây.
       setSentTo(res.sent_to ?? null);
       setStep("otp");
+      setOtp("");
+      setResendAt(Date.now() + 60_000);
       toast.message(
         res.sent_to ? t("Code sent to {email}", { email: res.sent_to }) : t("Code generated. Check with the front desk."),
       );
     } catch (err) {
+      // Bước 4: Xử lý lỗi từ server: kiểm tra trường dữ liệu bị lỗi (field) để hiển thị thông điệp lỗi và đánh dấu viền đỏ input tương ứng.
       const field = err instanceof ApiClientError ? (err.body.field ?? null) : null;
+      // Nếu server yêu cầu người giám hộ (do minor_age của cơ sở lớn hơn 18), mở thêm trường nhập người giám hộ.
       if (field === "guardian_name") setAskGuardian(true);
       setError({ message: err instanceof Error ? tServer(err.message) : t("Could not create the account"), field });
     } finally {
+      // Bước 5: Luôn reset captcha để chuẩn bị cho lần thử tiếp theo và tắt trạng thái chờ (busy).
+      captcha.reset();
       setBusy(false);
     }
   }
 
+  /**
+   * Làm gì: Gửi mã OTP xác thực tài khoản lên API /auth/otp/verify; lưu phiên đăng nhập và chuyển hướng đến trang chủ phù hợp với vai trò người dùng.
+   * Được gọi ở: src/routes/register.tsx (form xác thực OTP onSubmit tại dòng 370).
+   * @param e Sự kiện FormEvent từ trình duyệt khi submit form nhập mã OTP.
+   * @returns Promise<void>
+   * @throws Không ném lỗi ra ngoài; tự bắt lỗi xác thực để hiển thị thông báo lỗi trên ô nhập mã OTP.
+   */
   async function verify(e: FormEvent) {
+    // Bước 1: Ngăn hành vi tải lại trang của form, xóa thông báo lỗi cũ và bật trạng thái chờ (busy).
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
+      // Bước 2: Gửi số điện thoại và mã OTP người dùng nhập lên API /auth/otp/verify để xác thực tài khoản.
       const res = await apiPost<{ token: string; user: SessionUser }>("/auth/otp/verify", {
         phone: form.phone,
         otp,
       });
+      // Bước 3: Xác thực thành công: lưu token và thông tin người dùng vào phiên đăng nhập, sau đó điều hướng về dashboard phù hợp với vai trò.
       setSession(res.token, res.user);
       navigate({ to: homeFor(res.user.role) });
     } catch (err) {
+      // Bước 4: Xử lý lỗi: nếu mã OTP sai hoặc hết hạn, hiển thị thông báo lỗi tương ứng.
       // The code box is the only input on this step, so whatever went wrong is about it.
       setError({ message: err instanceof Error ? tServer(err.message) : t("That OTP is not right"), field: "otp" });
     } finally {
+      // Bước 5: Luôn hoàn tất trạng thái chờ (busy = false) dù xác thực thành công hay thất bại.
       setBusy(false);
     }
   }
@@ -184,7 +232,7 @@ function Register() {
             <div className="max-w-sm rounded-[var(--radius-xl)] bg-pass/92 p-6 text-pass-fg">
               <SplitText
                 as="p"
-                text={t("Book a court by the hour, or pay for one class at a time.")}
+                text={t("Join a class with a coach, or book a court by the hour.")}
                 splitBy="words"
                 stagger={0.05}
                 delay={0.2}
@@ -201,11 +249,15 @@ function Register() {
         <Reveal className="w-full max-w-md" from="up">
         <SpotlightCard className="rounded-[var(--radius-xl)]" size={360} strength={0.1}>
         <Card className="relative z-[2] w-full p-6">
-          <div className="flex items-center gap-2">
+          {/* The photo panel already carries the mark on wide screens. */}
+          <div className="flex items-center gap-2 lg:hidden">
             <ArenaMark className="size-7" />
             <p className="text-2xs text-muted">Lê Long Sport</p>
           </div>
-          <h1 className="mt-3 font-display text-3xl">{t("Create an account")}</h1>
+          <h1 className="mt-3 font-display text-3xl lg:mt-0">{t("Create an account")}</h1>
+          <p className="mt-1 text-xs font-medium tabular-nums text-muted">
+            {t("Step {n} of {total}", { n: step === "form" ? 1 : 2, total: 2 })}
+          </p>
           <AnimatePresence mode="wait">
           {step === "form" ? (
             <motion.form
@@ -217,6 +269,7 @@ function Register() {
               className="mt-6 grid gap-4"
               onSubmit={send}
             >
+              <Captcha state={captcha} />
               <Field label={t("Full name")}>
                 <Input
                   required
@@ -343,7 +396,7 @@ function Register() {
                   }
                   className="w-full"
                 >
-                  {busy ? t("Sending…") : t("Send OTP")}
+                  {busy ? t("Sending…") : t("Send the code")}
                 </Button>
               </Magnet>
             </motion.form>
@@ -370,20 +423,7 @@ function Register() {
                   <>{t("We could not email the code. Ask the front desk to verify you in person.")}</>
                 )}
               </p>
-              {shown ? (
-                <p className="rounded-[var(--radius-md)] border border-hold/40 px-3 py-2 text-sm text-hold">
-                  {slot(t("Demo build: the code is {code}.", { code: SLOT }), <span className="font-medium tabular-nums">{shown}</span>)}
-                </p>
-              ) : null}
-              <Field label={t("6-digit OTP")}>
-                <Input
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  {...faulted("otp")}
-                />
-              </Field>
+              <OtpInput value={otp} onChange={setOtp} invalid={error?.field === "otp"} errorId="register-error" />
               {error ? (
                 <p id="register-error" role="alert" className="text-sm text-danger">
                   {error.message}
@@ -394,6 +434,8 @@ function Register() {
                   {t("Verify")}
                 </Button>
               </Magnet>
+              <Captcha state={captcha} />
+              <OtpResend until={resendAt} disabled={busy} onResend={() => void send()} />
             </motion.form>
           )}
           </AnimatePresence>
@@ -431,6 +473,7 @@ function Register() {
                 variant="primary"
                 size="sm"
                 onClick={() => {
+                  // Khi người dùng bấm đồng ý trong modal điều khoản: tự động đánh dấu chấp thuận dữ liệu cá nhân (pii_consent) và đóng modal.
                   setForm((f) => ({ ...f, pii_consent: true }));
                   setLegalDoc(null);
                 }}

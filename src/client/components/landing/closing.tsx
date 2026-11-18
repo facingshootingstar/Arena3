@@ -1,3 +1,10 @@
+/**
+ * File: src/client/components/landing/closing.tsx
+ * Vai trò: Thành phần kết trang (Closing CTA & Footer) của landing page cho trung tâm thể thao Lê Long Sport.
+ * Vị trí trong app: Hiển thị ở cuối trang chủ (route "/"), bao gồm 2 component:
+ * - ClosingCta: Khối kêu gọi hành động với giờ mở cửa, nút đăng ký / đăng nhập, tích hợp hiệu ứng hoạt họa GSAP và ảnh nền parallax.
+ * - SiteFooter: Chân trang chứa thông tin thương hiệu, giờ mở cửa, địa chỉ liên hệ và danh sách liên kết điều hướng nhanh.
+ */
 import { useRef } from "react";
 import { ArrowUpRight, Clock, MapPin, Phone } from "lucide-react";
 import { ArenaMark } from "@/client/components/mark";
@@ -10,16 +17,26 @@ import { useVenue } from "./util";
 import { hhmm } from "@/client/lib/venue";
 
 /** The last ask: opening hours and the two ways in, over the frontage at dusk. */
+/**
+ * Làm gì: Hiển thị khối kêu gọi hành động (Call To Action) ở cuối trang landing, giới thiệu giờ hoạt động và 2 hướng tiếp cận (đăng ký tài khoản mới hoặc đăng nhập).
+ * Được gọi ở: src/routes/index.tsx (component Landing trong route "/")
+ * @returns Khối section JSX chứa banner CTA với ảnh nền parallax, giờ mở cửa và các nút điều hướng
+ */
 export function ClosingCta() {
+  // Bước 1: Lấy giờ mở/đóng cửa từ VenueContext và khởi tạo ref tham chiếu tới thẻ section gốc.
   const venue = useVenue();
   const root = useRef<HTMLElement>(null);
+  // Bước 2: Thiết lập hiệu ứng hoạt họa GSAP cho banner khi người dùng cuộn trang tới.
   useScene(root, ({ motion }) => {
     const el = root.current;
+    // Bỏ qua hiệu ứng nếu người dùng bật chế độ giảm chuyển động (prefers-reduced-motion) hoặc ref chưa gắn vào DOM
     if (!motion || !el) return;
+    // Hiệu ứng xuất hiện trượt từ dưới lên (rise) cho các phần tử [data-rise], giãn cách 0.1 giây
     rise(el, "[data-rise]", { stagger: 0.1 });
     // The photograph drifts against the scroll inside its frame; the copy stays put.
     const img = el.querySelector("img");
     if (img) {
+      // Hiệu ứng parallax: ảnh nền dịch chuyển dọc từ -7% đến 7% theo vị trí cuộn trang; scale 1.14 để tránh lộ khoảng trắng ở viền
       gsap.fromTo(
         img,
         { yPercent: -7, scale: 1.14 },
@@ -27,6 +44,7 @@ export function ClosingCta() {
       );
     }
   });
+  // Bước 3: Render giao diện thẻ section chứa ảnh Cover hoàng hôn, giờ mở cửa trong tuần và 2 nút bấm điều hướng (đăng ký / đăng nhập).
   return (
     <section ref={root} className="relative mx-4 mb-16 overflow-hidden rounded-[var(--radius-xl)] md:mx-auto md:max-w-6xl">
       <Cover slot="landing.closing" alt={t("The Lê Long Sport frontage at dusk")} className="min-h-[26rem]" scrim="hero">
@@ -35,7 +53,7 @@ export function ClosingCta() {
             {t("{open}-{close} · seven days", { open: hhmm(venue.open), close: hhmm(venue.close) })}
           </p>
           <p data-rise className="mt-3 max-w-sm text-on-media-muted on-media">
-            {t("Reception is open during all opening hours. You can book at the desk without an account.")}
+            {t("Create an account to enrol in a class. Reception is open all day if you would like to meet the coaches first.")}
           </p>
           <div data-rise className="mt-6 flex flex-wrap gap-3">
             <ButtonLink to="/register" size="lg" className="group bg-on-media text-night hover:bg-on-media">
@@ -57,8 +75,15 @@ export function ClosingCta() {
   );
 }
 
+/**
+ * Làm gì: Hiển thị chân trang (Footer) của website với nhận diện thương hiệu Lê Long Sport, thông tin liên hệ và danh sách liên kết điều hướng nhanh.
+ * Được gọi ở: src/routes/index.tsx (component Landing trong route "/")
+ * @returns Khối footer JSX chứa logo, thông tin giờ hoạt động, liên kết nhanh và dòng bản quyền
+ */
 export function SiteFooter() {
+  // Bước 1: Lấy giờ mở và đóng cửa của trung tâm thể thao từ VenueContext.
   const venue = useVenue();
+  // Bước 2: Render bố cục chân trang gồm 3 cột thông tin (giới thiệu trung tâm, thông tin liên hệ/giờ mở cửa, danh sách liên kết khám phá) và thanh bản quyền dưới cùng.
   return (
     <footer className="border-t border-line bg-surface/60">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-[1.4fr_1fr_1fr]">
@@ -68,7 +93,7 @@ export function SiteFooter() {
             <span className="font-display text-xl font-bold">Lê Long Sport</span>
           </div>
           <p className="mt-4 max-w-xs text-sm text-muted">
-            {t("Indoor sports centre with court booking and classes.")}
+            {t("Indoor sports centre with coached classes and court booking.")}
           </p>
         </div>
 
@@ -94,12 +119,12 @@ export function SiteFooter() {
           <p className="kicker text-2xs text-muted">{t("Explore")}</p>
           <ul className="mt-3 grid gap-0 text-sm sm:mt-4 sm:gap-1">
             {[
+              ["#classes", t("Open classes")],
+              ["#coaches", t("Coaches")],
+              ["#how", t("How to join a class")],
               ["#schedule", t("Today's schedule")],
               ["#courts", t("Courts & pricing")],
-              ["#classes", t("Open classes")],
-              ["#how", t("How booking works")],
               ["#facilities", t("Facilities")],
-              ["#coaches", t("Coaches")],
               ["/credits", t("Media Credits")],
             ].map(([href, label]) => (
               <li key={href}>

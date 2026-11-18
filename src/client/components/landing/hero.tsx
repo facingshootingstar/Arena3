@@ -1,3 +1,9 @@
+/**
+ * Mục đích: Định nghĩa Hero section và dải thống kê (StatsBand) cho trang chủ Lê Long Sport.
+ * Vị trí trong dự án: Màn hình đầu tiên (above the fold) tại route "/" (src/routes/index.tsx).
+ * Vai trò: Giới thiệu tổng quan trung tâm thể thao, hiển thị video nền, hiệu ứng shader WebGL,
+ * cập nhật số giờ sân trống theo thời gian thực và điều hướng người dùng đến đặt sân hoặc xem lớp học.
+ */
 import { useRef } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
@@ -20,6 +26,7 @@ import type { Court } from "@/client/components/court-grid";
 /** The first free hour on the grid, offered in the hero as the thing to take. */
 export type NextFree = { court: Court; hour: number; price: number | null };
 
+// Đăng ký các plugin GSAP hỗ trợ hoạt ảnh cuộn trang, tách chữ, giải mã ký tự và chuyển động theo đường cong
 registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
 
 /**
@@ -34,9 +41,22 @@ registerGsap(ScrollTrigger, SplitText, ScrambleTextPlugin, MotionPathPlugin);
  * Elements marked `data-enter` start hidden in CSS (styles.css) only when motion is allowed, so
  * the server-rendered page never shows the copy for a frame before the timeline hides it.
  */
+/**
+ * Làm gì: Render phần Hero của trang chủ giới thiệu trung tâm thể thao Lê Long Sport, hiển thị video nền, shader WebGL, trạng thái mở cửa, số giờ trống và các nút kêu gọi hành động (CTA).
+ * Được gọi ở: src/routes/index.tsx (component Home tại route "/")
+ * @param isOpen Trạng thái mở cửa của trung tâm (true: đang mở, false: đóng, null: chưa xác định).
+ * @param freeHours Tổng số giờ sân còn trống trong ngày được chọn.
+ * @param openClasses Số lớp học đang mở tuyển sinh; nếu có sẽ được ưu tiên hiển thị trước số giờ sân trống.
+ * @param day Chuỗi mô tả ngày đang xem (ví dụ: "hôm nay", "ngày mai").
+ * @param cheapestHour Mức giá thuê sân rẻ nhất theo giờ để hiển thị giá từ .../giờ.
+ * @param next Thông tin slot sân trống gần nhất có thể đặt ngay.
+ * @param onHold Hàm callback xử lý giữ chỗ khi người dùng bấm chọn slot sân trống gần nhất.
+ * @returns JSX.Element Giao diện Hero section kèm theo hoạt ảnh GSAP và shader WebGL.
+ */
 export function Hero({
   isOpen,
   freeHours,
+  openClasses,
   day,
   cheapestHour,
   next,
@@ -44,11 +64,14 @@ export function Hero({
 }: {
   isOpen: boolean | null;
   freeHours: number;
+  /** Classes taking enrolments now. When there are any, they lead the hero and courts follow. */
+  openClasses: number;
   day: string;
   cheapestHour: number;
   next: NextFree | null;
   onHold: (n: NextFree) => void;
 }) {
+  // Bước 1: Khởi tạo các hook, tham chiếu DOM và cấu hình tham số điều khiển shader
   const root = useRef<HTMLElement>(null);
   const calm = useCalm();
   // The intro plays once the boot cover lifts; run under the cover, nobody would see it.
@@ -56,7 +79,9 @@ export function Hero({
   const venue = useVenue();
   // Dials for the court shader: a fuller day lights the lines up, scrolling away lifts the camera.
   const drive = useRef({ tilt: 0, glow: 0.8 });
+  // Điều chỉnh độ sáng shader: tăng dần theo số giờ trống (tối đa 48 giờ), tối thiểu 0.35 và trần là 1.0
   drive.current.glow = Math.min(1, 0.35 + freeHours / 48);
+  // Xác định thông điệp trạng thái mở cửa hiển thị giờ đóng/mở lấy từ venue context
   const status =
     isOpen == null
       ? t("Indoor sports centre")
@@ -64,14 +89,17 @@ export function Hero({
         ? t("Open now · until {time}", { time: hhmm(venue.close) })
         : t("Closed · opens {time}", { time: hhmm(venue.open) });
 
+  // Bước 2: Thiết lập timeline hoạt ảnh GSAP và hiệu ứng cuộn trang (parallax scroll)
   useScene(root, ({ motion }) => {
     const el = root.current;
+    // Bỏ qua hoạt ảnh nếu người dùng giảm chuyển động, chưa gắn DOM hoặc màn che khởi động chưa mở
     if (!motion || !el || !open) return;
     const q = gsap.utils.selector(el);
 
     // Measure the serve before any entrance tween moves the button.
     const shuttle = q("[data-shuttle]")[0];
     const target = q("[data-cta] > :first-child")[0];
+    // Tính toán quỹ đạo bay parabol 3 điểm của quả cầu lông: bắt đầu ngoài màn hình và rơi vào nút đặt sân
     let path: { x: number; y: number }[] | null = null;
     if (shuttle && target) {
       const box = el.getBoundingClientRect();
@@ -82,11 +110,13 @@ export function Hero({
       path = [start, apex, end];
     }
 
+    // Bước 3: Cho phép hiển thị các phần tử data-enter và tạo timeline xuất hiện tuần tự
     gsap.set(q("[data-enter]"), { visibility: "visible" });
 
     const tl = gsap.timeline({ defaults: { ease: "arena-out" } });
     tl.fromTo(q("[data-media]"), { scale: 1.12 }, { scale: 1, duration: 2.4 }, 0);
 
+    // Tách dòng 1 của tiêu đề thành từng từ và trượt lên từ dưới mask để tạo hiệu ứng mượt mà
     const line1 = q("[data-line1]")[0];
     if (line1) {
       const split = SplitText.create(line1, { type: "words,lines", mask: "lines" });
@@ -99,6 +129,7 @@ export function Hero({
       { clipPath: "inset(-20% 0% -20% 0)", x: 0, duration: 1.1 },
       0.8,
     );
+    // Xuất hiện nối tiếp: trạng thái mở cửa, mô tả phụ, các nút CTA, số liệu thống kê và chỉ dẫn cuộn
     tl.fromTo(q("[data-status]"), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6 }, 0.15);
     tl.fromTo(q("[data-sub]"), { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 1.15);
     tl.fromTo(q("[data-cta] > *"), { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.08 }, 1.3);
@@ -106,6 +137,7 @@ export function Hero({
     tl.fromTo(q("[data-cue]"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6 }, 1.9);
 
     // The serve: in from off-screen right, over the top, down onto the primary button.
+    // Bước 4: Diễn hoạt quả cầu lông bay theo đường cong motionPath và tạo độ nảy phản hồi trên nút CTA
     if (shuttle && target && path) {
       tl.set(shuttle, { autoAlpha: 1, x: path[0].x, y: path[0].y }, 1.45);
       tl.to(
@@ -118,6 +150,7 @@ export function Hero({
     }
 
     // The scroll cue's runner, and the copy lifting away faster than the hall as you leave.
+    // Bước 5: Cấu hình ScrollTrigger cho vạch cuộn lặp vô tận và hiệu ứng nghiêng camera WebGL
     gsap.fromTo(q("[data-cue-run]"), { y: -20 }, { y: 48, duration: 2.1, ease: "sine.inOut", repeat: -1, delay: 2 });
     // Plain scroll positions from layout (the hero's top reaching the top of the view, then its
     // bottom leaving it), with no trigger element on purpose. The footage's data-speed="auto"
@@ -134,6 +167,7 @@ export function Hero({
         invalidateOnRefresh: true,
       },
     });
+    // Hiệu ứng parallax: khối văn bản trôi lên nhanh hơn nền và mờ dần khi cuộn trang
     gsap.to(q("[data-copy]"), {
       yPercent: -18,
       autoAlpha: 0.15,
@@ -147,6 +181,7 @@ export function Hero({
     });
   }, [open]);
 
+  // Bước 6: Render giao diện Hero section với video nền, shader WebGL và nội dung văn bản
   return (
     <section ref={root} data-landing-hero className="landing-hero grain relative overflow-hidden">
       {/* Taller than the frame and slowed by the smoother, so the hall lags behind the copy. */}
@@ -180,8 +215,8 @@ export function Hero({
 
           {/* One headline, two lines: the setup in white, the payoff tinted. */}
           <h1 data-enter className="mt-4">
-            <span key={t("Book courts and classes")} data-line1 className="display-xl block">
-              {t("Book courts and classes")}
+            <span key={t("Learn with a coach")} data-line1 className="display-xl block">
+              {t("Learn with a coach")}
             </span>
             <span className="display-xl block">
               <span data-line2 className="lime-glow-text inline-block py-[0.12em] -my-[0.12em]">
@@ -191,29 +226,29 @@ export function Hero({
           </h1>
 
           <p data-enter data-sub className="mt-5 max-w-lg text-on-media-muted">
-            {t("Indoor sports centre. Open {open}-{close}, every day. Book a court online or at the front desk.", {
+            {t("Badminton, basketball and volleyball classes for every level, each led by a coach. Open {open}-{close}, every day, with courts to practise on between lessons.", {
               open: hhmm(venue.open),
               close: hhmm(venue.close),
             })}
           </p>
 
-          {/* The order is the funnel: see a free hour, take it, come back. Membership is the third visit. */}
+          {/* The order is the funnel: find a class first; a court to practise on is the second ask. */}
           <div data-enter data-cta className="mt-8 flex flex-wrap gap-3">
             <ButtonAnchor
-              href="#schedule"
+              href="#classes"
               size="lg"
               className="group bg-accent text-accent-fg font-semibold shadow-[var(--shadow-accent-lg)] hover:bg-accent-hover"
             >
-              {t("Book a court")}
+              {t("See open classes")}
               <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
             </ButtonAnchor>
             <ButtonAnchor
-              href="#courts"
+              href="#schedule"
               variant="outline"
               size="lg"
               className="group border-on-media/40 bg-on-media/10 text-on-media shadow-none backdrop-blur-sm hover:border-on-media/70 hover:bg-on-media/20"
             >
-              {t("See courts & pricing")}
+              {t("Book a court")}
               <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </ButtonAnchor>
           </div>
@@ -221,15 +256,21 @@ export function Hero({
           {/* The live number is the argument for the button above, so it is the biggest thing here. */}
           <p data-enter data-free-big className="mt-8 flex items-baseline gap-3">
             <LiveCount
-              value={freeHours}
+              value={openClasses || freeHours}
               className="hero-free-big font-display font-black leading-none text-accent [font-stretch:78%]"
             />
-            <span className="kicker text-xs text-on-media-muted">{t("court hours free {day}", { day })}</span>
+            <span className="kicker text-xs text-on-media-muted">
+              {openClasses ? t("classes open for enrolment") : t("court hours free {day}", { day })}
+            </span>
           </p>
           <p data-enter data-free className="mt-3 text-sm text-on-media-muted">
-            {t("From {price}/hr · held for {hold} minutes when you pick a slot.", {
-              price: money(cheapestHour), hold: venue.holdMinutes,
-            })}
+            {openClasses
+              ? t("Seats go to whoever signs up first · {n} court hours free {day} for practice, from {price}/hr.", {
+                  n: freeHours, day, price: money(cheapestHour),
+                })
+              : t("From {price}/hr · held for {hold} minutes when you pick a slot.", {
+                  price: money(cheapestHour), hold: venue.holdMinutes,
+                })}
           </p>
         </div>
 
@@ -262,23 +303,28 @@ export function Hero({
  * the schedule with that hour already chosen, one step from the hold.
  */
 function NextFreeCard({ next, day, onHold }: { next: NextFree; day: string; onHold: (n: NextFree) => void }) {
+  // Bước 1: Khởi tạo DOM ref để tham chiếu đến thẻ vé và kiểm tra trạng thái mở màn che (boot cover).
   const ref = useRef<HTMLDivElement>(null);
   const open = useBootOpen();
+  // Bước 2: Thiết lập hiệu ứng xuất hiện riêng cho thẻ vé (tách khỏi timeline hero để chờ đồng hồ client loại bỏ giờ đã qua).
   // Its own entrance, not the hero timeline's: the card only exists once the client clock has
   // ruled out finished hours, which is after that timeline has already been built.
   useScene(
     ref,
     ({ motion }) => {
       if (!motion || !open || !ref.current) return;
+      // Trì hoãn 1.7s chờ hero ổn định, sau đó trượt nhẹ từ dưới lên (y: 24 -> 0) và phóng to về kích thước chuẩn.
       gsap.fromTo(ref.current, { autoAlpha: 0, y: 24, scale: 0.97 }, { autoAlpha: 1, y: 0, scale: 1, duration: 0.8, delay: 1.7, ease: "arena-out" });
     },
     [open],
   );
+  // Bước 3: Tra cứu thông tin môn thể thao của sân và xác định tên hiển thị theo ngôn ngữ hiện tại (tiếng Việt hoặc tiếng Anh).
   const { sports } = useSports();
   const lang = useLang();
   const venue = useVenue();
   const sport = sports.find((s) => s.code === next.court.sport);
   const sportName = sport ? (lang === "vi" ? sport.name_vi : sport.name_en) : next.court.sport;
+  // Bước 4: Hiển thị giao diện thẻ vé (ticket) gồm mã sân, giờ trống gần nhất, giá thuê và nút chọn giữ chỗ.
   return (
     <div
       ref={ref}
@@ -314,9 +360,11 @@ function NextFreeCard({ next, day, onHold }: { next: NextFree; day: string; onHo
  * the clock moves an hour along and the number changes, it rolls from the old figure to the new.
  */
 function LiveCount({ value, className }: { value: number; className?: string }) {
+  // Bước 1: Khởi tạo các ref lưu phần tử DOM hiển thị số, giá trị đếm trước đó (prev) và mốc thời gian mount (born).
   const ref = useRef<HTMLSpanElement>(null);
   const prev = useRef<number | null>(null);
   const born = useRef<number | null>(null);
+  // Bước 2: Đăng ký hiệu ứng chạy số động (count-up) bằng GSAP mỗi khi giá trị value thay đổi.
   useScene(
     ref,
     ({ motion }) => {
@@ -328,18 +376,22 @@ function LiveCount({ value, className }: { value: number; className?: string }) 
       const from = wait > 0 ? 0 : (prev.current ?? 0);
       prev.current = value;
       if (!motion || !el) return;
+      // Khởi tạo đối tượng giá trị trung gian và hàm paint cập nhật trực tiếp vào textContent để tránh re-render React liên tục.
       const o = { v: from };
       const paint = () => {
         el.textContent = String(Math.round(o.v));
       };
       paint();
+      // Chạy tween biến thiên từ giá trị cũ đến giá trị mới trong 1.2s với gia tốc power3.out mượt mà.
       gsap.to(o, { v: value, duration: 1.2, delay: Math.max(0, wait), ease: "power3.out", onUpdate: paint, onComplete: paint });
+      // Dọn dẹp tween khi unmount hoặc đổi giá trị: gán ngay textContent về số đích cuối cùng.
       return () => {
         el.textContent = String(value);
       };
     },
     [value],
   );
+  // Bước 3: Trả về phần tử span với class tabular-nums để giữ chiều rộng chữ số cố định, tránh xô lệch layout khi số nhảy.
   return (
     <span key={value} ref={ref} className={`tabular-nums ${className ?? ""}`}>
       {value}
@@ -349,19 +401,24 @@ function LiveCount({ value, className }: { value: number; className?: string }) 
 
 /** Text that decodes into place, and decodes again whenever it changes (closed → open). */
 function Scramble({ text }: { text: string }) {
+  // Bước 1: Khởi tạo DOM ref liên kết với thẻ span hiển thị chữ.
   const ref = useRef<HTMLSpanElement>(null);
+  // Bước 2: Kích hoạt hiệu ứng giải mã ký tự (scramble text) bằng GSAP mỗi khi chuỗi text thay đổi.
   useScene(
     ref,
     ({ motion }) => {
       const el = ref.current;
       if (!motion || !el) return;
+      // Đảo ngẫu nhiên các ký tự chữ hoa trong 1s với độ trễ 0.15s trước khi hiển thị nội dung thực tế.
       gsap.to(el, { duration: 1, scrambleText: { text, chars: "upperCase", speed: 0.5, revealDelay: 0.15 } });
+      // Dọn dẹp hiệu ứng: khôi phục ngay chuỗi văn bản gốc nếu component bị unmount giữa chừng.
       return () => {
         el.textContent = text;
       };
     },
     [text],
   );
+  // Bước 3: Render thẻ span; thuộc tính key={text} ép React tạo DOM mới khi đổi text để kích hoạt lại useScene.
   return (
     <span key={text} ref={ref}>
       {text}
@@ -369,6 +426,11 @@ function Scramble({ text }: { text: string }) {
   );
 }
 
+/**
+ * Làm gì: Render biểu tượng quả cầu lông 2D bằng SVG dùng cho hiệu ứng bay theo quỹ đạo (motionPath) đáp xuống nút "Book a court" ở phần hero.
+ * Được gọi ở: src/client/components/landing/hero.tsx (component Hero, dòng 249).
+ * @returns Thẻ span chứa SVG quả cầu lông, đặt aria-hidden="true" vì chỉ mang tính chất trang trí thị giác.
+ */
 function Shuttle() {
   return (
     <span
@@ -388,14 +450,18 @@ function Shuttle() {
 
 /**
  * The band that earns the centre's credibility in three seconds: each figure carries the line
- * that makes it checkable, and the first is today's live count. The numbers count up as the band
- * arrives; the cells rise in one after another.
+ * that makes it checkable. Today's live count is not repeated here: the hero directly above owns
+ * it, and it is the one figure that glows. The numbers count up as the band arrives; the cells
+ * rise in one after another.
  */
-export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: string; courts?: CatalogCourt[] }) {
+export function StatsBand({ courts }: { courts?: CatalogCourt[] }) {
+  // Bước 1: Lấy cấu hình trung tâm (giờ mở/đóng cửa) và khởi tạo ref cho container gốc.
   const venue = useVenue();
   const root = useRef<HTMLElement>(null);
+  // Bước 2: Đăng ký hiệu ứng cuộn trang (ScrollTrigger) để các ô số liệu lần lượt trượt lên khi người dùng cuộn tới.
   useScene(root, ({ motion }) => {
     if (!motion || !root.current) return;
+    // Kích hoạt khi đỉnh phần tử chạm mốc 85% chiều cao viewport, chạy một lần duy nhất (once: true) với khoảng trễ so le (stagger 0.09s).
     gsap.fromTo(root.current.querySelectorAll("[data-cell]"), { autoAlpha: 0, y: 26 }, {
       autoAlpha: 1,
       y: 0,
@@ -404,10 +470,13 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
       scrollTrigger: { trigger: root.current, start: "top 85%", once: true },
     });
   });
+  // Bước 3: Lấy danh mục môn thể thao, ngôn ngữ hiển thị và tính toán tổng số sân đang hoạt động.
   const { sports } = useSports();
   const lang = useLang();
+  // Lọc bỏ các sân đã ngừng hoạt động (retired); dự phòng 16 sân nếu danh sách từ server chưa sẵn sàng.
   const liveCourts = courts ? courts.filter((c) => c.status !== "retired") : [];
   const totalCourts = liveCourts.length || 16;
+  // Tổng hợp số lượng sân theo từng môn thành chuỗi tóm tắt (ví dụ: '8 Cầu lông · 4 Bóng rổ · 4 Bóng chuyền').
   const sportsSummary = sports
     .map((s) => {
       const cnt = liveCourts.filter((c) => c.sport === s.code).length;
@@ -416,12 +485,13 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
     .join(" · ");
   const courtsNote = sportsSummary || t("All active courts and halls");
 
+  // Bước 4: Xây dựng danh sách 3 số liệu tin cậy cốt lõi: số HLV trưởng, tổng số sân và tổng số giờ mở cửa mỗi ngày.
   const stats = [
-    { to: freeHours, suffix: "", label: t("Court hours free"), note: t("Live from the booking grid · {day}", { day }), href: "#schedule" },
+    { to: 4, suffix: "", label: t("Head coaches"), note: t("One head coach per sport"), href: "#coaches" },
     { to: totalCourts, suffix: "", label: t("Courts & bays"), note: courtsNote, href: "#courts" },
     { to: venue.close - venue.open, suffix: "h", label: t("Open every day"), note: t("{open}-{close}, every day", { open: hhmm(venue.open), close: hhmm(venue.close) }), href: "#schedule" },
-    { to: 4, suffix: "", label: t("Head coaches"), note: t("One head coach per sport"), href: "#coaches" },
   ];
+  // Bước 5: Render dải số liệu với nền cực quang GLBackground (aurora) và lưới 3 ô hiển thị hiệu ứng tăng số CountTo.
   return (
     <section ref={root} className="grain relative overflow-hidden border-y border-line bg-bg text-fg">
       <GLBackground
@@ -432,8 +502,8 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
         opacity={0.28}
         fallback={<div className="wash wash-accent -left-24 -top-32 size-80 opacity-40" />}
       />
-      {/* A bento of four: the live count takes the wide tile, the fixed facts sit beside it. The hairlines are the gap, not per-cell borders. */}
-      <div className="relative z-[1] mx-auto grid max-w-6xl grid-cols-2 gap-px bg-line/70 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+      {/* Three fixed facts: the court count takes the wide tile. The hairlines are the gap, not per-cell borders. */}
+      <div className="relative z-[1] mx-auto grid max-w-6xl grid-cols-2 gap-px bg-line/70 lg:grid-cols-[1.5fr_1fr_1fr]">
         {stats.map((s, i) => (
           <a
             key={s.label}
@@ -441,21 +511,12 @@ export function StatsBand({ freeHours, day, courts }: { freeHours: number; day: 
             href={s.href}
             className={`group relative bg-bg/75 px-5 py-8 transition-colors duration-200 hover:bg-surface sm:px-8 sm:py-10 ${
               i === 0 ? "bg-surface/75 lg:py-12" : ""
-            } ${i === 0 || i === 3 ? "col-span-2 lg:col-span-1" : ""}`}
+            } ${i === 0 ? "col-span-2 lg:col-span-1" : ""}`}
           >
-            {/* The live count leads in lime: it is the only figure that changes while you watch. */}
-            <p className={`font-display text-5xl tabular-nums leading-none sm:text-6xl ${i === 0 ? "lime-glow-text" : ""}`}>
+            <p className="font-display text-5xl tabular-nums leading-none sm:text-6xl">
               <CountTo value={s.to} suffix={s.suffix} />
             </p>
-            <p className="kicker mt-4 flex items-center gap-2.5 text-sm text-fg">
-              {s.label}
-              {i === 0 ? (
-                <span className="relative inline-flex size-2 text-accent" aria-hidden>
-                  <span className="ping-ring" />
-                  <span className="relative inline-flex size-2 rounded-full bg-accent" />
-                </span>
-              ) : null}
-            </p>
+            <p className="kicker mt-4 text-sm text-fg">{s.label}</p>
             <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-muted">{s.note}</p>
           </a>
         ))}

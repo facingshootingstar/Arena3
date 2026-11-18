@@ -1,3 +1,10 @@
+/**
+ * Tệp tích hợp các dịch vụ AI bên ngoài (Google Gemini API và xAI Grok).
+ * Cung cấp giải pháp sinh câu trả lời AI hai tầng: thử lần lượt chuỗi model Gemini Flash
+ * (mặc định gemini-3.5-flash → gemini-3.6-flash → gemini-3.1-flash-lite, đổi được qua GEMINI_MODELS),
+ * model lỗi thì tạm nghỉ; hết model thì dự phòng sang xAI Grok (grok-4.5), cuối cùng là câu trả lời theo quy tắc.
+ * Phục vụ tính năng trợ lý ảo hội viên (/v1/assistant) và gợi ý giáo án tập luyện (/v1/training-plans/suggest).
+ */
 import { readFileSync } from "node:fs";
 
 export type ChatTurn = { role: "user" | "model"; text: string };

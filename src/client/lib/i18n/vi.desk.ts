@@ -187,6 +187,12 @@ export const desk: Record<string, string> = {
   "Take it back": "Nhận lại",
   "Nothing is out right now.": "Hiện không có gì đang cho thuê.",
   "No gear is listed yet": "Chưa có dụng cụ nào trong danh sách",
+  "Add gear": "Thêm dụng cụ",
+  "List a new item, for example for a sport you have just added.": "Thêm một dụng cụ mới, ví dụ cho môn bạn vừa tạo.",
+  "e.g. Squash racket": "VD: Vợt squash",
+  "Stock": "Tồn kho",
+  "Hire price (VND)": "Giá thuê (VND)",
+  "Gear added": "Đã thêm dụng cụ",
 
   // ── desk.index ──
   "Find a member, sell a plan, take payment — three moves.": "Tìm hội viên, bán gói tập, thu tiền, ba bước.",
@@ -367,4 +373,6 @@ export const desk: Record<string, string> = {
   "Online link": "Link thanh toán online",
   "Class seat": "Chỗ học",
   "Confirmed: {name} has the seat": "Đã xác nhận: {name} đã có chỗ",
+  "Hold the member's phone up to the camera.": "Đưa điện thoại của hội viên vào trước camera.",
+  "This screen is open on localhost, which a phone cannot reach. Open the desk at this computer's network address (for example http://192.168.1.10:8080), or set VITE_PUBLIC_URL.": "Màn hình này đang mở bằng localhost, điện thoại không vào được. Hãy mở trang quầy bằng địa chỉ mạng của máy này (ví dụ http://192.168.1.10:8080) hoặc đặt VITE_PUBLIC_URL.",
 };
